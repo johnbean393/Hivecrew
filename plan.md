@@ -582,8 +582,22 @@ Workflow:
    - Users can specify an output directory in Settings
       - On finish, the app will move the files to /Volumes/Shared/outbox/
       - The app will then move the files to the output directory
-- Timeout (default to 20 minutes) / max-iterations (default to 100 iterations) enforcement
-- User intervention: pause, add instructions mid trace, take over, resume with extra instructions
+- Operating limits
+   - Timeout (default to 30 minutes)
+   - Max-iterations (default to 100 iterations)
+- Finish handlers for asking user questions
+- User intervention:
+   - Pause
+      - User can pause, take over, then resume the agent
+      - VM is "in-use" in the paused state, cannot be used by another agent
+   - Resume
+      - Resume with extra instructions
+   - Add instructions mid trace
+      - Add a prompt bar to bottom of the the VM inspector view for the agent trace
+- Better state indication
+   - When the LLM ends by having a non "tool_calls" finish reason, call the LLM 1 more time, making it use **JSON structured output** to check if the task successfully completed or not (e.g. "Did the task successfully complete? Respond with `true` or `false`")
+   - Display the result in the Dashboard, session trace, using the existing indicators, instead of the "Completed" status even if the task failed
+   - Support a paused state
 
 **Milestone**: End-to-end task with file inputs/outputs; user can intervene mid-task; timeouts / max-iterations work.
 
@@ -593,6 +607,7 @@ Workflow:
    - Create new VMs from templates
       - Allow modifications if possible during creation (e.g. more RAM, more disk, etc.)
 - Warm VM pool with configurable size
+   - Max warm VMs (default to 1)
    - Max idle time (default to 30 minutes)
 
 **Milestone**: Create new (or edited) VMs from templates; Spin up task in < 5 seconds (warm) or < 90 seconds (cold); 4+ concurrent agents stable.
