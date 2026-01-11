@@ -205,13 +205,13 @@ public final class ToolSchemaBuilder: Sendable {
             
         case .scroll:
             return (
-                "Scroll at the specified screen position.",
+                "Scroll at the specified screen position. Values are in lines (not pixels). Use values like 3-5 to scroll a few lines, or 10-20 for larger scrolls.",
                 objectSchema(
                     properties: [
                         "x": numberProperty("X coordinate where to scroll"),
                         "y": numberProperty("Y coordinate where to scroll"),
-                        "deltaX": numberProperty("Horizontal scroll amount (positive = right)"),
-                        "deltaY": numberProperty("Vertical scroll amount (positive = down)")
+                        "deltaX": numberProperty("Horizontal scroll amount in lines (positive = right, negative = left)"),
+                        "deltaY": numberProperty("Vertical scroll amount in lines (positive = scroll down to see content below, negative = scroll up)")
                     ],
                     required: ["x", "y", "deltaX", "deltaY"]
                 )

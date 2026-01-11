@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Hivecrew}/HivecrewGuestAgent",
+            "name": "Debug HivecrewGuestAgent (HivecrewGuestAgent)",
+            "program": "${workspaceFolder:Hivecrew}/HivecrewGuestAgent/.build/debug/HivecrewGuestAgent",
+            "preLaunchTask": "swift: Build Debug HivecrewGuestAgent (HivecrewGuestAgent)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Hivecrew}/HivecrewGuestAgent",
+            "name": "Release HivecrewGuestAgent (HivecrewGuestAgent)",
+            "program": "${workspaceFolder:Hivecrew}/HivecrewGuestAgent/.build/release/HivecrewGuestAgent",
+            "preLaunchTask": "swift: Build Release HivecrewGuestAgent (HivecrewGuestAgent)"
+        }
+    ]
+}
