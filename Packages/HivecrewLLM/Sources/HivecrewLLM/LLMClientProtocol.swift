@@ -20,15 +20,11 @@ public protocol LLMClientProtocol: Sendable {
     /// - Parameters:
     ///   - messages: The conversation messages
     ///   - tools: Optional tool definitions for function calling
-    ///   - temperature: Optional temperature for response randomness (0.0 - 2.0)
-    ///   - maxTokens: Optional maximum tokens in the response
     /// - Returns: The LLM response
     /// - Throws: LLMError if the request fails
     func chat(
         messages: [LLMMessage],
-        tools: [LLMToolDefinition]?,
-        temperature: Double?,
-        maxTokens: Int?
+        tools: [LLMToolDefinition]?
     ) async throws -> LLMResponse
     
     /// Test the connection to the LLM provider
@@ -36,23 +32,24 @@ public protocol LLMClientProtocol: Sendable {
     /// - Returns: True if the connection is successful
     /// - Throws: LLMError if the connection fails
     func testConnection() async throws -> Bool
+    
+    /// List available models from the provider
+    ///
+    /// - Returns: List of model IDs
+    /// - Throws: LLMError if the request fails
+    func listModels() async throws -> [String]
 }
 
 // MARK: - Default Implementations
 
 extension LLMClientProtocol {
-    /// Send a chat completion request with default parameters
-    public func chat(
-        messages: [LLMMessage],
-        tools: [LLMToolDefinition]? = nil,
-        temperature: Double? = nil,
-        maxTokens: Int? = nil
-    ) async throws -> LLMResponse {
-        try await chat(messages: messages, tools: tools, temperature: temperature, maxTokens: maxTokens)
-    }
-    
     /// Simple chat with just messages
     public func chat(messages: [LLMMessage]) async throws -> LLMResponse {
-        try await chat(messages: messages, tools: nil, temperature: nil, maxTokens: nil)
+        try await chat(messages: messages, tools: nil)
+    }
+    
+    /// Default implementation returns empty list (providers can override)
+    public func listModels() async throws -> [String] {
+        return []
     }
 }

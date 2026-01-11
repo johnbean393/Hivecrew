@@ -18,6 +18,38 @@ public final class ToolSchemaBuilder: Sendable {
         AgentMethod.allCases.map { buildToolDefinition(for: $0) }
     }
     
+    /// Build essential CUA (Computer Use Agent) tools only
+    /// This is the recommended set for most agent tasks - compact and efficient
+    /// Note: Screenshot is NOT included because the agent loop automatically captures
+    /// screenshots after each action and includes them in the next LLM call.
+    public func buildCUATools() -> [LLMToolDefinition] {
+        let essentialMethods: [AgentMethod] = [
+            // App control
+            .openApp,
+            .openUrl,
+            
+            // Mouse input
+            .mouseClick,
+            .mouseDrag,
+            .scroll,
+            
+            // Keyboard input
+            .keyboardType,
+            .keyboardKey,
+            
+            // Basic file operations
+            .runShell,
+            
+            // Flow control
+            .wait,
+            
+            // User interaction
+            .askTextQuestion,
+            .askMultipleChoice
+        ]
+        return essentialMethods.map { buildToolDefinition(for: $0) }
+    }
+    
     /// Build tool definitions for a subset of methods
     public func buildTools(for methods: [AgentMethod]) -> [LLMToolDefinition] {
         methods.map { buildToolDefinition(for: $0) }
@@ -283,6 +315,30 @@ public final class ToolSchemaBuilder: Sendable {
             return (
                 "Initiate a graceful shutdown of the virtual machine.",
                 emptyObjectSchema()
+            )
+            
+        // User interaction tools
+        case .askTextQuestion:
+            return (
+                "Ask the user an open-ended text question when you need clarification or additional information to complete the task.",
+                objectSchema(
+                    properties: [
+                        "question": stringProperty("The question to ask the user")
+                    ],
+                    required: ["question"]
+                )
+            )
+            
+        case .askMultipleChoice:
+            return (
+                "Ask the user a multiple choice question when you need them to select from a set of predefined options.",
+                objectSchema(
+                    properties: [
+                        "question": stringProperty("The question to ask the user"),
+                        "options": arrayProperty("The options for the user to choose from", itemType: ["type": "string"])
+                    ],
+                    required: ["question", "options"]
+                )
             )
         }
     }

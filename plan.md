@@ -548,7 +548,10 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 
 ### Phase 3.5: Agent Loop MVP
 - AgentRunner with basic loop (observe → decide → execute)
-- Dashboard: new task form, run task, see status
+   - Implement agentic loop
+   - Implement tools (screenshot, open_app, open_file, click, type, etc.)
+   - Consider future changes for user intervention (pause, add instructions, take over, resume)
+- Dashboard: new task prompt bar (with model selector), run task, see status
 - Agent Environments: live activity log, screenshot updates
 - Basic tracing (JSON log + screenshots saved)
 

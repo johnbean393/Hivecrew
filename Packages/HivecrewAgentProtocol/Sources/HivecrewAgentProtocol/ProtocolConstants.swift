@@ -28,8 +28,9 @@ public enum AgentProtocol {
     public static let heartbeatInterval: TimeInterval = 5.0
     
     /// Connection timeout in seconds
-    public static let connectionTimeout: TimeInterval = 10.0
+    public static let connectionTimeout: TimeInterval = 15.0
     
-    /// Maximum message size (16 MB)
-    public static let maxMessageSize = 16 * 1024 * 1024
+    /// Maximum message size (64 MB)
+    public static let maxMessageSize = 64 * 1024 * 1024
+    
 }

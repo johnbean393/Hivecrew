@@ -14,6 +14,15 @@ private typealias TextParam = MessageParam.ContentPartTextParam
 private typealias ImageParam = MessageParam.ContentPartImageParam
 private typealias ToolCallParam = MessageParam.AssistantMessageParam.ToolCallParam
 
+/// Response from /v1/models endpoint
+private struct ModelsResponse: Decodable {
+    let data: [ModelInfo]
+    
+    struct ModelInfo: Decodable {
+        let id: String
+    }
+}
+
 /// LLM client implementation using the MacPaw OpenAI library
 ///
 /// This client supports:
@@ -57,22 +66,16 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     
     public func chat(
         messages: [LLMMessage],
-        tools: [LLMToolDefinition]?,
-        temperature: Double?,
-        maxTokens: Int?
+        tools: [LLMToolDefinition]?
     ) async throws -> LLMResponse {
         // Convert messages to OpenAI format
         let openAIMessages = try messages.map { try convertMessage($0) }
-        
         // Convert tools to OpenAI format
         let openAITools = tools?.compactMap { convertTool($0) }
-        
         // Build the query
         let query = ChatQuery(
             messages: openAIMessages,
             model: configuration.model,
-            maxCompletionTokens: maxTokens,
-            temperature: temperature,
             tools: openAITools
         )
         
@@ -87,10 +90,16 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
             }
             throw LLMError.networkError(underlying: error)
         } catch let error as DecodingError {
-            throw LLMError.decodingError(underlying: error)
+            // Extract detailed decoding error info
+            let detailedMessage = extractDecodingErrorDetails(error)
+            print("[HivecrewLLM] Decoding error with library, trying raw HTTP fallback: \(detailedMessage)")
+            
+            // Fall back to raw HTTP request which has more lenient parsing
+            return try await chatRaw(messages: messages, tools: tools)
         } catch {
             // Try to extract more info from the error
             let errorMessage = error.localizedDescription
+            print("[HivecrewLLM] Chat error: \(errorMessage)")
             if errorMessage.contains("401") || errorMessage.contains("unauthorized") {
                 throw LLMError.authenticationError(message: errorMessage)
             } else if errorMessage.contains("429") || errorMessage.contains("rate limit") {
@@ -100,14 +109,101 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         }
     }
     
+    /// Extract detailed information from a DecodingError
+    private func extractDecodingErrorDetails(_ error: DecodingError) -> String {
+        switch error {
+        case .typeMismatch(let type, let context):
+            let path = context.codingPath.map { $0.stringValue }.joined(separator: ".")
+            return "Type mismatch: expected \(type) at path '\(path)'. \(context.debugDescription)"
+        case .valueNotFound(let type, let context):
+            let path = context.codingPath.map { $0.stringValue }.joined(separator: ".")
+            return "Value not found: expected \(type) at path '\(path)'. \(context.debugDescription)"
+        case .keyNotFound(let key, let context):
+            let path = context.codingPath.map { $0.stringValue }.joined(separator: ".")
+            return "Key not found: '\(key.stringValue)' at path '\(path)'. \(context.debugDescription)"
+        case .dataCorrupted(let context):
+            let path = context.codingPath.map { $0.stringValue }.joined(separator: ".")
+            return "Data corrupted at path '\(path)'. \(context.debugDescription)"
+        @unknown default:
+            return error.localizedDescription
+        }
+    }
+    
     public func testConnection() async throws -> Bool {
         // Send a simple message to test the connection
         let testMessages: [LLMMessage] = [
             .user("Hello")
         ]
         
-        let _ = try await chat(messages: testMessages, tools: nil, temperature: nil, maxTokens: 5)
+        let _ = try await chat(messages: testMessages, tools: nil)
         return true
+    }
+    
+    public func listModels() async throws -> [String] {
+        // Build the models endpoint URL manually to handle base URLs ending with /v1
+        let modelsURL = buildModelsURL()
+        
+        var request = URLRequest(url: modelsURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let orgId = configuration.organizationId {
+            request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
+        }
+        request.timeoutInterval = configuration.timeoutInterval
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw LLMError.unknown(message: "Invalid response type")
+            }
+            
+            guard httpResponse.statusCode == 200 else {
+                let body = String(data: data, encoding: .utf8) ?? "No response body"
+                throw LLMError.unknown(message: "HTTP \(httpResponse.statusCode): \(body)")
+            }
+            
+            // Parse the response
+            let modelsResponse = try JSONDecoder().decode(ModelsResponse.self, from: data)
+            return modelsResponse.data
+                .map { $0.id }
+                .sorted()
+        } catch let error as LLMError {
+            throw error
+        } catch let error as URLError {
+            if error.code == .timedOut {
+                throw LLMError.timeout
+            }
+            throw LLMError.networkError(underlying: error)
+        } catch {
+            throw LLMError.unknown(message: error.localizedDescription)
+        }
+    }
+    
+    /// Build the models endpoint URL, handling base URLs that end with /v1 or /v1/
+    private func buildModelsURL() -> URL {
+        if let baseURL = configuration.baseURL {
+            // Normalize the base URL path
+            var path = baseURL.path
+            
+            // Remove trailing slash
+            while path.hasSuffix("/") {
+                path = String(path.dropLast())
+            }
+            
+            // Check if path already ends with /v1
+            if path.hasSuffix("/v1") {
+                // Base URL already has /v1, just append /models
+                return baseURL.appendingPathComponent("models")
+            } else {
+                // Need to add /v1/models
+                return baseURL.appendingPathComponent("v1/models")
+            }
+        } else {
+            // Default OpenAI URL
+            return URL(string: "https://api.openai.com/v1/models")!
+        }
     }
     
     // MARK: - Conversion Helpers
@@ -352,6 +448,221 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
             id: result.id,
             model: result.model,
             created: Date(timeIntervalSince1970: TimeInterval(result.created)),
+            choices: choices,
+            usage: usage
+        )
+    }
+    
+    // MARK: - Raw HTTP Fallback (for providers with non-standard responses)
+    
+    /// Raw HTTP-based chat method that bypasses the OpenAI library
+    /// Use this if the library fails to parse responses
+    public func chatRaw(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?
+    ) async throws -> LLMResponse {
+        let endpoint = buildChatURL()
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let orgId = configuration.organizationId {
+            request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
+        }
+        request.timeoutInterval = configuration.timeoutInterval
+        
+        // Build request body
+        var body: [String: Any] = [
+            "model": configuration.model,
+            "messages": try messages.map { try convertMessageToDict($0) }
+        ]
+        
+        if let tools = tools, !tools.isEmpty {
+            body["tools"] = tools.map { convertToolToDict($0) }
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LLMError.unknown(message: "Invalid response type")
+        }
+        
+        // Log raw response for debugging
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("[HivecrewLLM] Raw response (\(httpResponse.statusCode)): \(String(responseString.prefix(500)))")
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? "No response body"
+            throw LLMError.unknown(message: "HTTP \(httpResponse.statusCode): \(body)")
+        }
+        
+        return try parseRawChatResponse(data)
+    }
+    
+    private func buildChatURL() -> URL {
+        if let baseURL = configuration.baseURL {
+            var path = baseURL.path
+            while path.hasSuffix("/") {
+                path = String(path.dropLast())
+            }
+            if path.hasSuffix("/v1") {
+                return baseURL.appendingPathComponent("chat/completions")
+            } else {
+                return baseURL.appendingPathComponent("v1/chat/completions")
+            }
+        } else {
+            return URL(string: "https://api.openai.com/v1/chat/completions")!
+        }
+    }
+    
+    private func convertMessageToDict(_ message: LLMMessage) throws -> [String: Any] {
+        var dict: [String: Any] = ["role": message.role.rawValue]
+        
+        // Handle content
+        let hasImages = message.content.contains { content in
+            switch content {
+            case .imageBase64, .imageURL: return true
+            default: return false
+            }
+        }
+        
+        if hasImages {
+            var contentParts: [[String: Any]] = []
+            for content in message.content {
+                switch content {
+                case .text(let text):
+                    contentParts.append(["type": "text", "text": text])
+                case .imageBase64(let data, let mimeType):
+                    contentParts.append([
+                        "type": "image_url",
+                        "image_url": ["url": "data:\(mimeType);base64,\(data)"]
+                    ])
+                case .imageURL(let url):
+                    contentParts.append([
+                        "type": "image_url",
+                        "image_url": ["url": url.absoluteString]
+                    ])
+                case .toolResult:
+                    break
+                }
+            }
+            dict["content"] = contentParts
+        } else {
+            dict["content"] = message.textContent
+        }
+        
+        // Handle tool calls for assistant messages
+        if message.role == .assistant, let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+            dict["tool_calls"] = toolCalls.map { call in
+                [
+                    "id": call.id,
+                    "type": "function",
+                    "function": [
+                        "name": call.function.name,
+                        "arguments": call.function.arguments
+                    ]
+                ]
+            }
+        }
+        
+        // Handle tool call ID for tool messages
+        if message.role == .tool, let toolCallId = message.toolCallId {
+            dict["tool_call_id"] = toolCallId
+        }
+        
+        return dict
+    }
+    
+    private func convertToolToDict(_ tool: LLMToolDefinition) -> [String: Any] {
+        return [
+            "type": "function",
+            "function": [
+                "name": tool.function.name,
+                "description": tool.function.description,
+                "parameters": tool.function.parameters
+            ]
+        ]
+    }
+    
+    private func parseRawChatResponse(_ data: Data) throws -> LLMResponse {
+        // Trim leading whitespace from response (some providers like OpenRouter add leading newlines)
+        let trimmedData: Data
+        if let string = String(data: data, encoding: .utf8) {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            trimmedData = trimmed.data(using: .utf8) ?? data
+        } else {
+            trimmedData = data
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: trimmedData) as? [String: Any] else {
+            throw LLMError.decodingError(underlying: NSError(domain: "LLM", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON"]))
+        }
+        
+        let id = json["id"] as? String ?? ""
+        let model = json["model"] as? String ?? ""
+        let created = json["created"] as? Int ?? 0
+        
+        var choices: [LLMResponseChoice] = []
+        if let choicesArray = json["choices"] as? [[String: Any]] {
+            for choice in choicesArray {
+                let index = choice["index"] as? Int ?? 0
+                let finishReasonStr = choice["finish_reason"] as? String
+                
+                guard let messageDict = choice["message"] as? [String: Any] else { continue }
+                
+                let content = messageDict["content"] as? String ?? ""
+                
+                // Parse tool calls
+                var toolCalls: [LLMToolCall]? = nil
+                if let toolCallsArray = messageDict["tool_calls"] as? [[String: Any]] {
+                    toolCalls = toolCallsArray.compactMap { tc in
+                        guard let tcId = tc["id"] as? String,
+                              let function = tc["function"] as? [String: Any],
+                              let name = function["name"] as? String,
+                              let args = function["arguments"] as? String else { return nil }
+                        return LLMToolCall(
+                            id: tcId,
+                            type: "function",
+                            function: LLMFunctionCall(name: name, arguments: args)
+                        )
+                    }
+                }
+                
+                let message = LLMMessage(
+                    role: .assistant,
+                    content: [.text(content)],
+                    name: nil,
+                    toolCalls: toolCalls,
+                    toolCallId: nil
+                )
+                
+                let finishReason: LLMFinishReason?
+                switch finishReasonStr {
+                case "stop": finishReason = .stop
+                case "length": finishReason = .length
+                case "tool_calls": finishReason = .toolCalls
+                case "content_filter": finishReason = .contentFilter
+                default: finishReason = .unknown
+                }
+                
+                choices.append(LLMResponseChoice(index: index, message: message, finishReason: finishReason))
+            }
+        }
+        
+        var usage: LLMUsage? = nil
+        if let usageDict = json["usage"] as? [String: Any] {
+            usage = LLMUsage(
+                promptTokens: usageDict["prompt_tokens"] as? Int ?? 0,
+                completionTokens: usageDict["completion_tokens"] as? Int ?? 0,
+                totalTokens: usageDict["total_tokens"] as? Int ?? 0
+            )
+        }
+        
+        return LLMResponse(
+            id: id,
+            model: model,
+            created: Date(timeIntervalSince1970: TimeInterval(created)),
             choices: choices,
             usage: usage
         )

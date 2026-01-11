@@ -105,4 +105,16 @@ public struct LLMMessage: Sendable, Codable, Equatable {
             return nil
         }.joined(separator: "\n")
     }
+    
+    /// Check if the message contains any image content
+    public var hasImages: Bool {
+        content.contains { part in
+            switch part {
+            case .imageBase64, .imageURL:
+                return true
+            default:
+                return false
+            }
+        }
+    }
 }

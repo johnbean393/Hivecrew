@@ -32,7 +32,7 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
     public let timeoutInterval: TimeInterval
     
     /// Default timeout interval (60 seconds)
-    public static let defaultTimeout: TimeInterval = 60.0
+    public static let defaultTimeout: TimeInterval = 300.0
     
     public init(
         id: String = UUID().uuidString,

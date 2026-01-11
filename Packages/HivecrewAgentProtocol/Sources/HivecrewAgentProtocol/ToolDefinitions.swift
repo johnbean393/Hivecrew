@@ -39,6 +39,10 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case wait = "wait"
     case healthCheck = "health_check"
     case shutdown = "shutdown"
+    
+    // User interaction tools
+    case askTextQuestion = "ask_text_question"
+    case askMultipleChoice = "ask_multiple_choice"
 }
 
 // MARK: - Tool Parameters

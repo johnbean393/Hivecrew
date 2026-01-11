@@ -134,8 +134,8 @@ public actor AgentTracer {
         messageCount: Int,
         toolCount: Int,
         model: String,
-        temperature: Double?,
-        maxTokens: Int?
+        temperature: Double? = nil,
+        maxTokens: Int? = nil
     ) throws {
         let event = TraceEvent(
             sessionId: sessionId,

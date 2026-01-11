@@ -139,8 +139,23 @@ public struct AnyCodable: Codable, @unchecked Sendable {
     
     // Helper accessors
     public var stringValue: String? { value as? String }
-    public var intValue: Int? { value as? Int }
-    public var doubleValue: Double? { value as? Double }
+    
+    /// Returns the value as Int, converting from Double if necessary
+    public var intValue: Int? {
+        if let i = value as? Int { return i }
+        if let d = value as? Double { return Int(d) }
+        if let n = value as? NSNumber { return n.intValue }
+        return nil
+    }
+    
+    /// Returns the value as Double, converting from Int if necessary
+    public var doubleValue: Double? {
+        if let d = value as? Double { return d }
+        if let i = value as? Int { return Double(i) }
+        if let n = value as? NSNumber { return n.doubleValue }
+        return nil
+    }
+    
     public var boolValue: Bool? { value as? Bool }
     public var arrayValue: [Any]? { value as? [Any] }
     public var dictValue: [String: Any]? { value as? [String: Any] }
