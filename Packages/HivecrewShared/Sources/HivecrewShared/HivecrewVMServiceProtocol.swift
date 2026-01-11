@@ -60,6 +60,12 @@ public let hivecrewVMServiceName = "com.pattonium.HivecrewVMService"
         reply: @escaping ([[String: Any]]) -> Void
     )
     
+    /// Reload VMs from disk (pick up VMs created externally)
+    /// - Parameter reply: Callback when reload is complete
+    func reloadVMs(
+        reply: @escaping () -> Void
+    )
+    
     /// Get the current status of a VM
     /// - Parameters:
     ///   - vmId: The unique identifier of the VM
