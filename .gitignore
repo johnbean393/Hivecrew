@@ -1,0 +1,15 @@
+# Build folders
+.build/
+build/
+DerivedData/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/xcode/xcuserdata/
+Package.resolved

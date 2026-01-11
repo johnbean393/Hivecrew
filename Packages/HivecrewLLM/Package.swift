@@ -15,12 +15,16 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/MacPaw/OpenAI.git", from: "0.4.0")
+        .package(url: "https://github.com/MacPaw/OpenAI.git", from: "0.4.0"),
+        .package(path: "../HivecrewAgentProtocol")
     ],
     targets: [
         .target(
             name: "HivecrewLLM",
-            dependencies: ["OpenAI"]
+            dependencies: [
+                "OpenAI",
+                "HivecrewAgentProtocol"
+            ]
         ),
         .testTarget(
             name: "HivecrewLLMTests",

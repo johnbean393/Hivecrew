@@ -24,7 +24,7 @@ public struct VMConfiguration: Codable, Sendable {
     public init(
         cpuCount: Int = 2,
         memorySize: UInt64 = 4 * 1024 * 1024 * 1024, // 4 GB
-        diskSize: UInt64 = 32 * 1024 * 1024 * 1024,  // 32 GB
+        diskSize: UInt64 = 64 * 1024 * 1024 * 1024,  // 64 GB
         displayName: String? = nil
     ) {
         self.cpuCount = cpuCount
