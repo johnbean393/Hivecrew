@@ -84,6 +84,21 @@ public enum AppPaths {
         vmBundlePath(id: id).appendingPathComponent("shared", isDirectory: true)
     }
     
+    /// Returns the inbox folder path for a specific VM (input files for agent)
+    public static func vmInboxDirectory(id: String) -> URL {
+        vmSharedDirectory(id: id).appendingPathComponent("inbox", isDirectory: true)
+    }
+    
+    /// Returns the outbox folder path for a specific VM (output files from agent)
+    public static func vmOutboxDirectory(id: String) -> URL {
+        vmSharedDirectory(id: id).appendingPathComponent("outbox", isDirectory: true)
+    }
+    
+    /// Returns the workspace folder path for a specific VM (scratch space)
+    public static func vmWorkspaceDirectory(id: String) -> URL {
+        vmSharedDirectory(id: id).appendingPathComponent("workspace", isDirectory: true)
+    }
+    
     // MARK: - IPSW Storage
     
     /// Directory for downloaded IPSW restore images
