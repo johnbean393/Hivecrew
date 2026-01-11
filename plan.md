@@ -578,27 +578,29 @@ Workflow:
 
 ### Phase 4: File-awareness & Intervention
 - File-aware task flow (inbox/outbox)
-- Timeout / max-iterations enforcement
-- User intervention: pause, add instructions, take over, resume
-- Session history in Dashboard
+   - Users should be able to input files into the VM to use them in the task by adding attachments
+   - Users can specify an output directory in Settings
+      - On finish, the app will move the files to /Volumes/Shared/outbox/
+      - The app will then move the files to the output directory
+- Timeout (default to 20 minutes) / max-iterations (default to 100 iterations) enforcement
+- User intervention: pause, add instructions mid trace, take over, resume with extra instructions
 
 **Milestone**: End-to-end task with file inputs/outputs; user can intervene mid-task; timeouts / max-iterations work.
 
-### Phase 5: Templates, Pooling, Multi-Agent
+### Phase 5: Templates, Pooling
 - Template creation wizard
-- APFS clone-based fast VM provisioning
+   - Export existing VMs as templates
+   - Create new VMs from templates
+      - Allow modifications if possible during creation (e.g. more RAM, more disk, etc.)
 - Warm VM pool with configurable size
-- Run multiple tasks/agents in parallel
-- Resource manager with global limits
+   - Max idle time (default to 30 minutes)
 
-**Milestone**: Spin up task in < 5 seconds (warm) or < 90 seconds (cold); 3+ concurrent agents stable.
+**Milestone**: Create new (or edited) VMs from templates; Spin up task in < 5 seconds (warm) or < 90 seconds (cold); 4+ concurrent agents stable.
 
 ### Phase 6: Polish, Safety, Onboarding
-- Full Settings implementation
 - Onboarding flow
-- Session replay view
 - Safety features: permissions, kill switch, confirmations
-- Additional LLM providers (OpenAI, local)
+- Full Settings implementation
 - Error handling, edge cases, reliability hardening
 - Performance tuning
 
