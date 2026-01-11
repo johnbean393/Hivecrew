@@ -228,6 +228,9 @@ public struct LLMResponseData: Sendable, Codable {
     /// Truncated content preview (first 500 chars)
     public let contentPreview: String?
     
+    /// Full response text (only stored when toolCallCount == 0)
+    public let responseText: String?
+    
     public init(
         responseId: String,
         model: String,
@@ -236,7 +239,8 @@ public struct LLMResponseData: Sendable, Codable {
         promptTokens: Int,
         completionTokens: Int,
         totalTokens: Int,
-        contentPreview: String?
+        contentPreview: String?,
+        responseText: String? = nil
     ) {
         self.responseId = responseId
         self.model = model
@@ -246,6 +250,7 @@ public struct LLMResponseData: Sendable, Codable {
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
         self.contentPreview = contentPreview
+        self.responseText = responseText
     }
 }
 

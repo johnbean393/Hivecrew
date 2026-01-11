@@ -585,7 +585,7 @@ Workflow:
 - Operating limits
    - Timeout (default to 30 minutes)
    - Max-iterations (default to 100 iterations)
-- Finish handlers for asking user questions
+- Finish handlers for tools asking user questions
 - User intervention:
    - Pause
       - User can pause, take over, then resume the agent
@@ -616,6 +616,7 @@ Workflow:
 - Onboarding flow
 - Safety features: permissions, kill switch, confirmations
 - Full Settings implementation
+- Allow `open_app` tool to work with app names as well as bundle IDs
 - Error handling, edge cases, reliability hardening
 - Performance tuning
 

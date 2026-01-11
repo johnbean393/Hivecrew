@@ -163,12 +163,22 @@ public actor AgentTracer {
             totalCompletionTokens += usage.completionTokens
         }
         
+        let toolCallCount = response.toolCalls?.count ?? 0
+        
         // Truncate content for preview
         let contentPreview: String?
         if let text = response.text {
             contentPreview = String(text.prefix(500))
         } else {
             contentPreview = nil
+        }
+        
+        // Store full response text only when there are no tool calls (pure text response)
+        let responseText: String?
+        if toolCallCount == 0 {
+            responseText = response.text
+        } else {
+            responseText = nil
         }
         
         let event = TraceEvent(
@@ -179,11 +189,12 @@ public actor AgentTracer {
                 responseId: response.id,
                 model: response.model,
                 finishReason: response.finishReason?.rawValue,
-                toolCallCount: response.toolCalls?.count ?? 0,
+                toolCallCount: toolCallCount,
                 promptTokens: response.usage?.promptTokens ?? 0,
                 completionTokens: response.usage?.completionTokens ?? 0,
                 totalTokens: response.usage?.totalTokens ?? 0,
-                contentPreview: contentPreview
+                contentPreview: contentPreview,
+                responseText: responseText
             )),
             durationMs: latencyMs
         )
