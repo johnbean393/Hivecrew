@@ -1,4 +1,4 @@
-# AgentVM — Comprehensive Development Plan
+# Hivecrew — Comprehensive Development Plan
 
 ## 1. Product Vision & Goals
 
@@ -112,7 +112,7 @@ A native macOS app that runs AI agents inside isolated macOS 15 virtual machines
 ### 4.3 On-Disk Layout
 
 ```
-~/Library/Application Support/AgentVM/
+~/Library/Application Support/Hivecrew/
 ├── Templates/
 │   └── <template-id>/
 │       ├── config.json
@@ -533,23 +533,53 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 
 **Milestone**: Host can send tool commands; GuestAgent executes; screenshot returned; works with VM viewer closed.
 
-### Phase 3: Agent Loop MVP
-- LLMClient abstraction + Anthropic implementation
+### Phase 3.0: LLM Integration
+- LLMClient abstraction
+- OpenAI chat completions compatible implementation (Use libraries as needed)
+- Allow easily switching between providers by customizing these in settings
+   - Base URL
+   - API key
+   - Model
+- Ensure multiple concurrent requests can be made without affecting each other (for multiple agents running in parallel)
+
+**Milestone**: Write unit tests for a prompt with text and image inputs, and another for tool calling
+
+- Basic tracing (JSON log)
+
+### Phase 3.5: Agent Loop MVP
 - AgentRunner with basic loop (observe → decide → execute)
 - Dashboard: new task form, run task, see status
 - Agent Environments: live activity log, screenshot updates
 - Basic tracing (JSON log + screenshots saved)
 
-**Milestone**: Can dispatch a simple task from Dashboard; agent runs autonomously; user watches in Environments tab.
+Workflow:
+1. User creates a task in the Dashboard (writes a prompt, selects a model)
+2. The app provisions a VM
+   - If all VMs are in use by an agent, the app adds the task to a queue and waits for a VM to become available
+   - Connects to the GuestAgent (retry until successful for 2 minute timeout)
+3. The app runs the agent loop (observe → decide → execute)
+   - The app takes a screenshot of the VM and sends it to the LLM
+   - The LLM returns a tool call
+      - Include 2 tools to allow asking the questions
+         1. Text based open-ended questions
+         2. Multiple choice questions
+   - The app executes the tool call or sends a message to the user
+   - The app updates the Dashboard with the status of the task
+   - The app updates the Agent Environments with agent trace / status / history
+   - When the LLM stops making a tool calls, have a separate LLM call to check if the task is complete
+      - If not, keep going
+4. When the task is complete
+   - The app updates the Dashboard with the status of the task
 
-### Phase 4: Shared Filesystem, Intervention
-- VirtioFS shared folder integration
+**Milestone**: Can dispatch a task from Dashboard; agent runs autonomously; user watches in Environments tab.
+
+### Phase 4: File-awareness & Intervention
 - File-aware task flow (inbox/outbox)
-- Timeout enforcement
+- Timeout / max-iterations enforcement
 - User intervention: pause, add instructions, take over, resume
 - Session history in Dashboard
 
-**Milestone**: End-to-end task with file inputs/outputs; user can intervene mid-task; timeouts work.
+**Milestone**: End-to-end task with file inputs/outputs; user can intervene mid-task; timeouts / max-iterations work.
 
 ### Phase 5: Templates, Pooling, Multi-Agent
 - Template creation wizard
