@@ -98,4 +98,45 @@ public let hivecrewVMServiceName = "com.pattonium.HivecrewVMService"
     func getIPSWDownloadProgress(
         reply: @escaping (Double) -> Void
     )
+    
+    // MARK: - Template Management
+    
+    /// Save a VM as a template (golden image)
+    /// - Parameters:
+    ///   - vmId: The unique identifier of the VM to save as template
+    ///   - name: Human-readable name for the template
+    ///   - templateDescription: Optional description
+    ///   - reply: Callback with result dictionary containing "templateId" on success or "error" on failure
+    func saveAsTemplate(
+        vmId: String,
+        name: String,
+        templateDescription: String,
+        reply: @escaping ([String: Any]) -> Void
+    )
+    
+    /// List all available templates
+    /// - Parameter reply: Callback with array of template dictionaries
+    func listTemplates(
+        reply: @escaping ([[String: Any]]) -> Void
+    )
+    
+    /// Create a new VM from a template
+    /// - Parameters:
+    ///   - templateId: The unique identifier of the template
+    ///   - name: Name for the new VM
+    ///   - reply: Callback with result dictionary containing "vmId" on success or "error" on failure
+    func createVMFromTemplate(
+        templateId: String,
+        name: String,
+        reply: @escaping ([String: Any]) -> Void
+    )
+    
+    /// Delete a template
+    /// - Parameters:
+    ///   - templateId: The unique identifier of the template
+    ///   - reply: Callback with result dictionary containing "success" bool or "error" on failure
+    func deleteTemplate(
+        templateId: String,
+        reply: @escaping ([String: Any]) -> Void
+    )
 }

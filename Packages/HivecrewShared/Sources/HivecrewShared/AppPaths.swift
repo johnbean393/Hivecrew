@@ -124,12 +124,37 @@ public enum AppPaths {
     
     // MARK: - Templates Storage
     
-    /// Directory containing VM templates
+    /// Directory containing VM templates (golden images)
     public static let templatesDirectory: URL = {
         let url = appSupportDirectory.appendingPathComponent("Templates", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()
+    
+    /// Returns the bundle path for a specific template
+    public static func templateBundlePath(id: String) -> URL {
+        templatesDirectory.appendingPathComponent(id, isDirectory: true)
+    }
+    
+    /// Returns the config file path for a specific template
+    public static func templateConfigPath(id: String) -> URL {
+        templateBundlePath(id: id).appendingPathComponent("config.json")
+    }
+    
+    /// Returns the disk image path for a specific template
+    public static func templateDiskPath(id: String) -> URL {
+        templateBundlePath(id: id).appendingPathComponent("disk.img")
+    }
+    
+    /// Returns the auxiliary storage path for a specific template
+    public static func templateAuxiliaryPath(id: String) -> URL {
+        templateBundlePath(id: id).appendingPathComponent("auxiliary")
+    }
+    
+    /// Returns the hardware model path for a specific template
+    public static func templateHardwareModelPath(id: String) -> URL {
+        templateBundlePath(id: id).appendingPathComponent("HardwareModel.bin")
+    }
     
     // MARK: - Logs
     

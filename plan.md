@@ -7,7 +7,7 @@ A native macOS app that runs AI agents inside isolated macOS 15 virtual machines
 
 ### Key User Flows
 1. **Dispatch a task**: User describes a task in the Dashboard, selects model/timeout (use defaults if unspecified), hits "Run." The app provisions a VM (or reuses an idle one), launches an agent, and begins work.
-2. **Supervise agents**: User switches to the Agent Supervision tab to see all active agents, their current state/screenshots, and can click into any one to watch live or intervene.
+2. **Supervise agents**: User switches to the Agent Environments tab to see all active agents, their current state/screenshots, and can click into any one to watch live or intervene.
 3. **Intervene / assist**: User takes over mouse/keyboard, adds clarifying instructions, or manually completes a tricky step, then hands control back to the agent.
 4. **Review results**: When an agent finishes (or times out / hits budget), results and artifacts appear in the Dashboard history; user can replay the session or export outputs.
 
@@ -38,7 +38,7 @@ A native macOS app that runs AI agents inside isolated macOS 15 virtual machines
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │                      Main App Process (SwiftUI)                    │
-│   Dashboard │ Agent Supervision │ Settings │ Onboarding            │
+│   Dashboard │ Agent Environments │ Settings │ Onboarding            │
 │   ViewModels, Agent Orchestrator client, UI state                  │
 └──────────────────────────────┬─────────────────────────────────────┘
                                │ XPC / IPC
@@ -160,7 +160,7 @@ A native macOS app that runs AI agents inside isolated macOS 15 virtual machines
 - Expose metrics: per-VM CPU/memory, GuestAgent latency, aggregate utilization.
 
 ### 5.4 Display Attachment
-- VMs run headless by default; `VZVirtualMachineView` attached on-demand when user opens supervision view.
+- VMs run headless by default; `VZVirtualMachineView` attached on-demand when user opens environments view.
 - Detaching viewer does not stop VM or agent.
 
 ---
@@ -324,7 +324,7 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 **Primary Window (Tab-Based)**
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  [Dashboard]   [Agent Supervision]   [Settings ⚙️]          │
+│  [Dashboard]   [Agent Environments]   [Settings ⚙️]          │
 ├─────────────────────────────────────────────────────────────┤
 │                     (Tab Content)                           │
 └─────────────────────────────────────────────────────────────┘
@@ -346,7 +346,7 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 
 2. **Active Tasks**
    - Card per running task: description snippet, status, elapsed time, assigned VM, live thumbnail (updates periodically)
-   - Click card → jumps to Agent Supervision with that VM focused
+   - Click card → jumps to Agent Environments with that VM focused
    - Quick actions: Pause, Cancel
 
 3. **Completed Tasks (History)**
@@ -355,7 +355,7 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
    - Each row: task description, duration, timestamp
    - Expand/click: summary, output files, "View Session Replay"
 
-### 9.3 Agent Supervision Tab
+### 9.3 Agent Environments Tab
 
 **Purpose**: Live view into all VMs; watch agents work; intervene when needed.
 
@@ -519,7 +519,7 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 - Project setup, entitlements, signing
 - VM creation from IPSW, boot, shutdown
 - Basic XPC service for VM lifecycle
-- Minimal Dashboard and Agent Supervision UI (list VMs, start/stop)
+- Minimal Dashboard and Agent Environments UI (list VMs, start/stop)
 - SwiftData persistence for VMs
 
 **Milestone**: Can create, boot, interact with, and stop a macOS 15 VM from the app.
@@ -537,10 +537,10 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 - LLMClient abstraction + Anthropic implementation
 - AgentRunner with basic loop (observe → decide → execute)
 - Dashboard: new task form, run task, see status
-- Agent Supervision: live activity log, screenshot updates
+- Agent Environments: live activity log, screenshot updates
 - Basic tracing (JSON log + screenshots saved)
 
-**Milestone**: Can dispatch a simple task from Dashboard; agent runs autonomously; user watches in Supervision tab.
+**Milestone**: Can dispatch a simple task from Dashboard; agent runs autonomously; user watches in Environments tab.
 
 ### Phase 4: Shared Filesystem, Intervention
 - VirtioFS shared folder integration

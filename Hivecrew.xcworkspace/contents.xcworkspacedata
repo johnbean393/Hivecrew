@@ -2,9 +2,15 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:HivecrewGuestAgent/HivecrewGuestAgent.xcodeproj">
+      location = "group:HivecrewGuestAgent">
    </FileRef>
    <FileRef
       location = "group:Hivecrew/Hivecrew.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:Packages/HivecrewAgentProtocol">
+   </FileRef>
+   <FileRef
+      location = "group:Packages/HivecrewShared">
    </FileRef>
 </Workspace>
