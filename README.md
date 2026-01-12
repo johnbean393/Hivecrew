@@ -1,34 +1,34 @@
 <p align="center" width="100%">
-<img width="120" alt="Hivecrew app icon" src="https://raw.githubusercontent.com/YOUR_USERNAME/Hivecrew/main/.github/images/app-icon.png">
+<img width="120" alt="Hivecrew app icon" src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/app-icon.png">
 </p>
 
 <h1 align="center">Hivecrew</h1>
 
 <p align="center">
-AI agents that do real work inside isolated macOS virtual machines
+AI agents to do digital work inside isolated,local macOS virtual machines
 </p>
 
-Hivecrew is a native macOS app that runs AI agents in dedicated macOS Sequoia virtual machines. Dispatch tasks from a central dashboard, watch agents work autonomously, and step in to guide or assist whenever needed—all while keeping your host system completely isolated and safe.
+Hivecrew is a native macOS app that runs AI agents in dedicated macOS virtual machines. Dispatch tasks from a central dashboard, watch agents work autonomously, and step in to guide or assist whenever needed—all while keeping your host system completely isolated and safe.
 
-- **Fully isolated**: Each agent runs in its own VM; no risk to your host system
-- **Transparent operation**: Real-time screenshots and activity logs show exactly what agents are doing
-- **Hands-on when needed**: Pause any agent, take control, add instructions, then hand back
-- **Multiple LLM support**: Works with Anthropic, OpenAI, and local LLM providers
+![Hivecrew Dashboard](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/dashboard-screenshot.png)
 
-![Hivecrew Dashboard](https://raw.githubusercontent.com/YOUR_USERNAME/Hivecrew/main/.github/images/dashboard-screenshot.png)
+## Features
 
-## Key Features
+- **Fully Isolated Execution**: Each agent runs in its own macOS VM with controlled file access and configurable network restrictions. Your host system stays completely protected.
 
-### Safe by Design
-Agents work inside fully isolated macOS virtual machines with controlled file access and optional network restrictions. Your host system stays protected.
+![Agent Environment View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png)
 
-### Transparent & Supervisable
-Every agent action is logged with screenshots. Jump into any running agent's environment to watch live progress or review detailed session traces afterward.
+- **Real-Time Supervision**: Watch agents work with live screenshots and activity logs. Jump into any agent's environment to observe or review detailed session traces afterward.
 
-### Built for macOS
-Native Swift app leveraging Apple's Virtualization framework. Optimized for Apple Silicon (M1/M2/M3/M4).
+- **Human-in-the-Loop**: Pause any agent, take control with your mouse and keyboard, add clarifying instructions, then hand control back seamlessly.
 
-![Agent Environment View](https://raw.githubusercontent.com/YOUR_USERNAME/Hivecrew/main/.github/images/agent-environment.png)
+- **Multi-LLM Support**: Works with Anthropic, OpenAI, and any OpenAI-compatible local LLM provider. Easy provider switching in settings.
+
+- **File-Aware Tasks**: Attach input files to tasks and specify output directories. Agents work with files through a secure shared folder system.
+
+- **Safety Controls**: Built-in timeouts, iteration limits, tool permission controls, and emergency stop switches keep agents under control.
+
+- **Native Performance**: Built entirely in Swift with Apple's Virtualization framework. Optimized for Apple Silicon (M1/M2/M3/M4).
 
 ## Architecture
 
@@ -47,33 +47,16 @@ The app runs agents in macOS Sequoia VMs with a lightweight guest agent that pro
 
 ## Requirements
 
-- macOS Sequoia (15.0) or later
+- macOS Tahoe (26.0) or later
 - Apple Silicon Mac (M1 or newer)
 - At least 16GB RAM recommended for running concurrent agents
-- ~40GB free disk space per VM
-
-## Current Status
-
-🚧 **Early Development** - Core infrastructure complete, agent loop in progress
-
-**Completed:**
-- ✅ Modular package architecture
-- ✅ Multi-provider LLM client with tool calling
-- ✅ Agent protocol design and tooling
-- ✅ Request tracing and logging infrastructure
-- ✅ OpenAI-compatible client with streaming support
-
-**In Progress:**
-- 🔨 VM host service and lifecycle management
-- 🔨 Guest agent implementation
-- 🔨 Agent orchestration loop
-- 🔨 Dashboard and UI
+- ~64GB free disk space per VM
 
 ## Build from Source
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/Hivecrew.git
+git clone https://github.com/johnbean393/Hivecrew.git
 cd Hivecrew
 ```
 
@@ -86,56 +69,14 @@ open Hivecrew.xcworkspace
 
 Note: The Virtualization framework requires specific entitlements that must be granted via provisioning profiles or notarization.
 
-## Project Goals
-
-The main goal of Hivecrew is to make AI agents practical, safe, and transparent for real-world tasks.
-
-- **Agents as appliances**: Just describe a task and let the agent work—no complex setup required
-- **Safety first**: Isolated VMs, explicit timeouts, easy kill switches, controlled permissions
-- **Transparency**: Always know what agents are doing; no black boxes
-- **Native performance**: Built with Swift and optimized for Apple Silicon
-- **Open source**: Audit the code, contribute improvements, understand how your agents work
-
-## Roadmap
-
-### Foundation (Current Phase)
-- [ ] Complete VM lifecycle management with XPC service
-- [ ] Implement guest agent with core automation tools
-- [ ] Build agent orchestration loop
-- [ ] Create Dashboard and Agent Environments UI
-
-### MVP Agent Loop
-- [ ] Task dispatch and execution
-- [ ] Real-time observation and screenshots
-- [ ] Activity logging and traces
-- [ ] Basic user intervention (pause/resume/cancel)
-
-### File-Aware Tasks
-- [ ] Inbox/outbox file handling
-- [ ] Task timeout enforcement
-- [ ] User questions and confirmations
-- [ ] Enhanced intervention controls
-
-### Templates & Pooling
-- [ ] Template creation and management
-- [ ] Warm VM pooling for fast dispatch
-- [ ] Multi-agent concurrent execution
-- [ ] Resource management and limits
-
-### Polish & Release
-- [ ] Onboarding flow
-- [ ] Complete settings UI
-- [ ] Session replay viewer
-- [ ] Beta testing and hardening
-
 ## Contributing
 
-Contributions are welcome! This project is in active development. Areas where help would be particularly valuable:
+Contributions are welcome! Areas where help would be particularly valuable:
 
-- VM lifecycle optimization
-- Guest agent automation tools
+- Additional automation tools and capabilities
 - UI/UX improvements
 - Testing and reliability
+- Documentation
 
 ## Technical Details
 
@@ -158,17 +99,4 @@ Contributions are welcome! This project is in active development. Areas where he
 
 ## License
 
-[Add your license here]
-
-## Credits
-
-Built by [Your Name]
-
-This project leverages:
-- Apple's Virtualization framework
-- Swift concurrency for async operations
-- SwiftUI for native macOS interface
-
----
-
-**Note**: Hivecrew is under active development. The current codebase reflects the foundational architecture. Agent execution capabilities are being built incrementally.
+MIT License
