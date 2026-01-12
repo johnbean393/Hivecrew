@@ -1,0 +1,498 @@
+//
+//  TaskService+Execution.swift
+//  Hivecrew
+//
+//  Task execution, cancellation, pause/resume functionality
+//
+
+import Foundation
+import SwiftData
+import Virtualization
+import Combine
+import HivecrewLLM
+import HivecrewShared
+
+// MARK: - Task Execution
+
+extension TaskService {
+    
+    /// Start executing a task with an ephemeral VM
+    func startTask(_ task: TaskRecord) async {
+        guard let context = modelContext else { return }
+        
+        // Check if this task is already being processed (prevents duplicate processing)
+        guard !tasksInProgress.contains(task.id) else {
+            print("TaskService: Task '\(task.title)' is already being processed, skipping duplicate call")
+            return
+        }
+        
+        // Check if we can create a new VM (within concurrency limit)
+        // Count running agents, pending VMs, AND running developer VMs
+        let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
+        let effectiveMax = maxConcurrent > 0 ? maxConcurrent : 2
+        let runningDeveloperVMs = countRunningDeveloperVMs()
+        let currentlyActive = runningAgents.count + pendingVMCount + runningDeveloperVMs
+        
+        print("TaskService: Concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingVMCount), developerVMs=\(runningDeveloperVMs), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
+        
+        if currentlyActive >= effectiveMax {
+            // At capacity - keep task as queued, will be picked up when a slot opens
+            if task.status != .queued {
+                task.status = .queued
+                try? context.save()
+                objectWillChange.send()
+            }
+            print("TaskService: At max concurrent VMs (\(effectiveMax), active: \(currentlyActive)). Task '\(task.title)' remains queued.")
+            return
+        }
+        
+        // Mark this task as in-progress to prevent duplicate processing
+        tasksInProgress.insert(task.id)
+        
+        // Reserve a slot for this VM
+        pendingVMCount += 1
+        print("TaskService: Reserved VM slot for task '\(task.title)' (pending: \(pendingVMCount), running: \(runningAgents.count))")
+        
+        // Now update status to waiting for VM (we're actually processing it now)
+        task.status = .waitingForVM
+        try? context.save()
+        objectWillChange.send()
+        
+        // Get the default template ID from settings
+        let templateId = getDefaultTemplateId()
+        print("TaskService: Retrieved defaultTemplateId = '\(templateId ?? "nil")'")
+        
+        guard let templateId = templateId, !templateId.isEmpty else {
+            // Release the reserved slot and remove from in-progress tracking
+            pendingVMCount = max(0, pendingVMCount - 1)
+            tasksInProgress.remove(task.id)
+            
+            task.status = .failed
+            task.errorMessage = "No default template configured. Please set a template in Settings → Environment."
+            task.completedAt = Date()
+            try? context.save()
+            objectWillChange.send()
+            print("TaskService: Task failed - no template configured")
+            return
+        }
+        
+        var vmId: String?
+        var pendingSlotReleased = false  // Track if we've released the pending slot
+        
+        do {
+            // Create ephemeral VM from template
+            let vmName = generateVMName(for: task)
+            print("TaskService: Creating ephemeral VM '\(vmName)' from template '\(templateId)'...")
+            
+            vmId = try await vmServiceClient.createVMFromTemplate(templateId: templateId, name: vmName)
+            print("TaskService: VM created successfully with ID: \(vmId ?? "nil")")
+            
+            // Store the VM ID on the task immediately
+            task.assignedVMId = vmId
+            try? context.save()
+            objectWillChange.send()
+            
+            print("TaskService: Created VM \(vmId!), starting...")
+            
+            // Start the VM
+            try await vmRuntime.startVM(id: vmId!)
+            
+            // Wait for VM to be ready
+            let vm = try await waitForVMReady(vmId: vmId!)
+            
+            // Connect to GuestAgent
+            let connection = try await connectToGuestAgent(vm: vm, vmId: vmId!)
+            
+            // Prepare shared folder (inbox/outbox/workspace) on the HOST
+            let inputFileNames = try prepareSharedFolder(vmId: vmId!, attachedFilePaths: task.attachedFilePaths)
+            
+            // Prepare Desktop inbox/outbox on the GUEST and copy attachments
+            // This avoids VirtioFS issues with GUI apps saving files
+            print("TaskService: Setting up guest Desktop inbox/outbox...")
+            do {
+                let setupResult = try await connection.runShell(command: """
+                    mkdir -p ~/Desktop/inbox ~/Desktop/outbox && \
+                    rm -rf ~/Desktop/inbox/* ~/Desktop/outbox/* 2>/dev/null; \
+                    cp -R /Volumes/Shared/inbox/* ~/Desktop/inbox/ 2>/dev/null; \
+                    echo "Setup complete. Inbox contents:" && ls -la ~/Desktop/inbox/
+                    """, timeout: 30)
+                print("TaskService: Guest setup result:\n\(setupResult.stdout)")
+                if !setupResult.stderr.isEmpty {
+                    print("TaskService: Guest setup stderr: \(setupResult.stderr)")
+                }
+            } catch {
+                print("TaskService: Failed to setup guest inbox/outbox (non-fatal): \(error)")
+            }
+            
+            // Update task status to running
+            task.status = .running
+            task.startedAt = Date()
+            try? context.save()
+            objectWillChange.send()
+            
+            // Create session
+            let sessionId = UUID().uuidString
+            let sessionPath = AppPaths.sessionPath(id: sessionId)
+            try FileManager.default.createDirectory(at: sessionPath, withIntermediateDirectories: true)
+            
+            task.sessionId = sessionId
+            try? context.save()
+            
+            // Create session record
+            let sessionRecord = AgentSessionRecord(
+                id: sessionId,
+                taskId: task.id,
+                vmId: vmId!,
+                tracePath: sessionPath.path
+            )
+            context.insert(sessionRecord)
+            try? context.save()
+            
+            // Create state publisher
+            let statePublisher = AgentStatePublisher(taskId: task.id)
+            statePublisher.sessionId = sessionId
+            statePublisher.status = .running
+            statePublishers[task.id] = statePublisher
+            
+            // Observe permission requests from this state publisher
+            observePermissionRequests(for: task.id, from: statePublisher)
+            
+            // Create LLM client
+            let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+            
+            // Get timeout and max iterations from settings
+            let timeoutMinutes = UserDefaults.standard.integer(forKey: "defaultTaskTimeoutMinutes")
+            let maxIterations = UserDefaults.standard.integer(forKey: "defaultMaxIterations")
+            
+            // Create and run agent
+            let agent = try AgentRunner(
+                task: task,
+                vmId: vmId!,
+                llmClient: llmClient,
+                connection: connection,
+                sessionPath: sessionPath,
+                statePublisher: statePublisher,
+                inputFileNames: inputFileNames,
+                maxSteps: maxIterations > 0 ? maxIterations : 100,
+                timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 30
+            )
+            runningAgents[task.id] = agent
+            
+            // VM is now running and tracked in runningAgents, release the pending slot
+            pendingVMCount = max(0, pendingVMCount - 1)
+            pendingSlotReleased = true
+            print("TaskService: VM started, released pending slot (pending: \(pendingVMCount), running: \(runningAgents.count))")
+            
+            // Run the agent
+            let result = try await agent.run()
+            
+            // Handle task completion
+            await handleTaskCompletion(task: task, result: result, connection: connection, vmId: vmId!, sessionId: sessionId, context: context)
+            
+        } catch {
+            // Handle failure
+            await handleTaskFailure(task: task, error: error, vmId: vmId, pendingSlotReleased: pendingSlotReleased, context: context)
+        }
+        
+        objectWillChange.send()
+        
+        // Check if there are queued tasks waiting for a VM
+        await processQueuedTasks()
+    }
+    
+    /// Handle successful task completion
+    private func handleTaskCompletion(
+        task: TaskRecord,
+        result: AgentResult,
+        connection: GuestAgentConnection,
+        vmId: String,
+        sessionId: String,
+        context: ModelContext
+    ) async {
+        // Update task with result based on termination reason
+        task.completedAt = Date()
+        task.resultSummary = result.summary
+        
+        // Store verified success status
+        task.wasSuccessful = result.success
+        
+        switch result.terminationReason {
+        case .completed:
+            task.status = .completed
+        case .failed:
+            task.status = .failed
+            task.errorMessage = result.errorMessage
+        case .cancelled:
+            task.status = .cancelled
+            task.errorMessage = result.errorMessage
+        case .timedOut:
+            task.status = .timedOut
+            task.errorMessage = result.errorMessage
+        case .maxIterations:
+            task.status = .maxIterations
+            task.errorMessage = result.errorMessage
+        }
+        
+        // Move files from ~/Desktop/outbox to /Volumes/Shared/outbox
+        print("TaskService: Moving deliverables from guest Desktop to shared folder...")
+        do {
+            // First show what's in the guest Desktop outbox
+            let lsResult = try await connection.runShell(command: "ls -la ~/Desktop/outbox/ 2>&1", timeout: 30)
+            print("TaskService: Guest ~/Desktop/outbox contents:\n\(lsResult.stdout)")
+            
+            // Move files from ~/Desktop/outbox to /Volumes/Shared/outbox
+            let moveResult = try await connection.runShell(command: """
+                if [ "$(ls -A ~/Desktop/outbox 2>/dev/null)" ]; then
+                    cp -R ~/Desktop/outbox/* /Volumes/Shared/outbox/ && \
+                    rm -rf ~/Desktop/outbox/* && \
+                    echo "Moved files to shared outbox"
+                else
+                    echo "No files in ~/Desktop/outbox to move"
+                fi && \
+                sync; sync; sync && \
+                echo "=== /Volumes/Shared/outbox contents ===" && \
+                ls -la /Volumes/Shared/outbox/
+                """, timeout: 60)
+            print("TaskService: Move result:\n\(moveResult.stdout)")
+            if !moveResult.stderr.isEmpty {
+                print("TaskService: Move stderr: \(moveResult.stderr)")
+            }
+        } catch {
+            print("TaskService: Failed to move deliverables (non-fatal): \(error)")
+        }
+        
+        // Wait for VirtioFS to propagate writes to host
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        
+        // Copy outbox files to output directory BEFORE deleting the VM
+        if result.terminationReason != .cancelled {
+            task.outputFilePaths = copyOutboxFiles(vmId: vmId)
+        }
+        
+        // Update session record
+        if let session = try? context.fetch(FetchDescriptor<AgentSessionRecord>(predicate: #Predicate { $0.id == sessionId })).first {
+            session.endedAt = Date()
+            session.status = result.terminationReason.rawValue
+            session.stepCount = result.stepCount
+            session.promptTokens = result.promptTokens
+            session.completionTokens = result.completionTokens
+        }
+        
+        try? context.save()
+        
+        // Send completion notification
+        sendTaskCompletionNotification(task: task)
+        
+        // Cleanup agent state
+        runningAgents.removeValue(forKey: task.id)
+        tasksInProgress.remove(task.id)
+        cleanupTaskObservations(taskId: task.id)
+        connection.disconnect()
+        
+        print("TaskService: Task '\(task.title)' completed. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count)")
+        
+        // Delete the ephemeral VM
+        await deleteEphemeralVM(vmId: vmId)
+    }
+    
+    /// Handle task failure
+    private func handleTaskFailure(
+        task: TaskRecord,
+        error: Error,
+        vmId: String?,
+        pendingSlotReleased: Bool,
+        context: ModelContext
+    ) async {
+        print("TaskService: Task '\(task.title)' failed with error: \(error)")
+        print("TaskService: Error type: \(type(of: error)), localizedDescription: \(error.localizedDescription)")
+        
+        // Release the pending VM slot only if not already released
+        if !pendingSlotReleased {
+            pendingVMCount = max(0, pendingVMCount - 1)
+            print("TaskService: VM creation failed, released pending slot (pending: \(pendingVMCount))")
+        } else {
+            print("TaskService: Pending slot was already released (pending: \(pendingVMCount))")
+        }
+        
+        task.status = .failed
+        task.errorMessage = error.localizedDescription
+        task.completedAt = Date()
+        try? context.save()
+        
+        // Send failure notification
+        sendTaskCompletionNotification(task: task)
+        
+        runningAgents.removeValue(forKey: task.id)
+        tasksInProgress.remove(task.id)
+        cleanupTaskObservations(taskId: task.id)
+        statePublishers[task.id]?.status = .failed
+        statePublishers[task.id]?.logError(error.localizedDescription)
+        
+        print("TaskService: Task '\(task.title)' failed. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count)")
+        
+        // Clean up the VM if it was created
+        if let createdVmId = vmId {
+            await deleteEphemeralVM(vmId: createdVmId)
+        }
+    }
+    
+    /// Cancel a running task
+    func cancelTask(_ task: TaskRecord) async {
+        // Cancel the agent if running
+        if let agent = runningAgents[task.id] {
+            await agent.cancel()
+        }
+        
+        task.status = .cancelled
+        task.completedAt = Date()
+        try? modelContext?.save()
+        
+        runningAgents.removeValue(forKey: task.id)
+        cleanupTaskObservations(taskId: task.id)
+        statePublishers[task.id]?.status = .cancelled
+        
+        // Delete the ephemeral VM if one was assigned
+        if let vmId = task.assignedVMId {
+            await deleteEphemeralVM(vmId: vmId)
+        }
+        
+        objectWillChange.send()
+        
+        // Check if there are queued tasks waiting for a VM
+        await processQueuedTasks()
+    }
+    
+    /// Pause a running task
+    func pauseTask(_ task: TaskRecord) {
+        guard let agent = runningAgents[task.id] else { return }
+        
+        agent.pause()
+        task.status = .paused
+        try? modelContext?.save()
+        
+        objectWillChange.send()
+    }
+    
+    /// Resume a paused task with optional instructions
+    func resumeTask(_ task: TaskRecord, withInstructions instructions: String? = nil) {
+        guard let agent = runningAgents[task.id] else { return }
+        
+        agent.resume(withInstructions: instructions)
+        task.status = .running
+        try? modelContext?.save()
+        
+        objectWillChange.send()
+    }
+    
+    /// Re-queue a running task (used when app is terminating)
+    func requeueTask(_ task: TaskRecord, reason: String) async {
+        guard let context = modelContext else { return }
+        
+        // Cancel the agent if it's running
+        if let agent = runningAgents[task.id] {
+            await agent.cancel()
+            runningAgents.removeValue(forKey: task.id)
+        }
+        
+        // Clean up observations
+        cleanupTaskObservations(taskId: task.id)
+        
+        // Delete the ephemeral VM if one was assigned
+        if let vmId = task.assignedVMId {
+            await deleteEphemeralVM(vmId: vmId)
+        }
+        
+        // Clear any state publisher
+        statePublishers.removeValue(forKey: task.id)
+        
+        // Reset task to queued state
+        task.status = .queued
+        task.startedAt = nil
+        task.completedAt = nil
+        task.assignedVMId = nil
+        task.errorMessage = reason
+        task.resultSummary = nil
+        
+        try? context.save()
+        
+        print("TaskService: Re-queued task '\(task.title)': \(reason)")
+        objectWillChange.send()
+    }
+    
+    /// Remove a queued task from the queue without running it
+    func removeFromQueue(_ task: TaskRecord) async {
+        guard let context = modelContext else { return }
+        
+        // Only allow removing queued/waiting tasks
+        guard task.status == .queued || task.status == .waitingForVM else {
+            print("TaskService: Cannot remove non-queued task '\(task.title)' from queue")
+            return
+        }
+        
+        // Mark as cancelled
+        task.status = .cancelled
+        task.completedAt = Date()
+        task.errorMessage = "Removed from queue by user"
+        
+        try? context.save()
+        
+        print("TaskService: Removed task '\(task.title)' from queue")
+        objectWillChange.send()
+    }
+    
+    /// Delete a task and its associated session data
+    func deleteTask(_ task: TaskRecord) async {
+        guard let context = modelContext else { return }
+        
+        // Cancel if still running
+        if task.status.isActive {
+            await cancelTask(task)
+        }
+        
+        // Delete session directory if it exists
+        if let sessionId = task.sessionId {
+            let sessionPath = AppPaths.sessionPath(id: sessionId)
+            do {
+                if FileManager.default.fileExists(atPath: sessionPath.path) {
+                    try FileManager.default.removeItem(at: sessionPath)
+                    print("TaskService: Deleted session directory: \(sessionPath.path)")
+                }
+            } catch {
+                print("TaskService: Failed to delete session directory: \(error)")
+            }
+            
+            // Also delete AgentSessionRecord if it exists
+            let sessionDescriptor = FetchDescriptor<AgentSessionRecord>(
+                predicate: #Predicate { $0.id == sessionId }
+            )
+            if let sessionRecord = try? context.fetch(sessionDescriptor).first {
+                context.delete(sessionRecord)
+            }
+        }
+        
+        // Remove from local state
+        tasks.removeAll { $0.id == task.id }
+        statePublishers.removeValue(forKey: task.id)
+        
+        // Delete from SwiftData
+        context.delete(task)
+        try? context.save()
+        
+        print("TaskService: Deleted task: \(task.title)")
+        objectWillChange.send()
+    }
+    
+    /// Process queued tasks when a VM becomes available
+    func processQueuedTasks() async {
+        // Find queued tasks that aren't already being processed
+        let queuedTasks = tasks.filter { 
+            $0.status == .queued && !tasksInProgress.contains($0.id)
+        }
+
+        // Try to start the oldest queued task
+        if let nextTask = queuedTasks.sorted(by: { $0.createdAt < $1.createdAt }).first {
+            print("TaskService: Processing queued task '\(nextTask.title)'")
+            await startTask(nextTask)
+        }
+    }
+}

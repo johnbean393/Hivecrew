@@ -1,0 +1,151 @@
+//
+//  TaskDefaultsSettingsView.swift
+//  Hivecrew
+//
+//  Created by Hivecrew on 1/10/26.
+//
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// Task Defaults settings tab
+struct TaskDefaultsSettingsView: View {
+    @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 30
+    @AppStorage("defaultMaxIterations") private var defaultMaxIterations = 100
+    @AppStorage("outputDirectoryPath") private var outputDirectoryPath: String = ""
+    
+    @State private var showingFolderPicker = false
+    
+    /// Default output directory (Downloads)
+    private var defaultOutputDirectory: URL {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory())
+    }
+    
+    /// The configured output directory, or default if not set
+    var effectiveOutputDirectory: URL {
+        if outputDirectoryPath.isEmpty {
+            return defaultOutputDirectory
+        }
+        return URL(fileURLWithPath: outputDirectoryPath)
+    }
+    
+    var body: some View {
+        Form {
+            limitsSection
+            outputSection
+        }
+        .formStyle(.grouped)
+        .padding()
+        .fileImporter(
+            isPresented: $showingFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                outputDirectoryPath = url.path
+            }
+        }
+    }
+    
+    // MARK: - Limits Section
+    
+    private var limitsSection: some View {
+        Section("Operating Limits") {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Default Timeout:")
+                        TextField("", value: $defaultTaskTimeoutMinutes, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                            .multilineTextAlignment(.trailing)
+                            .onChange(of: defaultTaskTimeoutMinutes) { _, newValue in
+                                defaultTaskTimeoutMinutes = min(max(newValue, 2), 480)
+                            }
+                        Text("min")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Maximum duration for agent tasks (2-480 min)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Divider()
+                
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Max Iterations:")
+                        TextField("", value: $defaultMaxIterations, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                            .multilineTextAlignment(.trailing)
+                            .onChange(of: defaultMaxIterations) { _, newValue in
+                                defaultMaxIterations = min(max(newValue, 10), 500)
+                            }
+                    }
+                    Text("Maximum number of observe-decide-execute cycles (10-500)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Output Section
+    
+    private var outputSection: some View {
+        Section("File Output") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Output Directory")
+                            .font(.headline)
+                        Text(displayPath)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Choose...") {
+                        showingFolderPicker = true
+                    }
+                    
+                    if !outputDirectoryPath.isEmpty {
+                        Button("Reset") {
+                            outputDirectoryPath = ""
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                .contextMenu {
+                    Button("Show in Finder") {
+                        showInFinder()
+                    }
+                }
+                
+                Text("Files produced by agents will be copied here from the VM's outbox")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    private var displayPath: String {
+        if outputDirectoryPath.isEmpty {
+            return "~/Downloads (default)"
+        }
+        return outputDirectoryPath.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+    }
+    
+    /// Function to show the output directory in Finder
+    private func showInFinder() {
+        NSWorkspace.shared.open(effectiveOutputDirectory)
+    }
+}
+
+#Preview {
+    TaskDefaultsSettingsView()
+}

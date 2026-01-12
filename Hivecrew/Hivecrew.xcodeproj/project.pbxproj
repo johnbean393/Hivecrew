@@ -1,0 +1,1232 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2019E33D2F13997E0041819D /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33C2F13997E0041819D /* OpenAI */; };
+		2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33F2F139C0000041819 /* HivecrewLLM */; };
+		2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2019E34F2F13A00000041819 /* LLMProviderRecord.swift */; };
+		204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */; };
+		204DF41A2F14D5E7004AB99B /* OnboardingTemplateStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4162F14D5E7004AB99B /* OnboardingTemplateStep.swift */; };
+		204DF41B2F14D5E7004AB99B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4172F14D5E7004AB99B /* OnboardingView.swift */; };
+		204DF41C2F14D5E7004AB99B /* OnboardingWelcomeStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4182F14D5E7004AB99B /* OnboardingWelcomeStep.swift */; };
+		204DF41D2F14D5E7004AB99B /* OnboardingCompleteStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4142F14D5E7004AB99B /* OnboardingCompleteStep.swift */; };
+		204DF41E2F14D5E7004AB99B /* OnboardingProviderStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4152F14D5E7004AB99B /* OnboardingProviderStep.swift */; };
+		204DF4202F14D5F4004AB99B /* ToolConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF41F2F14D5F4004AB99B /* ToolConfirmationSheet.swift */; };
+		204DF4222F14DEEF004AB99B /* DeveloperSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */; };
+		204DF4242F150CB4004AB99B /* DebugMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4232F150CB4004AB99B /* DebugMenuCommands.swift */; };
+		204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */; };
+		204DF4302F1571AB004AB99B /* PromptModelButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42C2F1571AB004AB99B /* PromptModelButton.swift */; };
+		204DF4312F1571AB004AB99B /* PromptAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */; };
+		204DF4322F1571AB004AB99B /* PromptBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42B2F1571AB004AB99B /* PromptBar.swift */; };
+		204DF4332F1571AB004AB99B /* PromptTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42D2F1571AB004AB99B /* PromptTextEditor.swift */; };
+		204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4342F157397004AB99B /* TaskService+Execution.swift */; };
+		204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4362F157397004AB99B /* TaskServiceError.swift */; };
+		204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4352F157397004AB99B /* TaskService+VMManagement.swift */; };
+		204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */; };
+		204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF43C2F157424004AB99B /* SessionTraceModels.swift */; };
+		204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4402F15744D004AB99B /* AgentRunner+Verification.swift */; };
+		204DF4422F15744D004AB99B /* AgentRunner+Loop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF43F2F15744D004AB99B /* AgentRunner+Loop.swift */; };
+		204DF4452F157492004AB99B /* GuestAgentConnection+Tools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4442F157492004AB99B /* GuestAgentConnection+Tools.swift */; };
+		204DF4472F157508004AB99B /* GuestAgentTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4462F157508004AB99B /* GuestAgentTypes.swift */; };
+		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
+		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
+		209C60512F12AC0000062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C60502F12AC0000062D0E /* HivecrewShared */; };
+		209C61A72F12ABD700062D0E /* VMRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61862F12ABD700062D0E /* VMRecord.swift */; };
+		209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61882F12ABD700062D0E /* VMServiceClient.swift */; };
+		209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618A2F12ABD700062D0E /* DashboardView.swift */; };
+		209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618B2F12ABD700062D0E /* StatCard.swift */; };
+		209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */; };
+		209C61AC2F12ABD700062D0E /* SafetySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618E2F12ABD700062D0E /* SafetySettingsView.swift */; };
+		209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618F2F12ABD700062D0E /* SettingsView.swift */; };
+		209C61AE2F12ABD700062D0E /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61902F12ABD700062D0E /* StorageSettingsView.swift */; };
+		209C61AF2F12ABD700062D0E /* TaskDefaultsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */; };
+		209C61B12F12ABD700062D0E /* AgentEnvironmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */; };
+		209C61B52F12ABD700062D0E /* VMDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61982F12ABD700062D0E /* VMDetailView.swift */; };
+		209C61B62F12ABD700062D0E /* VMDisplayContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61992F12ABD700062D0E /* VMDisplayContainer.swift */; };
+		209C61B72F12ABD700062D0E /* VMDisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C619A2F12ABD700062D0E /* VMDisplayView.swift */; };
+		209C61B82F12ABD700062D0E /* VMInfoBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C619B2F12ABD700062D0E /* VMInfoBar.swift */; };
+		209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C619E2F12ABD700062D0E /* VMPlaceholderView.swift */; };
+		209C61BC2F12ABD700062D0E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61A22F12ABD700062D0E /* ContentView.swift */; };
+		209C61BD2F12ABD700062D0E /* HivecrewApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61A42F12ABD700062D0E /* HivecrewApp.swift */; };
+		209C61BE2F12ABD700062D0E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 209C61A12F12ABD700062D0E /* Assets.xcassets */; };
+		209C61BF2F12ABD700062D0E /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 209C61A52F12ABD700062D0E /* Info.plist */; };
+		209C61C22F12ABDA00062D0E /* HivecrewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61C02F12ABDA00062D0E /* HivecrewTests.swift */; };
+		209C61C62F12ABDC00062D0E /* HivecrewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61C32F12ABDC00062D0E /* HivecrewUITests.swift */; };
+		209C61C72F12ABDC00062D0E /* HivecrewUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61C42F12ABDC00062D0E /* HivecrewUITestsLaunchTests.swift */; };
+		209C61CF2F12ABE300062D0E /* HivecrewVMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61C92F12ABE300062D0E /* HivecrewVMService.swift */; };
+		209C61D02F12ABE300062D0E /* HivecrewVMServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61CA2F12ABE300062D0E /* HivecrewVMServiceProtocol.swift */; };
+		209C61D12F12ABE300062D0E /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61CC2F12ABE300062D0E /* main.swift */; };
+		209C61D22F12ABE300062D0E /* VMManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61CD2F12ABE300062D0E /* VMManager.swift */; };
+		209C61D32F12ABE300062D0E /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 209C61CB2F12ABE300062D0E /* Info.plist */; };
+		209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */; };
+		209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */; };
+		20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */; };
+		20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */; };
+		20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */; };
+		20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */; };
+		20C413F62F14302F00C6E8A9 /* Hivecrew.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20C413F52F14302F00C6E8A9 /* Hivecrew.icon */; };
+		20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 20C413F82F143BAA00C6E8A9 /* MarkdownView */; };
+		3001B0012F15000000000001 /* TaskRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0012F15000000000001 /* TaskRecord.swift */; };
+		3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0022F15000000000002 /* AgentSessionRecord.swift */; };
+		3001B0032F15000000000003 /* AgentQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0032F15000000000003 /* AgentQuestion.swift */; };
+		3001B0042F15000000000004 /* AgentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0042F15000000000004 /* AgentRunner.swift */; };
+		3001B0052F15000000000005 /* AgentPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0052F15000000000005 /* AgentPrompts.swift */; };
+		3001B0062F15000000000006 /* ToolExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0062F15000000000006 /* ToolExecutor.swift */; };
+		3001B0072F15000000000007 /* TaskService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0072F15000000000007 /* TaskService.swift */; };
+		3001B0082F15000000000008 /* TaskTitleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0082F15000000000008 /* TaskTitleGenerator.swift */; };
+		3001B0092F15000000000009 /* AgentStatePublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0092F15000000000009 /* AgentStatePublisher.swift */; };
+		3001B00A2F1500000000000A /* TaskInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A00A2F1500000000000A /* TaskInputView.swift */; };
+		3001B00B2F1500000000000B /* TaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A00B2F1500000000000B /* TaskListView.swift */; };
+		3001B00C2F1500000000000C /* TaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A00C2F1500000000000C /* TaskRowView.swift */; };
+		3001B00D2F1500000000000D /* AgentQuestionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A00D2F1500000000000D /* AgentQuestionSheet.swift */; };
+		3001B00E2F1500000000000E /* AgentActivityStreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A00E2F1500000000000E /* AgentActivityStreamView.swift */; };
+		3001B00F2F1500000000000F /* AgentStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A00F2F1500000000000F /* AgentStatusBar.swift */; };
+		3001B0102F15000000000010 /* SessionTraceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0102F15000000000010 /* SessionTraceView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		209C5FA42F12948000062D0E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 209C5F8C2F12947F00062D0E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 209C5F932F12947F00062D0E;
+			remoteInfo = Hivecrew;
+		};
+		209C5FAE2F12948000062D0E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 209C5F8C2F12947F00062D0E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 209C5F932F12947F00062D0E;
+			remoteInfo = Hivecrew;
+		};
+		209C5FEF2F12977800062D0E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 209C5F8C2F12947F00062D0E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 209C5FDB2F12964700062D0E;
+			remoteInfo = HivecrewVMService;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		209C5FED2F12973D00062D0E /* Embed XPC Services */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
+			dstSubfolderSpec = 16;
+			files = (
+				209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */,
+			);
+			name = "Embed XPC Services";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		2019E34F2F13A00000041819 /* LLMProviderRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProviderRecord.swift; sourceTree = "<group>"; };
+		204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentSettingsView.swift; sourceTree = "<group>"; };
+		204DF4142F14D5E7004AB99B /* OnboardingCompleteStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCompleteStep.swift; sourceTree = "<group>"; };
+		204DF4152F14D5E7004AB99B /* OnboardingProviderStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingProviderStep.swift; sourceTree = "<group>"; };
+		204DF4162F14D5E7004AB99B /* OnboardingTemplateStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTemplateStep.swift; sourceTree = "<group>"; };
+		204DF4172F14D5E7004AB99B /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		204DF4182F14D5E7004AB99B /* OnboardingWelcomeStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWelcomeStep.swift; sourceTree = "<group>"; };
+		204DF41F2F14D5F4004AB99B /* ToolConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolConfirmationSheet.swift; sourceTree = "<group>"; };
+		204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperSettingsView.swift; sourceTree = "<group>"; };
+		204DF4232F150CB4004AB99B /* DebugMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugMenuCommands.swift; sourceTree = "<group>"; };
+		204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptAttachmentButton.swift; sourceTree = "<group>"; };
+		204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptAttachmentPreview.swift; sourceTree = "<group>"; };
+		204DF42B2F1571AB004AB99B /* PromptBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBar.swift; sourceTree = "<group>"; };
+		204DF42C2F1571AB004AB99B /* PromptModelButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelButton.swift; sourceTree = "<group>"; };
+		204DF42D2F1571AB004AB99B /* PromptTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTextEditor.swift; sourceTree = "<group>"; };
+		204DF4342F157397004AB99B /* TaskService+Execution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+Execution.swift"; sourceTree = "<group>"; };
+		204DF4352F157397004AB99B /* TaskService+VMManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+VMManagement.swift"; sourceTree = "<group>"; };
+		204DF4362F157397004AB99B /* TaskServiceError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskServiceError.swift; sourceTree = "<group>"; };
+		204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionTraceView+Panels.swift"; sourceTree = "<group>"; };
+		204DF43C2F157424004AB99B /* SessionTraceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTraceModels.swift; sourceTree = "<group>"; };
+		204DF43F2F15744D004AB99B /* AgentRunner+Loop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentRunner+Loop.swift"; sourceTree = "<group>"; };
+		204DF4402F15744D004AB99B /* AgentRunner+Verification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentRunner+Verification.swift"; sourceTree = "<group>"; };
+		204DF4442F157492004AB99B /* GuestAgentConnection+Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuestAgentConnection+Tools.swift"; sourceTree = "<group>"; };
+		204DF4462F157508004AB99B /* GuestAgentTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestAgentTypes.swift; sourceTree = "<group>"; };
+		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = HivecrewVMService.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
+		209C61862F12ABD700062D0E /* VMRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMRecord.swift; sourceTree = "<group>"; };
+		209C61882F12ABD700062D0E /* VMServiceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMServiceClient.swift; sourceTree = "<group>"; };
+		209C618A2F12ABD700062D0E /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		209C618B2F12ABD700062D0E /* StatCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCard.swift; sourceTree = "<group>"; };
+		209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersSettingsView.swift; sourceTree = "<group>"; };
+		209C618E2F12ABD700062D0E /* SafetySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafetySettingsView.swift; sourceTree = "<group>"; };
+		209C618F2F12ABD700062D0E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		209C61902F12ABD700062D0E /* StorageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
+		209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDefaultsSettingsView.swift; sourceTree = "<group>"; };
+		209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnvironmentsView.swift; sourceTree = "<group>"; };
+		209C61982F12ABD700062D0E /* VMDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMDetailView.swift; sourceTree = "<group>"; };
+		209C61992F12ABD700062D0E /* VMDisplayContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMDisplayContainer.swift; sourceTree = "<group>"; };
+		209C619A2F12ABD700062D0E /* VMDisplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMDisplayView.swift; sourceTree = "<group>"; };
+		209C619B2F12ABD700062D0E /* VMInfoBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMInfoBar.swift; sourceTree = "<group>"; };
+		209C619E2F12ABD700062D0E /* VMPlaceholderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMPlaceholderView.swift; sourceTree = "<group>"; };
+		209C61A12F12ABD700062D0E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		209C61A22F12ABD700062D0E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		209C61A32F12ABD700062D0E /* Hivecrew.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Hivecrew.entitlements; sourceTree = "<group>"; };
+		209C61A42F12ABD700062D0E /* HivecrewApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewApp.swift; sourceTree = "<group>"; };
+		209C61A52F12ABD700062D0E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		209C61C02F12ABDA00062D0E /* HivecrewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewTests.swift; sourceTree = "<group>"; };
+		209C61C32F12ABDC00062D0E /* HivecrewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewUITests.swift; sourceTree = "<group>"; };
+		209C61C42F12ABDC00062D0E /* HivecrewUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		209C61C82F12ABE300062D0E /* HivecrewVMService.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HivecrewVMService.entitlements; sourceTree = "<group>"; };
+		209C61C92F12ABE300062D0E /* HivecrewVMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewVMService.swift; sourceTree = "<group>"; };
+		209C61CA2F12ABE300062D0E /* HivecrewVMServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewVMServiceProtocol.swift; sourceTree = "<group>"; };
+		209C61CB2F12ABE300062D0E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		209C61CC2F12ABE300062D0E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		209C61CD2F12ABE300062D0E /* VMManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMManager.swift; sourceTree = "<group>"; };
+		209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVMRuntime.swift; sourceTree = "<group>"; };
+		209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestAgentConnection.swift; sourceTree = "<group>"; };
+		20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTracePanel.swift; sourceTree = "<group>"; };
+		20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTerminationManager.swift; sourceTree = "<group>"; };
+		20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedTasksStartupSheet.swift; sourceTree = "<group>"; };
+		20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminationConfirmationSheet.swift; sourceTree = "<group>"; };
+		20C413F52F14302F00C6E8A9 /* Hivecrew.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Hivecrew.icon; sourceTree = "<group>"; };
+		3001A0012F15000000000001 /* TaskRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRecord.swift; sourceTree = "<group>"; };
+		3001A0022F15000000000002 /* AgentSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionRecord.swift; sourceTree = "<group>"; };
+		3001A0032F15000000000003 /* AgentQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentQuestion.swift; sourceTree = "<group>"; };
+		3001A0042F15000000000004 /* AgentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunner.swift; sourceTree = "<group>"; };
+		3001A0052F15000000000005 /* AgentPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPrompts.swift; sourceTree = "<group>"; };
+		3001A0062F15000000000006 /* ToolExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolExecutor.swift; sourceTree = "<group>"; };
+		3001A0072F15000000000007 /* TaskService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskService.swift; sourceTree = "<group>"; };
+		3001A0082F15000000000008 /* TaskTitleGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskTitleGenerator.swift; sourceTree = "<group>"; };
+		3001A0092F15000000000009 /* AgentStatePublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatePublisher.swift; sourceTree = "<group>"; };
+		3001A00A2F1500000000000A /* TaskInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInputView.swift; sourceTree = "<group>"; };
+		3001A00B2F1500000000000B /* TaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListView.swift; sourceTree = "<group>"; };
+		3001A00C2F1500000000000C /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
+		3001A00D2F1500000000000D /* AgentQuestionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentQuestionSheet.swift; sourceTree = "<group>"; };
+		3001A00E2F1500000000000E /* AgentActivityStreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentActivityStreamView.swift; sourceTree = "<group>"; };
+		3001A00F2F1500000000000F /* AgentStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusBar.swift; sourceTree = "<group>"; };
+		3001A0102F15000000000010 /* SessionTraceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTraceView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		209C5F912F12947F00062D0E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */,
+				2019E33D2F13997E0041819D /* OpenAI in Frameworks */,
+				2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */,
+				209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */,
+				20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FA02F12948000062D0E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FAA2F12948000062D0E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FD92F12964700062D0E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				209C60512F12AC0000062D0E /* HivecrewShared in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		204DF4192F14D5E7004AB99B /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				204DF4142F14D5E7004AB99B /* OnboardingCompleteStep.swift */,
+				204DF4152F14D5E7004AB99B /* OnboardingProviderStep.swift */,
+				204DF4162F14D5E7004AB99B /* OnboardingTemplateStep.swift */,
+				204DF4172F14D5E7004AB99B /* OnboardingView.swift */,
+				204DF4182F14D5E7004AB99B /* OnboardingWelcomeStep.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		204DF42E2F1571AB004AB99B /* Prompt Bar */ = {
+			isa = PBXGroup;
+			children = (
+				204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */,
+				204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */,
+				204DF42B2F1571AB004AB99B /* PromptBar.swift */,
+				204DF42C2F1571AB004AB99B /* PromptModelButton.swift */,
+				204DF42D2F1571AB004AB99B /* PromptTextEditor.swift */,
+			);
+			path = "Prompt Bar";
+			sourceTree = "<group>";
+		};
+		204DF43E2F15743E004AB99B /* Task Service */ = {
+			isa = PBXGroup;
+			children = (
+				3001A0072F15000000000007 /* TaskService.swift */,
+				204DF4342F157397004AB99B /* TaskService+Execution.swift */,
+				204DF4352F157397004AB99B /* TaskService+VMManagement.swift */,
+				204DF4362F157397004AB99B /* TaskServiceError.swift */,
+			);
+			path = "Task Service";
+			sourceTree = "<group>";
+		};
+		204DF4432F157454004AB99B /* Agent Runner */ = {
+			isa = PBXGroup;
+			children = (
+				3001A0042F15000000000004 /* AgentRunner.swift */,
+				204DF43F2F15744D004AB99B /* AgentRunner+Loop.swift */,
+				204DF4402F15744D004AB99B /* AgentRunner+Verification.swift */,
+			);
+			path = "Agent Runner";
+			sourceTree = "<group>";
+		};
+		204DF4482F15771A004AB99B /* Guest Agent Connection */ = {
+			isa = PBXGroup;
+			children = (
+				209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */,
+				204DF4442F157492004AB99B /* GuestAgentConnection+Tools.swift */,
+				204DF4462F157508004AB99B /* GuestAgentTypes.swift */,
+			);
+			path = "Guest Agent Connection";
+			sourceTree = "<group>";
+		};
+		209C5F8B2F12947F00062D0E = {
+			isa = PBXGroup;
+			children = (
+				209C61A62F12ABD700062D0E /* Hivecrew */,
+				209C61C12F12ABDA00062D0E /* HivecrewTests */,
+				209C61C52F12ABDC00062D0E /* HivecrewUITests */,
+				209C61CE2F12ABE300062D0E /* HivecrewVMService */,
+				209C5F952F12947F00062D0E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		209C5F952F12947F00062D0E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				209C5F942F12947F00062D0E /* Hivecrew.app */,
+				209C5FA32F12948000062D0E /* HivecrewTests.xctest */,
+				209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */,
+				209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		209C61872F12ABD700062D0E /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				3001A0032F15000000000003 /* AgentQuestion.swift */,
+				3001A0022F15000000000002 /* AgentSessionRecord.swift */,
+				2019E34F2F13A00000041819 /* LLMProviderRecord.swift */,
+				3001A0012F15000000000001 /* TaskRecord.swift */,
+				209C61862F12ABD700062D0E /* VMRecord.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		209C61892F12ABD700062D0E /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				3001A0052F15000000000005 /* AgentPrompts.swift */,
+				3001A0092F15000000000009 /* AgentStatePublisher.swift */,
+				20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */,
+				209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */,
+				3001A0082F15000000000008 /* TaskTitleGenerator.swift */,
+				3001A0062F15000000000006 /* ToolExecutor.swift */,
+				209C61882F12ABD700062D0E /* VMServiceClient.swift */,
+				204DF4482F15771A004AB99B /* Guest Agent Connection */,
+				204DF4432F157454004AB99B /* Agent Runner */,
+				204DF43E2F15743E004AB99B /* Task Service */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		209C618C2F12ABD700062D0E /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				209C618A2F12ABD700062D0E /* DashboardView.swift */,
+				3001A0102F15000000000010 /* SessionTraceView.swift */,
+				204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */,
+				204DF43C2F157424004AB99B /* SessionTraceModels.swift */,
+				209C618B2F12ABD700062D0E /* StatCard.swift */,
+				3001A00A2F1500000000000A /* TaskInputView.swift */,
+				3001A00B2F1500000000000B /* TaskListView.swift */,
+				3001A00C2F1500000000000C /* TaskRowView.swift */,
+				204DF42E2F1571AB004AB99B /* Prompt Bar */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		209C61932F12ABD700062D0E /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */,
+				204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */,
+				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
+				209C618E2F12ABD700062D0E /* SafetySettingsView.swift */,
+				209C618F2F12ABD700062D0E /* SettingsView.swift */,
+				209C61902F12ABD700062D0E /* StorageSettingsView.swift */,
+				209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		209C619F2F12ABD700062D0E /* Environments */ = {
+			isa = PBXGroup;
+			children = (
+				20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */,
+				3001A00E2F1500000000000E /* AgentActivityStreamView.swift */,
+				209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */,
+				3001A00F2F1500000000000F /* AgentStatusBar.swift */,
+				209C61982F12ABD700062D0E /* VMDetailView.swift */,
+				209C61992F12ABD700062D0E /* VMDisplayContainer.swift */,
+				209C619A2F12ABD700062D0E /* VMDisplayView.swift */,
+				209C619B2F12ABD700062D0E /* VMInfoBar.swift */,
+				209C619E2F12ABD700062D0E /* VMPlaceholderView.swift */,
+			);
+			path = Environments;
+			sourceTree = "<group>";
+		};
+		209C61A02F12ABD700062D0E /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				204DF4192F14D5E7004AB99B /* Onboarding */,
+				20C413EB2F142C6B00C6E8A9 /* App */,
+				3001C0012F15000000000001 /* Agent */,
+				209C618C2F12ABD700062D0E /* Dashboard */,
+				209C619F2F12ABD700062D0E /* Environments */,
+				209C61932F12ABD700062D0E /* Settings */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		209C61A62F12ABD700062D0E /* Hivecrew */ = {
+			isa = PBXGroup;
+			children = (
+				209C61A42F12ABD700062D0E /* HivecrewApp.swift */,
+				209C61A22F12ABD700062D0E /* ContentView.swift */,
+				204DF4232F150CB4004AB99B /* DebugMenuCommands.swift */,
+				209C61A02F12ABD700062D0E /* Views */,
+				209C61872F12ABD700062D0E /* Models */,
+				209C61892F12ABD700062D0E /* Services */,
+				209C61A12F12ABD700062D0E /* Assets.xcassets */,
+				209C61A32F12ABD700062D0E /* Hivecrew.entitlements */,
+				209C61A52F12ABD700062D0E /* Info.plist */,
+				20C413F22F14301E00C6E8A9 /* Resources */,
+			);
+			path = Hivecrew;
+			sourceTree = "<group>";
+		};
+		209C61C12F12ABDA00062D0E /* HivecrewTests */ = {
+			isa = PBXGroup;
+			children = (
+				209C61C02F12ABDA00062D0E /* HivecrewTests.swift */,
+			);
+			path = HivecrewTests;
+			sourceTree = "<group>";
+		};
+		209C61C52F12ABDC00062D0E /* HivecrewUITests */ = {
+			isa = PBXGroup;
+			children = (
+				209C61C32F12ABDC00062D0E /* HivecrewUITests.swift */,
+				209C61C42F12ABDC00062D0E /* HivecrewUITestsLaunchTests.swift */,
+			);
+			path = HivecrewUITests;
+			sourceTree = "<group>";
+		};
+		209C61CE2F12ABE300062D0E /* HivecrewVMService */ = {
+			isa = PBXGroup;
+			children = (
+				209C61CC2F12ABE300062D0E /* main.swift */,
+				209C61C92F12ABE300062D0E /* HivecrewVMService.swift */,
+				209C61CD2F12ABE300062D0E /* VMManager.swift */,
+				209C61CA2F12ABE300062D0E /* HivecrewVMServiceProtocol.swift */,
+				209C61C82F12ABE300062D0E /* HivecrewVMService.entitlements */,
+				209C61CB2F12ABE300062D0E /* Info.plist */,
+			);
+			path = HivecrewVMService;
+			sourceTree = "<group>";
+		};
+		20C413EB2F142C6B00C6E8A9 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */,
+				20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		20C413F22F14301E00C6E8A9 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				20C413F52F14302F00C6E8A9 /* Hivecrew.icon */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		3001C0012F15000000000001 /* Agent */ = {
+			isa = PBXGroup;
+			children = (
+				204DF41F2F14D5F4004AB99B /* ToolConfirmationSheet.swift */,
+				3001A00D2F1500000000000D /* AgentQuestionSheet.swift */,
+			);
+			path = Agent;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		209C5F932F12947F00062D0E /* Hivecrew */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 209C5FB72F12948000062D0E /* Build configuration list for PBXNativeTarget "Hivecrew" */;
+			buildPhases = (
+				209C5F902F12947F00062D0E /* Sources */,
+				209C5F912F12947F00062D0E /* Frameworks */,
+				209C5F922F12947F00062D0E /* Resources */,
+				209C5FED2F12973D00062D0E /* Embed XPC Services */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				209C5FF02F12977800062D0E /* PBXTargetDependency */,
+			);
+			name = Hivecrew;
+			packageProductDependencies = (
+				209C604A2F129A6400062D0E /* HivecrewShared */,
+				209C604D2F129A7300062D0E /* HivecrewShared */,
+				2019E33C2F13997E0041819D /* OpenAI */,
+				2019E33F2F139C0000041819 /* HivecrewLLM */,
+				20C413F82F143BAA00C6E8A9 /* MarkdownView */,
+			);
+			productName = Hivecrew;
+			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
+			productType = "com.apple.product-type.application";
+		};
+		209C5FA22F12948000062D0E /* HivecrewTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 209C5FBA2F12948000062D0E /* Build configuration list for PBXNativeTarget "HivecrewTests" */;
+			buildPhases = (
+				209C5F9F2F12948000062D0E /* Sources */,
+				209C5FA02F12948000062D0E /* Frameworks */,
+				209C5FA12F12948000062D0E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				209C5FA52F12948000062D0E /* PBXTargetDependency */,
+			);
+			name = HivecrewTests;
+			packageProductDependencies = (
+			);
+			productName = HivecrewTests;
+			productReference = 209C5FA32F12948000062D0E /* HivecrewTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		209C5FAC2F12948000062D0E /* HivecrewUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 209C5FBD2F12948000062D0E /* Build configuration list for PBXNativeTarget "HivecrewUITests" */;
+			buildPhases = (
+				209C5FA92F12948000062D0E /* Sources */,
+				209C5FAA2F12948000062D0E /* Frameworks */,
+				209C5FAB2F12948000062D0E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				209C5FAF2F12948000062D0E /* PBXTargetDependency */,
+			);
+			name = HivecrewUITests;
+			packageProductDependencies = (
+			);
+			productName = HivecrewUITests;
+			productReference = 209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		209C5FDB2F12964700062D0E /* HivecrewVMService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 209C5FE82F12964700062D0E /* Build configuration list for PBXNativeTarget "HivecrewVMService" */;
+			buildPhases = (
+				209C5FD82F12964700062D0E /* Sources */,
+				209C5FD92F12964700062D0E /* Frameworks */,
+				209C5FDA2F12964700062D0E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HivecrewVMService;
+			packageProductDependencies = (
+				209C60502F12AC0000062D0E /* HivecrewShared */,
+			);
+			productName = HivecrewVMService;
+			productReference = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */;
+			productType = "com.apple.product-type.xpc-service";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		209C5F8C2F12947F00062D0E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					209C5F932F12947F00062D0E = {
+						CreatedOnToolsVersion = 26.1;
+					};
+					209C5FA22F12948000062D0E = {
+						CreatedOnToolsVersion = 26.1;
+						TestTargetID = 209C5F932F12947F00062D0E;
+					};
+					209C5FAC2F12948000062D0E = {
+						CreatedOnToolsVersion = 26.1;
+						TestTargetID = 209C5F932F12947F00062D0E;
+					};
+					209C5FDB2F12964700062D0E = {
+						CreatedOnToolsVersion = 26.1;
+					};
+				};
+			};
+			buildConfigurationList = 209C5F8F2F12947F00062D0E /* Build configuration list for PBXProject "Hivecrew" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 209C5F8B2F12947F00062D0E;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				209C604C2F129A7200062D0E /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */,
+				2019E33E2F139C0000041819 /* XCLocalSwiftPackageReference "../Packages/HivecrewLLM" */,
+				2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */,
+				20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 209C5F952F12947F00062D0E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				209C5F932F12947F00062D0E /* Hivecrew */,
+				209C5FA22F12948000062D0E /* HivecrewTests */,
+				209C5FAC2F12948000062D0E /* HivecrewUITests */,
+				209C5FDB2F12964700062D0E /* HivecrewVMService */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		209C5F922F12947F00062D0E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				20C413F62F14302F00C6E8A9 /* Hivecrew.icon in Resources */,
+				209C61BE2F12ABD700062D0E /* Assets.xcassets in Resources */,
+				209C61BF2F12ABD700062D0E /* Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FA12F12948000062D0E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FAB2F12948000062D0E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FDA2F12964700062D0E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				209C61D32F12ABE300062D0E /* Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		209C5F902F12947F00062D0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				204DF41A2F14D5E7004AB99B /* OnboardingTemplateStep.swift in Sources */,
+				204DF41B2F14D5E7004AB99B /* OnboardingView.swift in Sources */,
+				204DF41C2F14D5E7004AB99B /* OnboardingWelcomeStep.swift in Sources */,
+				204DF41D2F14D5E7004AB99B /* OnboardingCompleteStep.swift in Sources */,
+				204DF41E2F14D5E7004AB99B /* OnboardingProviderStep.swift in Sources */,
+				2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */,
+				209C61A72F12ABD700062D0E /* VMRecord.swift in Sources */,
+				209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */,
+				209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */,
+				209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */,
+				209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */,
+				209C61AC2F12ABD700062D0E /* SafetySettingsView.swift in Sources */,
+				20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */,
+				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
+				209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */,
+				209C61AE2F12ABD700062D0E /* StorageSettingsView.swift in Sources */,
+				204DF4222F14DEEF004AB99B /* DeveloperSettingsView.swift in Sources */,
+				209C61AF2F12ABD700062D0E /* TaskDefaultsSettingsView.swift in Sources */,
+				209C61B12F12ABD700062D0E /* AgentEnvironmentsView.swift in Sources */,
+				209C61B52F12ABD700062D0E /* VMDetailView.swift in Sources */,
+				204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */,
+				204DF4302F1571AB004AB99B /* PromptModelButton.swift in Sources */,
+				204DF4472F157508004AB99B /* GuestAgentTypes.swift in Sources */,
+				204DF4312F1571AB004AB99B /* PromptAttachmentPreview.swift in Sources */,
+				204DF4322F1571AB004AB99B /* PromptBar.swift in Sources */,
+				204DF4332F1571AB004AB99B /* PromptTextEditor.swift in Sources */,
+				204DF4242F150CB4004AB99B /* DebugMenuCommands.swift in Sources */,
+				209C61B62F12ABD700062D0E /* VMDisplayContainer.swift in Sources */,
+				209C61B72F12ABD700062D0E /* VMDisplayView.swift in Sources */,
+				209C61B82F12ABD700062D0E /* VMInfoBar.swift in Sources */,
+				204DF4202F14D5F4004AB99B /* ToolConfirmationSheet.swift in Sources */,
+				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
+				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
+				204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */,
+				20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */,
+				209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */,
+				209C61BC2F12ABD700062D0E /* ContentView.swift in Sources */,
+				204DF4452F157492004AB99B /* GuestAgentConnection+Tools.swift in Sources */,
+				209C61BD2F12ABD700062D0E /* HivecrewApp.swift in Sources */,
+				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
+				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
+				3001B0032F15000000000003 /* AgentQuestion.swift in Sources */,
+				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
+				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
+				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
+				204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */,
+				204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */,
+				3001B0052F15000000000005 /* AgentPrompts.swift in Sources */,
+				204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */,
+				204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */,
+				204DF4422F15744D004AB99B /* AgentRunner+Loop.swift in Sources */,
+				204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */,
+				3001B0062F15000000000006 /* ToolExecutor.swift in Sources */,
+				3001B0072F15000000000007 /* TaskService.swift in Sources */,
+				3001B0082F15000000000008 /* TaskTitleGenerator.swift in Sources */,
+				3001B0092F15000000000009 /* AgentStatePublisher.swift in Sources */,
+				3001B00A2F1500000000000A /* TaskInputView.swift in Sources */,
+				3001B00B2F1500000000000B /* TaskListView.swift in Sources */,
+				3001B00C2F1500000000000C /* TaskRowView.swift in Sources */,
+				3001B00D2F1500000000000D /* AgentQuestionSheet.swift in Sources */,
+				3001B00E2F1500000000000E /* AgentActivityStreamView.swift in Sources */,
+				3001B00F2F1500000000000F /* AgentStatusBar.swift in Sources */,
+				3001B0102F15000000000010 /* SessionTraceView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5F9F2F12948000062D0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				209C61C22F12ABDA00062D0E /* HivecrewTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FA92F12948000062D0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				209C61C62F12ABDC00062D0E /* HivecrewUITests.swift in Sources */,
+				209C61C72F12ABDC00062D0E /* HivecrewUITestsLaunchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		209C5FD82F12964700062D0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				209C61CF2F12ABE300062D0E /* HivecrewVMService.swift in Sources */,
+				209C61D02F12ABE300062D0E /* HivecrewVMServiceProtocol.swift in Sources */,
+				209C61D12F12ABE300062D0E /* main.swift in Sources */,
+				209C61D22F12ABE300062D0E /* VMManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		209C5FA52F12948000062D0E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 209C5F932F12947F00062D0E /* Hivecrew */;
+			targetProxy = 209C5FA42F12948000062D0E /* PBXContainerItemProxy */;
+		};
+		209C5FAF2F12948000062D0E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 209C5F932F12947F00062D0E /* Hivecrew */;
+			targetProxy = 209C5FAE2F12948000062D0E /* PBXContainerItemProxy */;
+		};
+		209C5FF02F12977800062D0E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 209C5FDB2F12964700062D0E /* HivecrewVMService */;
+			targetProxy = 209C5FEF2F12977800062D0E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		209C5FB52F12948000062D0E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		209C5FB62F12948000062D0E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		209C5FB82F12948000062D0E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Hivecrew;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Hivecrew/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		209C5FB92F12948000062D0E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Hivecrew;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Hivecrew/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		209C5FBB2F12948000062D0E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hivecrew.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Hivecrew";
+			};
+			name = Debug;
+		};
+		209C5FBC2F12948000062D0E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hivecrew.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Hivecrew";
+			};
+			name = Release;
+		};
+		209C5FBE2F12948000062D0E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Hivecrew;
+			};
+			name = Debug;
+		};
+		209C5FBF2F12948000062D0E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Hivecrew;
+			};
+			name = Release;
+		};
+		209C5FE92F12964700062D0E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/HivecrewVMService/HivecrewVMService.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HivecrewVMService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HivecrewVMService;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewVMService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		209C5FEA2F12964700062D0E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/HivecrewVMService/HivecrewVMService.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = HivecrewVMService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HivecrewVMService;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewVMService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		209C5F8F2F12947F00062D0E /* Build configuration list for PBXProject "Hivecrew" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				209C5FB52F12948000062D0E /* Debug */,
+				209C5FB62F12948000062D0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		209C5FB72F12948000062D0E /* Build configuration list for PBXNativeTarget "Hivecrew" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				209C5FB82F12948000062D0E /* Debug */,
+				209C5FB92F12948000062D0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		209C5FBA2F12948000062D0E /* Build configuration list for PBXNativeTarget "HivecrewTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				209C5FBB2F12948000062D0E /* Debug */,
+				209C5FBC2F12948000062D0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		209C5FBD2F12948000062D0E /* Build configuration list for PBXNativeTarget "HivecrewUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				209C5FBE2F12948000062D0E /* Debug */,
+				209C5FBF2F12948000062D0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		209C5FE82F12964700062D0E /* Build configuration list for PBXNativeTarget "HivecrewVMService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				209C5FE92F12964700062D0E /* Debug */,
+				209C5FEA2F12964700062D0E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		2019E33E2F139C0000041819 /* XCLocalSwiftPackageReference "../Packages/HivecrewLLM" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewLLM;
+		};
+		209C604C2F129A7200062D0E /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewShared;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MacPaw/OpenAI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.7;
+			};
+		};
+		20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/LiYanan2004/MarkdownView";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2019E33C2F13997E0041819D /* OpenAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */;
+			productName = OpenAI;
+		};
+		2019E33F2F139C0000041819 /* HivecrewLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewLLM;
+		};
+		209C604A2F129A6400062D0E /* HivecrewShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewShared;
+		};
+		209C604D2F129A7300062D0E /* HivecrewShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewShared;
+		};
+		209C60502F12AC0000062D0E /* HivecrewShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewShared;
+		};
+		20C413F82F143BAA00C6E8A9 /* MarkdownView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */;
+			productName = MarkdownView;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 209C5F8C2F12947F00062D0E /* Project object */;
+}
