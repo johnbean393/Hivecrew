@@ -3,7 +3,7 @@
 ## 1. Product Vision & Goals
 
 ### Core Concept
-A native macOS app that runs AI agents inside isolated macOS 15 virtual machines. Users dispatch tasks from a central dashboard; the app spins up VMs, runs agents autonomously, and lets users supervise, guide, or assist agents at any time.
+A native macOS app that runs AI agents inside isolated macOS 26 virtual machines. Users dispatch tasks from a central dashboard; the app spins up VMs, runs agents autonomously, and lets users supervise, guide, or assist agents at any time.
 
 ### Key User Flows
 1. **Dispatch a task**: User describes a task in the Dashboard, selects model/timeout (use defaults if unspecified), hits "Run." The app provisions a VM (or reuses an idle one), launches an agent, and begins work.
@@ -23,8 +23,8 @@ A native macOS app that runs AI agents inside isolated macOS 15 virtual machines
 
 | Constraint | Detail |
 |------------|--------|
-| Host OS | macOS 15.0+ (Sequoia) and forward (macOS 26) |
-| Guest OS | macOS 15 VMs (via Apple Virtualization framework) |
+| Host OS | macOS 26.0+ (Sequoia) and forward (macOS 26) |
+| Guest OS | macOS 26 VMs (via Apple Virtualization framework) |
 | Hardware | Apple Silicon only (M1/M2/M3/M4 families) |
 | Distribution | Notarized direct distribution; requires Virtualization entitlements |
 | Background operation | Agents must work when VM viewer is not visible or app is not frontmost |
@@ -49,7 +49,7 @@ A native macOS app that runs AI agents inside isolated macOS 15 virtual machines
 └──────────────────────────────┬─────────────────────────────────────┘
                                │ virtio-vsock per VM
 ┌──────────────────────────────▼─────────────────────────────────────┐
-│                GuestAgent (inside each macOS 15 VM)                │
+│                GuestAgent (inside each macOS 26 VM)                │
 │   Automation: screenshot, click/type/scroll, open app/file/url,   │
 │   file ops, shell, clipboard, accessibility tree, heartbeat        │
 └────────────────────────────────────────────────────────────────────┘
@@ -219,7 +219,7 @@ A native macOS app that runs AI agents inside isolated macOS 15 virtual machines
 ## 7. GuestAgent Design
 
 ### 7.1 What It Is
-A lightweight Swift daemon (LaunchAgent) running inside each macOS 15 VM that:
+A lightweight Swift daemon (LaunchAgent) running inside each macOS 26 VM that:
 - Connects to host via virtio-vsock on boot.
 - Exposes a JSON-RPC API for automation.
 - Handles heartbeat/health checks.
@@ -424,7 +424,7 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 
 **Onboarding (First Launch)**
 1. Welcome & overview
-2. Download macOS 15 restore image (or select existing)
+2. Download macOS 26 restore image (or select existing)
 3. Create base template (progress UI; installs GuestAgent, LibreOffice, etc.)
 4. Configure at least one LLM provider
 5. Guided first task walkthrough
@@ -446,7 +446,7 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 ## 10. Templates & Provisioning
 
 ### 10.1 Base Template Contents
-- macOS 15 installed and configured (auto-login optional, reduce setup prompts)
+- macOS 26 installed and configured (auto-login optional, reduce setup prompts)
 - GuestAgent installed as LaunchAgent, permissions pre-granted
 - Shared folder mount configured (`/Volumes/Shared`)
 - Pre-installed apps:
@@ -507,7 +507,7 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 | virtio-vsock reliability | High | Prototype early; implement heartbeat and reconnect logic |
 | GuestAgent permission prompts | High | Pre-grant in template; provide guided setup; health check reports missing permissions |
 | Headless screenshot capture | High | Use in-guest capture (GuestAgent), not host-side view capture |
-| macOS 15 VM boot time | Medium | Keep warm VM pool; optimize boot sequence; suspend/resume if beneficial |
+| macOS 26 VM boot time | Medium | Keep warm VM pool; optimize boot sequence; suspend/resume if beneficial |
 | Multi-VM resource contention | Medium | Enforce global limits; auto-pause idle VMs; surface metrics |
 | Template drift (GuestAgent version mismatch) | Low | Version check on connect; prompt to rebuild VM |
 
@@ -522,10 +522,10 @@ Features: streaming, tool/function calling, token counting, rate limit handling,
 - Minimal Dashboard and Agent Environments UI (list VMs, start/stop)
 - SwiftData persistence for VMs
 
-**Milestone**: Can create, boot, interact with, and stop a macOS 15 VM from the app.
+**Milestone**: Can create, boot, interact with, and stop a macOS 26 VM from the app.
 
 ### Phase 2: GuestAgent & Communication
-- GuestAgent daemon for macOS 15 guest
+- GuestAgent daemon for macOS 26 guest
 - virtio-vsock JSON-RPC communication
 - Core tools: screenshot, open_app, open_file, click, type
 - Health check and heartbeat

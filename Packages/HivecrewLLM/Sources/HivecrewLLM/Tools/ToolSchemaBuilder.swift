@@ -28,6 +28,9 @@ public final class ToolSchemaBuilder: Sendable {
             .openApp,
             .openUrl,
             
+            // Observation tools
+            .traverseAccessibilityTree,
+
             // Mouse input
             .mouseClick,
             .mouseDrag,
@@ -37,8 +40,9 @@ public final class ToolSchemaBuilder: Sendable {
             .keyboardType,
             .keyboardKey,
             
-            // Basic file operations
+            // File operations
             .runShell,
+            .readFile,
             
             // Flow control
             .wait,
@@ -70,276 +74,288 @@ public final class ToolSchemaBuilder: Sendable {
     
     private func getSchemaInfo(for method: AgentMethod) -> (description: String, parameters: [String: Any]) {
         switch method {
-        // Observation tools
-        case .screenshot:
-            return (
-                "Take a screenshot of the current screen. Returns base64-encoded PNG image data.",
-                emptyObjectSchema()
-            )
-            
-        case .getFrontmostApp:
-            return (
-                "Get information about the currently active (frontmost) application including bundle ID, app name, and window title.",
-                emptyObjectSchema()
-            )
-            
-        case .listRunningApps:
-            return (
-                "List all currently running applications with their bundle IDs, names, and process IDs.",
-                emptyObjectSchema()
-            )
-            
-        // App tools
-        case .openApp:
-            return (
-                "Open an application by bundle ID or name. At least one of bundleId or appName must be provided.",
-                objectSchema(
-                    properties: [
-                        "bundleId": stringProperty("The bundle identifier of the app (e.g., 'com.apple.Safari')"),
-                        "appName": stringProperty("The name of the app (e.g., 'Safari')")
-                    ],
-                    required: []
+            // Observation tools
+            case .screenshot:
+                return (
+                    "Take a screenshot of the current screen. Returns base64-encoded PNG image data.",
+                    emptyObjectSchema()
                 )
-            )
-            
-        case .openFile:
-            return (
-                "Open a file at the specified path, optionally with a specific application.",
-                objectSchema(
-                    properties: [
-                        "path": stringProperty("The file path to open (relative to shared folder or absolute)"),
-                        "withApp": stringProperty("Optional bundle ID or name of app to open the file with")
-                    ],
-                    required: ["path"]
+                
+            case .getFrontmostApp:
+                return (
+                    "Get information about the currently active (frontmost) application including bundle ID, app name, and window title.",
+                    emptyObjectSchema()
                 )
-            )
-            
-        case .openUrl:
-            return (
-                "Open a URL in the default browser or appropriate application.",
-                objectSchema(
-                    properties: [
-                        "url": stringProperty("The URL to open")
-                    ],
-                    required: ["url"]
+                
+            case .listRunningApps:
+                return (
+                    "List all currently running applications with their bundle IDs, names, and process IDs.",
+                    emptyObjectSchema()
                 )
-            )
-            
-        case .activateApp:
-            return (
-                "Bring an already-running application to the foreground.",
-                objectSchema(
-                    properties: [
-                        "bundleId": stringProperty("The bundle identifier of the app to activate")
-                    ],
-                    required: ["bundleId"]
+                
+            case .traverseAccessibilityTree:
+                return (
+                    "Traverse the accessibility tree of an application to discover UI elements. Returns elements with their roles, text content, and screen positions. Useful for understanding the UI structure.",
+                    objectSchema(
+                        properties: [
+                            "pid": numberProperty("Process ID of the target application. If not provided, uses the frontmost app."),
+                            "onlyVisibleElements": booleanProperty("If true, only returns elements with valid position and size (visible on screen). Defaults to true.")
+                        ],
+                        required: []
+                    )
                 )
-            )
-            
-        // Input tools
-        case .mouseMove:
-            return (
-                "Move the mouse cursor to the specified screen coordinates.",
-                objectSchema(
-                    properties: [
-                        "x": numberProperty("X coordinate on screen"),
-                        "y": numberProperty("Y coordinate on screen")
-                    ],
-                    required: ["x", "y"]
+                
+            // App tools
+            case .openApp:
+                return (
+                    "Open an application by bundle ID or name. Can also be used to bring an app to the foreground. At least one of bundleId or appName must be provided.",
+                    objectSchema(
+                        properties: [
+                            "bundleId": stringProperty("The bundle identifier of the app (e.g., 'com.apple.Safari')"),
+                            "appName": stringProperty("The name of the app (e.g., 'Safari')")
+                        ],
+                        required: []
+                    )
                 )
-            )
-            
-        case .mouseClick:
-            return (
-                "Click the mouse at the specified screen coordinates.",
-                objectSchema(
-                    properties: [
-                        "x": numberProperty("X coordinate on screen"),
-                        "y": numberProperty("Y coordinate on screen"),
-                        "button": enumProperty("Mouse button to click", ["left", "right", "middle"]),
-                        "clickType": enumProperty("Type of click", ["single", "double", "triple"])
-                    ],
-                    required: ["x", "y"]
+                
+            case .openFile:
+                return (
+                    "Open a file at the specified path, optionally with a specific application.",
+                    objectSchema(
+                        properties: [
+                            "path": stringProperty("The file path to open (relative to shared folder or absolute)"),
+                            "withApp": stringProperty("Optional bundle ID or name of app to open the file with")
+                        ],
+                        required: ["path"]
+                    )
                 )
-            )
-            
-        case .mouseDrag:
-            return (
-                "Drag the mouse from one position to another.",
-                objectSchema(
-                    properties: [
-                        "fromX": numberProperty("Starting X coordinate"),
-                        "fromY": numberProperty("Starting Y coordinate"),
-                        "toX": numberProperty("Ending X coordinate"),
-                        "toY": numberProperty("Ending Y coordinate")
-                    ],
-                    required: ["fromX", "fromY", "toX", "toY"]
+                
+            case .openUrl:
+                return (
+                    "Open a URL in the default browser or appropriate application.",
+                    objectSchema(
+                        properties: [
+                            "url": stringProperty("The URL to open")
+                        ],
+                        required: ["url"]
+                    )
                 )
-            )
-            
-        case .keyboardType:
-            return (
-                "Type text using the keyboard. This simulates typing each character.",
-                objectSchema(
-                    properties: [
-                        "text": stringProperty("The text to type")
-                    ],
-                    required: ["text"]
+                
+            case .activateApp:
+                return (
+                    "Bring an already-running application to the foreground.",
+                    objectSchema(
+                        properties: [
+                            "bundleId": stringProperty("The bundle identifier of the app to activate")
+                        ],
+                        required: ["bundleId"]
+                    )
                 )
-            )
-            
-        case .keyboardKey:
-            return (
-                "Press a single key, optionally with modifier keys.",
-                objectSchema(
-                    properties: [
-                        "key": stringProperty("The key to press (e.g., 'return', 'escape', 'tab', 'a', 'F1')"),
-                        "modifiers": arrayProperty(
-                            "Modifier keys to hold",
-                            itemType: enumProperty("Modifier key", ["command", "control", "option", "shift", "function"])
-                        )
-                    ],
-                    required: ["key"]
+                
+            // Input tools
+            case .mouseMove:
+                return (
+                    "Move the mouse cursor to the specified screen coordinates.",
+                    objectSchema(
+                        properties: [
+                            "x": numberProperty("X coordinate on screen"),
+                            "y": numberProperty("Y coordinate on screen")
+                        ],
+                        required: ["x", "y"]
+                    )
                 )
-            )
-            
-        case .scroll:
-            return (
-                "Scroll at the specified screen position. Values are in lines (not pixels). Use values like 3-5 to scroll a few lines, or 10-20 for larger scrolls.",
-                objectSchema(
-                    properties: [
-                        "x": numberProperty("X coordinate where to scroll"),
-                        "y": numberProperty("Y coordinate where to scroll"),
-                        "deltaX": numberProperty("Horizontal scroll amount in lines (positive = right, negative = left)"),
-                        "deltaY": numberProperty("Vertical scroll amount in lines (positive = scroll down to see content below, negative = scroll up)")
-                    ],
-                    required: ["x", "y", "deltaX", "deltaY"]
+                
+            case .mouseClick:
+                return (
+                    "Click the mouse at the specified screen coordinates.",
+                    objectSchema(
+                        properties: [
+                            "x": numberProperty("X coordinate on screen"),
+                            "y": numberProperty("Y coordinate on screen"),
+                            "button": enumProperty("Mouse button to click", ["left", "right", "middle"]),
+                            "clickType": enumProperty("Type of click", ["single", "double", "triple"])
+                        ],
+                        required: ["x", "y"]
+                    )
                 )
-            )
-            
-        // File tools
-        case .runShell:
-            return (
-                "Execute a shell command and return its output. Use with caution.",
-                objectSchema(
-                    properties: [
-                        "command": stringProperty("The shell command to execute"),
-                        "timeout": numberProperty("Optional timeout in seconds")
-                    ],
-                    required: ["command"]
+                
+            case .mouseDrag:
+                return (
+                    "Drag the mouse from one position to another.",
+                    objectSchema(
+                        properties: [
+                            "fromX": numberProperty("Starting X coordinate"),
+                            "fromY": numberProperty("Starting Y coordinate"),
+                            "toX": numberProperty("Ending X coordinate"),
+                            "toY": numberProperty("Ending Y coordinate")
+                        ],
+                        required: ["fromX", "fromY", "toX", "toY"]
+                    )
                 )
-            )
-            
-        case .readFile:
-            return (
-                "Read the contents of a file. Path should be relative to the shared folder.",
-                objectSchema(
-                    properties: [
-                        "path": stringProperty("The file path to read")
-                    ],
-                    required: ["path"]
+                
+            case .keyboardType:
+                return (
+                    "Type text using the keyboard. This simulates typing each character.",
+                    objectSchema(
+                        properties: [
+                            "text": stringProperty("The text to type")
+                        ],
+                        required: ["text"]
+                    )
                 )
-            )
-            
-        case .writeFile:
-            return (
-                "Write content to a file. Path should be relative to the shared folder.",
-                objectSchema(
-                    properties: [
-                        "path": stringProperty("The file path to write to"),
-                        "contents": stringProperty("The content to write")
-                    ],
-                    required: ["path", "contents"]
+                
+            case .keyboardKey:
+                return (
+                    "Press a single key, optionally with modifier keys.",
+                    objectSchema(
+                        properties: [
+                            "key": stringProperty("The key to press (e.g., 'return', 'escape', 'tab', 'a', 'F1')"),
+                            "modifiers": arrayProperty(
+                                "Modifier keys to hold",
+                                itemType: enumProperty("Modifier key", ["command", "control", "option", "shift", "function"])
+                            )
+                        ],
+                        required: ["key"]
+                    )
                 )
-            )
-            
-        case .listDirectory:
-            return (
-                "List files and directories at the specified path.",
-                objectSchema(
-                    properties: [
-                        "path": stringProperty("The directory path to list")
-                    ],
-                    required: ["path"]
+                
+            case .scroll:
+                return (
+                    "Scroll at the specified screen position. Values are in lines (not pixels). Use values like 3-5 to scroll a few lines, or 10-20 for larger scrolls.",
+                    objectSchema(
+                        properties: [
+                            "x": numberProperty("X coordinate where to scroll"),
+                            "y": numberProperty("Y coordinate where to scroll"),
+                            "deltaX": numberProperty("Horizontal scroll amount in lines (positive = right, negative = left)"),
+                            "deltaY": numberProperty("Vertical scroll amount in lines (positive = scroll down to see content below, negative = scroll up)")
+                        ],
+                        required: ["x", "y", "deltaX", "deltaY"]
+                    )
                 )
-            )
-            
-        case .moveFile:
-            return (
-                "Move or rename a file from source to destination.",
-                objectSchema(
-                    properties: [
-                        "source": stringProperty("The source file path"),
-                        "destination": stringProperty("The destination file path")
-                    ],
-                    required: ["source", "destination"]
+                
+            // File tools
+            case .runShell:
+                return (
+                    "Execute a shell command and return its output. Use with caution.",
+                    objectSchema(
+                        properties: [
+                            "command": stringProperty("The shell command to execute"),
+                            "timeout": numberProperty("Optional timeout in seconds")
+                        ],
+                        required: ["command"]
+                    )
                 )
-            )
-            
-        case .clipboardRead:
-            return (
-                "Read the current text content from the system clipboard.",
-                emptyObjectSchema()
-            )
-            
-        case .clipboardWrite:
-            return (
-                "Write text to the system clipboard.",
-                objectSchema(
-                    properties: [
-                        "text": stringProperty("The text to write to clipboard")
-                    ],
-                    required: ["text"]
+                
+            case .readFile:
+                return (
+                    "Read the contents of a file. Supports multiple formats: plain text (with encoding detection), PDF (text extraction), RTF, Office documents (.docx, .xlsx, .pptx), property lists (.plist), and images (returned as base64). Path can be relative to the shared folder or absolute.",
+                    objectSchema(
+                        properties: [
+                            "path": stringProperty("The file path to read")
+                        ],
+                        required: ["path"]
+                    )
                 )
-            )
-            
-        // System tools
-        case .wait:
-            return (
-                "Wait for the specified number of seconds before continuing.",
-                objectSchema(
-                    properties: [
-                        "seconds": numberProperty("Number of seconds to wait")
-                    ],
-                    required: ["seconds"]
+                
+            case .writeFile:
+                return (
+                    "Write content to a file. Path should be relative to the shared folder.",
+                    objectSchema(
+                        properties: [
+                            "path": stringProperty("The file path to write to"),
+                            "contents": stringProperty("The content to write")
+                        ],
+                        required: ["path", "contents"]
+                    )
                 )
-            )
-            
-        case .healthCheck:
-            return (
-                "Check the agent's health status including permissions and shared folder mount.",
-                emptyObjectSchema()
-            )
-            
-        case .shutdown:
-            return (
-                "Initiate a graceful shutdown of the virtual machine.",
-                emptyObjectSchema()
-            )
-            
-        // User interaction tools
-        case .askTextQuestion:
-            return (
-                "Ask the user an open-ended text question when you need clarification or additional information to complete the task.",
-                objectSchema(
-                    properties: [
-                        "question": stringProperty("The question to ask the user")
-                    ],
-                    required: ["question"]
+                
+            case .listDirectory:
+                return (
+                    "List files and directories at the specified path.",
+                    objectSchema(
+                        properties: [
+                            "path": stringProperty("The directory path to list")
+                        ],
+                        required: ["path"]
+                    )
                 )
-            )
-            
-        case .askMultipleChoice:
-            return (
-                "Ask the user a multiple choice question when you need them to select from a set of predefined options.",
-                objectSchema(
-                    properties: [
-                        "question": stringProperty("The question to ask the user"),
-                        "options": arrayProperty("The options for the user to choose from", itemType: ["type": "string"])
-                    ],
-                    required: ["question", "options"]
+                
+            case .moveFile:
+                return (
+                    "Move or rename a file from source to destination.",
+                    objectSchema(
+                        properties: [
+                            "source": stringProperty("The source file path"),
+                            "destination": stringProperty("The destination file path")
+                        ],
+                        required: ["source", "destination"]
+                    )
                 )
-            )
+                
+            case .clipboardRead:
+                return (
+                    "Read the current text content from the system clipboard.",
+                    emptyObjectSchema()
+                )
+                
+            case .clipboardWrite:
+                return (
+                    "Write text to the system clipboard.",
+                    objectSchema(
+                        properties: [
+                            "text": stringProperty("The text to write to clipboard")
+                        ],
+                        required: ["text"]
+                    )
+                )
+                
+            // System tools
+            case .wait:
+                return (
+                    "Wait for the specified number of seconds before continuing.",
+                    objectSchema(
+                        properties: [
+                            "seconds": numberProperty("Number of seconds to wait")
+                        ],
+                        required: ["seconds"]
+                    )
+                )
+                
+            case .healthCheck:
+                return (
+                    "Check the agent's health status including permissions and shared folder mount.",
+                    emptyObjectSchema()
+                )
+                
+            case .shutdown:
+                return (
+                    "Initiate a graceful shutdown of the virtual machine.",
+                    emptyObjectSchema()
+                )
+                
+            // User interaction tools
+            case .askTextQuestion:
+                return (
+                    "Ask the user an open-ended text question when you need clarification or additional information to complete the task.",
+                    objectSchema(
+                        properties: [
+                            "question": stringProperty("The question to ask the user")
+                        ],
+                        required: ["question"]
+                    )
+                )
+                
+            case .askMultipleChoice:
+                return (
+                    "Ask the user a multiple choice question when you need them to select from a set of predefined options.",
+                    objectSchema(
+                        properties: [
+                            "question": stringProperty("The question to ask the user"),
+                            "options": arrayProperty("The options for the user to choose from", itemType: ["type": "string"])
+                        ],
+                        required: ["question", "options"]
+                    )
+                )
         }
     }
     

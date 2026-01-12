@@ -13,6 +13,7 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case screenshot = "screenshot"
     case getFrontmostApp = "get_frontmost_app"
     case listRunningApps = "list_running_apps"
+    case traverseAccessibilityTree = "traverse_accessibility_tree"
     
     // Native automation tools
     case openApp = "open_app"
@@ -323,5 +324,101 @@ public struct RunningAppInfo: Codable, Sendable {
         self.bundleId = bundleId
         self.appName = appName
         self.pid = pid
+    }
+}
+
+// MARK: - Accessibility Traversal
+
+/// Parameters for traverse_accessibility_tree tool
+public struct TraverseAccessibilityTreeParams: Codable, Sendable {
+    /// Process ID of the target application. If nil, uses the frontmost app.
+    public let pid: Int32?
+    /// If true, only returns elements with valid position and size (visible on screen)
+    public let onlyVisibleElements: Bool?
+    
+    public init(pid: Int32? = nil, onlyVisibleElements: Bool? = nil) {
+        self.pid = pid
+        self.onlyVisibleElements = onlyVisibleElements
+    }
+}
+
+/// Represents a single UI element from the accessibility tree
+public struct AccessibilityElementData: Codable, Sendable, Hashable {
+    /// The accessibility role (e.g., "AXButton", "AXTextField")
+    public let role: String
+    /// Combined text content from value, title, description, label attributes
+    public let text: String?
+    /// X coordinate of the element's position
+    public let x: Double?
+    /// Y coordinate of the element's position
+    public let y: Double?
+    /// Width of the element
+    public let width: Double?
+    /// Height of the element
+    public let height: Double?
+    
+    public init(role: String, text: String?, x: Double?, y: Double?, width: Double?, height: Double?) {
+        self.role = role
+        self.text = text
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+}
+
+/// Statistics about the accessibility traversal
+public struct AccessibilityTraversalStats: Codable, Sendable {
+    public let count: Int
+    public let excludedCount: Int
+    public let excludedNonInteractable: Int
+    public let excludedNoText: Int
+    public let withTextCount: Int
+    public let withoutTextCount: Int
+    public let visibleElementsCount: Int
+    public let roleCounts: [String: Int]
+    
+    public init(
+        count: Int,
+        excludedCount: Int,
+        excludedNonInteractable: Int,
+        excludedNoText: Int,
+        withTextCount: Int,
+        withoutTextCount: Int,
+        visibleElementsCount: Int,
+        roleCounts: [String: Int]
+    ) {
+        self.count = count
+        self.excludedCount = excludedCount
+        self.excludedNonInteractable = excludedNonInteractable
+        self.excludedNoText = excludedNoText
+        self.withTextCount = withTextCount
+        self.withoutTextCount = withoutTextCount
+        self.visibleElementsCount = visibleElementsCount
+        self.roleCounts = roleCounts
+    }
+}
+
+/// Result from traverse_accessibility_tree tool
+public struct AccessibilityTraversalResult: Codable, Sendable {
+    /// Name of the traversed application
+    public let appName: String
+    /// List of discovered UI elements
+    public let elements: [AccessibilityElementData]
+    /// Statistics about the traversal
+    public let stats: AccessibilityTraversalStats
+    /// Time taken to perform the traversal
+    public let processingTimeSeconds: String
+    
+    public init(
+        appName: String,
+        elements: [AccessibilityElementData],
+        stats: AccessibilityTraversalStats,
+        processingTimeSeconds: String
+    ) {
+        self.appName = appName
+        self.elements = elements
+        self.stats = stats
+        self.processingTimeSeconds = processingTimeSeconds
     }
 }
