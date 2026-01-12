@@ -618,7 +618,7 @@ Workflow:
 - Full Settings implementation
 - Fix tools
    - Allow `open_app` tool to work with app names as well as bundle IDs
-   - Fix shell command tool –– complete the permissions logic
+   - Fix shell command tool –– right now it just times out; also complete the permissions logic
 - Error handling, edge cases, reliability hardening
 - Performance tuning
 
