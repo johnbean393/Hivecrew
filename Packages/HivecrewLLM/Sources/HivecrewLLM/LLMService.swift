@@ -42,7 +42,7 @@ public final class LLMService: Sendable {
     ///
     /// - Parameters:
     ///   - apiKey: The API key for authentication
-    ///   - model: The model to use (e.g., "gpt-4o")
+    ///   - model: The model to use (e.g., "gpt-5.2")
     ///   - baseURL: Optional custom base URL
     ///   - organizationId: Optional organization ID
     ///   - displayName: Optional display name for logging
@@ -81,7 +81,7 @@ extension LLMService {
     /// Create a client for the standard OpenAI API
     public func createOpenAIClient(
         apiKey: String,
-        model: String = "gpt-4o",
+        model: String = "gpt-5.2",
         organizationId: String? = nil
     ) -> any LLMClientProtocol {
         createClient(

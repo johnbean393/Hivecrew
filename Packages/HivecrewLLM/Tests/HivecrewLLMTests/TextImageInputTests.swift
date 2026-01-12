@@ -155,12 +155,12 @@ final class TextImageInputTests: XCTestCase {
         let config = LLMConfiguration(
             displayName: "Test Provider",
             apiKey: "test-key",
-            model: "gpt-4o"
+            model: "gpt-5.2"
         )
         
         XCTAssertEqual(config.displayName, "Test Provider")
         XCTAssertEqual(config.apiKey, "test-key")
-        XCTAssertEqual(config.model, "gpt-4o")
+        XCTAssertEqual(config.model, "gpt-5.2")
         XCTAssertNil(config.baseURL)
         XCTAssertNil(config.organizationId)
         XCTAssertEqual(config.timeoutInterval, LLMConfiguration.defaultTimeout)
@@ -190,7 +190,7 @@ final class TextImageInputTests: XCTestCase {
         
         let response = LLMResponse(
             id: "test-id",
-            model: "gpt-4o",
+            model: "gpt-5.2",
             created: Date(),
             choices: [choice],
             usage: usage

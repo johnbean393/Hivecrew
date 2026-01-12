@@ -22,7 +22,7 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
     /// API key for authentication
     public let apiKey: String
     
-    /// Model identifier (e.g., "gpt-4o", "gpt-4-turbo")
+    /// Model identifier (e.g., "gpt-5.2", "gpt-4-turbo")
     public let model: String
     
     /// Optional organization ID for OpenAI

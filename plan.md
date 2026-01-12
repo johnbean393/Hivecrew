@@ -305,7 +305,7 @@ Template setup should pre-grant these or guide user through first-boot approval.
 ### 8.4 LLM Client Abstraction
 Protocol with implementations for:
 - **Anthropic** (Claude with computer use)
-- **OpenAI** (GPT-4o with function calling)
+- **OpenAI** (GPT-5.2 with function calling)
 - **Local** (Ollama, LM Studio, or similar)
 
 Features: streaming, tool/function calling, token counting, rate limit handling, retries, context compression.
@@ -616,7 +616,9 @@ Workflow:
 - Onboarding flow
 - Safety features: permissions, kill switch, confirmations
 - Full Settings implementation
-- Allow `open_app` tool to work with app names as well as bundle IDs
+- Fix tools
+   - Allow `open_app` tool to work with app names as well as bundle IDs
+   - Fix shell command tool –– complete the permissions logic
 - Error handling, edge cases, reliability hardening
 - Performance tuning
 
