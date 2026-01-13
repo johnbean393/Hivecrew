@@ -174,7 +174,8 @@ extension TaskService {
                 statePublisher: statePublisher,
                 inputFileNames: inputFileNames,
                 maxSteps: maxIterations > 0 ? maxIterations : 100,
-                timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 30
+                timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 30,
+                taskService: self
             )
             runningAgents[task.id] = agent
             

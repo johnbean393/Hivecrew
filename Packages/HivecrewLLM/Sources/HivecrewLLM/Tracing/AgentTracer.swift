@@ -280,6 +280,19 @@ public actor AgentTracer {
         try log(event)
     }
     
+    /// Log a custom event
+    public func logCustomEvent(
+        metadata: [String: String]
+    ) throws {
+        let event = TraceEvent(
+            sessionId: sessionId,
+            type: .custom,
+            step: currentStep,
+            data: .custom(metadata)
+        )
+        try log(event)
+    }
+    
     /// Advance to the next step
     public func nextStep() {
         currentStep += 1

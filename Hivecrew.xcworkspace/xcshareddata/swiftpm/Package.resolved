@@ -1,6 +1,15 @@
 {
-  "originHash" : "924f75dc54a4615ac446e433b58eb8b106199c0089034063cdc1a67a536c0bb6",
+  "originHash" : "6cc377d8ca608790f90fbbbcdcdecc2c1283b613ec53868f7904bdf66bd7032e",
   "pins" : [
+    {
+      "identity" : "googlesearch",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/johnbean393/GoogleSearch",
+      "state" : {
+        "branch" : "main",
+        "revision" : "8578671e3bc7277cff15949b142375ab581b216c"
+      }
+    },
     {
       "identity" : "highlightr",
       "kind" : "remoteSourceControl",

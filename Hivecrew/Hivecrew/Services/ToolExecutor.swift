@@ -7,6 +7,7 @@
 
 import Foundation
 import HivecrewLLM
+import GoogleSearch
 
 /// Result of a tool execution
 struct ToolExecutionResult: Sendable {
@@ -55,8 +56,30 @@ class ToolExecutor {
     /// Parameters: (toolName, details) -> approved
     var onRequestPermission: ((String, String) async -> Bool)?
     
-    init(connection: GuestAgentConnection) {
+    /// Todo manager for tracking agent tasks
+    private let todoManager: TodoManager
+    
+    /// Task provider ID for worker model fallback
+    private let taskProviderId: String
+    
+    /// Task model ID for worker model fallback
+    private let taskModelId: String
+    
+    /// Task service for creating worker LLM clients
+    private weak var taskService: (any CreateWorkerClientProtocol)?
+    
+    init(
+        connection: GuestAgentConnection,
+        todoManager: TodoManager,
+        taskProviderId: String,
+        taskModelId: String,
+        taskService: (any CreateWorkerClientProtocol)?
+    ) {
         self.connection = connection
+        self.todoManager = todoManager
+        self.taskProviderId = taskProviderId
+        self.taskModelId = taskModelId
+        self.taskService = taskService
     }
     
     /// Execute a tool call and return the result
@@ -217,6 +240,124 @@ class ToolExecutor {
             } else {
                 return "Error: No question handler available"
             }
+            
+        // Web tools
+        case "web_search":
+            let query = args["query"] as? String ?? ""
+            let site = args["site"] as? String
+            let resultCount = (args["resultCount"] as? Int) ?? 10
+            let startDateStr = args["startDate"] as? String
+            let endDateStr = args["endDate"] as? String
+            
+            // Parse dates if provided
+            var startDate: Date?
+            var endDate: Date?
+            if let startDateStr = startDateStr {
+                startDate = ISO8601DateFormatter().date(from: startDateStr)
+            }
+            if let endDateStr = endDateStr {
+                endDate = ISO8601DateFormatter().date(from: endDateStr)
+            }
+            
+            // Get search engine preference
+            let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "google"
+            
+            let results: [SearchResult]
+            if searchEngine == "duckduckgo" {
+                results = try await DuckDuckGoSearch.search(
+                    query: query,
+                    site: site,
+                    resultCount: resultCount,
+                    startDate: startDate,
+                    endDate: endDate
+                )
+            } else {
+                // Use GoogleSearch package
+                let googleResults = try await GoogleSearch.search(
+                    query: query,
+                    site: site,
+                    resultCount: resultCount,
+                    startDate: startDate,
+                    endDate: endDate
+                )
+                // Map GoogleSearch.SearchResult to our SearchResult type
+                results = googleResults.map { googleResult in
+                    SearchResult(
+                        url: googleResult.source,
+                        title: "Search Result",
+                        snippet: googleResult.text
+                    )
+                }
+            }
+            
+            // Format results
+            var output = "Found \(results.count) results for '\(query)':\n\n"
+            for (index, result) in results.enumerated() {
+                output += "\(index + 1). \(result.title)\n"
+                output += "   URL: \(result.url)\n"
+                output += "   \(result.snippet)\n\n"
+            }
+            return output
+            
+        case "read_webpage_content":
+            let urlString = args["url"] as? String ?? ""
+            guard let url = URL(string: urlString) else {
+                return "Error: Invalid URL format"
+            }
+            let content = try await WebpageReader.readWebpage(url: url)
+            return content
+            
+        case "extract_info_from_webpage":
+            let urlString = args["url"] as? String ?? ""
+            let question = args["question"] as? String ?? ""
+            guard let url = URL(string: urlString) else {
+                return "Error: Invalid URL format"
+            }
+            guard let service = taskService else {
+                return "Error: Task service not available"
+            }
+            let answer = try await WebpageExtractor.extractInfo(
+                url: url,
+                question: question,
+                taskProviderId: self.taskProviderId,
+                taskModelId: self.taskModelId,
+                taskService: service
+            )
+            return answer
+            
+        case "get_location":
+            let location = try await IPLocation.getLocation()
+            return "Your location: \(location)"
+            
+        // Todo management tools
+        case "create_todo_list":
+            let title = args["title"] as? String ?? "Untitled"
+            let items = args["items"] as? [String]
+            let list = todoManager.createList(title: title, items: items)
+            
+            // Format the result with numbered items
+            var result = "✓ Created todo list: \(list.title)\n\n"
+            if list.items.isEmpty {
+                result += "No items yet. Use add_todo_item to add tasks.\n"
+            } else {
+                result += "Items:\n"
+                for (index, item) in list.items.enumerated() {
+                    let number = index + 1
+                    let status = item.isCompleted ? "[✓]" : "[ ]"
+                    result += "\(number). \(status) \(item.text)\n"
+                }
+            }
+            return result
+            
+        case "add_todo_item":
+            let itemText = args["item"] as? String ?? ""
+            let index = try todoManager.addItem(itemText: itemText)
+            return "✓ Added item #\(index): \(itemText)"
+            
+        case "finish_todo_item":
+            let index = args["index"] as? Int ?? 0
+            try todoManager.finishItem(index: index)
+            return "✓ Marked item #\(index) as completed"
             
         default:
             throw ToolExecutorError.unknownTool(name)

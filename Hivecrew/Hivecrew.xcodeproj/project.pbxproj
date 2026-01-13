@@ -35,6 +35,14 @@
 		204DF4472F157508004AB99B /* GuestAgentTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4462F157508004AB99B /* GuestAgentTypes.swift */; };
 		204DF44B2F15A81D004AB99B /* libzstd in Frameworks */ = {isa = PBXBuildFile; productRef = 204DF44A2F15A81D004AB99B /* libzstd */; };
 		204DF44D2F15A957004AB99B /* TemplateDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF44C2F15A957004AB99B /* TemplateDownloadService.swift */; };
+		204DF4512F16274B004AB99B /* GoogleSearch in Frameworks */ = {isa = PBXBuildFile; productRef = 204DF4502F16274B004AB99B /* GoogleSearch */; };
+		204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4532F162AF8004AB99B /* IPLocation.swift */; };
+		204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4572F162AF8004AB99B /* WebpageReader.swift */; };
+		204DF45B2F162AF8004AB99B /* SearchResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4542F162AF8004AB99B /* SearchResult.swift */; };
+		204DF45C2F162AF8004AB99B /* WebpageExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4562F162AF8004AB99B /* WebpageExtractor.swift */; };
+		204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4552F162AF8004AB99B /* TodoManager.swift */; };
+		204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4522F162AF8004AB99B /* DuckDuckGoSearch.swift */; };
+		204DF4602F162B0B004AB99B /* ToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -156,6 +164,13 @@
 		204DF4442F157492004AB99B /* GuestAgentConnection+Tools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GuestAgentConnection+Tools.swift"; sourceTree = "<group>"; };
 		204DF4462F157508004AB99B /* GuestAgentTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestAgentTypes.swift; sourceTree = "<group>"; };
 		204DF44C2F15A957004AB99B /* TemplateDownloadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateDownloadService.swift; sourceTree = "<group>"; };
+		204DF4522F162AF8004AB99B /* DuckDuckGoSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuckDuckGoSearch.swift; sourceTree = "<group>"; };
+		204DF4532F162AF8004AB99B /* IPLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPLocation.swift; sourceTree = "<group>"; };
+		204DF4542F162AF8004AB99B /* SearchResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResult.swift; sourceTree = "<group>"; };
+		204DF4552F162AF8004AB99B /* TodoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoManager.swift; sourceTree = "<group>"; };
+		204DF4562F162AF8004AB99B /* WebpageExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageExtractor.swift; sourceTree = "<group>"; };
+		204DF4572F162AF8004AB99B /* WebpageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageReader.swift; sourceTree = "<group>"; };
+		204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsSettingsView.swift; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -225,6 +240,7 @@
 				204DF44B2F15A81D004AB99B /* libzstd in Frameworks */,
 				209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */,
 				20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */,
+				204DF4512F16274B004AB99B /* GoogleSearch in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,6 +324,19 @@
 			path = "Guest Agent Connection";
 			sourceTree = "<group>";
 		};
+		204DF4582F162AF8004AB99B /* Web Tools */ = {
+			isa = PBXGroup;
+			children = (
+				204DF4522F162AF8004AB99B /* DuckDuckGoSearch.swift */,
+				204DF4532F162AF8004AB99B /* IPLocation.swift */,
+				204DF4542F162AF8004AB99B /* SearchResult.swift */,
+				204DF4552F162AF8004AB99B /* TodoManager.swift */,
+				204DF4562F162AF8004AB99B /* WebpageExtractor.swift */,
+				204DF4572F162AF8004AB99B /* WebpageReader.swift */,
+			);
+			path = "Web Tools";
+			sourceTree = "<group>";
+		};
 		209C5F8B2F12947F00062D0E = {
 			isa = PBXGroup;
 			children = (
@@ -353,6 +382,7 @@
 				204DF44C2F15A957004AB99B /* TemplateDownloadService.swift */,
 				3001A0062F15000000000006 /* ToolExecutor.swift */,
 				209C61882F12ABD700062D0E /* VMServiceClient.swift */,
+				204DF4582F162AF8004AB99B /* Web Tools */,
 				204DF4482F15771A004AB99B /* Guest Agent Connection */,
 				204DF4432F157454004AB99B /* Agent Runner */,
 				204DF43E2F15743E004AB99B /* Task Service */,
@@ -379,11 +409,12 @@
 		209C61932F12ABD700062D0E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				209C618F2F12ABD700062D0E /* SettingsView.swift */,
+				204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */,
 				204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */,
 				204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */,
 				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
 				209C618E2F12ABD700062D0E /* SafetySettingsView.swift */,
-				209C618F2F12ABD700062D0E /* SettingsView.swift */,
 				209C61902F12ABD700062D0E /* StorageSettingsView.swift */,
 				209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */,
 			);
@@ -517,6 +548,7 @@
 				2019E33F2F139C0000041819 /* HivecrewLLM */,
 				20C413F82F143BAA00C6E8A9 /* MarkdownView */,
 				204DF44A2F15A81D004AB99B /* libzstd */,
+				204DF4502F16274B004AB99B /* GoogleSearch */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -623,6 +655,7 @@
 				2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */,
 				20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */,
 				204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */,
+				204DF44F2F16274B004AB99B /* XCRemoteSwiftPackageReference "GoogleSearch" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 209C5F952F12947F00062D0E /* Products */;
@@ -710,6 +743,12 @@
 				204DF4202F14D5F4004AB99B /* ToolConfirmationSheet.swift in Sources */,
 				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
 				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
+				204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */,
+				204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */,
+				204DF45B2F162AF8004AB99B /* SearchResult.swift in Sources */,
+				204DF45C2F162AF8004AB99B /* WebpageExtractor.swift in Sources */,
+				204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */,
+				204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */,
 				204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */,
 				20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */,
 				209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */,
@@ -719,6 +758,7 @@
 				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
 				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
 				3001B0032F15000000000003 /* AgentQuestion.swift in Sources */,
+				204DF4602F162B0B004AB99B /* ToolsSettingsView.swift in Sources */,
 				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
@@ -938,7 +978,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -974,7 +1014,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1205,6 +1245,14 @@
 				minimumVersion = 1.5.7;
 			};
 		};
+		204DF44F2F16274B004AB99B /* XCRemoteSwiftPackageReference "GoogleSearch" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/johnbean393/GoogleSearch";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/LiYanan2004/MarkdownView";
@@ -1229,6 +1277,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */;
 			productName = libzstd;
+		};
+		204DF4502F16274B004AB99B /* GoogleSearch */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 204DF44F2F16274B004AB99B /* XCRemoteSwiftPackageReference "GoogleSearch" */;
+			productName = GoogleSearch;
 		};
 		209C604A2F129A6400062D0E /* HivecrewShared */ = {
 			isa = XCSwiftPackageProductDependency;

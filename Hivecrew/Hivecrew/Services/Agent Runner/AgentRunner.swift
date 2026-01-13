@@ -63,6 +63,9 @@ final class AgentRunner {
     /// Input file names available in the inbox
     private let inputFileNames: [String]
     
+    /// Todo manager for tracking agent tasks
+    let todoManager: TodoManager
+    
     /// Task for timeout monitoring
     private var timeoutTask: Task<Void, Never>?
     
@@ -81,6 +84,10 @@ final class AgentRunner {
     /// Base delay for exponential backoff (in seconds)
     let baseRetryDelay: Double = 2.0
     
+    /// Track if the last tool execution requires a new screenshot
+    /// (false if all tools were host-side, true otherwise)
+    var needsScreenshotUpdate: Bool = true
+    
     // MARK: - Initialization
     
     init(
@@ -92,7 +99,8 @@ final class AgentRunner {
         statePublisher: AgentStatePublisher,
         inputFileNames: [String] = [],
         maxSteps: Int = 100,
-        timeoutMinutes: Int = 30
+        timeoutMinutes: Int = 30,
+        taskService: TaskService
     ) throws {
         self.task = task
         self.vmId = vmId
@@ -102,6 +110,7 @@ final class AgentRunner {
         self.inputFileNames = inputFileNames
         self.maxSteps = maxSteps
         self.timeoutMinutes = timeoutMinutes
+        self.todoManager = TodoManager()
         
         // Create screenshots directory
         self.screenshotsPath = sessionPath.appendingPathComponent("screenshots")
@@ -110,8 +119,14 @@ final class AgentRunner {
         // Create tracer
         self.tracer = try AgentTracer(sessionId: statePublisher.sessionId ?? UUID().uuidString, outputDirectory: sessionPath)
         
-        // Create tool executor
-        self.toolExecutor = ToolExecutor(connection: connection)
+        // Create tool executor with todo manager and worker model support
+        self.toolExecutor = ToolExecutor(
+            connection: connection,
+            todoManager: todoManager,
+            taskProviderId: task.providerId,
+            taskModelId: task.modelId,
+            taskService: taskService
+        )
         self.toolExecutor.taskId = task.id
         
         // Set up question callback to use statePublisher
@@ -206,7 +221,30 @@ final class AgentRunner {
             )
         }
         
+        // Save todo lists to session trace
+        await saveTodoListsToTrace()
+        
         return result
+    }
+    
+    /// Save todo list to the session trace for later review
+    private func saveTodoListsToTrace() async {
+        do {
+            if let todoList = todoManager.getList() {
+                let jsonData = try todoManager.toJSON()
+                if let jsonString = String(data: jsonData, encoding: .utf8) {
+                    try await tracer.logCustomEvent(
+                        metadata: [
+                            "event_type": "todo_list",
+                            "message": "Agent created todo list: \(todoList.title)",
+                            "list": jsonString
+                        ]
+                    )
+                }
+            }
+        } catch {
+            statePublisher.logError("Failed to save todo list to trace: \(error.localizedDescription)")
+        }
     }
     
     /// Cancel the agent run

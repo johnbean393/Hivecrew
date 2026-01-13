@@ -8,6 +8,7 @@
 import Foundation
 import AppKit
 import HivecrewLLM
+import HivecrewAgentProtocol
 
 // MARK: - Main Loop
 
@@ -32,8 +33,8 @@ extension AgentRunner {
             stepCount += 1
             await tracer.nextStep()
             
-            // 1. OBSERVE: Take a screenshot
-            let observation = try await observe()
+            // 1. OBSERVE: Take a screenshot (skip if last tools were all host-side)
+            let observation = try await observe(skipIfHostSide: !needsScreenshotUpdate)
             
             // 2. DECIDE: Send observation to LLM
             let (response, toolCalls) = try await decide(observation: observation)
@@ -53,6 +54,16 @@ extension AgentRunner {
             // 3. EXECUTE: Run tool calls or complete if none
             if let toolCalls = toolCalls, !toolCalls.isEmpty {
                 let results = try await execute(toolCalls: toolCalls)
+                
+                // Check if any non-host-side tools were executed
+                // If all tools were host-side, we can skip the next screenshot
+                let anyGuestSideTools = toolCalls.contains { toolCall in
+                    if let method = AgentMethod(rawValue: toolCall.function.name) {
+                        return !method.isHostSideTool
+                    }
+                    return false // Unknown tools assumed to need screenshot
+                }
+                needsScreenshotUpdate = anyGuestSideTools
                 
                 // Add tool results to conversation
                 for result in results {
@@ -181,7 +192,8 @@ extension AgentRunner {
     }
     
     /// Take a screenshot and add it to the conversation
-    func observe() async throws -> ScreenshotResult {
+    /// - Parameter skipIfHostSide: If true and last tools were host-side, reuses previous screenshot
+    func observe(skipIfHostSide: Bool = false) async throws -> ScreenshotResult {
         statePublisher.logObservation(screenshotPath: nil)
         
         // Use cached initial screenshot for step 1, fetch new screenshot for subsequent steps
@@ -189,6 +201,13 @@ extension AgentRunner {
         if stepCount == 1, let initial = initialScreenshot {
             screenshot = initial
             initialScreenshot = nil // Clear the cache after use
+        } else if skipIfHostSide {
+            // Optimization: If last tools were all host-side (didn't affect VM state),
+            // reuse the previous screenshot instead of capturing a new one
+            // This saves ~200-500ms per host tool execution
+            statePublisher.logInfo("Skipping screenshot (last tools were host-side)")
+            // Return a placeholder - we'll reuse the last image in conversation history
+            return ScreenshotResult(imageBase64: "", width: 0, height: 0)
         } else {
             screenshot = try await connection.screenshot()
         }
@@ -224,11 +243,18 @@ extension AgentRunner {
             conversationHistory.append(.user("User instruction: \(instructions)"))
         }
         
-        // Build user message with screenshot
-        let userMessage = LLMMessage.user(
-            text: "Here is the current screen (step \(stepCount)). Analyze it and decide what to do next.",
-            images: [.imageBase64(data: observation.imageBase64, mimeType: "image/png")]
-        )
+        // Build user message with screenshot (or reuse last one if host-side tools only)
+        let userMessage: LLMMessage
+        if observation.imageBase64.isEmpty {
+            // Host-side tools only - no new screenshot, just add text message
+            userMessage = LLMMessage.user("Tool results above (step \(stepCount)). Continue with the task.")
+        } else {
+            // New screenshot available
+            userMessage = LLMMessage.user(
+                text: "Here is the current screen (step \(stepCount)). Analyze it and decide what to do next.",
+                images: [.imageBase64(data: observation.imageBase64, mimeType: "image/png")]
+            )
+        }
         
         // IMPORTANT: To prevent memory explosion, we only keep the most recent screenshot
         // in the conversation history. Remove old screenshot messages but keep text-only messages.

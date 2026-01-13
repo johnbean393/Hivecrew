@@ -16,6 +16,7 @@ struct SettingsView: View {
         case providers = "LLM Providers"
         case environment = "Environment"
         case taskDefaults = "Task Defaults"
+        case webTools = "Web Tools"
         case storage = "Storage"
         case safety = "Safety"
         case developer = "Developer"
@@ -27,6 +28,7 @@ struct SettingsView: View {
             case .providers: return "brain.head.profile"
             case .environment: return "desktopcomputer"
             case .taskDefaults: return "checklist"
+            case .webTools: return "globe"
             case .storage: return "folder"
             case .safety: return "shield.lefthalf.filled"
             case .developer: return "hammer"
@@ -39,6 +41,7 @@ struct SettingsView: View {
             providersTab
             environmentTab
             taskDefaultsTab
+            webToolsTab
             storageTab
             safetyTab
             developerTab
@@ -64,6 +67,12 @@ struct SettingsView: View {
         TaskDefaultsSettingsView()
             .tabItem { Label(SettingsTab.taskDefaults.rawValue, systemImage: SettingsTab.taskDefaults.icon) }
             .tag(SettingsTab.taskDefaults)
+    }
+    
+    private var webToolsTab: some View {
+        WebToolsSettingsView()
+            .tabItem { Label(SettingsTab.webTools.rawValue, systemImage: SettingsTab.webTools.icon) }
+            .tag(SettingsTab.webTools)
     }
     
     private var storageTab: some View {

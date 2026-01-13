@@ -120,7 +120,8 @@ class TaskService: ObservableObject {
     /// Generate a better title using LLM and update the task
     private func generateAndUpdateTitle(for task: TaskRecord, description: String, providerId: String, modelId: String) async {
         do {
-            let client = try await createLLMClient(providerId: providerId, modelId: modelId)
+            // Use worker model if configured, otherwise use the task's main model
+            let client = try await createWorkerLLMClient(fallbackProviderId: providerId, fallbackModelId: modelId)
             let betterTitle = try await titleGenerator.generateTitle(from: description, using: client)
             
             // Update the task title if LLM generation succeeded
@@ -220,5 +221,11 @@ class TaskService: ObservableObject {
             }
         }
     }
+}
+
+// MARK: - CreateWorkerClientProtocol Conformance
+
+extension TaskService: CreateWorkerClientProtocol {
+    // Already implemented in TaskService+VMManagement.swift
 }
 

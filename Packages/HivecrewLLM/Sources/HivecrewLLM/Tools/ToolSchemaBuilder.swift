@@ -49,7 +49,18 @@ public final class ToolSchemaBuilder: Sendable {
             
             // User interaction
             .askTextQuestion,
-            .askMultipleChoice
+            .askMultipleChoice,
+            
+            // Web tools
+            .webSearch,
+            .readWebpageContent,
+            .extractInfoFromWebpage,
+            .getLocation,
+            
+            // Todo management
+            .createTodoList,
+            .addTodoItem,
+            .finishTodoItem
         ]
         return essentialMethods.map { buildToolDefinition(for: $0) }
     }
@@ -354,6 +365,86 @@ public final class ToolSchemaBuilder: Sendable {
                             "options": arrayProperty("The options for the user to choose from", itemType: ["type": "string"])
                         ],
                         required: ["question", "options"]
+                    )
+                )
+                
+            // Web tools
+            case .webSearch:
+                return (
+                    "Search the web using Google or DuckDuckGo (configurable in settings). Returns a list of search results with URLs, titles, and snippets. Use this to find information, articles, documentation, or any web content.",
+                    objectSchema(
+                        properties: [
+                            "query": stringProperty("The search query string"),
+                            "site": stringProperty("Optional: Limit results to a specific site (e.g., 'github.com')"),
+                            "resultCount": numberProperty("Optional: Number of results to return (default: 10, max: 20)"),
+                            "startDate": stringProperty("Optional: Start date for results (format: YYYY-MM-DD)"),
+                            "endDate": stringProperty("Optional: End date for results (format: YYYY-MM-DD)")
+                        ],
+                        required: ["query"]
+                    )
+                )
+                
+            case .readWebpageContent:
+                return (
+                    "Read and extract the full text content of a webpage in Markdown format. This uses Jina AI to parse the page and return clean, readable content without ads or navigation. Useful for reading articles, documentation, or any web content you need to analyze.",
+                    objectSchema(
+                        properties: [
+                            "url": stringProperty("The URL of the webpage to read")
+                        ],
+                        required: ["url"]
+                    )
+                )
+                
+            case .extractInfoFromWebpage:
+                return (
+                    "Extract specific information from a webpage by asking a question. The webpage content is fetched and analyzed by an LLM to answer your question. More efficient than reading the entire page when you only need specific information.",
+                    objectSchema(
+                        properties: [
+                            "url": stringProperty("The URL of the webpage to analyze"),
+                            "question": stringProperty("The specific question to answer based on the webpage content")
+                        ],
+                        required: ["url", "question"]
+                    )
+                )
+                
+            case .getLocation:
+                return (
+                    "Get the current geographic location based on IP address. Returns city, region, and country. Useful for location-aware tasks like local weather, news, or services.",
+                    emptyObjectSchema()
+                )
+                
+            // Todo management tools
+            case .createTodoList:
+                return (
+                    "Create a todo list to organize and track subtasks. This helps break down complex tasks into manageable steps. Only one todo list exists per agent session.",
+                    objectSchema(
+                        properties: [
+                            "title": stringProperty("A descriptive title for the todo list"),
+                            "items": arrayProperty("Optional: Initial list of todo items to add", itemType: ["type": "string"])
+                        ],
+                        required: ["title"]
+                    )
+                )
+
+            case .addTodoItem:
+                return (
+                    "Add a new item to your todo list. The item will be added to the end of the list and assigned the next available number.",
+                    objectSchema(
+                        properties: [
+                            "item": stringProperty("The todo item description")
+                        ],
+                        required: ["item"]
+                    )
+                )
+
+            case .finishTodoItem:
+                return (
+                    "Mark a todo item as completed by its number. Use the item number shown in the todo list (e.g., 1, 2, 3).",
+                    objectSchema(
+                        properties: [
+                            "index": numberProperty("The item number to mark as finished (1-based)")
+                        ],
+                        required: ["index"]
                     )
                 )
         }
