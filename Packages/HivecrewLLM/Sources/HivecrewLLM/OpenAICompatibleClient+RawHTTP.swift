@@ -58,15 +58,7 @@ extension OpenAICompatibleClient {
     
     func buildChatURL() -> URL {
         if let baseURL = configuration.baseURL {
-            var path = baseURL.path
-            while path.hasSuffix("/") {
-                path = String(path.dropLast())
-            }
-            if path.hasSuffix("/v1") {
-                return baseURL.appendingPathComponent("chat/completions")
-            } else {
-                return baseURL.appendingPathComponent("v1/chat/completions")
-            }
+            return baseURL.appendingPathComponent("chat/completions")
         } else {
             return URL(string: "https://api.openai.com/v1/chat/completions")!
         }

@@ -175,27 +175,11 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         }
     }
     
-    /// Build the models endpoint URL, handling base URLs that end with /v1 or /v1/
+    /// Build the models endpoint URL
     private func buildModelsURL() -> URL {
         if let baseURL = configuration.baseURL {
-            // Normalize the base URL path
-            var path = baseURL.path
-            
-            // Remove trailing slash
-            while path.hasSuffix("/") {
-                path = String(path.dropLast())
-            }
-            
-            // Check if path already ends with /v1
-            if path.hasSuffix("/v1") {
-                // Base URL already has /v1, just append /models
-                return baseURL.appendingPathComponent("models")
-            } else {
-                // Need to add /v1/models
-                return baseURL.appendingPathComponent("v1/models")
-            }
+            return baseURL.appendingPathComponent("models")
         } else {
-            // Default OpenAI URL
             return URL(string: "https://api.openai.com/v1/models")!
         }
     }
