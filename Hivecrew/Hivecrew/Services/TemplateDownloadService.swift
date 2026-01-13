@@ -291,23 +291,14 @@ public class TemplateDownloadService: ObservableObject {
             hasResumableDownload = false
             resumableTemplateId = nil
             
-            // Step 2: Decompress with zstd
+            // Step 2+3: Stream decompress and extract in one pass (no intermediate tar file)
             progress = TemplateDownloadProgress(
                 phase: .decompressing,
                 bytesDownloaded: template.sizeBytes,
                 totalBytes: template.sizeBytes,
                 estimatedTimeRemaining: nil
             )
-            let tarPath = try await decompressZstd(archivePath)
-            
-            // Step 3: Extract tar archive
-            progress = TemplateDownloadProgress(
-                phase: .extracting,
-                bytesDownloaded: template.sizeBytes,
-                totalBytes: template.sizeBytes,
-                estimatedTimeRemaining: nil
-            )
-            let extractedPath = try await extractTar(tarPath, templateId: template.id)
+            let extractedPath = try await decompressAndExtract(archivePath, templateId: template.id)
             
             // Step 4: Configure the template
             progress = TemplateDownloadProgress(
@@ -320,7 +311,6 @@ public class TemplateDownloadService: ObservableObject {
             
             // Cleanup temporary files
             try? fileManager.removeItem(at: archivePath)
-            try? fileManager.removeItem(at: tarPath)
             
             progress = TemplateDownloadProgress(
                 phase: .complete,
@@ -485,71 +475,9 @@ public class TemplateDownloadService: ObservableObject {
     }
     
     /// Decompress a zstd-compressed file using streaming decompression
-    private func decompressZstd(_ sourcePath: URL) async throws -> URL {
-        let outputPath = sourcePath.deletingPathExtension() // Remove .zst extension
-        
-        return try await Task.detached(priority: .userInitiated) {
-            // Use streaming decompression for large files
-            let dctx = ZSTD_createDCtx()
-            guard dctx != nil else {
-                throw TemplateDownloadError.decompressionFailed("Failed to create decompression context")
-            }
-            defer { ZSTD_freeDCtx(dctx) }
-            
-            // Open input and output files
-            guard let inputHandle = FileHandle(forReadingAtPath: sourcePath.path) else {
-                throw TemplateDownloadError.decompressionFailed("Cannot open compressed file for reading")
-            }
-            defer { try? inputHandle.close() }
-            
-            // Create output file
-            FileManager.default.createFile(atPath: outputPath.path, contents: nil)
-            guard let outputHandle = FileHandle(forWritingAtPath: outputPath.path) else {
-                throw TemplateDownloadError.decompressionFailed("Cannot create output file for writing")
-            }
-            defer { try? outputHandle.close() }
-            
-            // Buffer sizes
-            let inputBufferSize = ZSTD_DStreamInSize()
-            let outputBufferSize = ZSTD_DStreamOutSize()
-            
-            var inputBuffer = [UInt8](repeating: 0, count: inputBufferSize)
-            var outputBuffer = [UInt8](repeating: 0, count: outputBufferSize)
-            
-            // Stream decompression
-            while true {
-                let inputData = inputHandle.readData(ofLength: inputBufferSize)
-                if inputData.isEmpty {
-                    break
-                }
-                
-                inputData.copyBytes(to: &inputBuffer, count: inputData.count)
-                
-                var input = ZSTD_inBuffer(src: inputBuffer, size: inputData.count, pos: 0)
-                
-                while input.pos < input.size {
-                    var output = ZSTD_outBuffer(dst: &outputBuffer, size: outputBufferSize, pos: 0)
-                    
-                    let result = ZSTD_decompressStream(dctx, &output, &input)
-                    
-                    if ZSTD_isError(result) != 0 {
-                        let errorName = String(cString: ZSTD_getErrorName(result))
-                        throw TemplateDownloadError.decompressionFailed("zstd streaming error: \(errorName)")
-                    }
-                    
-                    if output.pos > 0 {
-                        let writeData = Data(bytes: outputBuffer, count: output.pos)
-                        try outputHandle.write(contentsOf: writeData)
-                    }
-                }
-            }
-            
-            return outputPath
-        }.value
-    }
-    
-    /// Extract a tar archive to the templates directory
-    private func extractTar(_ tarPath: URL, templateId: String) async throws -> URL {
+    /// Stream decompress .tar.zst and extract directly to templates directory
+    /// This eliminates the ~70GB intermediate .tar file, saving disk space and I/O
+    private func decompressAndExtract(_ sourcePath: URL, templateId: String) async throws -> URL {
         let templatesDir = AppPaths.templatesDirectory
         let expectedPath = templatesDir.appendingPathComponent(templateId)
 
@@ -559,24 +487,118 @@ public class TemplateDownloadService: ObservableObject {
                 try? FileManager.default.removeItem(at: expectedPath)
             }
             
-            // Use system tar command for extraction
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-            process.arguments = ["-xf", tarPath.path, "-C", templatesDir.path]
-
+            // Ensure templates directory exists
+            try FileManager.default.createDirectory(at: templatesDir, withIntermediateDirectories: true)
+            
+            // Create a pipe to connect zstd decompression to tar extraction
+            var pipeFDs: [Int32] = [0, 0]
+            guard pipe(&pipeFDs) == 0 else {
+                throw TemplateDownloadError.decompressionFailed("Failed to create pipe")
+            }
+            let pipeReadFD = pipeFDs[0]
+            let pipeWriteFD = pipeFDs[1]
+            
+            // Start tar process reading from pipe
+            let tarProcess = Process()
+            tarProcess.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+            tarProcess.arguments = ["-xf", "-", "-C", templatesDir.path]
+            
+            // Connect pipe read end to tar's stdin
+            let pipeReadHandle = FileHandle(fileDescriptor: pipeReadFD, closeOnDealloc: false)
+            tarProcess.standardInput = pipeReadHandle
+            
             let errorPipe = Pipe()
-            process.standardError = errorPipe
-
-            try process.run()
-            process.waitUntilExit()
-
-            if process.terminationStatus != 0 {
+            tarProcess.standardError = errorPipe
+            
+            try tarProcess.run()
+            
+            // Close read end in parent (tar owns it now via FileHandle)
+            close(pipeReadFD)
+            
+            // Decompress and write to pipe in a separate context
+            var decompressionError: Error?
+            
+            do {
+                // Use streaming decompression
+                let dctx = ZSTD_createDCtx()
+                guard dctx != nil else {
+                    throw TemplateDownloadError.decompressionFailed("Failed to create decompression context")
+                }
+                defer { ZSTD_freeDCtx(dctx) }
+                
+                // Open compressed input file
+                let inputFD = open(sourcePath.path, O_RDONLY)
+                guard inputFD >= 0 else {
+                    throw TemplateDownloadError.decompressionFailed("Cannot open compressed file")
+                }
+                defer { close(inputFD) }
+                
+                // Buffer sizes - use recommended sizes from zstd
+                let inputBufferSize = ZSTD_DStreamInSize()
+                let outputBufferSize = ZSTD_DStreamOutSize()
+                
+                // Allocate buffers directly (minimal memory overhead)
+                let inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: inputBufferSize)
+                let outputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: outputBufferSize)
+                defer {
+                    inputBuffer.deallocate()
+                    outputBuffer.deallocate()
+                }
+                
+                // Stream decompress and pipe to tar
+                while true {
+                    let bytesRead = read(inputFD, inputBuffer, inputBufferSize)
+                    if bytesRead <= 0 {
+                        break
+                    }
+                    
+                    var input = ZSTD_inBuffer(src: inputBuffer, size: bytesRead, pos: 0)
+                    
+                    while input.pos < input.size {
+                        var output = ZSTD_outBuffer(dst: outputBuffer, size: outputBufferSize, pos: 0)
+                        
+                        let result = ZSTD_decompressStream(dctx, &output, &input)
+                        
+                        if ZSTD_isError(result) != 0 {
+                            let errorName = String(cString: ZSTD_getErrorName(result))
+                            throw TemplateDownloadError.decompressionFailed("zstd error: \(errorName)")
+                        }
+                        
+                        if output.pos > 0 {
+                            // Write decompressed data directly to pipe (feeds tar)
+                            var totalWritten = 0
+                            while totalWritten < output.pos {
+                                let written = write(pipeWriteFD, outputBuffer.advanced(by: totalWritten), output.pos - totalWritten)
+                                if written < 0 {
+                                    throw TemplateDownloadError.decompressionFailed("Pipe write error: \(errno)")
+                                }
+                                totalWritten += written
+                            }
+                        }
+                    }
+                }
+            } catch {
+                decompressionError = error
+            }
+            
+            // Close write end of pipe to signal EOF to tar
+            close(pipeWriteFD)
+            
+            // Wait for tar to finish
+            tarProcess.waitUntilExit()
+            
+            // Check for errors
+            if let error = decompressionError {
+                throw error
+            }
+            
+            if tarProcess.terminationStatus != 0 {
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-                throw TemplateDownloadError.extractionFailed(errorMessage)
+                throw TemplateDownloadError.extractionFailed("tar failed: \(errorMessage)")
             }
-
-            // Check for the expected template path first
+            
+            // Check for the expected template path
             if FileManager.default.fileExists(atPath: expectedPath.path) {
                 let diskPath = expectedPath.appendingPathComponent("disk.img")
                 if FileManager.default.fileExists(atPath: diskPath.path) {
@@ -587,13 +609,12 @@ public class TemplateDownloadService: ObservableObject {
             // Fallback: Find any extracted directory that looks like a template
             let contents = try FileManager.default.contentsOfDirectory(at: templatesDir, includingPropertiesForKeys: [.creationDateKey])
             
-            // Sort by creation date (newest first) to find the just-extracted folder
             let sorted = contents.sorted { url1, url2 in
                 let date1 = (try? url1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
                 let date2 = (try? url2.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
                 return date1 > date2
             }
-
+            
             for item in sorted {
                 var isDir: ObjCBool = false
                 if FileManager.default.fileExists(atPath: item.path, isDirectory: &isDir) && isDir.boolValue {
@@ -603,7 +624,7 @@ public class TemplateDownloadService: ObservableObject {
                     }
                 }
             }
-
+            
             throw TemplateDownloadError.extractionFailed("Could not find extracted template directory")
         }.value
     }
