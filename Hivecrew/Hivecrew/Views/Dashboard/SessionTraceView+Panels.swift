@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 import HivecrewShared
 import MarkdownView
 
@@ -87,6 +88,20 @@ extension SessionTraceView {
             }
             
             Spacer()
+            
+            // Export video button
+            Button(action: exportVideo) {
+                if isExportingVideo {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                } else {
+                    Image(systemName: "film")
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(isExportingVideo || screenshotEvents.isEmpty)
+            .help("Export as Video")
             
             // Full screen button
             if let path = currentScreenshotPath {
@@ -280,21 +295,6 @@ extension SessionTraceView {
     
     var tracePanelFooter: some View {
         HStack(spacing: 16) {
-            // Event count
-            Text("\(events.count) events")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            
-            // Screenshot count
-            if !screenshotEvents.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "camera.fill")
-                        .font(.caption2)
-                    Text("\(screenshotEvents.count)")
-                        .font(.caption)
-                }
-                .foregroundStyle(.secondary)
-            }
             
             // Show deliverables button
             if let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
@@ -324,6 +324,52 @@ extension SessionTraceView {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+    
+    func exportVideo() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.canCreateDirectories = true
+        
+        // Create a sanitized filename from the task title
+        let sanitizedTitle = task.title
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .prefix(50)
+        panel.nameFieldStringValue = "\(sanitizedTitle)-recording.mp4"
+        
+        panel.begin { [self] response in
+            guard response == .OK, let url = panel.url else { return }
+            
+            Task { @MainActor in
+                isExportingVideo = true
+                exportProgress = 0
+                
+                do {
+                    let paths = screenshotEvents.compactMap { $0.screenshotPath }
+                    try await VideoExporter.exportVideo(from: paths, to: url, fps: 6) { progress in
+                        Task { @MainActor in
+                            self.exportProgress = progress
+                        }
+                    }
+                    
+                    isExportingVideo = false
+                    
+                    // Reveal the exported file in Finder
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } catch {
+                    isExportingVideo = false
+                    
+                    // Show error alert
+                    let alert = NSAlert()
+                    alert.messageText = "Export Failed"
+                    alert.informativeText = error.localizedDescription
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
     }
     
     func showDeliverablesInFinder() {

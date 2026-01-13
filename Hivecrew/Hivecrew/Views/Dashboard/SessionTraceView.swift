@@ -25,6 +25,8 @@ struct SessionTraceView: View {
     @State private var visibleEventIds: Set<String> = []
     @State var currentScreenshotPath: String? = nil
     @State var currentScreenshotStep: Int = 0
+    @State var isExportingVideo: Bool = false
+    @State var exportProgress: Double = 0
     
     /// The last LLM text response (from session_end summary or llm_response with no tool calls)
     var lastLLMTextResponse: String? {
@@ -115,13 +117,23 @@ struct SessionTraceView: View {
     
     func formatTimestamp(_ timestamp: String) -> String {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
+        // Try with fractional seconds first
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = formatter.date(from: timestamp) {
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm:ss"
             return timeFormatter.string(from: date)
         }
+        
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: timestamp) {
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm:ss"
+            return timeFormatter.string(from: date)
+        }
+        
         return timestamp
     }
     

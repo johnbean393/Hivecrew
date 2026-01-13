@@ -148,13 +148,23 @@ struct HistoricalTraceEventRow: View {
     
     private func formatTimestamp(_ timestamp: String) -> String {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
+        // Try with fractional seconds first
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = formatter.date(from: timestamp) {
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm:ss"
             return timeFormatter.string(from: date)
         }
+        
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: timestamp) {
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm:ss"
+            return timeFormatter.string(from: date)
+        }
+        
         return timestamp
     }
     

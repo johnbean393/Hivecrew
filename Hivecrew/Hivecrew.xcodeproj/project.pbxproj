@@ -43,6 +43,7 @@
 		204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4552F162AF8004AB99B /* TodoManager.swift */; };
 		204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4522F162AF8004AB99B /* DuckDuckGoSearch.swift */; };
 		204DF4602F162B0B004AB99B /* ToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */; };
+		204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4612F16404E004AB99B /* VideoExporter.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -171,6 +172,7 @@
 		204DF4562F162AF8004AB99B /* WebpageExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageExtractor.swift; sourceTree = "<group>"; };
 		204DF4572F162AF8004AB99B /* WebpageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageReader.swift; sourceTree = "<group>"; };
 		204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsSettingsView.swift; sourceTree = "<group>"; };
+		204DF4612F16404E004AB99B /* VideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExporter.swift; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -374,6 +376,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				204DF4612F16404E004AB99B /* VideoExporter.swift */,
 				3001A0052F15000000000005 /* AgentPrompts.swift */,
 				3001A0092F15000000000009 /* AgentStatePublisher.swift */,
 				20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */,
@@ -724,6 +727,7 @@
 				209C61AC2F12ABD700062D0E /* SafetySettingsView.swift in Sources */,
 				20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */,
 				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
+				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
 				209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */,
 				209C61AE2F12ABD700062D0E /* StorageSettingsView.swift in Sources */,
 				204DF4222F14DEEF004AB99B /* DeveloperSettingsView.swift in Sources */,
