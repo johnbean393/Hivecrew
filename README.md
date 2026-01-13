@@ -5,7 +5,7 @@
 <h1 align="center">Hivecrew</h1>
 
 <p align="center">
-AI agents to do digital work inside isolated,local macOS virtual machines
+A macOS app for running parallel AI agents in sandboxed local VMs
 </p>
 
 Hivecrew is a native macOS app that runs AI agents in dedicated macOS virtual machines. Dispatch tasks from a central dashboard, watch agents work autonomously, and step in to guide or assist whenever needed—all while keeping your host system completely isolated and safe.

@@ -97,6 +97,10 @@ struct HivecrewApp: App {
                         .modelContainer(sharedModelContainer)
                         .interactiveDismissDisabled()
                 }
+                // Listen for debug menu onboarding trigger
+                .onReceive(NotificationCenter.default.publisher(for: .showOnboardingWizard)) { _ in
+                    showOnboarding = true
+                }
         }
         .modelContainer(sharedModelContainer)
         .commands {

@@ -12,6 +12,7 @@ import HivecrewShared
 /// VM Template configuration step
 struct OnboardingTemplateStep: View {
     @EnvironmentObject var vmService: VMServiceClient
+    @StateObject private var downloadService = TemplateDownloadService.shared
     @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
     
     @Binding var isConfigured: Bool
@@ -21,6 +22,8 @@ struct OnboardingTemplateStep: View {
     @State private var showingImportPicker = false
     @State private var isImporting = false
     @State private var importError: String?
+    @State private var downloadError: String?
+    @State private var showDownloadOptions = false
     
     var body: some View {
         VStack(spacing: 24) {
@@ -45,41 +48,18 @@ struct OnboardingTemplateStep: View {
             if isLoading {
                 ProgressView("Loading templates...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if downloadService.isDownloading {
+                downloadProgressView
             } else if templates.isEmpty {
                 emptyState
             } else {
                 templatesList
             }
             
-            // Import button
-            VStack(spacing: 8) {
-                Button {
-                    showingImportPicker = true
-                } label: {
-                    HStack {
-                        Image(systemName: "folder.badge.plus")
-                        Text("Import Template Folder...")
-                    }
-                }
-                .disabled(isImporting)
-                
-                if isImporting {
-                    HStack {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                        Text("Importing template...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                if let error = importError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
+            // Action buttons
+            if !downloadService.isDownloading {
+                actionButtons
             }
-            .padding(.bottom, 20)
         }
         .padding()
         .task {
@@ -96,6 +76,155 @@ struct OnboardingTemplateStep: View {
         }
     }
     
+    // MARK: - Download Progress View
+    
+    private var downloadProgressView: some View {
+        VStack(spacing: 20) {
+            if let progress = downloadService.progress {
+                // Progress indicator
+                VStack(spacing: 12) {
+                    ProgressView(value: progress.fractionComplete)
+                        .progressViewStyle(.linear)
+                    
+                    HStack {
+                        Text(progress.phaseDescription)
+                            .font(.callout)
+                        
+                        Spacer()
+                        
+                        if case .downloading = progress.phase {
+                            Text("\(ByteCountFormatter.string(fromByteCount: progress.bytesDownloaded, countStyle: .file)) / \(ByteCountFormatter.string(fromByteCount: progress.totalBytes, countStyle: .file))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("\(progress.percentComplete)%")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 60)
+                
+                // Cancel button
+                Button("Cancel Download") {
+                    downloadService.cancelDownload()
+                }
+                .foregroundStyle(.red)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Action Buttons
+    
+    private var actionButtons: some View {
+        VStack(spacing: 12) {
+            // Resume button if there's a partial download
+            if downloadService.hasResumableDownload {
+                resumeDownloadSection
+            } else if templates.isEmpty {
+                // Download button (primary action for empty state)
+                Button {
+                    Task { await downloadDefaultTemplate() }
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.down.circle.fill")
+                        Text("Download Golden Image (\(KnownTemplates.default.sizeFormatted))")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isImporting)
+            }
+            
+            // Import button
+            HStack(spacing: 16) {
+                Button {
+                    showingImportPicker = true
+                } label: {
+                    HStack {
+                        Image(systemName: "folder.badge.plus")
+                        Text("Import Template Folder...")
+                    }
+                }
+                .disabled(isImporting)
+                
+                if !templates.isEmpty && !downloadService.hasResumableDownload {
+                    Button {
+                        Task { await downloadDefaultTemplate() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.down.circle")
+                            Text("Download Template...")
+                        }
+                    }
+                    .disabled(isImporting)
+                }
+            }
+            
+            if isImporting {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text("Importing template...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            if let error = importError ?? downloadError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.bottom, 20)
+    }
+    
+    // MARK: - Resume Download Section
+    
+    private var resumeDownloadSection: some View {
+        VStack(spacing: 12) {
+            if let info = downloadService.getResumableDownloadInfo() {
+                VStack(spacing: 4) {
+                    Text("Incomplete Download Found")
+                        .font(.headline)
+                    
+                    Text("\(ByteCountFormatter.string(fromByteCount: info.bytesDownloaded, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: info.totalBytes, countStyle: .file)) downloaded")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    // Progress bar showing downloaded portion
+                    ProgressView(value: Double(info.bytesDownloaded), total: Double(info.totalBytes))
+                        .progressViewStyle(.linear)
+                        .frame(maxWidth: 300)
+                }
+                .padding(.vertical, 8)
+            }
+            
+            HStack(spacing: 16) {
+                Button {
+                    Task { await resumeDownload() }
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.clockwise.circle.fill")
+                        Text("Resume Download")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                
+                Button(role: .destructive) {
+                    downloadService.clearPartialDownload()
+                } label: {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Discard")
+                    }
+                }
+            }
+        }
+    }
+    
     // MARK: - Empty State
     
     private var emptyState: some View {
@@ -108,7 +237,7 @@ struct OnboardingTemplateStep: View {
                 .font(.headline)
                 .foregroundStyle(.secondary)
             
-            Text("Import a template folder containing a pre-configured\nmacOS VM with the Hivecrew agent installed.")
+            Text("Download the official Hivecrew Golden Image or import a template folder\ncontaining a pre-configured macOS VM.")
                 .font(.callout)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -193,6 +322,52 @@ struct OnboardingTemplateStep: View {
         }
         
         isLoading = false
+    }
+    
+    // MARK: - Template Download
+    
+    private func downloadDefaultTemplate() async {
+        downloadError = nil
+        
+        do {
+            let templateId = try await downloadService.downloadTemplate(KnownTemplates.default)
+            
+            // Auto-select the downloaded template as default
+            defaultTemplateId = templateId
+            
+            // Reload templates to show the new one
+            await loadTemplates()
+        } catch {
+            if case TemplateDownloadError.cancelled = error {
+                // User cancelled, don't show error but check for resumable
+                downloadService.checkForResumableDownload()
+                return
+            }
+            downloadError = error.localizedDescription
+            downloadService.checkForResumableDownload()
+        }
+    }
+    
+    private func resumeDownload() async {
+        downloadError = nil
+        
+        do {
+            let templateId = try await downloadService.resumeDownload()
+            
+            // Auto-select the downloaded template as default
+            defaultTemplateId = templateId
+            
+            // Reload templates to show the new one
+            await loadTemplates()
+        } catch {
+            if case TemplateDownloadError.cancelled = error {
+                // User cancelled, don't show error
+                downloadService.checkForResumableDownload()
+                return
+            }
+            downloadError = error.localizedDescription
+            downloadService.checkForResumableDownload()
+        }
     }
     
     // MARK: - Template Import

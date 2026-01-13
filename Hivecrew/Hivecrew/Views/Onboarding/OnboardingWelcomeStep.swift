@@ -54,7 +54,7 @@ struct OnboardingWelcomeStep: View {
                 FeatureRow(
                     icon: "shield.lefthalf.filled",
                     title: "Safe by Default",
-                    description: "Timeouts, permissions, and easy kill switch for peace of mind"
+                    description: "Timeouts and permissions for peace of mind"
                 )
             }
             .padding(.horizontal, 40)

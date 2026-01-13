@@ -9,11 +9,24 @@ import SwiftUI
 import AppKit
 import HivecrewShared
 
+// MARK: - Notifications
+
+extension Notification.Name {
+    /// Posted to trigger showing the onboarding wizard from the debug menu
+    static let showOnboardingWizard = Notification.Name("showOnboardingWizard")
+}
+
 /// Debug menu commands for Help → Debug submenu
 struct DebugMenuCommands: Commands {
     var body: some Commands {
         CommandGroup(after: .help) {
             Menu("Debug") {
+                Button("Show Onboarding Wizard…") {
+                    showOnboardingWizard()
+                }
+                
+                Divider()
+                
                 Button("Backup SwiftData") {
                     backupSwiftData()
                 }
@@ -23,6 +36,12 @@ struct DebugMenuCommands: Commands {
                 }
             }
         }
+    }
+    
+    // MARK: - Onboarding
+    
+    private func showOnboardingWizard() {
+        NotificationCenter.default.post(name: .showOnboardingWizard, object: nil)
     }
     
     // MARK: - SwiftData File Locations
