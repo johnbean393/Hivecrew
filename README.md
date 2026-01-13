@@ -5,10 +5,10 @@
 <h1 align="center">Hivecrew</h1>
 
 <p align="center">
-A macOS app for running parallel AI agents in sandboxed local VMs
+A macOS app for running parallel AI computer use agents in sandboxed local VMs
 </p>
 
-Hivecrew is a native macOS app that runs AI agents in dedicated macOS virtual machines. Dispatch tasks from a central dashboard, watch agents work autonomously, and step in to guide or assist whenever needed—all while keeping your host system completely isolated and safe.
+Hivecrew is a native macOS app that runs AI computer use agents in dedicated macOS virtual machines. Dispatch tasks from a central dashboard, watch agents work autonomously, and step in to guide or assist whenever needed—all while keeping your host system completely isolated and safe.
 
 ![Hivecrew Dashboard](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/dashboard-screenshot.png)
 
@@ -18,17 +18,19 @@ Hivecrew is a native macOS app that runs AI agents in dedicated macOS virtual ma
 
 ![Agent Environment View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png)
 
+- **Parallel Agents**: Run multiple agents concurrently in separate VMs, each with its own task and environment.
+
 - **Real-Time Supervision**: Watch agents work with live screenshots and activity logs. Jump into any agent's environment to observe or review detailed session traces afterward.
 
 - **Human-in-the-Loop**: Pause any agent, take control with your mouse and keyboard, add clarifying instructions, then hand control back seamlessly.
 
 - **Multi-LLM Support**: Works with Anthropic, OpenAI, and any OpenAI-compatible local LLM provider. Easy provider switching in settings.
 
-- **File-Aware Tasks**: Attach input files to tasks and specify output directories. Agents work with files through a secure shared folder system.
+- **File Handover**: Attach input files to tasks and specify output directories for deliverables. Agents work with files through a secure shared folder system.
 
 - **Safety Controls**: Built-in timeouts, iteration limits, tool permission controls, and emergency stop switches keep agents under control.
 
-- **Native Performance**: Built entirely in Swift with Apple's Virtualization framework. Optimized for Apple Silicon (M1/M2/M3/M4).
+- **Native Performance**: Built entirely in Swift with Apple's Virtualization framework. Optimized for Apple Silicon (M1/M2/M3/M4/M5).
 
 ## Architecture
 
@@ -38,7 +40,7 @@ Hivecrew is built on three modular Swift packages:
 - **HivecrewLLM**: Multi-provider LLM client supporting OpenAI-compatible APIs with tool calling and tracing
 - **HivecrewShared**: Shared types and VM management protocols
 
-The app runs agents in macOS Sequoia VMs with a lightweight guest agent that provides automation tools including:
+The app runs agents in macOS Tahoe VMs with a lightweight guest agent that provides automation tools including:
 - Screenshot capture and UI observation
 - File operations with controlled scope
 - App launching and native automation
