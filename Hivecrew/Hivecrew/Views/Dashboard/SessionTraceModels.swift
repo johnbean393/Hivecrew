@@ -77,12 +77,14 @@ struct HistoricalTraceEventRow: View {
                         .font(.subheadline)
                         .foregroundStyle(.primary)
                         .lineLimit(isExpanded ? nil : 2)
+                        .textSelection(.enabled)
                     
                     if let details = event.details, !details.isEmpty {
                         Text(details)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(isExpanded ? nil : 2)
+                            .textSelection(.enabled)
                     }
                 }
                 
@@ -111,6 +113,7 @@ struct HistoricalTraceEventRow: View {
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .padding(8)
+                        .textSelection(.enabled)
                 }
                 .frame(maxHeight: 150)
                 .background(Color(nsColor: .controlBackgroundColor))

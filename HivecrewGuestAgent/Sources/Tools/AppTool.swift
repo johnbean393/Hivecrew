@@ -73,9 +73,10 @@ final class AppTool {
     func openFile(path: String, withApp: String?) throws {
         logger.log("Opening file: \(path)")
         
-        let fileURL = URL(fileURLWithPath: path)
+        let resolvedPath = resolvePath(path)
+        let fileURL = URL(fileURLWithPath: resolvedPath)
         
-        guard FileManager.default.fileExists(atPath: path) else {
+        guard FileManager.default.fileExists(atPath: resolvedPath) else {
             throw AgentError(code: AgentError.toolExecutionFailed, message: "File not found: \(path)")
         }
         
@@ -101,9 +102,25 @@ final class AppTool {
                 throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to open file: \(error.localizedDescription)")
             }
         } else {
-            let success = NSWorkspace.shared.open(fileURL)
-            if !success {
-                throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to open file: \(path)")
+            // Use shell `open` command - NSWorkspace.shared.open() doesn't work reliably in daemon context
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = [resolvedPath]
+            
+            let stderrPipe = Pipe()
+            process.standardError = stderrPipe
+            
+            do {
+                try process.run()
+                process.waitUntilExit()
+            } catch {
+                throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to run open command: \(error.localizedDescription)")
+            }
+            
+            if process.terminationStatus != 0 {
+                let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                let stderr = String(data: stderrData, encoding: .utf8) ?? "Unknown error"
+                throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to open file: \(stderr)")
             }
         }
     }
@@ -325,5 +342,21 @@ final class AppTool {
         }
         
         return nil
+    }
+    
+    /// Resolve a path, handling tilde expansion and relative paths within the shared folder
+    private func resolvePath(_ path: String) -> String {
+        // Handle tilde expansion (e.g., ~/Desktop/file.txt)
+        if path.hasPrefix("~") {
+            return (path as NSString).expandingTildeInPath
+        }
+        
+        // Absolute paths are used as-is
+        if path.hasPrefix("/") {
+            return path
+        }
+        
+        // Relative paths are resolved against the shared folder
+        return (AgentProtocol.sharedFolderMountPath as NSString).appendingPathComponent(path)
     }
 }
