@@ -5,6 +5,7 @@
 //  Agent Environments tab - Live view into running tasks and their ephemeral VMs
 //
 
+import Combine
 import SwiftUI
 import SwiftData
 import HivecrewShared

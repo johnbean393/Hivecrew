@@ -53,7 +53,14 @@ extension TaskService {
     }
     
     /// Delete an ephemeral VM after task completion
+    /// Will NOT delete developer VMs or VMs associated with paused tasks
     func deleteEphemeralVM(vmId: String) async {
+        // Safety check: don't delete protected VMs
+        if isVMProtected(vmId) {
+            print("TaskService: Skipping deletion of protected VM \(vmId) (developer or paused task)")
+            return
+        }
+        
         print("TaskService: Deleting ephemeral VM \(vmId)...")
 
         do {
@@ -69,6 +76,17 @@ extension TaskService {
             print("TaskService: Deleted ephemeral VM \(vmId)")
         } catch {
             print("TaskService: Failed to delete ephemeral VM \(vmId): \(error)")
+            
+            // If XPC service failed, try to delete the directory directly
+            let vmPath = AppPaths.vmBundlePath(id: vmId)
+            if FileManager.default.fileExists(atPath: vmPath.path) {
+                do {
+                    try FileManager.default.removeItem(at: vmPath)
+                    print("TaskService: Deleted VM directory directly: \(vmId)")
+                } catch {
+                    print("TaskService: Failed to delete VM directory directly: \(error)")
+                }
+            }
         }
     }
     

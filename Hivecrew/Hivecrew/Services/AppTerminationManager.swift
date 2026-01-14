@@ -98,24 +98,39 @@ class AppTerminationManager: ObservableObject {
     // MARK: - Graceful Shutdown
     
     /// Perform graceful shutdown: stop VMs, fail agents and requeue them
+    /// - Running agents: Cancel and requeue task, delete ephemeral VM
+    /// - Paused agents: Keep VM and task paused (so it can be resumed on next launch)
     private func performGracefulShutdown() async {
         guard let taskService = taskService else { return }
         
         print("AppTerminationManager: Beginning graceful shutdown...")
         
-        // 1. Cancel and requeue running agents
+        // Collect VMs that should be preserved (paused tasks)
+        var preservedVMIds = Set<String>()
+        
+        // 1. Handle running agents (cancel, requeue, delete VM)
+        // But preserve paused agents (just stop VM, keep task paused)
         let runningAgents = taskService.runningAgents
         for (taskId, agent) in runningAgents {
-            print("AppTerminationManager: Cancelling agent for task \(taskId)")
-            await agent.cancel()
-            
-            // Find and requeue the task
             if let task = taskService.tasks.first(where: { $0.id == taskId }) {
-                await taskService.requeueTask(task, reason: "App was closed - task requeued")
+                if task.status == .paused {
+                    // Paused task - preserve the VM so it can be resumed
+                    print("AppTerminationManager: Preserving paused task \(taskId)")
+                    if let vmId = task.assignedVMId {
+                        preservedVMIds.insert(vmId)
+                    }
+                    // Don't cancel or requeue - just let it persist
+                } else {
+                    // Running task - cancel and requeue
+                    print("AppTerminationManager: Cancelling agent for task \(taskId)")
+                    await agent.cancel()
+                    await taskService.requeueTask(task, reason: "App was closed - task requeued")
+                }
             }
         }
         
         // 2. Stop all running VMs
+        // VMs for paused tasks will be stopped (to save state) but NOT deleted
         let runningVMIds = Array(vmRuntime.runningVMs.keys)
         for vmId in runningVMIds {
             print("AppTerminationManager: Stopping VM \(vmId)")
@@ -127,7 +142,8 @@ class AppTerminationManager: ObservableObject {
         }
         
         // 3. Queued tasks remain queued (no action needed)
-        print("AppTerminationManager: Graceful shutdown complete")
+        // 4. Paused tasks remain paused with their VM preserved
+        print("AppTerminationManager: Graceful shutdown complete. Preserved \(preservedVMIds.count) VM(s) for paused tasks")
     }
 }
 
@@ -146,19 +162,3 @@ struct ActiveWorkDetails {
     }
 }
 
-// MARK: - NSApplicationDelegate Extension
-
-/// App delegate for handling termination
-class HivecrewAppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Task { @MainActor in
-            if AppTerminationManager.shared.shouldTerminate() {
-                NSApplication.shared.reply(toApplicationShouldTerminate: true)
-            }
-            // If false, the manager will show confirmation sheet and call reply later
-        }
-        
-        // Return .terminateLater to defer the decision
-        return .terminateLater
-    }
-}

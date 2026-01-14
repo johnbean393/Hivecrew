@@ -7,28 +7,19 @@
 
 import Foundation
 
-/// All available tool methods
+/// All available tool methods for the CUA (Computer Use Agent)
 public enum AgentMethod: String, CaseIterable, Sendable {
-    // Observation tools
+    // Observation tools (guest-side only, not exposed to LLM)
     case screenshot = "screenshot"
-    case getFrontmostApp = "get_frontmost_app"
-    case listRunningApps = "list_running_apps"
+    case healthCheck = "health_check"
     case traverseAccessibilityTree = "traverse_accessibility_tree"
     
-    // Native automation tools
+    // App tools
     case openApp = "open_app"
     case openFile = "open_file"
     case openUrl = "open_url"
-    case activateApp = "activate_app"
-    case runShell = "run_shell"
-    case readFile = "read_file"
-    case writeFile = "write_file"
-    case listDirectory = "list_directory"
-    case moveFile = "move_file"
-    case clipboardRead = "clipboard_read"
-    case clipboardWrite = "clipboard_write"
     
-    // CUA tools (Computer Use Agent)
+    // Input tools
     case mouseMove = "mouse_move"
     case mouseClick = "mouse_click"
     case mouseDrag = "mouse_drag"
@@ -36,10 +27,13 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case keyboardKey = "keyboard_key"
     case scroll = "scroll"
     
+    // File tools
+    case runShell = "run_shell"
+    case readFile = "read_file"
+    case moveFile = "move_file"
+    
     // System tools
     case wait = "wait"
-    case healthCheck = "health_check"
-    case shutdown = "shutdown"
     
     // User interaction tools
     case askTextQuestion = "ask_text_question"
@@ -68,14 +62,20 @@ public enum AgentMethod: String, CaseIterable, Sendable {
             return false
         }
     }
+    
+    /// Returns true if this tool should be excluded from the LLM tool list
+    /// These are internal tools used by the host, not called by the LLM
+    public var isInternalTool: Bool {
+        switch self {
+        case .screenshot, .healthCheck:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 // MARK: - Tool Parameters
-
-/// Parameters for screenshot tool
-public struct ScreenshotParams: Codable, Sendable {
-    public init() {}
-}
 
 /// Result from screenshot tool
 public struct ScreenshotResult: Codable, Sendable {
@@ -259,26 +259,6 @@ public struct ReadFileParams: Codable, Sendable {
     }
 }
 
-/// Parameters for write_file tool
-public struct WriteFileParams: Codable, Sendable {
-    public let path: String
-    public let contents: String
-    
-    public init(path: String, contents: String) {
-        self.path = path
-        self.contents = contents
-    }
-}
-
-/// Parameters for list_directory tool
-public struct ListDirectoryParams: Codable, Sendable {
-    public let path: String
-    
-    public init(path: String) {
-        self.path = path
-    }
-}
-
 /// Parameters for move_file tool
 public struct MoveFileParams: Codable, Sendable {
     public let source: String
@@ -287,67 +267,6 @@ public struct MoveFileParams: Codable, Sendable {
     public init(source: String, destination: String) {
         self.source = source
         self.destination = destination
-    }
-}
-
-/// Parameters for clipboard_write tool
-public struct ClipboardWriteParams: Codable, Sendable {
-    public let text: String
-    
-    public init(text: String) {
-        self.text = text
-    }
-}
-
-/// Result from health_check tool
-public struct HealthCheckResult: Codable, Sendable {
-    public let status: String
-    public let accessibilityPermission: Bool
-    public let screenRecordingPermission: Bool
-    public let sharedFolderMounted: Bool
-    public let sharedFolderPath: String?
-    public let agentVersion: String
-    
-    public init(
-        status: String,
-        accessibilityPermission: Bool,
-        screenRecordingPermission: Bool,
-        sharedFolderMounted: Bool,
-        sharedFolderPath: String?,
-        agentVersion: String
-    ) {
-        self.status = status
-        self.accessibilityPermission = accessibilityPermission
-        self.screenRecordingPermission = screenRecordingPermission
-        self.sharedFolderMounted = sharedFolderMounted
-        self.sharedFolderPath = sharedFolderPath
-        self.agentVersion = agentVersion
-    }
-}
-
-/// Result from get_frontmost_app tool
-public struct FrontmostAppResult: Codable, Sendable {
-    public let bundleId: String?
-    public let appName: String?
-    public let windowTitle: String?
-    
-    public init(bundleId: String?, appName: String?, windowTitle: String?) {
-        self.bundleId = bundleId
-        self.appName = appName
-        self.windowTitle = windowTitle
-    }
-}
-
-/// App info for list_running_apps
-public struct RunningAppInfo: Codable, Sendable {
-    public let bundleId: String?
-    public let appName: String
-    public let pid: Int32
-    
-    public init(bundleId: String?, appName: String, pid: Int32) {
-        self.bundleId = bundleId
-        self.appName = appName
-        self.pid = pid
     }
 }
 

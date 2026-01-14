@@ -5,6 +5,7 @@
 //  Button for adding file attachments to the prompt bar
 //
 
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 

@@ -10,6 +10,11 @@
 		2019E33D2F13997E0041819D /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33C2F13997E0041819D /* OpenAI */; };
 		2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33F2F139C0000041819 /* HivecrewLLM */; };
 		2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2019E34F2F13A00000041819 /* LLMProviderRecord.swift */; };
+		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
+		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
+		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
+		2049633F2F1822A7007DD5FD /* HivecrewAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */; };
+		204963412F182382007DD5FD /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963402F182382007DD5FD /* CheckForUpdatesView.swift */; };
 		204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */; };
 		204DF41A2F14D5E7004AB99B /* OnboardingTemplateStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4162F14D5E7004AB99B /* OnboardingTemplateStep.swift */; };
 		204DF41B2F14D5E7004AB99B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4172F14D5E7004AB99B /* OnboardingView.swift */; };
@@ -28,6 +33,7 @@
 		204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4362F157397004AB99B /* TaskServiceError.swift */; };
 		204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4352F157397004AB99B /* TaskService+VMManagement.swift */; };
 		204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */; };
+		204DF43C2F157398004AB99B /* TaskService+VMCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4372F157398004AB99B /* TaskService+VMCleanup.swift */; };
 		204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF43C2F157424004AB99B /* SessionTraceModels.swift */; };
 		204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4402F15744D004AB99B /* AgentRunner+Verification.swift */; };
 		204DF4422F15744D004AB99B /* AgentRunner+Loop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF43F2F15744D004AB99B /* AgentRunner+Loop.swift */; };
@@ -141,6 +147,10 @@
 
 /* Begin PBXFileReference section */
 		2019E34F2F13A00000041819 /* LLMProviderRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProviderRecord.swift; sourceTree = "<group>"; };
+		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
+		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
+		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
+		204963402F182382007DD5FD /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
 		204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentSettingsView.swift; sourceTree = "<group>"; };
 		204DF4142F14D5E7004AB99B /* OnboardingCompleteStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCompleteStep.swift; sourceTree = "<group>"; };
 		204DF4152F14D5E7004AB99B /* OnboardingProviderStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingProviderStep.swift; sourceTree = "<group>"; };
@@ -158,6 +168,7 @@
 		204DF4342F157397004AB99B /* TaskService+Execution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+Execution.swift"; sourceTree = "<group>"; };
 		204DF4352F157397004AB99B /* TaskService+VMManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+VMManagement.swift"; sourceTree = "<group>"; };
 		204DF4362F157397004AB99B /* TaskServiceError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskServiceError.swift; sourceTree = "<group>"; };
+		204DF4372F157398004AB99B /* TaskService+VMCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+VMCleanup.swift"; sourceTree = "<group>"; };
 		204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionTraceView+Panels.swift"; sourceTree = "<group>"; };
 		204DF43C2F157424004AB99B /* SessionTraceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTraceModels.swift; sourceTree = "<group>"; };
 		204DF43F2F15744D004AB99B /* AgentRunner+Loop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentRunner+Loop.swift"; sourceTree = "<group>"; };
@@ -237,6 +248,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */,
+				2049633D2F17E553007DD5FD /* Sparkle in Frameworks */,
 				2019E33D2F13997E0041819D /* OpenAI in Frameworks */,
 				2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */,
 				204DF44B2F15A81D004AB99B /* libzstd in Frameworks */,
@@ -271,6 +283,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2049633A2F17DDAC007DD5FD /* Updates */ = {
+			isa = PBXGroup;
+			children = (
+				204963402F182382007DD5FD /* CheckForUpdatesView.swift */,
+				204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */,
+			);
+			path = Updates;
+			sourceTree = "<group>";
+		};
 		204DF4192F14D5E7004AB99B /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
@@ -301,6 +322,7 @@
 				3001A0072F15000000000007 /* TaskService.swift */,
 				204DF4342F157397004AB99B /* TaskService+Execution.swift */,
 				204DF4352F157397004AB99B /* TaskService+VMManagement.swift */,
+				204DF4372F157398004AB99B /* TaskService+VMCleanup.swift */,
 				204DF4362F157397004AB99B /* TaskServiceError.swift */,
 			);
 			path = "Task Service";
@@ -449,6 +471,7 @@
 				209C618C2F12ABD700062D0E /* Dashboard */,
 				209C619F2F12ABD700062D0E /* Environments */,
 				209C61932F12ABD700062D0E /* Settings */,
+				2049633A2F17DDAC007DD5FD /* Updates */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -457,6 +480,7 @@
 			isa = PBXGroup;
 			children = (
 				209C61A42F12ABD700062D0E /* HivecrewApp.swift */,
+				2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */,
 				209C61A22F12ABD700062D0E /* ContentView.swift */,
 				204DF4232F150CB4004AB99B /* DebugMenuCommands.swift */,
 				209C61A02F12ABD700062D0E /* Views */,
@@ -520,6 +544,7 @@
 		3001C0012F15000000000001 /* Agent */ = {
 			isa = PBXGroup;
 			children = (
+				204963362F17AD61007DD5FD /* QuestionWindowController.swift */,
 				204DF41F2F14D5F4004AB99B /* ToolConfirmationSheet.swift */,
 				3001A00D2F1500000000000D /* AgentQuestionSheet.swift */,
 			);
@@ -552,6 +577,7 @@
 				20C413F82F143BAA00C6E8A9 /* MarkdownView */,
 				204DF44A2F15A81D004AB99B /* libzstd */,
 				204DF4502F16274B004AB99B /* GoogleSearch */,
+				2049633C2F17E553007DD5FD /* Sparkle */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -659,6 +685,7 @@
 				20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */,
 				204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */,
 				204DF44F2F16274B004AB99B /* XCRemoteSwiftPackageReference "GoogleSearch" */,
+				2049633B2F17E553007DD5FD /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 209C5F952F12947F00062D0E /* Products */;
@@ -725,6 +752,7 @@
 				209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */,
 				209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */,
 				209C61AC2F12ABD700062D0E /* SafetySettingsView.swift in Sources */,
+				204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */,
 				20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */,
 				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
 				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
@@ -732,6 +760,7 @@
 				209C61AE2F12ABD700062D0E /* StorageSettingsView.swift in Sources */,
 				204DF4222F14DEEF004AB99B /* DeveloperSettingsView.swift in Sources */,
 				209C61AF2F12ABD700062D0E /* TaskDefaultsSettingsView.swift in Sources */,
+				204963412F182382007DD5FD /* CheckForUpdatesView.swift in Sources */,
 				209C61B12F12ABD700062D0E /* AgentEnvironmentsView.swift in Sources */,
 				209C61B52F12ABD700062D0E /* VMDetailView.swift in Sources */,
 				204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */,
@@ -745,6 +774,7 @@
 				209C61B72F12ABD700062D0E /* VMDisplayView.swift in Sources */,
 				209C61B82F12ABD700062D0E /* VMInfoBar.swift in Sources */,
 				204DF4202F14D5F4004AB99B /* ToolConfirmationSheet.swift in Sources */,
+				2049633F2F1822A7007DD5FD /* HivecrewAppDelegate.swift in Sources */,
 				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
 				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
 				204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */,
@@ -762,12 +792,14 @@
 				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
 				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
 				3001B0032F15000000000003 /* AgentQuestion.swift in Sources */,
+				204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */,
 				204DF4602F162B0B004AB99B /* ToolsSettingsView.swift in Sources */,
 				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
 				204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */,
 				204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */,
+				204DF43C2F157398004AB99B /* TaskService+VMCleanup.swift in Sources */,
 				3001B0052F15000000000005 /* AgentPrompts.swift in Sources */,
 				204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */,
 				204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */,
@@ -1241,6 +1273,14 @@
 				minimumVersion = 0.4.7;
 			};
 		};
+		2049633B2F17E553007DD5FD /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
 		204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/facebook/zstd.git";
@@ -1276,6 +1316,11 @@
 		2019E33F2F139C0000041819 /* HivecrewLLM */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HivecrewLLM;
+		};
+		2049633C2F17E553007DD5FD /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2049633B2F17E553007DD5FD /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		204DF44A2F15A81D004AB99B /* libzstd */ = {
 			isa = XCSwiftPackageProductDependency;

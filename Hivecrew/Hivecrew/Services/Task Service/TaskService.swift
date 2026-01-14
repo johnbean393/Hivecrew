@@ -68,6 +68,11 @@ class TaskService: ObservableObject {
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
         loadTasks()
+        
+        // Clean up orphaned VMs on startup (after tasks are loaded)
+        Task {
+            await cleanupOrphanedVMs()
+        }
     }
     
     // MARK: - Task Creation
@@ -154,10 +159,15 @@ class TaskService: ObservableObject {
     /// Recover tasks that were left in an active state from a previous session
     /// - Queued/WaitingForVM tasks: leave them queued for the startup sheet
     /// - Running tasks: mark as queued (so they can be restarted from startup sheet)
+    /// - Paused tasks with missing VMs: requeue them (VM was lost)
+    /// - Paused tasks with existing VMs: keep them paused (can be resumed)
     private func recoverOrphanedTasks() {
         guard let context = modelContext else { return }
         
         var recovered = 0
+        var pausedKept = 0
+        var pausedRequeued = 0
+        
         for task in tasks where task.status.isActive {
             // If the task is in an active state but we don't have a running agent for it,
             // it means the app was killed while the task was running
@@ -170,14 +180,28 @@ class TaskService: ObservableObject {
                     task.assignedVMId = nil
                     task.errorMessage = "Task was interrupted (app was closed) - requeued"
                     recovered += 1
+                } else if task.status == .paused {
+                    // Paused task - check if VM still exists
+                    if let vmId = task.assignedVMId, vmDirectoryExists(vmId) {
+                        // VM still exists, keep the task paused so it can be resumed
+                        pausedKept += 1
+                    } else {
+                        // VM is missing, requeue the task
+                        task.status = .queued
+                        task.startedAt = nil
+                        task.completedAt = nil
+                        task.assignedVMId = nil
+                        task.errorMessage = "Paused task's VM was lost - requeued"
+                        pausedRequeued += 1
+                    }
                 }
                 // Queued and WaitingForVM tasks stay as-is (will appear in startup sheet)
             }
         }
         
-        if recovered > 0 {
+        if recovered > 0 || pausedRequeued > 0 {
             try? context.save()
-            print("TaskService: Recovered \(recovered) orphaned task(s) and requeued them")
+            print("TaskService: Recovered \(recovered) running task(s), kept \(pausedKept) paused task(s), requeued \(pausedRequeued) paused task(s) with missing VMs")
             objectWillChange.send()
         }
     }

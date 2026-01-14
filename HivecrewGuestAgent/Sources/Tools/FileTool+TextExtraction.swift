@@ -237,43 +237,58 @@ extension FileTool {
 
 extension FileTool {
     
-    /// Read an image file and return as base64 with metadata
+    /// Read an image file and return as base64-encoded PNG with metadata
+    /// All image formats are converted to PNG for consistent model input
     func readImageAsBase64(at path: String) throws -> [String: Any] {
         let url = URL(fileURLWithPath: path)
-        let data = try Data(contentsOf: url)
         
-        let base64 = data.base64EncodedString()
-        
-        // Determine MIME type from extension
-        let ext = (path as NSString).pathExtension.lowercased()
-        let mimeType: String
-        switch ext {
-        case "png": mimeType = "image/png"
-        case "jpg", "jpeg": mimeType = "image/jpeg"
-        case "gif": mimeType = "image/gif"
-        case "webp": mimeType = "image/webp"
-        case "bmp": mimeType = "image/bmp"
-        case "tiff", "tif": mimeType = "image/tiff"
-        case "heic", "heif": mimeType = "image/heic"
-        case "ico": mimeType = "image/x-icon"
-        case "svg": mimeType = "image/svg+xml"
-        default: mimeType = "application/octet-stream"
+        // Load the image using NSImage (handles all common formats including HEIC)
+        guard let image = NSImage(contentsOf: url) else {
+            throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to load image file")
         }
         
-        // Get image dimensions if possible
-        var result: [String: Any] = [
+        // Get image dimensions from the actual image representation
+        guard let bitmapRep = image.representations.first else {
+            throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to get image representation")
+        }
+        
+        let width = bitmapRep.pixelsWide > 0 ? bitmapRep.pixelsWide : Int(image.size.width)
+        let height = bitmapRep.pixelsHigh > 0 ? bitmapRep.pixelsHigh : Int(image.size.height)
+        
+        // Convert to PNG data for consistent model input
+        guard let pngData = convertToPNG(image: image) else {
+            throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to convert image to PNG")
+        }
+        
+        let base64 = pngData.base64EncodedString()
+        
+        logger.log("Read image: \(width)x\(height), converted to PNG (\(pngData.count) bytes)")
+        
+        return [
             "contents": base64,
             "fileType": "image",
-            "mimeType": mimeType,
-            "isBase64": true
+            "mimeType": "image/png",  // Always PNG after conversion
+            "isBase64": true,
+            "width": width,
+            "height": height
         ]
-        
-        if let image = NSImage(contentsOfFile: path) {
-            result["width"] = Int(image.size.width)
-            result["height"] = Int(image.size.height)
+    }
+    
+    /// Convert an NSImage to PNG data
+    private func convertToPNG(image: NSImage) -> Data? {
+        // Get the best representation of the image
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            // Fallback: try to get tiff representation and convert
+            guard let tiffData = image.tiffRepresentation,
+                  let bitmapRep = NSBitmapImageRep(data: tiffData) else {
+                return nil
+            }
+            return bitmapRep.representation(using: .png, properties: [:])
         }
         
-        return result
+        // Create PNG data from CGImage
+        let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
+        return bitmapRep.representation(using: .png, properties: [:])
     }
 }
 

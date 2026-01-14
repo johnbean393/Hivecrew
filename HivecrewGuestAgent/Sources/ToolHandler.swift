@@ -14,10 +14,10 @@ final class ToolHandler {
     
     // Tool implementations
     private let screenshotTool = ScreenshotTool()
+    private let healthCheckTool = HealthCheckTool()
     private let inputTool = InputTool()
     private let appTool = AppTool()
     private let fileTool = FileTool()
-    private let healthCheckTool = HealthCheckTool()
     private let accessibilityTool = AccessibilityTool()
     
     /// Handle an incoming JSON-RPC request and return a response
@@ -52,15 +52,12 @@ final class ToolHandler {
     
     private func executeMethod(_ method: AgentMethod, params: [String: AnyCodable]?) throws -> Any {
         switch method {
-        // Observation tools
+        // Observation tools (internal, not exposed to LLM)
         case .screenshot:
             return try screenshotTool.executeSync()
             
-        case .getFrontmostApp:
-            return try appTool.getFrontmostApp()
-            
-        case .listRunningApps:
-            return try appTool.listRunningApps()
+        case .healthCheck:
+            return try healthCheckTool.execute()
             
         case .traverseAccessibilityTree:
             let pid = params?["pid"]?.intValue.map { Int32($0) }
@@ -87,13 +84,6 @@ final class ToolHandler {
                 throw AgentError(code: AgentError.invalidParams, message: "Missing 'url' parameter")
             }
             try appTool.openUrl(urlString)
-            return ["success": true]
-            
-        case .activateApp:
-            guard let bundleId = params?["bundleId"]?.stringValue else {
-                throw AgentError(code: AgentError.invalidParams, message: "Missing 'bundleId' parameter")
-            }
-            try appTool.activateApp(bundleId: bundleId)
             return ["success": true]
             
         // Input tools
@@ -167,36 +157,12 @@ final class ToolHandler {
             }
             return try fileTool.readFile(path: path)
             
-        case .writeFile:
-            guard let path = params?["path"]?.stringValue,
-                  let contents = params?["contents"]?.stringValue else {
-                throw AgentError(code: AgentError.invalidParams, message: "Missing 'path' or 'contents' parameter")
-            }
-            try fileTool.writeFile(path: path, contents: contents)
-            return ["success": true]
-            
-        case .listDirectory:
-            guard let path = params?["path"]?.stringValue else {
-                throw AgentError(code: AgentError.invalidParams, message: "Missing 'path' parameter")
-            }
-            return try fileTool.listDirectory(path: path)
-            
         case .moveFile:
             guard let source = params?["source"]?.stringValue,
                   let destination = params?["destination"]?.stringValue else {
                 throw AgentError(code: AgentError.invalidParams, message: "Missing 'source' or 'destination' parameter")
             }
             try fileTool.moveFile(source: source, destination: destination)
-            return ["success": true]
-            
-        case .clipboardRead:
-            return try fileTool.clipboardRead()
-            
-        case .clipboardWrite:
-            guard let text = params?["text"]?.stringValue else {
-                throw AgentError(code: AgentError.invalidParams, message: "Missing 'text' parameter")
-            }
-            try fileTool.clipboardWrite(text: text)
             return ["success": true]
             
         // System tools
@@ -207,18 +173,11 @@ final class ToolHandler {
             Thread.sleep(forTimeInterval: seconds)
             return ["success": true]
             
-        case .healthCheck:
-            return try healthCheckTool.execute()
-            
-        case .shutdown:
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                AgentDaemon.shared?.shutdown()
-            }
-            return ["success": true, "message": "Shutdown initiated"]
-            
-        // User interaction tools - these are handled on the host side, not in the guest
-        case .askTextQuestion, .askMultipleChoice:
-            throw AgentError(code: AgentError.toolExecutionFailed, message: "User interaction tools must be handled on the host side")
+        // Host-side tools - these should never reach the guest agent
+        case .askTextQuestion, .askMultipleChoice,
+             .webSearch, .readWebpageContent, .extractInfoFromWebpage, .getLocation,
+             .createTodoList, .addTodoItem, .finishTodoItem:
+            throw AgentError(code: AgentError.toolExecutionFailed, message: "This tool runs on the host, not in the guest VM")
         }
     }
 }

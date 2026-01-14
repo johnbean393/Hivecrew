@@ -110,6 +110,9 @@ class AgentStatePublisher: ObservableObject {
     /// Task ID this publisher is tracking
     let taskId: String
     
+    /// Task title for display purposes
+    var taskTitle: String = "Agent Task"
+    
     /// Session ID
     var sessionId: String?
     
@@ -119,8 +122,9 @@ class AgentStatePublisher: ObservableObject {
     /// Continuation for waiting for permission responses
     private var permissionContinuation: CheckedContinuation<Bool, Never>?
     
-    init(taskId: String) {
+    init(taskId: String, taskTitle: String = "Agent Task") {
         self.taskId = taskId
+        self.taskTitle = taskTitle
     }
     
     /// Ask a question and wait for the user's answer
@@ -134,8 +138,8 @@ class AgentStatePublisher: ObservableObject {
             summary: "Agent is asking: \(question.question)"
         ))
         
-        // Send a notification to alert the user
-        sendQuestionNotification(question: question.question)
+        // Show floating question window over all apps (including full-screen)
+        showQuestionWindow(question)
         
         // Wait for the answer using a continuation
         let answer = await withCheckedContinuation { continuation in
@@ -152,26 +156,13 @@ class AgentStatePublisher: ObservableObject {
         return answer
     }
     
-    /// Send a macOS notification when the agent asks a question
-    private func sendQuestionNotification(question: String) {
-        let content = UNMutableNotificationContent()
-        content.title = "Agent Needs Input"
-        content.body = question.prefix(100) + (question.count > 100 ? "..." : "")
-        content.sound = .default
-        content.categoryIdentifier = "AGENT_QUESTION"
-        content.userInfo = ["taskId": taskId]
-        
-        let request = UNNotificationRequest(
-            identifier: "agent-question-\(taskId)-\(UUID().uuidString)",
-            content: content,
-            trigger: nil // Deliver immediately
+    /// Show a floating window for the question that appears over all apps
+    private func showQuestionWindow(_ question: AgentQuestion) {
+        QuestionWindowController.shared.showQuestion(
+            question,
+            taskTitle: taskTitle,
+            statePublisher: self
         )
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Failed to send notification: \(error)")
-            }
-        }
     }
     
     /// Provide an answer to the pending question

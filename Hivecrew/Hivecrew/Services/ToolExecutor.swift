@@ -18,6 +18,14 @@ struct ToolExecutionResult: Sendable {
     let errorMessage: String?
     let durationMs: Int
     
+    /// For image results: base64-encoded PNG data to inject into model context
+    let imageBase64: String?
+    /// For image results: MIME type (always image/png after conversion)
+    let imageMimeType: String?
+    
+    /// Whether this result includes an image that should be injected into the conversation
+    var hasImage: Bool { imageBase64 != nil }
+    
     static func success(toolCallId: String, toolName: String, result: String, durationMs: Int) -> ToolExecutionResult {
         ToolExecutionResult(
             toolCallId: toolCallId,
@@ -25,7 +33,29 @@ struct ToolExecutionResult: Sendable {
             success: true,
             result: result,
             errorMessage: nil,
-            durationMs: durationMs
+            durationMs: durationMs,
+            imageBase64: nil,
+            imageMimeType: nil
+        )
+    }
+    
+    static func successWithImage(
+        toolCallId: String,
+        toolName: String,
+        result: String,
+        durationMs: Int,
+        imageBase64: String,
+        imageMimeType: String
+    ) -> ToolExecutionResult {
+        ToolExecutionResult(
+            toolCallId: toolCallId,
+            toolName: toolName,
+            success: true,
+            result: result,
+            errorMessage: nil,
+            durationMs: durationMs,
+            imageBase64: imageBase64,
+            imageMimeType: imageMimeType
         )
     }
     
@@ -36,9 +66,17 @@ struct ToolExecutionResult: Sendable {
             success: false,
             result: "",
             errorMessage: error,
-            durationMs: durationMs
+            durationMs: durationMs,
+            imageBase64: nil,
+            imageMimeType: nil
         )
     }
+}
+
+/// Internal result type for tool execution (before converting to ToolExecutionResult)
+private enum InternalToolResult {
+    case text(String)
+    case image(description: String, base64: String, mimeType: String)
 }
 
 /// Executes tool calls from the LLM using the GuestAgentConnection
@@ -91,7 +129,20 @@ class ToolExecutor {
             let args = try toolCall.function.argumentsDictionary()
             let result = try await executeToolInternal(name: toolName, args: args, toolCallId: toolCall.id)
             let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
-            return .success(toolCallId: toolCall.id, toolName: toolName, result: result, durationMs: durationMs)
+            
+            switch result {
+            case .text(let content):
+                return .success(toolCallId: toolCall.id, toolName: toolName, result: content, durationMs: durationMs)
+            case .image(let description, let base64, let mimeType):
+                return .successWithImage(
+                    toolCallId: toolCall.id,
+                    toolName: toolName,
+                    result: description,
+                    durationMs: durationMs,
+                    imageBase64: base64,
+                    imageMimeType: mimeType
+                )
+            }
         } catch {
             let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
             return .failure(toolCallId: toolCall.id, toolName: toolName, error: error.localizedDescription, durationMs: durationMs)
@@ -100,47 +151,39 @@ class ToolExecutor {
     
     // MARK: - Private
     
-    private func executeToolInternal(name: String, args: [String: Any], toolCallId: String) async throws -> String {
+    private func executeToolInternal(name: String, args: [String: Any], toolCallId: String) async throws -> InternalToolResult {
         switch name {
         // Observation tools
-        case "screenshot":
-            let result = try await connection.screenshot()
-            return "Screenshot captured: \(result.width)x\(result.height) pixels"
-            
-        case "get_frontmost_app":
-            let result = try await connection.getFrontmostApp()
-            return "Frontmost app: \(result.appName ?? "Unknown") (\(result.bundleId ?? "unknown"))"
-            
         case "traverse_accessibility_tree":
             let pid = (args["pid"] as? Int).map { Int32($0) }
             let onlyVisibleElements = args["onlyVisibleElements"] as? Bool ?? true
             let result = try await connection.traverseAccessibilityTree(pid: pid, onlyVisibleElements: onlyVisibleElements)
-            return "Traversed accessibility tree for \(result.appName): \(result.elements.count) elements found in \(result.processingTimeSeconds)s"
+            return .text("Traversed accessibility tree for \(result.appName): \(result.elements.count) elements found in \(result.processingTimeSeconds)s")
             
         // App tools
         case "open_app":
             let bundleId = args["bundleId"] as? String
             let appName = args["appName"] as? String
             try await connection.openApp(bundleId: bundleId, appName: appName)
-            return "Opened app: \(appName ?? bundleId ?? "unknown")"
+            return .text("Opened app: \(appName ?? bundleId ?? "unknown")")
             
         case "open_file":
             let path = args["path"] as? String ?? ""
             let withApp = args["withApp"] as? String
             try await connection.openFile(path: path, withApp: withApp)
-            return "Opened file: \(path)"
+            return .text("Opened file: \(path)")
             
         case "open_url":
             let url = args["url"] as? String ?? ""
             try await connection.openUrl(url)
-            return "Opened URL: \(url)"
+            return .text("Opened URL: \(url)")
             
         // Input tools
         case "mouse_move":
             let x = parseDouble(args["x"])
             let y = parseDouble(args["y"])
             try await connection.mouseMove(x: x, y: y)
-            return "Moved mouse to (\(Int(x)), \(Int(y)))"
+            return .text("Moved mouse to (\(Int(x)), \(Int(y)))")
             
         case "mouse_click":
             let x = parseDouble(args["x"])
@@ -148,7 +191,7 @@ class ToolExecutor {
             let button = args["button"] as? String ?? "left"
             let clickType = args["clickType"] as? String ?? "single"
             try await connection.mouseClick(x: x, y: y, button: button, clickType: clickType)
-            return "Clicked at (\(Int(x)), \(Int(y))) with \(button) button (\(clickType))"
+            return .text("Clicked at (\(Int(x)), \(Int(y))) with \(button) button (\(clickType))")
             
         case "mouse_drag":
             let fromX = parseDouble(args["fromX"])
@@ -156,19 +199,19 @@ class ToolExecutor {
             let toX = parseDouble(args["toX"])
             let toY = parseDouble(args["toY"])
             try await connection.mouseDrag(fromX: fromX, fromY: fromY, toX: toX, toY: toY)
-            return "Dragged from (\(Int(fromX)), \(Int(fromY))) to (\(Int(toX)), \(Int(toY)))"
+            return .text("Dragged from (\(Int(fromX)), \(Int(fromY))) to (\(Int(toX)), \(Int(toY)))")
             
         case "keyboard_type":
             let text = args["text"] as? String ?? ""
             try await connection.keyboardType(text: text)
-            return "Typed: \"\(text.prefix(50))\(text.count > 50 ? "..." : "")\""
+            return .text("Typed: \"\(text.prefix(50))\(text.count > 50 ? "..." : "")\"")
             
         case "keyboard_key":
             let key = args["key"] as? String ?? ""
             let modifiers = args["modifiers"] as? [String] ?? []
             try await connection.keyboardKey(key: key, modifiers: modifiers)
             let modStr = modifiers.isEmpty ? "" : "\(modifiers.joined(separator: "+"))+"
-            return "Pressed key: \(modStr)\(key)"
+            return .text("Pressed key: \(modStr)\(key)")
             
         case "scroll":
             let x = parseDouble(args["x"])
@@ -178,7 +221,7 @@ class ToolExecutor {
             // Invert scroll direction: positive deltaY from LLM means "scroll down" (see content below),
             // but CGEvent scroll wheel uses the opposite convention
             try await connection.scroll(x: x, y: y, deltaX: -deltaX, deltaY: -deltaY)
-            return "Scrolled at (\(Int(x)), \(Int(y))) by (\(Int(deltaX)), \(Int(deltaY)))"
+            return .text("Scrolled at (\(Int(x)), \(Int(y))) by (\(Int(deltaX)), \(Int(deltaY)))")
             
         // Shell tool
         case "run_shell":
@@ -189,7 +232,7 @@ class ToolExecutor {
             if UserDefaults.standard.bool(forKey: "requireConfirmationForShell") {
                 let approved = await onRequestPermission?("Shell Command", command) ?? false
                 if !approved {
-                    return "Command blocked: User denied permission to execute shell command"
+                    return .text("Command blocked: User denied permission to execute shell command")
                 }
             }
             
@@ -201,23 +244,35 @@ class ToolExecutor {
             if !result.stderr.isEmpty {
                 output += "\nstderr: \(result.stderr.prefix(500))"
             }
-            return output
+            return .text(output)
             
         // File tools
         case "read_file":
             let path = args["path"] as? String ?? ""
             let result = try await connection.readFile(path: path)
-            return result
+            switch result {
+            case .text(let content, _):
+                return .text(content)
+            case .image(let base64, let mimeType, let width, let height):
+                // Return image result with description and base64 data
+                var description = "Image file read successfully"
+                if let w = width, let h = height {
+                    description += " (\(w)x\(h) pixels)"
+                }
+                return .image(description: description, base64: base64, mimeType: mimeType)
+            }
+            
+        case "move_file":
+            let source = args["source"] as? String ?? ""
+            let destination = args["destination"] as? String ?? ""
+            try await connection.moveFile(source: source, destination: destination)
+            return .text("Moved '\(source)' to '\(destination)'")
             
         // System tools
         case "wait":
             let seconds = parseDouble(args["seconds"], default: 1.0)
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            return "Waited \(seconds) seconds"
-            
-        case "health_check":
-            let result = try await connection.healthCheck()
-            return "Health check: \(result.status), Accessibility: \(result.accessibilityPermission), Screen Recording: \(result.screenRecordingPermission)"
+            return .text("Waited \(seconds) seconds")
             
         // Question tools
         case "ask_text_question":
@@ -225,9 +280,9 @@ class ToolExecutor {
             if let callback = onAskQuestion {
                 let q = AgentTextQuestion(id: toolCallId, taskId: taskId, question: question)
                 let answer = await callback(.text(q))
-                return "User answered: \(answer)"
+                return .text("User answered: \(answer)")
             } else {
-                return "Error: No question handler available"
+                return .text("Error: No question handler available")
             }
             
         case "ask_multiple_choice":
@@ -236,9 +291,9 @@ class ToolExecutor {
             if let callback = onAskQuestion {
                 let q = AgentMultipleChoiceQuestion(id: toolCallId, taskId: taskId, question: question, options: options)
                 let answer = await callback(.multipleChoice(q))
-                return "User selected: \(answer)"
+                return .text("User selected: \(answer)")
             } else {
-                return "Error: No question handler available"
+                return .text("Error: No question handler available")
             }
             
         // Web tools
@@ -297,24 +352,24 @@ class ToolExecutor {
                 output += "   URL: \(result.url)\n"
                 output += "   \(result.snippet)\n\n"
             }
-            return output
+            return .text(output)
             
         case "read_webpage_content":
             let urlString = args["url"] as? String ?? ""
             guard let url = URL(string: urlString) else {
-                return "Error: Invalid URL format"
+                return .text("Error: Invalid URL format")
             }
             let content = try await WebpageReader.readWebpage(url: url)
-            return content
+            return .text(content)
             
         case "extract_info_from_webpage":
             let urlString = args["url"] as? String ?? ""
             let question = args["question"] as? String ?? ""
             guard let url = URL(string: urlString) else {
-                return "Error: Invalid URL format"
+                return .text("Error: Invalid URL format")
             }
             guard let service = taskService else {
-                return "Error: Task service not available"
+                return .text("Error: Task service not available")
             }
             let answer = try await WebpageExtractor.extractInfo(
                 url: url,
@@ -323,11 +378,11 @@ class ToolExecutor {
                 taskModelId: self.taskModelId,
                 taskService: service
             )
-            return answer
+            return .text(answer)
             
         case "get_location":
             let location = try await IPLocation.getLocation()
-            return "Your location: \(location)"
+            return .text("Your location: \(location)")
             
         // Todo management tools
         case "create_todo_list":
@@ -347,17 +402,17 @@ class ToolExecutor {
                     result += "\(number). \(status) \(item.text)\n"
                 }
             }
-            return result
+            return .text(result)
             
         case "add_todo_item":
             let itemText = args["item"] as? String ?? ""
             let index = try todoManager.addItem(itemText: itemText)
-            return "✓ Added item #\(index): \(itemText)"
+            return .text("✓ Added item #\(index): \(itemText)")
             
         case "finish_todo_item":
             let index = args["index"] as? Int ?? 0
             try todoManager.finishItem(index: index)
-            return "✓ Marked item #\(index) as completed"
+            return .text("✓ Marked item #\(index) as completed")
             
         default:
             throw ToolExecutorError.unknownTool(name)

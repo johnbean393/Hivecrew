@@ -47,6 +47,14 @@ extension GuestAgentConnection {
         _ = try await call(method: "open_url", params: ["url": url])
     }
     
+    /// Move or rename a file
+    func moveFile(source: String, destination: String) async throws {
+        _ = try await call(method: "move_file", params: [
+            "source": source,
+            "destination": destination
+        ])
+    }
+    
     /// Move the mouse
     func mouseMove(x: Double, y: Double) async throws {
         _ = try await call(method: "mouse_move", params: ["x": x, "y": y])
@@ -113,7 +121,8 @@ extension GuestAgentConnection {
     }
     
     /// Read a file's contents (supports multiple formats: text, PDF, RTF, Office docs, images)
-    func readFile(path: String) async throws -> String {
+    /// For images, returns the base64-encoded PNG data that can be injected into the model context
+    func readFile(path: String) async throws -> FileReadResult {
         let response = try await call(method: "read_file", params: ["path": path])
         
         guard let result = response.result?.dictValue else {
@@ -126,16 +135,11 @@ extension GuestAgentConnection {
             let isBase64 = result["isBase64"] as? Bool ?? false
             
             if isBase64 {
-                // For images, return metadata about the base64 content
-                let mimeType = result["mimeType"] as? String ?? "image/*"
+                // For images, return the actual base64 data so it can be injected into model context
+                let mimeType = result["mimeType"] as? String ?? "image/png"
                 let width = result["width"] as? Int
                 let height = result["height"] as? Int
-                var info = "Image file (\(mimeType))"
-                if let w = width, let h = height {
-                    info += ", \(w)x\(h) pixels"
-                }
-                info += "\n[Base64 data: \(contents.count) characters]"
-                return info
+                return .image(base64: contents, mimeType: mimeType, width: width, height: height)
             } else {
                 // For text-based files, return the contents with type info
                 let encoding = result["encoding"] as? String
@@ -147,7 +151,7 @@ extension GuestAgentConnection {
                     }
                     prefix += "]\n\n"
                 }
-                return prefix + contents
+                return .text(content: prefix + contents, fileType: fileType)
             }
         }
         

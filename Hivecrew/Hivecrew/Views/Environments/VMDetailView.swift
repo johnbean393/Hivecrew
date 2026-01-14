@@ -5,6 +5,7 @@
 //  Detail view for an ephemeral VM running a task
 //
 
+import Combine
 import SwiftUI
 
 /// Detail view for an ephemeral VM, showing display and agent controls

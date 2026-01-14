@@ -5,6 +5,7 @@
 //  Created by John Bean on 1/10/26.
 //
 
+import Sparkle
 import SwiftUI
 import SwiftData
 import HivecrewShared
@@ -35,6 +36,7 @@ struct HivecrewApp: App {
     @StateObject private var vmService = VMServiceClient.shared
     @StateObject private var taskService = TaskService()
     @StateObject private var terminationManager = AppTerminationManager.shared
+    @StateObject private var downloadService = TemplateDownloadService.shared
     
     /// Whether to show the startup sheet for queued tasks
     @State private var showStartupSheet = false
@@ -50,6 +52,12 @@ struct HivecrewApp: App {
     
     /// Whether onboarding has been completed
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    
+    /// Whether to show the template update sheet
+    @State private var showTemplateUpdate = false
+    
+    /// The current default template ID (for removal after update)
+    @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
     
     var body: some Scene {
         WindowGroup {
@@ -70,11 +78,17 @@ struct HivecrewApp: App {
                     if !hasCompletedOnboarding {
                         showOnboarding = true
                     } else if !hasPerformedStartupCheck {
-                        // Check for queued tasks from previous session (after a brief delay to let data load)
                         // Only do this once per app launch, not on window re-open
                         hasPerformedStartupCheck = true
+                        
+                        // Check for queued tasks from previous session (after a brief delay to let data load)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             checkForQueuedTasks()
+                        }
+                        
+                        // Check for template updates
+                        Task {
+                            await checkForTemplateUpdates()
                         }
                     }
                 }
@@ -97,6 +111,16 @@ struct HivecrewApp: App {
                         .modelContainer(sharedModelContainer)
                         .interactiveDismissDisabled()
                 }
+                // Template update sheet
+                .sheet(isPresented: $showTemplateUpdate) {
+                    if let update = downloadService.availableUpdate {
+                        TemplateUpdateSheet(
+                            isPresented: $showTemplateUpdate,
+                            update: update,
+                            currentTemplateId: defaultTemplateId.isEmpty ? nil : defaultTemplateId
+                        )
+                    }
+                }
                 // Listen for debug menu onboarding trigger
                 .onReceive(NotificationCenter.default.publisher(for: .showOnboardingWizard)) { _ in
                     showOnboarding = true
@@ -104,6 +128,7 @@ struct HivecrewApp: App {
         }
         .modelContainer(sharedModelContainer)
         .commands {
+            CheckForUpdatesCommand(updater: appDelegate.updaterController.updater)
             DebugMenuCommands()
         }
         
@@ -123,6 +148,19 @@ struct HivecrewApp: App {
         if !queuedTasks.isEmpty {
             startupQueuedTasks = queuedTasks
             showStartupSheet = true
+        }
+    }
+    
+    /// Check for template updates and prompt if available
+    private func checkForTemplateUpdates() async {
+        // Force check on startup
+        await downloadService.checkForUpdates(force: true)
+        
+        // Show prompt if update available and not skipped
+        if downloadService.shouldPromptForUpdate() {
+            await MainActor.run {
+                showTemplateUpdate = true
+            }
         }
     }
     

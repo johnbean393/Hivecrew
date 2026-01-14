@@ -50,6 +50,8 @@ struct OnboardingTemplateStep: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if downloadService.isDownloading {
                 downloadProgressView
+            } else if downloadService.isPaused {
+                pausedDownloadView
             } else if templates.isEmpty {
                 emptyState
             } else {
@@ -57,7 +59,7 @@ struct OnboardingTemplateStep: View {
             }
             
             // Action buttons
-            if !downloadService.isDownloading {
+            if !downloadService.isDownloading && !downloadService.isPaused {
                 actionButtons
             }
         }
@@ -93,9 +95,17 @@ struct OnboardingTemplateStep: View {
                         Spacer()
                         
                         if case .downloading = progress.phase {
-                            Text("\(ByteCountFormatter.string(fromByteCount: progress.bytesDownloaded, countStyle: .file)) / \(ByteCountFormatter.string(fromByteCount: progress.totalBytes, countStyle: .file))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(ByteCountFormatter.string(fromByteCount: progress.bytesDownloaded, countStyle: .file)) / \(ByteCountFormatter.string(fromByteCount: progress.totalBytes, countStyle: .file))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                if let timeRemaining = progress.estimatedTimeRemaining {
+                                    Text(formatTimeRemaining(timeRemaining))
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
                         } else {
                             Text("\(progress.percentComplete)%")
                                 .font(.caption)
@@ -105,9 +115,77 @@ struct OnboardingTemplateStep: View {
                 }
                 .padding(.horizontal, 60)
                 
-                // Cancel button
-                Button("Cancel Download") {
-                    downloadService.cancelDownload()
+                // Pause and Cancel buttons
+                HStack(spacing: 16) {
+                    Button("Pause") {
+                        downloadService.pauseDownload()
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button("Cancel Download") {
+                        downloadService.cancelDownload()
+                    }
+                    .foregroundStyle(.red)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    /// Format time remaining as human-readable string
+    private func formatTimeRemaining(_ seconds: TimeInterval) -> String {
+        if seconds < 60 {
+            return "Less than a minute remaining"
+        } else if seconds < 3600 {
+            let minutes = Int(seconds / 60)
+            return "\(minutes) minute\(minutes == 1 ? "" : "s") remaining"
+        } else {
+            let hours = Int(seconds / 3600)
+            let minutes = Int((seconds.truncatingRemainder(dividingBy: 3600)) / 60)
+            if minutes == 0 {
+                return "\(hours) hour\(hours == 1 ? "" : "s") remaining"
+            }
+            return "\(hours)h \(minutes)m remaining"
+        }
+    }
+    
+    // MARK: - Paused Download View
+    
+    private var pausedDownloadView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "pause.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+            
+            Text("Download Paused")
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            if let progress = downloadService.progress {
+                VStack(spacing: 12) {
+                    ProgressView(value: progress.fractionComplete)
+                        .progressViewStyle(.linear)
+                    
+                    Text("\(ByteCountFormatter.string(fromByteCount: progress.bytesDownloaded, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: progress.totalBytes, countStyle: .file))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 60)
+            }
+            
+            HStack(spacing: 16) {
+                Button {
+                    Task { await resumeDownload() }
+                } label: {
+                    HStack {
+                        Image(systemName: "play.fill")
+                        Text("Resume")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                
+                Button("Cancel") {
+                    downloadService.cancelAndDeleteDownload()
                 }
                 .foregroundStyle(.red)
             }
@@ -129,7 +207,11 @@ struct OnboardingTemplateStep: View {
                 } label: {
                     HStack {
                         Image(systemName: "arrow.down.circle.fill")
-                        Text("Download Golden Image (\(KnownTemplates.default.sizeFormatted))")
+                        if let size = KnownTemplates.default.sizeFormatted {
+                            Text("Download Golden Image (\(size))")
+                        } else {
+                            Text("Download Golden Image")
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -249,6 +331,12 @@ struct OnboardingTemplateStep: View {
     
     private var templatesList: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Update available banner
+            if downloadService.updateAvailable, let update = downloadService.availableUpdate {
+                updateAvailableBanner(update)
+                    .padding(.horizontal, 60)
+            }
+            
             Text("Available Templates")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -264,6 +352,39 @@ struct OnboardingTemplateStep: View {
             }
             .frame(maxHeight: 150)
         }
+    }
+    
+    // MARK: - Update Available Banner
+    
+    private func updateAvailableBanner(_ update: RemoteTemplate) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.blue)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Template Update Available")
+                    .font(.headline)
+                Text("Version \(update.version)" + (update.sizeFormatted.map { " • \($0)" } ?? ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            Button("Update") {
+                Task { await downloadUpdate(update) }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+        )
     }
     
     private func templateRow(_ template: TemplateInfo) -> some View {
@@ -317,6 +438,11 @@ struct OnboardingTemplateStep: View {
             }
             
             isConfigured = !templates.isEmpty
+            
+            // Check for updates if we have templates
+            if !templates.isEmpty {
+                await downloadService.checkForUpdates()
+            }
         } catch {
             print("Failed to load templates: \(error)")
         }
@@ -362,6 +488,27 @@ struct OnboardingTemplateStep: View {
         } catch {
             if case TemplateDownloadError.cancelled = error {
                 // User cancelled, don't show error
+                downloadService.checkForResumableDownload()
+                return
+            }
+            downloadError = error.localizedDescription
+            downloadService.checkForResumableDownload()
+        }
+    }
+    
+    private func downloadUpdate(_ update: RemoteTemplate) async {
+        downloadError = nil
+        
+        do {
+            let templateId = try await downloadService.downloadTemplate(update)
+            
+            // Auto-select the updated template as default
+            defaultTemplateId = templateId
+            
+            // Reload templates to show the updated one
+            await loadTemplates()
+        } catch {
+            if case TemplateDownloadError.cancelled = error {
                 downloadService.checkForResumableDownload()
                 return
             }

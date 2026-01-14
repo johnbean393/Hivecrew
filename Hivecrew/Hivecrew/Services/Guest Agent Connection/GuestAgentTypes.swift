@@ -51,6 +51,29 @@ struct AccessibilityTraversalResult: Sendable {
     let processingTimeSeconds: String
 }
 
+/// Result of reading a file - either text content or image data
+enum FileReadResult: Sendable {
+    /// Text-based file content (plain text, PDF, docx, etc.)
+    case text(content: String, fileType: String)
+    
+    /// Image file with base64-encoded PNG data
+    case image(base64: String, mimeType: String, width: Int?, height: Int?)
+    
+    /// Get a text description of the result (for logging/display)
+    var description: String {
+        switch self {
+        case .text(let content, let fileType):
+            return "[\(fileType.uppercased())] \(content.prefix(100))..."
+        case .image(_, let mimeType, let width, let height):
+            var desc = "Image (\(mimeType))"
+            if let w = width, let h = height {
+                desc += " \(w)x\(h)"
+            }
+            return desc
+        }
+    }
+}
+
 // MARK: - AgentRequest/Response (copied from protocol package for host use)
 
 struct AgentRequest: Codable {

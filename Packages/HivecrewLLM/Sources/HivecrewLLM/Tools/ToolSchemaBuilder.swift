@@ -13,56 +13,13 @@ public final class ToolSchemaBuilder: Sendable {
     
     public init() {}
     
-    /// Build tool definitions for all available agent methods
-    public func buildAllTools() -> [LLMToolDefinition] {
-        AgentMethod.allCases.map { buildToolDefinition(for: $0) }
-    }
-    
-    /// Build essential CUA (Computer Use Agent) tools only
-    /// This is the recommended set for most agent tasks - compact and efficient
-    /// Note: Screenshot is NOT included because the agent loop automatically captures
-    /// screenshots after each action and includes them in the next LLM call.
+    /// Build CUA (Computer Use Agent) tools
+    /// Note: Screenshot and healthCheck are NOT included because they are internal tools
+    /// used by the agent loop, not called by the LLM.
     public func buildCUATools() -> [LLMToolDefinition] {
-        let essentialMethods: [AgentMethod] = [
-            // App control
-            .openApp,
-            .openUrl,
-            
-            // Observation tools
-            .traverseAccessibilityTree,
-
-            // Mouse input
-            .mouseClick,
-            .mouseDrag,
-            .scroll,
-            
-            // Keyboard input
-            .keyboardType,
-            .keyboardKey,
-            
-            // File operations
-            .runShell,
-            .readFile,
-            
-            // Flow control
-            .wait,
-            
-            // User interaction
-            .askTextQuestion,
-            .askMultipleChoice,
-            
-            // Web tools
-            .webSearch,
-            .readWebpageContent,
-            .extractInfoFromWebpage,
-            .getLocation,
-            
-            // Todo management
-            .createTodoList,
-            .addTodoItem,
-            .finishTodoItem
-        ]
-        return essentialMethods.map { buildToolDefinition(for: $0) }
+        AgentMethod.allCases
+            .filter { !$0.isInternalTool }
+            .map { buildToolDefinition(for: $0) }
     }
     
     /// Build tool definitions for a subset of methods
@@ -85,25 +42,20 @@ public final class ToolSchemaBuilder: Sendable {
     
     private func getSchemaInfo(for method: AgentMethod) -> (description: String, parameters: [String: Any]) {
         switch method {
-            // Observation tools
+            // Internal tools (should not be called by LLM)
             case .screenshot:
                 return (
-                    "Take a screenshot of the current screen. Returns base64-encoded PNG image data.",
+                    "Internal tool: Take a screenshot of the current screen.",
                     emptyObjectSchema()
                 )
                 
-            case .getFrontmostApp:
+            case .healthCheck:
                 return (
-                    "Get information about the currently active (frontmost) application including bundle ID, app name, and window title.",
+                    "Internal tool: Check the agent's health status.",
                     emptyObjectSchema()
                 )
-                
-            case .listRunningApps:
-                return (
-                    "List all currently running applications with their bundle IDs, names, and process IDs.",
-                    emptyObjectSchema()
-                )
-                
+            
+            // Observation tools
             case .traverseAccessibilityTree:
                 return (
                     "Traverse the accessibility tree of an application to discover UI elements. Returns elements with their roles, text content, and screen positions. Useful for understanding the UI structure.",
@@ -119,7 +71,7 @@ public final class ToolSchemaBuilder: Sendable {
             // App tools
             case .openApp:
                 return (
-                    "Open an application by bundle ID or name. Can also be used to bring an app to the foreground. At least one of bundleId or appName must be provided.",
+                    "Open an application by bundle ID or name. If the app is already running, it will be activated and brought to the foreground. At least one of bundleId or appName must be provided.",
                     objectSchema(
                         properties: [
                             "bundleId": stringProperty("The bundle identifier of the app (e.g., 'com.apple.Safari')"),
@@ -152,21 +104,10 @@ public final class ToolSchemaBuilder: Sendable {
                     )
                 )
                 
-            case .activateApp:
-                return (
-                    "Bring an already-running application to the foreground.",
-                    objectSchema(
-                        properties: [
-                            "bundleId": stringProperty("The bundle identifier of the app to activate")
-                        ],
-                        required: ["bundleId"]
-                    )
-                )
-                
             // Input tools
             case .mouseMove:
                 return (
-                    "Move the mouse cursor to the specified screen coordinates.",
+                    "Move the mouse cursor to the specified screen coordinates without clicking. Useful for hovering over elements to reveal tooltips or dropdown menus.",
                     objectSchema(
                         properties: [
                             "x": numberProperty("X coordinate on screen"),
@@ -259,7 +200,7 @@ public final class ToolSchemaBuilder: Sendable {
                 
             case .readFile:
                 return (
-                    "Read the contents of a file. Supports multiple formats: plain text (with encoding detection), PDF (text extraction), RTF, Office documents (.docx, .xlsx, .pptx), property lists (.plist), and images (returned as base64). Path can be relative to the shared folder or absolute.",
+                    "Read the contents of a file. Supports multiple formats: plain text (with encoding detection), PDF (text extraction), RTF, Office documents (.docx, .xlsx, .pptx), property lists (.plist), and images. For image files (PNG, JPEG, GIF, HEIC, etc.), the image is converted to PNG and displayed to you so you can analyze its visual content. Path can be relative to the shared folder or absolute.",
                     objectSchema(
                         properties: [
                             "path": stringProperty("The file path to read")
@@ -268,55 +209,15 @@ public final class ToolSchemaBuilder: Sendable {
                     )
                 )
                 
-            case .writeFile:
-                return (
-                    "Write content to a file. Path should be relative to the shared folder.",
-                    objectSchema(
-                        properties: [
-                            "path": stringProperty("The file path to write to"),
-                            "contents": stringProperty("The content to write")
-                        ],
-                        required: ["path", "contents"]
-                    )
-                )
-                
-            case .listDirectory:
-                return (
-                    "List files and directories at the specified path.",
-                    objectSchema(
-                        properties: [
-                            "path": stringProperty("The directory path to list")
-                        ],
-                        required: ["path"]
-                    )
-                )
-                
             case .moveFile:
                 return (
-                    "Move or rename a file from source to destination.",
+                    "Move or rename a file from source to destination. Use this for file organization, renaming, or moving files to the outbox.",
                     objectSchema(
                         properties: [
                             "source": stringProperty("The source file path"),
                             "destination": stringProperty("The destination file path")
                         ],
                         required: ["source", "destination"]
-                    )
-                )
-                
-            case .clipboardRead:
-                return (
-                    "Read the current text content from the system clipboard.",
-                    emptyObjectSchema()
-                )
-                
-            case .clipboardWrite:
-                return (
-                    "Write text to the system clipboard.",
-                    objectSchema(
-                        properties: [
-                            "text": stringProperty("The text to write to clipboard")
-                        ],
-                        required: ["text"]
                     )
                 )
                 
@@ -330,18 +231,6 @@ public final class ToolSchemaBuilder: Sendable {
                         ],
                         required: ["seconds"]
                     )
-                )
-                
-            case .healthCheck:
-                return (
-                    "Check the agent's health status including permissions and shared folder mount.",
-                    emptyObjectSchema()
-                )
-                
-            case .shutdown:
-                return (
-                    "Initiate a graceful shutdown of the virtual machine.",
-                    emptyObjectSchema()
                 )
                 
             // User interaction tools

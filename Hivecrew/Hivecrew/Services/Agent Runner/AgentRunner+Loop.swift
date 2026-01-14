@@ -69,6 +69,17 @@ extension AgentRunner {
                 for result in results {
                     let content = result.success ? result.result : "Error: \(result.errorMessage ?? "Unknown error")"
                     conversationHistory.append(.toolResult(toolCallId: result.toolCallId, content: content))
+                    
+                    // If the tool result contains an image, inject it into the conversation
+                    // as a user message with the image so the model can see it
+                    if result.hasImage, let imageBase64 = result.imageBase64, let mimeType = result.imageMimeType {
+                        conversationHistory.append(
+                            LLMMessage.user(
+                                text: "Here is the image from the \(result.toolName) tool result:",
+                                images: [.imageBase64(data: imageBase64, mimeType: mimeType)]
+                            )
+                        )
+                    }
                 }
                 
                 // Check for pause/cancel/timeout after tool execution

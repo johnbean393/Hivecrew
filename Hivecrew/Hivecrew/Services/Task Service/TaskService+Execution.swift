@@ -149,7 +149,7 @@ extension TaskService {
             try? context.save()
             
             // Create state publisher
-            let statePublisher = AgentStatePublisher(taskId: task.id)
+            let statePublisher = AgentStatePublisher(taskId: task.id, taskTitle: task.title)
             statePublisher.sessionId = sessionId
             statePublisher.status = .running
             statePublishers[task.id] = statePublisher

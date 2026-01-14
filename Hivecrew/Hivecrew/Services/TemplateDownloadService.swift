@@ -17,7 +17,7 @@ public struct RemoteTemplate: Identifiable, Sendable {
     public let description: String
     public let version: String
     public let url: URL
-    public let sizeBytes: Int64
+    public let sizeBytes: Int64?  // Optional - will be fetched from server if not provided
     public let sha256: String?
     
     public init(
@@ -26,7 +26,7 @@ public struct RemoteTemplate: Identifiable, Sendable {
         description: String,
         version: String,
         url: URL,
-        sizeBytes: Int64,
+        sizeBytes: Int64? = nil,
         sha256: String? = nil
     ) {
         self.id = id
@@ -38,30 +38,68 @@ public struct RemoteTemplate: Identifiable, Sendable {
         self.sha256 = sha256
     }
     
-    /// Human-readable size
-    public var sizeFormatted: String {
-        ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
+    /// Human-readable size (returns nil if size unknown)
+    public var sizeFormatted: String? {
+        guard let sizeBytes = sizeBytes else { return nil }
+        return ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
     }
 }
 
 /// Known remote templates available for download
 public enum KnownTemplates {
     /// The golden template hosted on Cloudflare R2
+    public static let goldenV006 = RemoteTemplate(
+        id: "golden-v0.0.6",
+        name: "Hivecrew Golden Image",
+        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
+        version: "0.0.6",
+        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.6.tar.zst")!
+    )
+    
+    /// Legacy v0.0.5 (kept for reference)
     public static let goldenV005 = RemoteTemplate(
         id: "golden-v0.0.5",
         name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS VM with Hivecrew agent installed",
+        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
         version: "0.0.5",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.5.tar.zst")!,
-        sizeBytes: 21_944_188_032, // ~20.4 GB
-        sha256: nil // TODO: Add checksum for verification
+        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.5.tar.zst")!
     )
     
     /// All available templates for download
-    public static let all: [RemoteTemplate] = [goldenV005]
+    public static let all: [RemoteTemplate] = [goldenV006, goldenV005]
     
     /// The default/recommended template
-    public static let `default` = goldenV005
+    public static let `default` = goldenV006
+
+}
+
+// MARK: - Template Manifest for Auto-Updates
+
+/// Remote manifest describing available templates and compatibility
+public struct TemplateManifest: Codable, Sendable {
+    public let version: Int
+    public let templates: [ManifestTemplate]
+    
+    public struct ManifestTemplate: Codable, Sendable {
+        public let id: String
+        public let name: String
+        public let version: String
+        public let url: String
+        public let minimumAppVersion: String?
+        public let maximumAppVersion: String?
+        
+        /// Convert to RemoteTemplate
+        public func toRemoteTemplate() -> RemoteTemplate? {
+            guard let url = URL(string: url) else { return nil }
+            return RemoteTemplate(
+                id: id,
+                name: name,
+                description: "",
+                version: version,
+                url: url
+            )
+        }
+    }
 }
 
 /// Progress state for template download
@@ -151,13 +189,46 @@ private struct DownloadState: Codable {
 @MainActor
 public class TemplateDownloadService: ObservableObject {
     
+    // MARK: - Constants
+    
+    /// URL for the remote template manifest
+    private static let manifestURL = URL(string: "https://templates.hivecrew.org/manifest.json")!
+    
+    /// Current app version for compatibility checking
+    private static let appVersion: String = {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    }()
+    
     // MARK: - Published Properties
     
     @Published public private(set) var isDownloading = false
+    @Published public private(set) var isPaused = false
     @Published public private(set) var progress: TemplateDownloadProgress?
     @Published public private(set) var currentTask: URLSessionTask?
     @Published public private(set) var hasResumableDownload = false
     @Published public private(set) var resumableTemplateId: String?
+
+    /// Whether a template update is available
+    @Published public private(set) var updateAvailable = false
+
+    /// The available update template (if any)
+    @Published public private(set) var availableUpdate: RemoteTemplate?
+    
+    /// Whether we're currently checking for updates
+    @Published public private(set) var isCheckingForUpdates = false
+    
+    /// Last time we checked for updates
+    @Published public private(set) var lastUpdateCheck: Date?
+    
+    // MARK: - UserDefaults Keys
+    
+    private enum DefaultsKeys {
+        static let lastKnownCompatibleVersion = "lastKnownCompatibleGoldenVersion"
+        static let lastKnownCompatibleId = "lastKnownCompatibleGoldenId"
+        static let lastUpdateCheckDate = "lastTemplateUpdateCheckDate"
+        static let cachedManifest = "cachedTemplateManifest"
+        static let skippedTemplateVersion = "skippedTemplateVersion"
+    }
     
     // MARK: - Private Properties
     
@@ -177,6 +248,24 @@ public class TemplateDownloadService: ObservableObject {
         downloadsDirectory.appendingPathComponent("download-state.json")
     }
     
+    /// Last known compatible golden image version
+    public var lastKnownCompatibleVersion: String? {
+        get { UserDefaults.standard.string(forKey: DefaultsKeys.lastKnownCompatibleVersion) }
+        set { UserDefaults.standard.set(newValue, forKey: DefaultsKeys.lastKnownCompatibleVersion) }
+    }
+    
+    /// Last known compatible golden image ID
+    public var lastKnownCompatibleId: String? {
+        get { UserDefaults.standard.string(forKey: DefaultsKeys.lastKnownCompatibleId) }
+        set { UserDefaults.standard.set(newValue, forKey: DefaultsKeys.lastKnownCompatibleId) }
+    }
+    
+    /// Version that user chose to skip (won't prompt again for this version)
+    public var skippedVersion: String? {
+        get { UserDefaults.standard.string(forKey: DefaultsKeys.skippedTemplateVersion) }
+        set { UserDefaults.standard.set(newValue, forKey: DefaultsKeys.skippedTemplateVersion) }
+    }
+    
     // MARK: - Singleton
     
     public static let shared = TemplateDownloadService()
@@ -184,6 +273,189 @@ public class TemplateDownloadService: ObservableObject {
     private init() {
         // Check for resumable downloads on init
         checkForResumableDownload()
+        
+        // Load last update check date
+        if let date = UserDefaults.standard.object(forKey: DefaultsKeys.lastUpdateCheckDate) as? Date {
+            lastUpdateCheck = date
+        }
+    }
+    
+    // MARK: - Update Checking
+    
+    /// Check for template updates from the remote manifest
+    /// - Parameter force: If true, check even if we recently checked
+    /// - Returns: The available update template, if any
+    @discardableResult
+    public func checkForUpdates(force: Bool = false) async -> RemoteTemplate? {
+        // Don't check too frequently unless forced
+        if !force, let lastCheck = lastUpdateCheck, Date().timeIntervalSince(lastCheck) < 3600 {
+            return availableUpdate
+        }
+        
+        isCheckingForUpdates = true
+        defer { isCheckingForUpdates = false }
+        
+        do {
+            let manifest = try await fetchManifest()
+            lastUpdateCheck = Date()
+            UserDefaults.standard.set(lastUpdateCheck, forKey: DefaultsKeys.lastUpdateCheckDate)
+            
+            // Find compatible templates
+            let compatibleTemplates = manifest.templates.filter { template in
+                isTemplateCompatible(template)
+            }
+            
+            // Sort by version (newest first)
+            let sorted = compatibleTemplates.sorted { t1, t2 in
+                compareVersions(t1.version, t2.version) == .orderedDescending
+            }
+            
+            guard let newest = sorted.first,
+                  let remoteTemplate = newest.toRemoteTemplate() else {
+                updateAvailable = false
+                availableUpdate = nil
+                return nil
+            }
+            
+            // Check if this is newer than what we have
+            let currentVersion = lastKnownCompatibleVersion ?? "0.0.0"
+            if compareVersions(newest.version, currentVersion) == .orderedDescending {
+                updateAvailable = true
+                availableUpdate = remoteTemplate
+                return remoteTemplate
+            }
+            
+            updateAvailable = false
+            availableUpdate = nil
+            return nil
+            
+        } catch {
+            print("Failed to check for template updates: \(error)")
+            return nil
+        }
+    }
+    
+    /// Check if we should prompt the user for an update (respects skipped version)
+    public func shouldPromptForUpdate() -> Bool {
+        guard updateAvailable, let update = availableUpdate else { return false }
+        
+        // Don't prompt if user skipped this version
+        if let skipped = skippedVersion, skipped == update.version {
+            return false
+        }
+        
+        return true
+    }
+    
+    /// User chose to skip this version
+    public func skipVersion(_ version: String) {
+        skippedVersion = version
+    }
+    
+    /// User chose "ask later" - clear skipped so we ask again next launch
+    public func askLater() {
+        // Don't set skippedVersion, so we'll prompt again next launch
+    }
+    
+    /// Clear skipped version (e.g., when a newer version is available)
+    public func clearSkippedVersion() {
+        skippedVersion = nil
+    }
+    
+    /// Fetch the remote manifest
+    private func fetchManifest() async throws -> TemplateManifest {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.waitsForConnectivity = true
+        
+        let session = URLSession(configuration: config)
+        let (data, response) = try await session.data(from: Self.manifestURL)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw TemplateDownloadError.downloadFailed("Failed to fetch manifest")
+        }
+        
+        let manifest = try JSONDecoder().decode(TemplateManifest.self, from: data)
+        
+        // Cache the manifest
+        UserDefaults.standard.set(data, forKey: DefaultsKeys.cachedManifest)
+        
+        return manifest
+    }
+    
+    /// Check if a template is compatible with the current app version
+    private func isTemplateCompatible(_ template: TemplateManifest.ManifestTemplate) -> Bool {
+        // Check minimum app version
+        if let minVersion = template.minimumAppVersion {
+            if compareVersions(Self.appVersion, minVersion) == .orderedAscending {
+                return false // App is too old
+            }
+        }
+        
+        // Check maximum app version
+        if let maxVersion = template.maximumAppVersion {
+            if compareVersions(Self.appVersion, maxVersion) == .orderedDescending {
+                return false // App is too new
+            }
+        }
+        
+        return true
+    }
+    
+    /// Compare semantic version strings
+    private func compareVersions(_ v1: String, _ v2: String) -> ComparisonResult {
+        let components1 = v1.split(separator: ".").compactMap { Int($0) }
+        let components2 = v2.split(separator: ".").compactMap { Int($0) }
+        
+        let maxLength = max(components1.count, components2.count)
+        
+        for i in 0..<maxLength {
+            let c1 = i < components1.count ? components1[i] : 0
+            let c2 = i < components2.count ? components2[i] : 0
+            
+            if c1 < c2 { return .orderedAscending }
+            if c1 > c2 { return .orderedDescending }
+        }
+        
+        return .orderedSame
+    }
+    
+    /// Update the last known compatible template after successful download
+    public func markTemplateAsCompatible(_ template: RemoteTemplate) {
+        lastKnownCompatibleVersion = template.version
+        lastKnownCompatibleId = template.id
+        updateAvailable = false
+        availableUpdate = nil
+    }
+    
+    /// Update to a new template, removing the old one after successful download
+    /// - Parameters:
+    ///   - template: The new template to download
+    ///   - oldTemplateId: The ID of the old template to remove after successful update
+    /// - Returns: The new template ID
+    public func updateTemplate(_ template: RemoteTemplate, removingOld oldTemplateId: String?) async throws -> String {
+        let newTemplateId = try await downloadTemplate(template)
+        
+        // Remove old template after successful download
+        if let oldId = oldTemplateId, oldId != newTemplateId {
+            let oldTemplatePath = AppPaths.templatesDirectory.appendingPathComponent(oldId)
+            try? fileManager.removeItem(at: oldTemplatePath)
+            print("Removed old template: \(oldId)")
+        }
+        
+        // Clear skipped version since we've updated
+        clearSkippedVersion()
+        
+        return newTemplateId
+    }
+
+    /// Get the cached manifest (if available)
+    public func getCachedManifest() -> TemplateManifest? {
+        guard let data = UserDefaults.standard.data(forKey: DefaultsKeys.cachedManifest) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(TemplateManifest.self, from: data)
     }
     
     // MARK: - Resume State Management
@@ -256,6 +528,7 @@ public class TemplateDownloadService: ObservableObject {
         }
         
         isDownloading = true
+        isPaused = false
         
         // Check for existing partial download
         var startingBytes: Int64 = 0
@@ -266,10 +539,13 @@ public class TemplateDownloadService: ObservableObject {
             }
         }
         
+        // Use 0 as placeholder if size unknown - will be updated from Content-Length
+        let expectedSize = template.sizeBytes ?? 0
+        
         progress = TemplateDownloadProgress(
             phase: .downloading,
             bytesDownloaded: startingBytes,
-            totalBytes: template.sizeBytes,
+            totalBytes: expectedSize,
             estimatedTimeRemaining: nil
         )
         
@@ -279,10 +555,9 @@ public class TemplateDownloadService: ObservableObject {
         
         do {
             // Step 1: Download the archive (with resume support)
-            let archivePath = try await downloadArchive(
+            let (archivePath, actualSize) = try await downloadArchive(
                 from: template.url,
                 templateId: template.id,
-                expectedSize: template.sizeBytes,
                 resumeFrom: resume ? startingBytes : 0
             )
             
@@ -294,17 +569,41 @@ public class TemplateDownloadService: ObservableObject {
             // Step 2+3: Stream decompress and extract in one pass (no intermediate tar file)
             progress = TemplateDownloadProgress(
                 phase: .decompressing,
-                bytesDownloaded: template.sizeBytes,
-                totalBytes: template.sizeBytes,
+                bytesDownloaded: 0,
+                totalBytes: actualSize,
                 estimatedTimeRemaining: nil
             )
-            let extractedPath = try await decompressAndExtract(archivePath, templateId: template.id)
+            let extractedPath = try await decompressAndExtract(
+                archivePath,
+                templateId: template.id,
+                compressedSize: actualSize,
+                onProgress: { [weak self] bytesProcessed in
+                    Task { @MainActor in
+                        self?.progress = TemplateDownloadProgress(
+                            phase: .decompressing,
+                            bytesDownloaded: bytesProcessed,
+                            totalBytes: actualSize,
+                            estimatedTimeRemaining: nil
+                        )
+                    }
+                },
+                onExtracting: { [weak self] in
+                    Task { @MainActor in
+                        self?.progress = TemplateDownloadProgress(
+                            phase: .extracting,
+                            bytesDownloaded: actualSize,
+                            totalBytes: actualSize,
+                            estimatedTimeRemaining: nil
+                        )
+                    }
+                }
+            )
             
             // Step 4: Configure the template
             progress = TemplateDownloadProgress(
                 phase: .configuring,
-                bytesDownloaded: template.sizeBytes,
-                totalBytes: template.sizeBytes,
+                bytesDownloaded: actualSize,
+                totalBytes: actualSize,
                 estimatedTimeRemaining: nil
             )
             let templateId = try await configureTemplate(extractedPath, template: template)
@@ -312,13 +611,16 @@ public class TemplateDownloadService: ObservableObject {
             // Cleanup temporary files
             try? fileManager.removeItem(at: archivePath)
             
+            // Mark this template as the last known compatible version
+            markTemplateAsCompatible(template)
+
             progress = TemplateDownloadProgress(
                 phase: .complete,
-                bytesDownloaded: template.sizeBytes,
-                totalBytes: template.sizeBytes,
+                bytesDownloaded: actualSize,
+                totalBytes: actualSize,
                 estimatedTimeRemaining: nil
             )
-            
+
             return templateId
             
         } catch {
@@ -330,7 +632,7 @@ public class TemplateDownloadService: ObservableObject {
             progress = TemplateDownloadProgress(
                 phase: .failed(error.localizedDescription),
                 bytesDownloaded: 0,
-                totalBytes: template.sizeBytes,
+                totalBytes: expectedSize,
                 estimatedTimeRemaining: nil
             )
             throw error
@@ -357,12 +659,26 @@ public class TemplateDownloadService: ObservableObject {
         activeSession?.invalidateAndCancel()
         downloadTask?.cancel()
         isDownloading = false
+        isPaused = false
         progress = nil
-        
+
         // Update resumable state
         checkForResumableDownload()
     }
     
+    /// Pause the current download (can be resumed later)
+    public func pauseDownload() {
+        currentTask?.cancel()
+        activeSession?.invalidateAndCancel()
+        downloadTask?.cancel()
+        isDownloading = false
+        isPaused = true
+        // Keep progress to show paused state
+        
+        // Update resumable state
+        checkForResumableDownload()
+    }
+
     /// Cancel and delete the partial download
     public func cancelAndDeleteDownload() {
         cancelDownload()
@@ -377,7 +693,8 @@ public class TemplateDownloadService: ObservableObject {
     }
     
     /// Download the archive from URL with progress reporting and resume support
-    private func downloadArchive(from url: URL, templateId: String, expectedSize: Int64, resumeFrom: Int64) async throws -> URL {
+    /// Downloads archive and returns (path, actualSize)
+    private func downloadArchive(from url: URL, templateId: String, resumeFrom: Int64) async throws -> (URL, Int64) {
         let partialPath = partialDownloadPath(for: templateId)
         let finalPath = downloadsDirectory.appendingPathComponent("\(templateId).tar.zst")
         
@@ -388,31 +705,64 @@ public class TemplateDownloadService: ObservableObject {
             resumePosition = (attrs?[.size] as? Int64) ?? 0
         }
         
-        // Save initial state for resume capability
+        // Save initial state for resume capability (size will be updated from server)
         let initialState = DownloadState(
             templateId: templateId,
             url: url.absoluteString,
-            expectedSize: expectedSize,
+            expectedSize: 0,  // Will be updated from Content-Length
             partialFilePath: partialPath.path,
             bytesDownloaded: resumePosition,
             startedAt: Date()
         )
         saveDownloadState(initialState)
         
+        // Track the actual size from server and speed for time estimate
+        var actualTotalSize: Int64 = 0
+        var lastBytes: Int64 = resumePosition
+        var lastTime = Date()
+        var speedSamples: [Double] = []  // Rolling average of speed samples
+        let maxSpeedSamples = 10
+        
         // Use the efficient delegate-based downloader
         let downloader = ResumableDownloader(
             url: url,
             destinationPath: partialPath,
             resumeFrom: resumePosition,
-            expectedSize: expectedSize,
+            expectedSize: 0,  // Will be determined from Content-Length
             templateId: templateId,
             onProgress: { [weak self] bytesWritten, totalBytes in
+                actualTotalSize = totalBytes
+                
+                // Calculate speed and time estimate
+                let now = Date()
+                let elapsed = now.timeIntervalSince(lastTime)
+                let bytesInInterval = bytesWritten - lastBytes
+                
+                var estimatedTime: TimeInterval? = nil
+                if elapsed > 0 && bytesInInterval > 0 {
+                    let currentSpeed = Double(bytesInInterval) / elapsed  // bytes per second
+                    speedSamples.append(currentSpeed)
+                    if speedSamples.count > maxSpeedSamples {
+                        speedSamples.removeFirst()
+                    }
+                    
+                    // Use average speed for smoother estimate
+                    let avgSpeed = speedSamples.reduce(0, +) / Double(speedSamples.count)
+                    if avgSpeed > 0 {
+                        let remainingBytes = totalBytes - bytesWritten
+                        estimatedTime = Double(remainingBytes) / avgSpeed
+                    }
+                    
+                    lastBytes = bytesWritten
+                    lastTime = now
+                }
+                
                 Task { @MainActor in
                     self?.progress = TemplateDownloadProgress(
                         phase: .downloading,
                         bytesDownloaded: bytesWritten,
                         totalBytes: totalBytes,
-                        estimatedTimeRemaining: nil
+                        estimatedTimeRemaining: estimatedTime
                     )
                 }
             },
@@ -420,7 +770,7 @@ public class TemplateDownloadService: ObservableObject {
                 let state = DownloadState(
                     templateId: templateId,
                     url: url.absoluteString,
-                    expectedSize: expectedSize,
+                    expectedSize: actualTotalSize,
                     partialFilePath: partialPath.path,
                     bytesDownloaded: bytesWritten,
                     startedAt: initialState.startedAt
@@ -432,14 +782,14 @@ public class TemplateDownloadService: ObservableObject {
         do {
             let finalBytes = try await downloader.download()
             
-            // Log download completion (actual size may differ slightly from expected)
+            // Log download completion
             print("Download complete: \(finalBytes) bytes")
             
             // Rename partial to final
             try? fileManager.removeItem(at: finalPath)
             try fileManager.moveItem(at: partialPath, to: finalPath)
             
-            return finalPath
+            return (finalPath, finalBytes)
             
         } catch is CancellationError {
             // Save state before throwing
@@ -448,7 +798,7 @@ public class TemplateDownloadService: ObservableObject {
                 let state = DownloadState(
                     templateId: templateId,
                     url: url.absoluteString,
-                    expectedSize: expectedSize,
+                    expectedSize: actualTotalSize,
                     partialFilePath: partialPath.path,
                     bytesDownloaded: size,
                     startedAt: initialState.startedAt
@@ -463,7 +813,7 @@ public class TemplateDownloadService: ObservableObject {
                 let state = DownloadState(
                     templateId: templateId,
                     url: url.absoluteString,
-                    expectedSize: expectedSize,
+                    expectedSize: actualTotalSize,
                     partialFilePath: partialPath.path,
                     bytesDownloaded: size,
                     startedAt: initialState.startedAt
@@ -477,7 +827,7 @@ public class TemplateDownloadService: ObservableObject {
     /// Decompress a zstd-compressed file using streaming decompression
     /// Stream decompress .tar.zst and extract directly to templates directory
     /// This eliminates the ~70GB intermediate .tar file, saving disk space and I/O
-    private func decompressAndExtract(_ sourcePath: URL, templateId: String) async throws -> URL {
+    private func decompressAndExtract(_ sourcePath: URL, templateId: String, compressedSize: Int64, onProgress: @escaping (Int64) -> Void, onExtracting: @escaping () -> Void = {}) async throws -> URL {
         let templatesDir = AppPaths.templatesDirectory
         let expectedPath = templatesDir.appendingPathComponent(templateId)
 
@@ -545,11 +895,24 @@ public class TemplateDownloadService: ObservableObject {
                     outputBuffer.deallocate()
                 }
                 
+                // Track progress
+                var totalBytesRead: Int64 = 0
+                var lastProgressUpdate = Date()
+                
                 // Stream decompress and pipe to tar
                 while true {
                     let bytesRead = read(inputFD, inputBuffer, inputBufferSize)
                     if bytesRead <= 0 {
                         break
+                    }
+                    
+                    totalBytesRead += Int64(bytesRead)
+                    
+                    // Update progress every 500ms
+                    let now = Date()
+                    if now.timeIntervalSince(lastProgressUpdate) > 0.5 {
+                        onProgress(totalBytesRead)
+                        lastProgressUpdate = now
                     }
                     
                     var input = ZSTD_inBuffer(src: inputBuffer, size: bytesRead, pos: 0)
@@ -577,6 +940,9 @@ public class TemplateDownloadService: ObservableObject {
                         }
                     }
                 }
+                
+                // Final progress update - decompression complete
+                onProgress(compressedSize)
             } catch {
                 decompressionError = error
             }
@@ -584,7 +950,11 @@ public class TemplateDownloadService: ObservableObject {
             // Close write end of pipe to signal EOF to tar
             close(pipeWriteFD)
             
-            // Wait for tar to finish
+            // Signal that we're now in extraction phase
+            onExtracting()
+            
+            // Wait for tar to finish extracting
+            // Note: This may take time as tar writes files to disk
             tarProcess.waitUntilExit()
             
             // Check for errors
@@ -808,9 +1178,12 @@ private class ResumableDownloader: NSObject, URLSessionDataDelegate {
         
         let now = Date()
         
+        // Use serverContentLength if available, otherwise expectedSize
+        let totalSize = serverContentLength > 0 ? serverContentLength : expectedSize
+        
         // Throttle progress updates to every 500ms to reduce CPU overhead
         if now.timeIntervalSince(lastProgressUpdate) > 0.5 {
-            onProgress(bytesWritten, expectedSize)
+            onProgress(bytesWritten, totalSize)
             lastProgressUpdate = now
         }
         

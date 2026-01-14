@@ -8,6 +8,20 @@
 import SwiftUI
 import AppKit
 import HivecrewShared
+import Sparkle
+
+// MARK: - Check for Updates Command
+
+/// Menu command for checking updates - placed in App menu after "About"
+struct CheckForUpdatesCommand: Commands {
+    let updater: SPUUpdater
+    
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            CheckForUpdatesView(updater: updater)
+        }
+    }
+}
 
 // MARK: - Notifications
 
