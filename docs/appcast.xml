@@ -2,5 +2,15 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>Hivecrew</title>
+		<item>
+			<title>1.2</title>
+			<pubDate>Thu, 15 Jan 2026 04:17:58 +0800</pubDate>
+			<sparkle:version>1</sparkle:version>
+			<sparkle:shortVersionString>1.2</sparkle:shortVersionString>
+			<sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+			<enclosure url="https://github.com/johnbean393/Hivecrew/releases/download/1.2/Hivecrew.1.2.dmg"
+			sparkle:edSignature="FhIWlWb8jbW61VqOgyk+kBlmCvmV3UmXwjoms3/nx83AoaFxBnhYRh/IMIntWNX9V7SEs50FnJrpionqV5ISCw==" length="8629212"
+			type="application/octet-stream" />
+		</item>
     </channel>
 </rss>
