@@ -64,6 +64,14 @@ struct AgentTracePanel: View {
         }
         .frame(width: 380)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            // Mark trace panel as visible so floating question window doesn't appear
+            statePublisher.isTracePanelVisible = true
+        }
+        .onDisappear {
+            // Mark trace panel as not visible so floating window can appear if needed
+            statePublisher.isTracePanelVisible = false
+        }
     }
     
     // MARK: - Instruction Input Bar

@@ -107,6 +107,9 @@ class AgentStatePublisher: ObservableObject {
     /// Pending instructions from the user to inject into conversation
     @Published var pendingInstructions: String?
     
+    /// Whether the trace panel for this task is currently visible (user can answer inline)
+    var isTracePanelVisible: Bool = false
+    
     /// Task ID this publisher is tracking
     let taskId: String
     
@@ -157,7 +160,11 @@ class AgentStatePublisher: ObservableObject {
     }
     
     /// Show a floating window for the question that appears over all apps
+    /// Only shows if the trace panel (where user can answer) is not currently visible
     private func showQuestionWindow(_ question: AgentQuestion) {
+        // Don't show the popup if the trace panel is visible - user can answer via the in-app UI
+        guard !isTracePanelVisible else { return }
+        
         QuestionWindowController.shared.showQuestion(
             question,
             taskTitle: taskTitle,
@@ -168,6 +175,10 @@ class AgentStatePublisher: ObservableObject {
     /// Provide an answer to the pending question
     func provideAnswer(_ answer: String) {
         guard answerContinuation != nil else { return }
+        
+        // Close the floating window if it's open (answer may come from in-app UI)
+        QuestionWindowController.shared.closePanel()
+        
         answerContinuation?.resume(returning: answer)
         answerContinuation = nil
     }
