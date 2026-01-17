@@ -397,7 +397,7 @@ struct ProviderEditSheet: View {
     }
     
     private var isValid: Bool {
-        !displayName.isEmpty && (!apiKey.isEmpty || isEditing)
+        !displayName.isEmpty
     }
     
     /// The API key to use for testing - either the newly entered one or the existing one

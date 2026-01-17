@@ -40,22 +40,18 @@ struct HivecrewApp: App {
     
     /// Whether to show the startup sheet for queued tasks
     @State private var showStartupSheet = false
-    
     /// Queued tasks found at startup
     @State private var startupQueuedTasks: [TaskRecord] = []
-    
     /// Whether the startup check has already been performed (prevents re-showing when window re-opens)
     @State private var hasPerformedStartupCheck = false
     
     /// Whether to show the onboarding wizard
     @State private var showOnboarding = false
-    
     /// Whether onboarding has been completed
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
     /// Whether to show the template update sheet
     @State private var showTemplateUpdate = false
-    
     /// The current default template ID (for removal after update)
     @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
     
@@ -65,54 +61,37 @@ struct HivecrewApp: App {
                 .environmentObject(vmService)
                 .environmentObject(taskService)
                 .onAppear {
-                    // Wire up the model context to services
-                    taskService.setModelContext(sharedModelContainer.mainContext)
-                    
-                    // Configure termination manager
-                    terminationManager.configure(taskService: taskService)
-                    
-                    // Request notification permissions for agent questions
-                    requestNotificationPermissions()
-                    
-                    // Check if onboarding is needed
-                    if !hasCompletedOnboarding {
-                        showOnboarding = true
-                    } else if !hasPerformedStartupCheck {
-                        // Only do this once per app launch, not on window re-open
-                        hasPerformedStartupCheck = true
-                        
-                        // Check for queued tasks from previous session (after a brief delay to let data load)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            checkForQueuedTasks()
-                        }
-                        
-                        // Check for template updates
-                        Task {
-                            await checkForTemplateUpdates()
-                        }
-                    }
+                    self.onStartup()
                 }
                 // Termination confirmation sheet
-                .sheet(isPresented: $terminationManager.showTerminationConfirmation) {
+                .sheet(
+                    isPresented: $terminationManager.showTerminationConfirmation
+                ) {
                     TerminationConfirmationSheet(terminationManager: terminationManager)
                 }
+                // Onboarding sheet
+                .sheet(
+                    isPresented: $showOnboarding
+                ) {
+                    OnboardingView(isPresented: $showOnboarding)
+                        .environmentObject(vmService)
+                        .modelContainer(sharedModelContainer)
+                        .interactiveDismissDisabled()
+                }
                 // Startup queued tasks sheet
-                .sheet(isPresented: $showStartupSheet) {
+                .sheet(
+                    isPresented: $showStartupSheet
+                ) {
                     QueuedTasksStartupSheet(
                         isPresented: $showStartupSheet,
                         queuedTasks: startupQueuedTasks
                     )
                     .environmentObject(taskService)
                 }
-                // Onboarding sheet
-                .sheet(isPresented: $showOnboarding) {
-                    OnboardingView(isPresented: $showOnboarding)
-                        .environmentObject(vmService)
-                        .modelContainer(sharedModelContainer)
-                        .interactiveDismissDisabled()
-                }
                 // Template update sheet
-                .sheet(isPresented: $showTemplateUpdate) {
+                .sheet(
+                    isPresented: $showTemplateUpdate
+                ) {
                     if let update = downloadService.availableUpdate {
                         TemplateUpdateSheet(
                             isPresented: $showTemplateUpdate,
@@ -122,7 +101,11 @@ struct HivecrewApp: App {
                     }
                 }
                 // Listen for debug menu onboarding trigger
-                .onReceive(NotificationCenter.default.publisher(for: .showOnboardingWizard)) { _ in
+                .onReceive(
+                    NotificationCenter.default.publisher(
+                        for: .showOnboardingWizard
+                    )
+                ) { _ in
                     showOnboarding = true
                 }
         }
@@ -132,14 +115,41 @@ struct HivecrewApp: App {
             DebugMenuCommands()
         }
         
-#if os(macOS)
         Settings {
             SettingsView()
                 .environmentObject(vmService)
                 .environmentObject(taskService)
                 .modelContainer(sharedModelContainer)
         }
-#endif
+        
+    }
+    
+    /// Function to run on startup
+    private func onStartup() {
+        // Wire up the model context to services
+        taskService.setModelContext(sharedModelContainer.mainContext)
+        
+        // Configure termination manager
+        terminationManager.configure(taskService: taskService)
+        
+        // Request notification permissions for agent questions
+        requestNotificationPermissions()
+        
+        // Check if onboarding is needed
+        if !hasCompletedOnboarding {
+            showOnboarding = true
+        } else if !hasPerformedStartupCheck {
+            // Only do this once per app launch, not on window re-open
+            hasPerformedStartupCheck = true
+            // Check for queued tasks from previous session (after a brief delay to let data load)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                checkForQueuedTasks()
+            }
+            // Check for template updates
+            Task {
+                await checkForTemplateUpdates()
+            }
+        }
     }
     
     /// Check for queued tasks from a previous session and show the startup sheet

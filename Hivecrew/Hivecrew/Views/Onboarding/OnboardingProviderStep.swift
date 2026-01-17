@@ -123,7 +123,7 @@ struct OnboardingProviderStep: View {
                     saveProvider()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(displayName.isEmpty || apiKey.isEmpty)
+                .disabled(displayName.isEmpty)
             }
             .padding(.horizontal, 60)
             
