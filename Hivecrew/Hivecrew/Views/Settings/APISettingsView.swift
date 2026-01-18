@@ -205,6 +205,8 @@ struct APISettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             loadAPIKey()
+            // Refresh server status to sync with actual state
+            APIServerManager.shared.refreshStatus()
         }
         .alert("Regenerate API Key?", isPresented: $showRegenerateConfirmation) {
             Button("Cancel", role: .cancel) { }
