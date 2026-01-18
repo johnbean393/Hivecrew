@@ -65,6 +65,8 @@ AVAILABLE TOOLS:
 - wait: Pause for a number of seconds
 - ask_text_question: Ask the user for text input if you need clarification
 - ask_multiple_choice: Ask the user to choose from options
+- request_user_intervention: Request user intervention if you need help
+- get_login_credentials: Get login credentials for the superuser, websites, etc.
 
 COORDINATE SYSTEM:
 - Coordinates (0,0) are at the top-left corner of the screen.

@@ -2,19 +2,49 @@
 //  EnvironmentSettingsView.swift
 //  Hivecrew
 //
-//  Settings for ephemeral VM environments (template selection, concurrency limits)
+//  Environment settings: VM templates, concurrency, storage, and safety options
 //
 
 import SwiftUI
 import UniformTypeIdentifiers
 import HivecrewShared
 
-/// Environment settings tab - configure template and concurrency for ephemeral VMs
+/// Session trace retention policy
+enum TraceRetentionPolicy: String, CaseIterable, Identifiable {
+    case keepAll = "keep_all"
+    case last7Days = "7_days"
+    case last30Days = "30_days"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .keepAll: return "Keep all"
+        case .last7Days: return "Last 7 days"
+        case .last30Days: return "Last 30 days"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .keepAll: return "Session traces are never automatically deleted"
+        case .last7Days: return "Traces older than 7 days are deleted on launch"
+        case .last30Days: return "Traces older than 30 days are deleted on launch"
+        }
+    }
+}
+
+/// Environment settings tab - VM templates, concurrency, storage, and safety
 struct EnvironmentSettingsView: View {
     @EnvironmentObject var vmService: VMServiceClient
     
+    // Template & concurrency
     @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
     @AppStorage("maxConcurrentVMs") private var maxConcurrentVMs = 2
+    
+    // Safety settings
+    @AppStorage("requireConfirmationForShell") private var requireConfirmationForShell = false
+    @AppStorage("traceRetentionPolicy") private var traceRetentionPolicy: String = TraceRetentionPolicy.keepAll.rawValue
     
     @State private var templates: [TemplateInfo] = []
     @State private var isLoadingTemplates = false
@@ -25,11 +55,17 @@ struct EnvironmentSettingsView: View {
     @State private var isImporting = false
     @State private var importError: String?
     
+    private var selectedRetentionPolicy: TraceRetentionPolicy {
+        TraceRetentionPolicy(rawValue: traceRetentionPolicy) ?? .keepAll
+    }
+    
     var body: some View {
         Form {
             templateSelectionSection
             templateManagementSection
             concurrencySection
+            storageSection
+            safetySection
         }
         .formStyle(.grouped)
         .padding()
@@ -200,6 +236,55 @@ struct EnvironmentSettingsView: View {
             Text("Concurrency")
         } footer: {
             Text("Maximum number of agent tasks that can run simultaneously. Additional tasks will be queued.")
+        }
+    }
+    
+    // MARK: - Storage Section
+    
+    private var storageSection: some View {
+        Section("Storage Locations") {
+            LabeledContent("VM Storage") {
+                Text(AppPaths.vmDirectoryDisplayPath)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            
+            LabeledContent("Session Traces") {
+                Text(AppPaths.sessionsDirectoryDisplayPath)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            
+            Button("Open VM Folder in Finder") {
+                NSWorkspace.shared.open(AppPaths.vmDirectory)
+            }
+        }
+    }
+    
+    // MARK: - Safety Section
+    
+    private var safetySection: some View {
+        Section("Safety & Retention") {
+            VStack(alignment: .leading) {
+                Toggle("Confirm shell commands", isOn: $requireConfirmationForShell)
+                Text("Require user approval before the agent executes shell commands in the VM")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Trace Retention", selection: $traceRetentionPolicy) {
+                    ForEach(TraceRetentionPolicy.allCases) { policy in
+                        Text(policy.displayName).tag(policy.rawValue)
+                    }
+                }
+                
+                Text(selectedRetentionPolicy.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
     

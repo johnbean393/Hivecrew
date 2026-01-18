@@ -336,6 +336,31 @@ public final class ToolSchemaBuilder: Sendable {
                         required: ["index"]
                     )
                 )
+                
+            // User intervention tool
+            case .requestUserIntervention:
+                return (
+                    "Request user intervention when you need the user to perform a manual action like signing in, completing 2FA, or solving a CAPTCHA. The agent will pause until the user confirms completion.",
+                    objectSchema(
+                        properties: [
+                            "message": stringProperty("A message describing what action the user should take"),
+                            "service": stringProperty("Optional: The name of the service (e.g., 'GitHub', 'Gmail')")
+                        ],
+                        required: ["message"]
+                    )
+                )
+                
+            // Authentication tools
+            case .getLoginCredentials:
+                return (
+                    "Get stored login credentials for authentication. Returns UUID tokens that can be used with keyboard_type to enter usernames and passwords securely. The real credentials are never exposed - only tokens that are substituted at typing time.",
+                    objectSchema(
+                        properties: [
+                            "service": stringProperty("Optional: Filter by service name (e.g., 'GitHub', 'Gmail'). If omitted, returns all available credentials.")
+                        ],
+                        required: []
+                    )
+                )
         }
     }
     

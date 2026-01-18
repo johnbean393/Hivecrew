@@ -2,17 +2,22 @@
 //  TaskDefaultsSettingsView.swift
 //  Hivecrew
 //
-//  Created by Hivecrew on 1/10/26.
+//  Task settings: operating limits, file output, and web tools configuration
 //
 
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Task Defaults settings tab
+/// Tasks settings tab - operating limits, output directory, and web tools
 struct TaskDefaultsSettingsView: View {
+    // Task limits
     @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 30
     @AppStorage("defaultMaxIterations") private var defaultMaxIterations = 100
     @AppStorage("outputDirectoryPath") private var outputDirectoryPath: String = ""
+    
+    // Web tools
+    @AppStorage("searchEngine") private var searchEngine: String = "google"
+    @AppStorage("defaultResultCount") private var defaultResultCount: Int = 10
     
     @State private var showingFolderPicker = false
     
@@ -33,6 +38,7 @@ struct TaskDefaultsSettingsView: View {
         Form {
             limitsSection
             outputSection
+            webToolsSection
         }
         .formStyle(.grouped)
         .padding()
@@ -130,6 +136,44 @@ struct TaskDefaultsSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+    
+    // MARK: - Web Tools Section
+    
+    private var webToolsSection: some View {
+        Section("Web Search") {
+            Picker("Search Provider", selection: $searchEngine) {
+                Label {
+                    Text("Google")
+                } icon: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .tag("google")
+                
+                Label {
+                    Text("DuckDuckGo")
+                } icon: {
+                    Image(systemName: "shield")
+                }
+                .tag("duckduckgo")
+            }
+            .pickerStyle(.inline)
+            
+            HStack {
+                Text("Default Result Count")
+                Spacer()
+                TextField("", value: $defaultResultCount, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 60)
+                    .multilineTextAlignment(.trailing)
+                Text("results")
+                    .foregroundStyle(.secondary)
+            }
+            
+            Text("Configure the search engine and default result count for the web_search tool.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
     

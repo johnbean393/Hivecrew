@@ -220,11 +220,11 @@ private struct FloatingQuestionView: View {
     private var headerView: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "questionmark.circle.fill")
+                Image(systemName: question.isIntervention ? "hand.raised.circle.fill" : "questionmark.circle.fill")
                     .font(.system(size: 24))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(question.isIntervention ? Color.orange : Color.accentColor)
                 
-                Text(taskTitle)
+                Text(headerTitle)
                     .font(.headline)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
@@ -232,10 +232,17 @@ private struct FloatingQuestionView: View {
         }
     }
     
+    private var headerTitle: String {
+        if case .intervention(let request) = question, let service = request.service {
+            return "\(service) - Action Required"
+        }
+        return taskTitle
+    }
+    
     // MARK: - Footer
     
     private var footerView: some View {
-        Text("Agent is waiting for your response")
+        Text(question.isIntervention ? "Agent is paused until you complete this action" : "Agent is waiting for your response")
             .font(.caption)
             .foregroundStyle(.secondary)
     }
@@ -249,7 +256,23 @@ private struct FloatingQuestionView: View {
             textQuestionInput
         case .multipleChoice(let mcQuestion):
             multipleChoiceInput(options: mcQuestion.options)
+        case .intervention:
+            interventionInfoView
         }
+    }
+    
+    private var interventionInfoView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "arrow.up.circle")
+                .font(.system(size: 32))
+                .foregroundStyle(.secondary)
+            
+            Text("Please complete the action above, then click Done")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 8)
     }
     
     private var textQuestionInput: some View {
@@ -313,18 +336,32 @@ private struct FloatingQuestionView: View {
     
     private var actionButtons: some View {
         HStack(spacing: 12) {
-            Button("Skip") {
-                onSkip()
+            if question.isIntervention {
+                Button("Cancel") {
+                    onAnswer("cancelled")
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.escape, modifiers: [])
+                
+                Button("Done") {
+                    onAnswer("completed")
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.return, modifiers: [])
+            } else {
+                Button("Skip") {
+                    onSkip()
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.escape, modifiers: [])
+                
+                Button("Submit") {
+                    submitAnswer()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSubmit)
+                .keyboardShortcut(.return, modifiers: [])
             }
-            .buttonStyle(.bordered)
-            .keyboardShortcut(.escape, modifiers: [])
-            
-            Button("Submit") {
-                submitAnswer()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!canSubmit)
-            .keyboardShortcut(.return, modifiers: [])
         }
     }
     
@@ -336,6 +373,8 @@ private struct FloatingQuestionView: View {
             return !textAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .multipleChoice:
             return selectedOptionIndex != nil
+        case .intervention:
+            return true // Always enabled for interventions
         }
     }
     
@@ -350,6 +389,8 @@ private struct FloatingQuestionView: View {
             } else {
                 return
             }
+        case .intervention:
+            answer = "completed"
         }
         
         onAnswer(answer)

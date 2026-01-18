@@ -13,12 +13,10 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .providers
     
     enum SettingsTab: String, CaseIterable, Identifiable {
-        case providers = "LLM Providers"
+        case providers = "Providers"
         case environment = "Environment"
-        case taskDefaults = "Task Defaults"
-        case webTools = "Web Tools"
-        case storage = "Storage"
-        case safety = "Safety"
+        case tasks = "Tasks"
+        case credentials = "Credentials"
         case developer = "Developer"
         
         var id: String { rawValue }
@@ -27,10 +25,8 @@ struct SettingsView: View {
             switch self {
             case .providers: return "brain.head.profile"
             case .environment: return "desktopcomputer"
-            case .taskDefaults: return "checklist"
-            case .webTools: return "globe"
-            case .storage: return "folder"
-            case .safety: return "shield.lefthalf.filled"
+            case .tasks: return "checklist"
+            case .credentials: return "key.fill"
             case .developer: return "hammer"
             }
         }
@@ -40,10 +36,8 @@ struct SettingsView: View {
         TabView(selection: $selectedTab) {
             providersTab
             environmentTab
-            taskDefaultsTab
-            webToolsTab
-            storageTab
-            safetyTab
+            tasksTab
+            credentialsTab
             developerTab
         }
         .frame(width: 550, height: 500)
@@ -63,28 +57,16 @@ struct SettingsView: View {
             .tag(SettingsTab.environment)
     }
     
-    private var taskDefaultsTab: some View {
+    private var tasksTab: some View {
         TaskDefaultsSettingsView()
-            .tabItem { Label(SettingsTab.taskDefaults.rawValue, systemImage: SettingsTab.taskDefaults.icon) }
-            .tag(SettingsTab.taskDefaults)
+            .tabItem { Label(SettingsTab.tasks.rawValue, systemImage: SettingsTab.tasks.icon) }
+            .tag(SettingsTab.tasks)
     }
     
-    private var webToolsTab: some View {
-        WebToolsSettingsView()
-            .tabItem { Label(SettingsTab.webTools.rawValue, systemImage: SettingsTab.webTools.icon) }
-            .tag(SettingsTab.webTools)
-    }
-    
-    private var storageTab: some View {
-        StorageSettingsView()
-            .tabItem { Label(SettingsTab.storage.rawValue, systemImage: SettingsTab.storage.icon) }
-            .tag(SettingsTab.storage)
-    }
-    
-    private var safetyTab: some View {
-        SafetySettingsView()
-            .tabItem { Label(SettingsTab.safety.rawValue, systemImage: SettingsTab.safety.icon) }
-            .tag(SettingsTab.safety)
+    private var credentialsTab: some View {
+        CredentialsSettingsView()
+            .tabItem { Label(SettingsTab.credentials.rawValue, systemImage: SettingsTab.credentials.icon) }
+            .tag(SettingsTab.credentials)
     }
     
     private var developerTab: some View {

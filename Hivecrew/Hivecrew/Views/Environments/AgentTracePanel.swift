@@ -114,9 +114,9 @@ struct AgentTracePanel: View {
         VStack(alignment: .leading, spacing: 12) {
             // Question header
             HStack(spacing: 8) {
-                Image(systemName: "questionmark.bubble.fill")
-                    .foregroundStyle(.yellow)
-                Text("Agent is asking:")
+                Image(systemName: question.isIntervention ? "hand.raised.fill" : "questionmark.bubble.fill")
+                    .foregroundStyle(question.isIntervention ? .orange : .yellow)
+                Text(question.isIntervention ? "Action Required:" : "Agent is asking:")
                     .font(.subheadline)
                     .fontWeight(.medium)
             }
@@ -128,14 +128,16 @@ struct AgentTracePanel: View {
             
             // Answer input based on question type
             switch question {
-            case .text:
-                textQuestionInput()
-            case .multipleChoice(let mcQuestion):
-                multipleChoiceInput(mcQuestion)
+                case .text:
+                    textQuestionInput()
+                case .multipleChoice(let mcQuestion):
+                    multipleChoiceInput(mcQuestion)
+                case .intervention(let request):
+                    interventionInput(request)
             }
         }
         .padding()
-        .background(Color.yellow.opacity(0.1))
+        .background((question.isIntervention ? Color.orange : Color.yellow).opacity(0.1))
     }
     
     @ViewBuilder
@@ -180,6 +182,33 @@ struct AgentTracePanel: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func interventionInput(_ request: AgentInterventionRequest) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let service = request.service {
+                Text("Service: \(service)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Text("Please complete the action above, then click Done")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            
+            HStack(spacing: 12) {
+                Button("Cancel") {
+                    statePublisher.provideAnswer("cancelled")
+                }
+                .buttonStyle(.bordered)
+                
+                Button("Done") {
+                    statePublisher.provideAnswer("completed")
+                }
+                .buttonStyle(.borderedProminent)
             }
         }
     }

@@ -35,7 +35,7 @@ Edit `manifest.json` and add the new template at the top:
 Upload:
 
 ```bash
-rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/manifest.json/cloudflare-r2:hivecrew-templates/ --progress
+rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/manifest.json cloudflare-r2:hivecrew-templates/ --progress
 ```
 
 **Existing users** will see the update automatically via the manifest.

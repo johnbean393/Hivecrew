@@ -202,9 +202,16 @@ class ToolExecutor {
             return .text("Dragged from (\(Int(fromX)), \(Int(fromY))) to (\(Int(toX)), \(Int(toY)))")
             
         case "keyboard_type":
-            let text = args["text"] as? String ?? ""
-            try await connection.keyboardType(text: text)
-            return .text("Typed: \"\(text.prefix(50))\(text.count > 50 ? "..." : "")\"")
+            let originalText = args["text"] as? String ?? ""
+            
+            // Substitute UUID credential tokens with real values from Keychain
+            // This ensures real passwords are never sent to the AI provider
+            let actualText = CredentialManager.shared.substituteTokens(in: originalText)
+            
+            try await connection.keyboardType(text: actualText)
+            
+            // Return result with the original token (never log real credentials)
+            return .text("Typed: \"\(originalText.prefix(50))\(originalText.count > 50 ? "..." : "")\"")
             
         case "keyboard_key":
             let key = args["key"] as? String ?? ""
@@ -295,6 +302,54 @@ class ToolExecutor {
             } else {
                 return .text("Error: No question handler available")
             }
+            
+        case "request_user_intervention":
+            let message = args["message"] as? String ?? ""
+            let service = args["service"] as? String
+            if let callback = onAskQuestion {
+                let request = AgentInterventionRequest(id: toolCallId, taskId: taskId, message: message, service: service)
+                let response = await callback(.intervention(request))
+                let completed = response == "completed"
+                if completed {
+                    return .text("User completed the requested action")
+                } else {
+                    return .text("User cancelled the intervention request")
+                }
+            } else {
+                return .text("Error: No intervention handler available")
+            }
+            
+        // Authentication tools
+        case "get_login_credentials":
+            let serviceFilter = args["service"] as? String
+            var credentials = CredentialManager.shared.getCredentialsForAgent(service: serviceFilter)
+            
+            // If no credentials match the filter, return all credentials
+            var noMatchMessage: String? = nil
+            if credentials.isEmpty, let service = serviceFilter {
+                credentials = CredentialManager.shared.getCredentialsForAgent(service: nil)
+                if !credentials.isEmpty {
+                    noMatchMessage = "No credentials found matching '\(service)'. Returning all available credentials."
+                }
+            }
+            
+            if credentials.isEmpty {
+                return .text("No credentials stored. Add credentials in Settings > Credentials.")
+            }
+            
+            // Format credentials with UUID tokens
+            var output = ""
+            if let message = noMatchMessage {
+                output += "\(message)\n\n"
+            }
+            output += "Available credentials:\n\n"
+            for cred in credentials {
+                output += "\(cred.displayName):\n"
+                output += "  Username token: \(cred.usernameToken.uuidString)\n"
+                output += "  Password token: \(cred.passwordToken.uuidString)\n\n"
+            }
+            output += "Use these tokens with keyboard_type to enter credentials securely."
+            return .text(output)
             
         // Web tools
         case "web_search":

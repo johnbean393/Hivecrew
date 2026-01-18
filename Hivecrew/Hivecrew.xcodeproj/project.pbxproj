@@ -48,7 +48,6 @@
 		204DF45C2F162AF8004AB99B /* WebpageExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4562F162AF8004AB99B /* WebpageExtractor.swift */; };
 		204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4552F162AF8004AB99B /* TodoManager.swift */; };
 		204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4522F162AF8004AB99B /* DuckDuckGoSearch.swift */; };
-		204DF4602F162B0B004AB99B /* ToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */; };
 		204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4612F16404E004AB99B /* VideoExporter.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
@@ -59,9 +58,7 @@
 		209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618A2F12ABD700062D0E /* DashboardView.swift */; };
 		209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618B2F12ABD700062D0E /* StatCard.swift */; };
 		209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */; };
-		209C61AC2F12ABD700062D0E /* SafetySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618E2F12ABD700062D0E /* SafetySettingsView.swift */; };
 		209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618F2F12ABD700062D0E /* SettingsView.swift */; };
-		209C61AE2F12ABD700062D0E /* StorageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61902F12ABD700062D0E /* StorageSettingsView.swift */; };
 		209C61AF2F12ABD700062D0E /* TaskDefaultsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */; };
 		209C61B12F12ABD700062D0E /* AgentEnvironmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */; };
 		209C61B52F12ABD700062D0E /* VMDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61982F12ABD700062D0E /* VMDetailView.swift */; };
@@ -83,6 +80,8 @@
 		209C61D32F12ABE300062D0E /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 209C61CB2F12ABE300062D0E /* Info.plist */; };
 		209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */; };
 		209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */; };
+		20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */; };
+		20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563982F1B74D200CA7546 /* CredentialManager.swift */; };
 		20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */; };
 		20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */; };
 		20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */; };
@@ -182,7 +181,6 @@
 		204DF4552F162AF8004AB99B /* TodoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoManager.swift; sourceTree = "<group>"; };
 		204DF4562F162AF8004AB99B /* WebpageExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageExtractor.swift; sourceTree = "<group>"; };
 		204DF4572F162AF8004AB99B /* WebpageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageReader.swift; sourceTree = "<group>"; };
-		204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsSettingsView.swift; sourceTree = "<group>"; };
 		204DF4612F16404E004AB99B /* VideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExporter.swift; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -193,9 +191,7 @@
 		209C618A2F12ABD700062D0E /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		209C618B2F12ABD700062D0E /* StatCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCard.swift; sourceTree = "<group>"; };
 		209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersSettingsView.swift; sourceTree = "<group>"; };
-		209C618E2F12ABD700062D0E /* SafetySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafetySettingsView.swift; sourceTree = "<group>"; };
 		209C618F2F12ABD700062D0E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		209C61902F12ABD700062D0E /* StorageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageSettingsView.swift; sourceTree = "<group>"; };
 		209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDefaultsSettingsView.swift; sourceTree = "<group>"; };
 		209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnvironmentsView.swift; sourceTree = "<group>"; };
 		209C61982F12ABD700062D0E /* VMDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMDetailView.swift; sourceTree = "<group>"; };
@@ -219,6 +215,8 @@
 		209C61CD2F12ABE300062D0E /* VMManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMManager.swift; sourceTree = "<group>"; };
 		209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVMRuntime.swift; sourceTree = "<group>"; };
 		209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestAgentConnection.swift; sourceTree = "<group>"; };
+		20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsSettingsView.swift; sourceTree = "<group>"; };
+		20A563982F1B74D200CA7546 /* CredentialManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialManager.swift; sourceTree = "<group>"; };
 		20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTracePanel.swift; sourceTree = "<group>"; };
 		20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTerminationManager.swift; sourceTree = "<group>"; };
 		20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedTasksStartupSheet.swift; sourceTree = "<group>"; };
@@ -398,6 +396,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				20A563982F1B74D200CA7546 /* CredentialManager.swift */,
 				204DF4612F16404E004AB99B /* VideoExporter.swift */,
 				3001A0052F15000000000005 /* AgentPrompts.swift */,
 				3001A0092F15000000000009 /* AgentStatePublisher.swift */,
@@ -434,13 +433,11 @@
 		209C61932F12ABD700062D0E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */,
 				209C618F2F12ABD700062D0E /* SettingsView.swift */,
-				204DF45F2F162B0B004AB99B /* ToolsSettingsView.swift */,
 				204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */,
 				204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */,
 				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
-				209C618E2F12ABD700062D0E /* SafetySettingsView.swift */,
-				209C61902F12ABD700062D0E /* StorageSettingsView.swift */,
 				209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */,
 			);
 			path = Settings;
@@ -751,13 +748,11 @@
 				209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */,
 				209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */,
 				209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */,
-				209C61AC2F12ABD700062D0E /* SafetySettingsView.swift in Sources */,
 				204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */,
 				20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */,
 				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
 				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
 				209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */,
-				209C61AE2F12ABD700062D0E /* StorageSettingsView.swift in Sources */,
 				204DF4222F14DEEF004AB99B /* DeveloperSettingsView.swift in Sources */,
 				209C61AF2F12ABD700062D0E /* TaskDefaultsSettingsView.swift in Sources */,
 				204963412F182382007DD5FD /* CheckForUpdatesView.swift in Sources */,
@@ -778,6 +773,8 @@
 				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
 				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
 				204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */,
+				20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */,
+				20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */,
 				204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */,
 				204DF45B2F162AF8004AB99B /* SearchResult.swift in Sources */,
 				204DF45C2F162AF8004AB99B /* WebpageExtractor.swift in Sources */,
@@ -793,7 +790,6 @@
 				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
 				3001B0032F15000000000003 /* AgentQuestion.swift in Sources */,
 				204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */,
-				204DF4602F162B0B004AB99B /* ToolsSettingsView.swift in Sources */,
 				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
@@ -1014,7 +1010,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1050,7 +1046,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

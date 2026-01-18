@@ -166,23 +166,27 @@ final class InputTool {
     func keyboardType(text: String) throws {
         logger.log("Typing text: \(text.prefix(50))...")
         
+        // Create an event source for reliable event posting (same as mouse events)
+        let eventSource = CGEventSource(stateID: .hidSystemState)
+        
         for character in text {
             let string = String(character)
+            var unicodeChars = Array(string.utf16)
             
             // Use CGEventKeyboardSetUnicodeString for reliable text input
-            guard let event = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true) else {
+            guard let downEvent = CGEvent(keyboardEventSource: eventSource, virtualKey: 0, keyDown: true) else {
                 throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to create keyboard event")
             }
             
-            var unicodeChars = Array(string.utf16)
-            event.keyboardSetUnicodeString(stringLength: unicodeChars.count, unicodeString: &unicodeChars)
-            event.post(tap: .cghidEventTap)
+            downEvent.keyboardSetUnicodeString(stringLength: unicodeChars.count, unicodeString: &unicodeChars)
+            downEvent.post(tap: .cgSessionEventTap)
             
-            // Key up
-            guard let upEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
+            // Key up - also set unicode string for proper character completion
+            guard let upEvent = CGEvent(keyboardEventSource: eventSource, virtualKey: 0, keyDown: false) else {
                 throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to create key up event")
             }
-            upEvent.post(tap: .cghidEventTap)
+            upEvent.keyboardSetUnicodeString(stringLength: unicodeChars.count, unicodeString: &unicodeChars)
+            upEvent.post(tap: .cgSessionEventTap)
             
             // Small delay between characters
             Thread.sleep(forTimeInterval: 0.01)
@@ -196,6 +200,9 @@ final class InputTool {
         guard let keyCode = virtualKeyCode(for: key) else {
             throw AgentError(code: AgentError.invalidParams, message: "Unknown key: \(key)")
         }
+        
+        // Create an event source for reliable event posting
+        let eventSource = CGEventSource(stateID: .hidSystemState)
         
         var flags: CGEventFlags = []
         for modifier in modifiers {
@@ -214,20 +221,20 @@ final class InputTool {
         }
         
         // Key down with modifiers
-        guard let downEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true) else {
+        guard let downEvent = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: true) else {
             throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to create key down event")
         }
         downEvent.flags = flags
-        downEvent.post(tap: .cghidEventTap)
+        downEvent.post(tap: .cgSessionEventTap)
         
         Thread.sleep(forTimeInterval: 0.05)
         
         // Key up
-        guard let upEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else {
+        guard let upEvent = CGEvent(keyboardEventSource: eventSource, virtualKey: keyCode, keyDown: false) else {
             throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to create key up event")
         }
         upEvent.flags = flags
-        upEvent.post(tap: .cghidEventTap)
+        upEvent.post(tap: .cgSessionEventTap)
     }
     
     // MARK: - Key Code Mapping

@@ -174,7 +174,8 @@ final class ToolHandler {
             return ["success": true]
             
         // Host-side tools - these should never reach the guest agent
-        case .askTextQuestion, .askMultipleChoice,
+        case .askTextQuestion, .askMultipleChoice, .requestUserIntervention,
+             .getLoginCredentials,
              .webSearch, .readWebpageContent, .extractInfoFromWebpage, .getLocation,
              .createTodoList, .addTodoItem, .finishTodoItem:
             throw AgentError(code: AgentError.toolExecutionFailed, message: "This tool runs on the host, not in the guest VM")

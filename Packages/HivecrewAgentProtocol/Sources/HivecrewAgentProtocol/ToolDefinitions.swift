@@ -38,6 +38,10 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     // User interaction tools
     case askTextQuestion = "ask_text_question"
     case askMultipleChoice = "ask_multiple_choice"
+    case requestUserIntervention = "request_user_intervention"
+    
+    // Authentication tools
+    case getLoginCredentials = "get_login_credentials"
     
     // Host-side web tools
     case webSearch = "web_search"
@@ -56,7 +60,8 @@ public enum AgentMethod: String, CaseIterable, Sendable {
         switch self {
         case .webSearch, .readWebpageContent, .extractInfoFromWebpage,
              .getLocation, .createTodoList, .addTodoItem, .finishTodoItem,
-             .askTextQuestion, .askMultipleChoice:
+             .askTextQuestion, .askMultipleChoice, .requestUserIntervention,
+             .getLoginCredentials:
             return true
         default:
             return false
@@ -455,5 +460,29 @@ public struct FinishTodoItemParams: Codable, Sendable {
     
     public init(index: Int) {
         self.index = index
+    }
+}
+
+// MARK: - User Intervention Tools
+
+/// Parameters for request_user_intervention tool
+public struct RequestUserInterventionParams: Codable, Sendable {
+    public let message: String
+    public let service: String?
+    
+    public init(message: String, service: String? = nil) {
+        self.message = message
+        self.service = service
+    }
+}
+
+// MARK: - Authentication Tools
+
+/// Parameters for get_login_credentials tool
+public struct GetLoginCredentialsParams: Codable, Sendable {
+    public let service: String?
+    
+    public init(service: String? = nil) {
+        self.service = service
     }
 }

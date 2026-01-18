@@ -42,11 +42,11 @@ struct AgentQuestionSheet: View {
     
     private var headerView: some View {
         VStack(spacing: 8) {
-            Image(systemName: "questionmark.circle.fill")
+            Image(systemName: question.isIntervention ? "hand.raised.circle.fill" : "questionmark.circle.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(question.isIntervention ? Color.orange : Color.accentColor)
             
-            Text("Agent Question")
+            Text(question.isIntervention ? "Action Required" : "Agent Question")
                 .font(.headline)
         }
     }
@@ -63,7 +63,27 @@ struct AgentQuestionSheet: View {
                 options: mcQuestion.options,
                 selectedIndex: $selectedOptionIndex
             )
+        case .intervention(let request):
+            interventionInputView(request)
         }
+    }
+    
+    // MARK: - Intervention Input
+    
+    private func interventionInputView(_ request: AgentInterventionRequest) -> some View {
+        VStack(spacing: 12) {
+            if let service = request.service {
+                Text("Service: \(service)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Text("Please complete the action above, then click Done")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal)
     }
     
     // MARK: - Text Question Input
@@ -92,17 +112,31 @@ struct AgentQuestionSheet: View {
     
     private var actionButtons: some View {
         HStack(spacing: 12) {
-            Button("Skip") {
-                onAnswer("(User skipped this question)")
-                onDismiss()
+            if question.isIntervention {
+                Button("Cancel") {
+                    onAnswer("cancelled")
+                    onDismiss()
+                }
+                .buttonStyle(.bordered)
+                
+                Button("Done") {
+                    onAnswer("completed")
+                    onDismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button("Skip") {
+                    onAnswer("(User skipped this question)")
+                    onDismiss()
+                }
+                .buttonStyle(.bordered)
+                
+                Button("Submit") {
+                    submitAnswer()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSubmit)
             }
-            .buttonStyle(.bordered)
-            
-            Button("Submit") {
-                submitAnswer()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!canSubmit)
         }
     }
     
@@ -114,6 +148,8 @@ struct AgentQuestionSheet: View {
             return !textAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .multipleChoice:
             return selectedOptionIndex != nil
+        case .intervention:
+            return true
         }
     }
     
@@ -128,6 +164,8 @@ struct AgentQuestionSheet: View {
             } else {
                 return
             }
+        case .intervention:
+            answer = "completed"
         }
         
         onAnswer(answer)
