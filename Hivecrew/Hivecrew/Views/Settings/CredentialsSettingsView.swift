@@ -521,10 +521,10 @@ private struct EditCredentialSheet: View {
                 TextField("Service Name", text: $displayName)
                     .textFieldStyle(.roundedBorder)
                 
-                TextField("New Username (leave empty to keep current)", text: $username)
+                TextField("New Username", text: $username)
                     .textFieldStyle(.roundedBorder)
                 
-                SecureField("New Password (leave empty to keep current)", text: $password)
+                SecureField("New Password", text: $password)
                     .textFieldStyle(.roundedBorder)
                 
                 if let error = errorMessage {

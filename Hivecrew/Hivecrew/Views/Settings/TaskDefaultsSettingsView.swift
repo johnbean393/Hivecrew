@@ -118,13 +118,7 @@ struct TaskDefaultsSettingsView: View {
                     Button("Choose...") {
                         showingFolderPicker = true
                     }
-                    
-                    if !outputDirectoryPath.isEmpty {
-                        Button("Reset") {
-                            outputDirectoryPath = ""
-                        }
-                        .foregroundStyle(.secondary)
-                    }
+
                 }
                 .contextMenu {
                     Button("Show in Finder") {
