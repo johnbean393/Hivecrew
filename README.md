@@ -71,6 +71,45 @@ open Hivecrew.xcworkspace
 
 Note: The Virtualization framework requires specific entitlements that must be granted via provisioning profiles or notarization.
 
+## API
+
+Hivecrew includes a REST API for programmatic task control. Enable it in **Settings → API** and generate an API key.
+
+### Python SDK
+
+```bash
+pip install hivecrew
+```
+
+**Example: Automated UI Testing**
+
+```python
+from hivecrew import HivecrewClient
+
+client = HivecrewClient()  # Uses HIVECREW_API_KEY env var
+
+result = client.tasks.run(
+    description="""
+    Test the login flow:
+    1. Open Safari and go to https://staging.example.com
+    2. Click "Sign In" and enter test@example.com / testpass123
+    3. Verify the dashboard loads and shows "Welcome back"
+    4. Take a screenshot and save it to the outbox
+    """,
+    provider_name="OpenRouter",
+    model_id="anthropic/claude-sonnet-4.5",
+    output_directory="./test-results",
+    timeout=600.0
+)
+
+if result.was_successful:
+    print(f"Test passed: {result.result_summary}")
+else:
+    print(f"Test failed: {result.result_summary}")
+```
+
+See the [hivecrew-python](https://github.com/johnbean393/hivecrew-python) repository for full documentation.
+
 ## Contributing
 
 Contributions are welcome! Areas where help would be particularly valuable:
