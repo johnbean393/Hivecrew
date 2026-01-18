@@ -48,6 +48,7 @@ HOW IT WORKS:
 - After each action you take, a new screenshot is automatically captured and shown to you.
 - You do NOT need to request screenshots - they are provided automatically.
 - Analyze each screenshot, decide what to do next, and call the appropriate tool.
+- Use `run_shell`, `read_file` and other non-GUI tools when possible. Refrain from using the GUI unless absolutely necessary.
 
 AVAILABLE TOOLS:
 - open_app: Open or activate an app by bundle ID or name (if already running, brings it to foreground)
@@ -75,8 +76,8 @@ COORDINATE SYSTEM:
 - Be precise with click coordinates - aim for the center of buttons/UI elements.
 
 TIPS:
-- Use open_url to navigate directly instead of typing URLs when possible.
-- Use keyboard shortcuts (keyboard_key with modifiers) for efficiency.
+- Use `open_url` to navigate directly instead of typing URLs when possible.
+- Use keyboard shortcuts (`keyboard_key` with modifiers) for efficiency.
 - Wait briefly after actions that cause animations or page loads.
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
 - Use LibreOffice for creating documents

@@ -104,6 +104,10 @@ final class TaskRecord {
     /// Optional to support migration from older database versions
     var outputFilePaths: [String]?
     
+    /// Custom output directory for this task (overrides app-level setting)
+    /// If nil, uses the app's default output directory setting
+    var outputDirectory: String?
+    
     /// Whether the task was verified as successful by the completion check
     /// nil = not yet checked, true = verified success, false = verified failure
     var wasSuccessful: Bool?
@@ -123,7 +127,8 @@ final class TaskRecord {
         resultSummary: String? = nil,
         errorMessage: String? = nil,
         attachedFilePaths: [String] = [],
-        outputFilePaths: [String]? = nil
+        outputFilePaths: [String]? = nil,
+        outputDirectory: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -140,6 +145,7 @@ final class TaskRecord {
         self.errorMessage = errorMessage
         self.attachedFilePaths = attachedFilePaths
         self.outputFilePaths = outputFilePaths
+        self.outputDirectory = outputDirectory
     }
     
     /// Computed status property

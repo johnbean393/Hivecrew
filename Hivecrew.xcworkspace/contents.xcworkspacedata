@@ -16,4 +16,7 @@
    <FileRef
       location = "group:Packages/HivecrewLLM">
    </FileRef>
+   <FileRef
+      location = "group:Packages/HivecrewAPI">
+   </FileRef>
 </Workspace>

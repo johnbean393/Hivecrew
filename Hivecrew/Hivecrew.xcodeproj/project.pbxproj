@@ -49,6 +49,11 @@
 		204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4552F162AF8004AB99B /* TodoManager.swift */; };
 		204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4522F162AF8004AB99B /* DuckDuckGoSearch.swift */; };
 		204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4612F16404E004AB99B /* VideoExporter.swift */; };
+		2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */; };
+		2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB32F1D1984007E4475 /* APIKeyManager.swift */; };
+		2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB72F1D19B0007E4475 /* APISettingsView.swift */; };
+		2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */; };
+		2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -80,6 +85,7 @@
 		209C61D32F12ABE300062D0E /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 209C61CB2F12ABE300062D0E /* Info.plist */; };
 		209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */; };
 		209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */; };
+		20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 20A0FC092F1D1707000A066A /* HivecrewAPI */; };
 		20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */; };
 		20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563982F1B74D200CA7546 /* CredentialManager.swift */; };
 		20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */; };
@@ -182,6 +188,11 @@
 		204DF4562F162AF8004AB99B /* WebpageExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageExtractor.swift; sourceTree = "<group>"; };
 		204DF4572F162AF8004AB99B /* WebpageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageReader.swift; sourceTree = "<group>"; };
 		204DF4612F16404E004AB99B /* VideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExporter.swift; sourceTree = "<group>"; };
+		2052ACB32F1D1984007E4475 /* APIKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyManager.swift; sourceTree = "<group>"; };
+		2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceProviderBridge.swift; sourceTree = "<group>"; };
+		2052ACB72F1D19B0007E4475 /* APISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsView.swift; sourceTree = "<group>"; };
+		2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerStatus.swift; sourceTree = "<group>"; };
+		2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerManager.swift; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -245,6 +256,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */,
 				209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */,
 				2049633D2F17E553007DD5FD /* Sparkle in Frameworks */,
 				2019E33D2F13997E0041819D /* OpenAI in Frameworks */,
@@ -396,6 +408,10 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */,
+				2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */,
+				2052ACB32F1D1984007E4475 /* APIKeyManager.swift */,
+				2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */,
 				20A563982F1B74D200CA7546 /* CredentialManager.swift */,
 				204DF4612F16404E004AB99B /* VideoExporter.swift */,
 				3001A0052F15000000000005 /* AgentPrompts.swift */,
@@ -433,6 +449,7 @@
 		209C61932F12ABD700062D0E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				2052ACB72F1D19B0007E4475 /* APISettingsView.swift */,
 				20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */,
 				209C618F2F12ABD700062D0E /* SettingsView.swift */,
 				204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */,
@@ -575,6 +592,7 @@
 				204DF44A2F15A81D004AB99B /* libzstd */,
 				204DF4502F16274B004AB99B /* GoogleSearch */,
 				2049633C2F17E553007DD5FD /* Sparkle */,
+				20A0FC092F1D1707000A066A /* HivecrewAPI */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -678,6 +696,7 @@
 			packageReferences = (
 				209C604C2F129A7200062D0E /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */,
 				2019E33E2F139C0000041819 /* XCLocalSwiftPackageReference "../Packages/HivecrewLLM" */,
+				20A0FC082F1D1707000A066A /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */,
 				2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */,
 				20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */,
 				204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */,
@@ -773,6 +792,8 @@
 				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
 				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
 				204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */,
+				2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */,
+				2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */,
 				20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */,
 				20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */,
 				204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */,
@@ -793,8 +814,10 @@
 				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
+				2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */,
 				204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */,
 				204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */,
+				2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */,
 				204DF43C2F157398004AB99B /* TaskService+VMCleanup.swift in Sources */,
 				3001B0052F15000000000005 /* AgentPrompts.swift in Sources */,
 				204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */,
@@ -803,6 +826,7 @@
 				204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */,
 				3001B0062F15000000000006 /* ToolExecutor.swift in Sources */,
 				3001B0072F15000000000007 /* TaskService.swift in Sources */,
+				2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */,
 				3001B0082F15000000000008 /* TaskTitleGenerator.swift in Sources */,
 				3001B0092F15000000000009 /* AgentStatePublisher.swift in Sources */,
 				3001B00A2F1500000000000A /* TaskInputView.swift in Sources */,
@@ -1009,7 +1033,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1045,7 +1069,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1067,7 +1091,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1088,7 +1112,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1108,7 +1132,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1128,7 +1152,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1156,7 +1180,7 @@
 				INFOPLIST_FILE = HivecrewVMService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HivecrewVMService;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewVMService;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1185,7 +1209,7 @@
 				INFOPLIST_FILE = HivecrewVMService/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = HivecrewVMService;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivecrewVMService;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1257,6 +1281,10 @@
 		209C604C2F129A7200062D0E /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewShared;
+		};
+		20A0FC082F1D1707000A066A /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewAPI;
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -1339,6 +1367,10 @@
 		209C60502F12AC0000062D0E /* HivecrewShared */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HivecrewShared;
+		};
+		20A0FC092F1D1707000A066A /* HivecrewAPI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewAPI;
 		};
 		20C413F82F143BAA00C6E8A9 /* MarkdownView */ = {
 			isa = XCSwiftPackageProductDependency;

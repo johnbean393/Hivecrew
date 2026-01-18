@@ -267,7 +267,7 @@ extension TaskService {
         
         // Copy outbox files to output directory BEFORE deleting the VM
         if result.terminationReason != .cancelled {
-            task.outputFilePaths = copyOutboxFiles(vmId: vmId)
+            task.outputFilePaths = copyOutboxFiles(vmId: vmId, customOutputDirectory: task.outputDirectory)
         }
         
         // Update session record

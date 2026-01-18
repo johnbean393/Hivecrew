@@ -82,7 +82,8 @@ class TaskService: ObservableObject {
         description: String,
         providerId: String,
         modelId: String,
-        attachedFilePaths: [String] = []
+        attachedFilePaths: [String] = [],
+        outputDirectory: String? = nil
     ) async throws -> TaskRecord {
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
@@ -98,7 +99,8 @@ class TaskService: ObservableObject {
             status: .queued,
             providerId: providerId,
             modelId: modelId,
-            attachedFilePaths: attachedFilePaths
+            attachedFilePaths: attachedFilePaths,
+            outputDirectory: outputDirectory
         )
         
         // Save to SwiftData

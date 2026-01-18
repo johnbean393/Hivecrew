@@ -17,6 +17,7 @@ struct SettingsView: View {
         case environment = "Environment"
         case tasks = "Tasks"
         case credentials = "Credentials"
+        case api = "API"
         case developer = "Developer"
         
         var id: String { rawValue }
@@ -27,6 +28,7 @@ struct SettingsView: View {
             case .environment: return "desktopcomputer"
             case .tasks: return "checklist"
             case .credentials: return "key.fill"
+            case .api: return "network"
             case .developer: return "hammer"
             }
         }
@@ -38,6 +40,7 @@ struct SettingsView: View {
             environmentTab
             tasksTab
             credentialsTab
+            apiTab
             developerTab
         }
         .frame(width: 550, height: 500)
@@ -67,6 +70,12 @@ struct SettingsView: View {
         CredentialsSettingsView()
             .tabItem { Label(SettingsTab.credentials.rawValue, systemImage: SettingsTab.credentials.icon) }
             .tag(SettingsTab.credentials)
+    }
+    
+    private var apiTab: some View {
+        APISettingsView()
+            .tabItem { Label(SettingsTab.api.rawValue, systemImage: SettingsTab.api.icon) }
+            .tag(SettingsTab.api)
     }
     
     private var developerTab: some View {

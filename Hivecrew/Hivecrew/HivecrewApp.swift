@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import HivecrewShared
 import HivecrewLLM
+import HivecrewAPI
 import AppKit
 import UserNotifications
 
@@ -54,6 +55,7 @@ struct HivecrewApp: App {
     @State private var showTemplateUpdate = false
     /// The current default template ID (for removal after update)
     @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
+    
     
     var body: some Scene {
         WindowGroup {
@@ -134,6 +136,10 @@ struct HivecrewApp: App {
         
         // Request notification permissions for agent questions
         requestNotificationPermissions()
+        
+        // Configure and start API server if enabled
+        APIServerManager.shared.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
+        APIServerManager.shared.startIfEnabled()
         
         // Check if onboarding is needed
         if !hasCompletedOnboarding {

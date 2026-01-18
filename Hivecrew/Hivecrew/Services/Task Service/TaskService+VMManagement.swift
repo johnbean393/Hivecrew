@@ -234,8 +234,11 @@ extension TaskService {
     }
     
     /// Copy files from VM's outbox to the configured output directory
+    /// - Parameters:
+    ///   - vmId: The VM identifier
+    ///   - customOutputDirectory: Optional custom output directory path (overrides app settings)
     /// - Returns: Array of paths to copied files
-    func copyOutboxFiles(vmId: String) -> [String] {
+    func copyOutboxFiles(vmId: String, customOutputDirectory: String? = nil) -> [String] {
         let fm = FileManager.default
         let outboxPath = AppPaths.vmOutboxDirectory(id: vmId)
         
@@ -255,14 +258,20 @@ extension TaskService {
             }
         }
         
-        // Get output directory from settings
-        let outputDirectoryPath = UserDefaults.standard.string(forKey: "outputDirectoryPath") ?? ""
+        // Determine output directory: custom > app setting > Downloads
         let outputDirectory: URL
-        if outputDirectoryPath.isEmpty {
-            // Default to Downloads
-            outputDirectory = fm.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory())
+        if let customDir = customOutputDirectory, !customDir.isEmpty {
+            // Use custom output directory from task/API request
+            outputDirectory = URL(fileURLWithPath: customDir)
         } else {
-            outputDirectory = URL(fileURLWithPath: outputDirectoryPath)
+            // Fall back to app settings or Downloads
+            let outputDirectoryPath = UserDefaults.standard.string(forKey: "outputDirectoryPath") ?? ""
+            if outputDirectoryPath.isEmpty {
+                // Default to Downloads
+                outputDirectory = fm.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory())
+            } else {
+                outputDirectory = URL(fileURLWithPath: outputDirectoryPath)
+            }
         }
         
         print("TaskService: copyOutboxFiles - outputDirectory: \(outputDirectory.path)")
