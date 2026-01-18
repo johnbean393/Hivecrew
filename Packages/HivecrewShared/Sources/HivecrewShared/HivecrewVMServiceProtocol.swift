@@ -14,17 +14,6 @@ public let hivecrewVMServiceName = "com.pattonium.HivecrewVMService"
 /// All methods use dictionaries for XPC compatibility since custom types require NSSecureCoding
 @objc public protocol HivecrewVMServiceProtocol {
     
-    /// Create a new VM from an IPSW restore image
-    /// - Parameters:
-    ///   - ipswPath: Path to the IPSW file
-    ///   - configDict: VMConfiguration as dictionary
-    ///   - reply: Callback with result dictionary containing either "vmId" on success or "error" on failure
-    func createVM(
-        fromIPSW ipswPath: String,
-        config configDict: [String: Any],
-        reply: @escaping ([String: Any]) -> Void
-    )
-    
     /// Start a stopped VM
     /// - Parameters:
     ///   - vmId: The unique identifier of the VM
@@ -90,18 +79,6 @@ public let hivecrewVMServiceName = "com.pattonium.HivecrewVMService"
     ///   - reply: Callback with progress (0.0 to 1.0) or -1 if not installing
     func getInstallProgress(
         id vmId: String,
-        reply: @escaping (Double) -> Void
-    )
-    
-    /// Download the latest supported macOS restore image
-    /// - Parameter reply: Callback with result dictionary containing "path" on success or "error" on failure
-    func downloadLatestIPSW(
-        reply: @escaping ([String: Any]) -> Void
-    )
-    
-    /// Get the download progress for the IPSW
-    /// - Parameter reply: Callback with progress (0.0 to 1.0) or -1 if not downloading
-    func getIPSWDownloadProgress(
         reply: @escaping (Double) -> Void
     )
     

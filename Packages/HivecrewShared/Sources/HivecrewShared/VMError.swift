@@ -15,7 +15,6 @@ public enum VMError: Error, Codable, Sendable {
     case installationFailed(reason: String)
     case configurationInvalid(reason: String)
     case diskCreationFailed(reason: String)
-    case ipswInvalid(reason: String)
     case insufficientResources(reason: String)
     case internalError(reason: String)
     
@@ -33,8 +32,6 @@ public enum VMError: Error, Codable, Sendable {
             return "Invalid configuration: \(reason)"
         case .diskCreationFailed(let reason):
             return "Disk creation failed: \(reason)"
-        case .ipswInvalid(let reason):
-            return "Invalid IPSW: \(reason)"
         case .insufficientResources(let reason):
             return "Insufficient resources: \(reason)"
         case .internalError(let reason):

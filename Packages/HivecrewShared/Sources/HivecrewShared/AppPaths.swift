@@ -99,20 +99,6 @@ public enum AppPaths {
         vmSharedDirectory(id: id).appendingPathComponent("workspace", isDirectory: true)
     }
     
-    // MARK: - IPSW Storage
-    
-    /// Directory for downloaded IPSW restore images
-    public static let ipswDirectory: URL = {
-        let url = appSupportDirectory.appendingPathComponent("IPSW", isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }()
-    
-    /// Path to the latest downloaded IPSW
-    public static let latestIPSWPath: URL = {
-        ipswDirectory.appendingPathComponent("macOS-latest.ipsw")
-    }()
-    
     // MARK: - Session Storage
     
     /// Directory containing session traces and artifacts

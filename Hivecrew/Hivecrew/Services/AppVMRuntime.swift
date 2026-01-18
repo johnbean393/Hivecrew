@@ -136,7 +136,7 @@ class AppVMRuntime: ObservableObject {
         
         // Try multiple date decoding strategies:
         // - VMs from templates use ISO8601 string format
-        // - VMs from IPSW install use timestamp (Double) format
+        // - Some VMs may use timestamp (Double) format
         let instanceConfig: VMInstanceConfig
         
         // First try ISO8601 (used by template-created VMs)
@@ -164,20 +164,14 @@ class AppVMRuntime: ObservableObject {
         }
         platform.machineIdentifier = machineId
         
-        // Load hardware model first (needed to create auxiliary storage if missing)
+        // Load hardware model (required - must exist in VM bundle)
         let hardwareModelPath = bundlePath.appendingPathComponent("HardwareModel.bin")
-        let hardwareModel: VZMacHardwareModel
-        if FileManager.default.fileExists(atPath: hardwareModelPath.path) {
-            let hardwareModelData = try Data(contentsOf: hardwareModelPath)
-            guard let model = VZMacHardwareModel(dataRepresentation: hardwareModelData) else {
-                throw VMRuntimeError.invalidConfiguration("Invalid hardware model data")
-            }
-            hardwareModel = model
-        } else {
-            // Try to get hardware model from latest IPSW
-            hardwareModel = try await loadHardwareModelFromIPSW()
-            // Save it for future use
-            try hardwareModel.dataRepresentation.write(to: hardwareModelPath)
+        guard FileManager.default.fileExists(atPath: hardwareModelPath.path) else {
+            throw VMRuntimeError.invalidConfiguration("Hardware model file not found")
+        }
+        let hardwareModelData = try Data(contentsOf: hardwareModelPath)
+        guard let hardwareModel = VZMacHardwareModel(dataRepresentation: hardwareModelData) else {
+            throw VMRuntimeError.invalidConfiguration("Invalid hardware model data")
         }
         platform.hardwareModel = hardwareModel
         
@@ -262,28 +256,6 @@ class AppVMRuntime: ObservableObject {
         return config
     }
     
-    private func loadHardwareModelFromIPSW() async throws -> VZMacHardwareModel {
-        let ipswPath = AppPaths.latestIPSWPath
-        
-        guard FileManager.default.fileExists(atPath: ipswPath.path) else {
-            throw VMRuntimeError.ipswNotFound
-        }
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            VZMacOSRestoreImage.load(from: ipswPath) { result in
-                switch result {
-                case .success(let restoreImage):
-                    if let requirements = restoreImage.mostFeaturefulSupportedConfiguration {
-                        continuation.resume(returning: requirements.hardwareModel)
-                    } else {
-                        continuation.resume(throwing: VMRuntimeError.unsupportedIPSW)
-                    }
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - VM Instance Config (matches XPC service)
@@ -324,18 +296,12 @@ class VMDelegate: NSObject, VZVirtualMachineDelegate {
 
 enum VMRuntimeError: LocalizedError {
     case invalidConfiguration(String)
-    case ipswNotFound
-    case unsupportedIPSW
     case vmNotFound
     
     var errorDescription: String? {
         switch self {
         case .invalidConfiguration(let reason):
             return "Invalid VM configuration: \(reason)"
-        case .ipswNotFound:
-            return "IPSW file not found"
-        case .unsupportedIPSW:
-            return "IPSW is not supported on this Mac"
         case .vmNotFound:
             return "VM not found"
         }
