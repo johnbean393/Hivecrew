@@ -8,7 +8,7 @@
 			<sparkle:version>2</sparkle:version>
 			<sparkle:shortVersionString>1.3</sparkle:shortVersionString>
 			<sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-			<enclosure url="https://github.com/johnbean393/Hivecrew/releases/download/1.3/Hivecrew.1.3.dmg"
+			<enclosure url="https://github.com/johnbean393/Hivecrew/releases/download/v1.3.0/Hivecrew.1.3.dmg"
 			sparkle:edSignature="Lkb6CjaRbLSrHrSPdTRUmMOpykq8oWBSUj3nLrBfnx/eBNh3zQ/OLlrSM5fwlka/j1iEwwGorg0ex1HaE7KZDw==" length="11896218"
 			type="application/octet-stream" />
 		</item>
