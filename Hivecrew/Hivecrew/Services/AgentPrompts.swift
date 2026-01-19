@@ -90,7 +90,7 @@ AVAILABLE TOOLS:
 - get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
 - web_search: Search the web and get results with URLs, titles, and snippets
 - read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search
-- extract_info_from_webpage: Extract specific information from a webpage by asking a question
+- extract_info_from_webpage: Extract specific information from a webpage by asking a question. Use this to dive deeper after using web_search
 - get_location: Get current geographic location (city, region, country) based on IP address
 - create_todo_list: Create a todo list to plan, organize and track subtasks for complex tasks
 - add_todo_item: Add a new item to your todo list
