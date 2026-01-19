@@ -22,6 +22,19 @@ struct SkillsWindow: View {
     @State private var importError: String?
     @State private var showingDeleteConfirmation = false
     @State private var skillToDelete: Skill?
+    @State private var searchText = ""
+    
+    /// Filtered skills based on search text
+    private var filteredSkills: [Skill] {
+        if searchText.isEmpty {
+            return skillManager.skills
+        }
+        let query = searchText.lowercased()
+        return skillManager.skills.filter { skill in
+            skill.name.lowercased().contains(query) ||
+            skill.description.lowercased().contains(query)
+        }
+    }
     
     var body: some View {
         HSplitView {
@@ -87,6 +100,31 @@ struct SkillsWindow: View {
     
     private var skillsList: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Search field
+            if !skillManager.skills.isEmpty {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search skills...", text: $searchText)
+                        .textFieldStyle(.plain)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(8)
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(8)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+            }
+            
             // Skills list
             if skillManager.skills.isEmpty {
                 VStack(spacing: 8) {
@@ -102,8 +140,21 @@ struct SkillsWindow: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
+            } else if filteredSkills.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.tertiary)
+                    Text("No matching skills")
+                        .foregroundStyle(.secondary)
+                    Text("Try a different search term")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
             } else {
-                List(skillManager.skills, selection: $selectedSkill) { skill in
+                List(filteredSkills, selection: $selectedSkill) { skill in
                     SkillListRowView(skill: skill, skillManager: skillManager)
                         .tag(skill)
                         .contextMenu {
@@ -130,9 +181,15 @@ struct SkillsWindow: View {
             
             // Footer
             HStack {
-                Text("\(skillManager.skills.count) skill\(skillManager.skills.count == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if searchText.isEmpty {
+                    Text("\(skillManager.skills.count) skill\(skillManager.skills.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("\(filteredSkills.count) of \(skillManager.skills.count) skill\(skillManager.skills.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button {
                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: AppPaths.skillsDirectory.path)

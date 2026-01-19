@@ -40,12 +40,12 @@ public class WebpageExtractor {
         )
         
         let prompt = """
-        Based on the following webpage content, answer this question concisely:
+        Based on the following webpage content, answer this question concisely. Use the webpage content ONLY. Do not use any other information.
         
         Question: \(question)
         
         Webpage content:
-        \(content.prefix(8000))
+        \(content.prefix(100000))
         
         Answer:
         """

@@ -156,7 +156,7 @@ struct APISettingsView: View {
                 HStack {
                     Text("Max file size")
                     Spacer()
-                    TextField("MB", value: $apiMaxFileSize, format: .number)
+                    TextField("", value: $apiMaxFileSize, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
                         .multilineTextAlignment(.trailing)
@@ -167,7 +167,7 @@ struct APISettingsView: View {
                 HStack {
                     Text("Max total upload per task")
                     Spacer()
-                    TextField("MB", value: $apiMaxTotalUploadSize, format: .number)
+                    TextField("", value: $apiMaxTotalUploadSize, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 80)
                         .multilineTextAlignment(.trailing)

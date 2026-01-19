@@ -115,6 +115,7 @@ struct HivecrewApp: App {
         .modelContainer(sharedModelContainer)
         .commands {
             CheckForUpdatesCommand(updater: appDelegate.updaterController.updater)
+            SkillsMenuCommand()
             DebugMenuCommands()
         }
         

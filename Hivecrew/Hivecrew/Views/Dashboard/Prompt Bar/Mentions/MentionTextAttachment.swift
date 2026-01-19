@@ -112,19 +112,25 @@ class MentionTextAttachment: NSTextAttachment {
             )
             
             switch self.mentionType {
-            case .file:
-                // Get the actual file icon from the system
-                if let url = self.fileURL {
-                    let fileIcon = NSWorkspace.shared.icon(forFile: url.path)
-                    fileIcon.draw(in: iconRect)
-                }
-            case .skill:
-                // Draw sparkles symbol for skills
-                let symbolConfig = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
-                if let symbolImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)?
-                    .withSymbolConfiguration(symbolConfig) {
-                    symbolImage.draw(in: iconRect)
-                }
+                case .file:
+                    // Get the actual file icon from the system
+                    if let url = self.fileURL {
+                        let fileIcon = NSWorkspace.shared.icon(forFile: url.path)
+                        fileIcon.draw(in: iconRect)
+                    }
+                case .skill:
+                    // Draw sparkles symbol for skills in text color
+                    let symbolConfig = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
+                        .applying(
+                            NSImage.SymbolConfiguration(
+                                paletteColors: [NSColor.textColor]
+                            )
+                        )
+                    if let symbolImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)?
+                        .withSymbolConfiguration(symbolConfig) {
+                        symbolImage.draw(in: iconRect)
+                    }
+                    
             }
             
             // Draw text

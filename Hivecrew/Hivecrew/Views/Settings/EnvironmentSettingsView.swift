@@ -64,8 +64,8 @@ struct EnvironmentSettingsView: View {
             templateSelectionSection
             templateManagementSection
             concurrencySection
-            storageSection
             safetySection
+            storageSection
         }
         .formStyle(.grouped)
         .padding()

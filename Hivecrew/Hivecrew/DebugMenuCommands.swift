@@ -23,6 +23,22 @@ struct CheckForUpdatesCommand: Commands {
     }
 }
 
+// MARK: - Skills Menu Command
+
+/// Menu command for opening the Skills window - placed in View menu
+struct SkillsMenuCommand: Commands {
+    @Environment(\.openWindow) private var openWindow
+    
+    var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Button("Skills") {
+                openWindow(id: "skills-window")
+            }
+            .keyboardShortcut("k", modifiers: .command)
+        }
+    }
+}
+
 // MARK: - Notifications
 
 extension Notification.Name {
