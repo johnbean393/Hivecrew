@@ -36,6 +36,12 @@ final class MentionInsertionController: ObservableObject {
         textView.invalidateIntrinsicContentSize()
     }
     
+    /// Insert a newline at the current cursor position
+    func insertNewline() {
+        guard let textView = textView else { return }
+        textView.insertNewline(nil)
+    }
+    
     /// Get the text with mention attachments replaced by their file paths
     func getResolvedText() -> String {
         guard let textView = textView,
@@ -157,17 +163,17 @@ struct PromptTextEditor: NSViewRepresentable {
             textView.typingAttributes = attributes
         }
         
-        // Save current scroll position
-        let currentScrollPosition = nsView.contentView.bounds.origin
-        
         // Update the callback
         textView.onFileDrop = context.coordinator.onFileDrop
         
-        // Enable scroll position preservation during programmatic updates
-        textView.shouldPreserveScrollPosition = true
-        
         // Only update if not editing - don't sync text back while editing to preserve attachments
         if !isFirstResponder {
+            // Save current scroll position for programmatic updates
+            let currentScrollPosition = nsView.contentView.bounds.origin
+            
+            // Enable scroll position preservation during programmatic updates
+            textView.shouldPreserveScrollPosition = true
+            
             if textView.string != text {
                 coordinator.isProgrammaticUpdate = true
                 textView.string = text
@@ -176,22 +182,21 @@ struct PromptTextEditor: NSViewRepresentable {
                 coordinator.isProgrammaticUpdate = true
                 textView.setSelectedRange(NSRange(location: insertionPoint, length: 0))
             }
+            
+            // Restore scroll position after layout update
+            DispatchQueue.main.async {
+                nsView.contentView.scroll(to: currentScrollPosition)
+                textView.shouldPreserveScrollPosition = false
+            }
         } else if hasMarkedText {
             // Don't interfere with IME composition
         } else {
-            // When editing, only update cursor position if needed and it won't disrupt user input
-            // Skip text sync to preserve attachments
+            // When editing, let the text view handle scrolling naturally
         }
         
         textView.setPlaceholder(placeholder)
         textView.invalidateIntrinsicContentSize()
         nsView.invalidateIntrinsicContentSize()
-        
-        // Restore scroll position after layout update
-        DispatchQueue.main.async {
-            nsView.contentView.scroll(to: currentScrollPosition)
-            textView.shouldPreserveScrollPosition = false
-        }
     }
     
     // MARK: - Coordinator
@@ -404,29 +409,31 @@ class MentionTextAttachment: NSTextAttachment {
         characterIndex charIndex: Int
     ) -> CGRect {
         guard let image = self.image else { return .zero }
-        let height = lineFrag.height - 2
-        let aspectRatio = image.size.width / image.size.height
-        let width = height * aspectRatio
         
-        // Position lower in the line (negative yOffset moves it down in flipped coordinates)
-        let yOffset = -3.0
+        // Use natural image size to match prompt bar text size
+        let width = image.size.width
+        let height = image.size.height
+        
+        // Center vertically in the line
+        let yOffset = (lineFrag.height - height) / 2 - 3
         
         return CGRect(x: 0, y: yOffset, width: width, height: height)
     }
     
     private func renderTagImage() -> NSImage {
-        // Configuration
-        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        let iconSize: CGFloat = 14
-        let horizontalPadding: CGFloat = 6
-        let verticalPadding: CGFloat = 3
+        // Configuration - match prompt bar text size
+        let fontSize = NSFont.systemFontSize - 3
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let iconSize: CGFloat = fontSize - 2
+        let horizontalPadding: CGFloat = 4
+        let verticalPadding: CGFloat = 2
         let iconTextSpacing: CGFloat = 4
         let cornerRadius: CGFloat = 5
         
         // Calculate text size
         let textAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white
+            .foregroundColor: NSColor.textColor
         ]
         let textSize = displayName.size(withAttributes: textAttributes)
         

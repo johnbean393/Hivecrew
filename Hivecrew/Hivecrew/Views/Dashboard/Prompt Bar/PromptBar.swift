@@ -345,6 +345,8 @@ struct PromptBar: View {
         
         // Handle mention suggestion navigation
         if showMentionSuggestions {
+            let hasModifiers = !event.modifierFlags.intersection([.shift, .option, .command, .control]).isEmpty
+            
             switch keyCode {
             case 125: // Down arrow
                 mentionPanelController.moveSelectionDown()
@@ -354,9 +356,12 @@ struct PromptBar: View {
                 mentionPanelController.moveSelectionUp()
                 return true
                 
-            case 36: // Return - select current suggestion
-                mentionPanelController.selectCurrent()
-                return true
+            case 36: // Return - select current suggestion (only without modifiers)
+                if !hasModifiers {
+                    mentionPanelController.selectCurrent()
+                    return true
+                }
+                // Let modified Return (Shift/Option) fall through to insert newline
                 
             case 48: // Tab - select current suggestion
                 mentionPanelController.selectCurrent()
@@ -391,14 +396,8 @@ struct PromptBar: View {
             Task { await submitIfValid() }
             return true
         } else if isShiftKeyDown || isOptionKeyDown || (useCommandReturn && noModifiers) {
-            // Insert newline at cursor
-            let index = text.index(text.startIndex, offsetBy: min(insertionPoint, text.count))
-            DispatchQueue.main.async {
-                withAnimation {
-                    text.insert("\n", at: index)
-                    insertionPoint += 1
-                }
-            }
+            // Insert newline at cursor directly in the text view
+            mentionInsertionController.insertNewline()
             return true
         }
         
