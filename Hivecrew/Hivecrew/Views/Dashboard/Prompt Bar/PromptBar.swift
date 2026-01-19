@@ -56,6 +56,13 @@ struct PromptBar: View {
     // Loading state
     @Binding var isSubmitting: Bool
     
+    // Mention suggestions state
+    @StateObject private var mentionProvider = MentionSuggestionsProvider()
+    @StateObject private var mentionPanelController = MentionSuggestionsPanelController()
+    @StateObject private var mentionInsertionController = MentionInsertionController()
+    @State private var mentionQuery: MentionQuery?
+    @State private var mentionScreenPosition: CGPoint?
+    
     // Visual configuration
     private let cornerRadius: CGFloat = 16
     
@@ -80,6 +87,12 @@ struct PromptBar: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
+    private var showMentionSuggestions: Bool {
+        // Only show when there's a query with at least one character after @
+        guard let query = mentionQuery, !query.query.isEmpty else { return false }
+        return !mentionProvider.suggestions.isEmpty
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Main input container
@@ -94,9 +107,44 @@ struct PromptBar: View {
         .animation(.easeInOut(duration: 0.2), value: hasAttachments)
         .onAppear {
             setupKeyEventMonitor()
+            setupMentionPanel()
+            // Initialize mention provider with current attachments
+            mentionProvider.updateAttachments(attachments)
         }
         .onDisappear {
             removeKeyEventMonitor()
+            mentionPanelController.hide()
+        }
+        .onChange(of: mentionQuery) { _, newQuery in
+            // Filter suggestions when query changes
+            mentionPanelController.resetSelection()
+            if let query = newQuery {
+                mentionProvider.filter(query: query.query)
+            } else {
+                mentionPanelController.hide()
+            }
+        }
+        .onChange(of: mentionProvider.suggestions) { _, newSuggestions in
+            // Update panel when suggestions change
+            if !newSuggestions.isEmpty, mentionScreenPosition != nil, showMentionSuggestions, let query = mentionQuery {
+                mentionPanelController.suggestions = newSuggestions
+                mentionPanelController.currentQueryRange = query.range
+                mentionPanelController.show(at: mentionScreenPosition!, in: NSApp.keyWindow ?? NSApp.mainWindow)
+            } else {
+                mentionPanelController.hide()
+            }
+        }
+        .onChange(of: mentionScreenPosition) { _, newPosition in
+            // Update panel position when caret moves
+            if let position = newPosition, showMentionSuggestions, let query = mentionQuery {
+                mentionPanelController.suggestions = mentionProvider.suggestions
+                mentionPanelController.currentQueryRange = query.range
+                mentionPanelController.show(at: position, in: NSApp.keyWindow ?? NSApp.mainWindow)
+            }
+        }
+        .onChange(of: attachments) { _, newAttachments in
+            // Update mention provider with current attachments
+            mentionProvider.updateAttachments(newAttachments)
         }
     }
     
@@ -128,7 +176,12 @@ struct PromptBar: View {
                         Task {
                             await addAttachment(url)
                         }
-                    }
+                    },
+                    onMentionQuery: { query, screenPosition in
+                        mentionQuery = query
+                        mentionScreenPosition = screenPosition
+                    },
+                    mentionInsertionController: mentionInsertionController
                 )
                 .focused($isFocused)
                 .padding(.vertical, 1)
@@ -220,11 +273,48 @@ struct PromptBar: View {
     }
     
     private func submitIfValid() async {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Get the resolved text with file paths replacing mention attachments
+        let resolvedText = mentionInsertionController.getResolvedText()
+        let trimmed = resolvedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard !selectedProviderId.isEmpty else { return }
         
+        // Update the text binding with resolved paths before submission
+        text = resolvedText
+        
         await onSubmit()
+        
+        // Clear the text view directly after submission
+        mentionInsertionController.clearTextView()
+    }
+    
+    // MARK: - Mention Panel
+    
+    private func setupMentionPanel() {
+        mentionPanelController.onSelect = { [self] suggestion, range in
+            // Insert the mention directly using the controller with the stored range
+            mentionInsertionController.insert(suggestion: suggestion, at: range)
+            
+            // Add the file as an attachment
+            Task {
+                await addAttachment(suggestion.url)
+            }
+            
+            // Clear state
+            mentionQuery = nil
+            mentionScreenPosition = nil
+        }
+    }
+    
+    private func showMentionPanelIfNeeded() {
+        guard let screenPosition = mentionScreenPosition,
+              showMentionSuggestions else {
+            mentionPanelController.hide()
+            return
+        }
+        
+        mentionPanelController.suggestions = mentionProvider.suggestions
+        mentionPanelController.show(at: screenPosition, in: NSApp.keyWindow ?? NSApp.mainWindow)
     }
     
     // MARK: - Key Event Handling
@@ -251,8 +341,40 @@ struct PromptBar: View {
     
     @discardableResult
     private func handleKeyDownEvent(_ event: NSEvent) -> Bool {
-        // Only interested in Return/Enter
-        let isReturnKeyDown = (event.keyCode == 36) || (event.keyCode == 76)
+        let keyCode = event.keyCode
+        
+        // Handle mention suggestion navigation
+        if showMentionSuggestions {
+            switch keyCode {
+            case 125: // Down arrow
+                mentionPanelController.moveSelectionDown()
+                return true
+                
+            case 126: // Up arrow
+                mentionPanelController.moveSelectionUp()
+                return true
+                
+            case 36: // Return - select current suggestion
+                mentionPanelController.selectCurrent()
+                return true
+                
+            case 48: // Tab - select current suggestion
+                mentionPanelController.selectCurrent()
+                return true
+                
+            case 53: // Escape - dismiss suggestions
+                mentionPanelController.hide()
+                mentionQuery = nil
+                mentionScreenPosition = nil
+                return true
+                
+            default:
+                break
+            }
+        }
+        
+        // Only interested in Return/Enter for sending
+        let isReturnKeyDown = (keyCode == 36) || (keyCode == 76)
         guard isReturnKeyDown else { return false }
         
         let isCommandKeyDown = event.modifierFlags.contains(.command)

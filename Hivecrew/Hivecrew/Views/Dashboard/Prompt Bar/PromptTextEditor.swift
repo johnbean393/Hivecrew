@@ -6,9 +6,60 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 import OSLog
+
+/// Data needed to insert a mention
+struct MentionInsertionRequest {
+    let suggestion: MentionSuggestion
+    let range: NSRange
+}
+
+/// Shared controller for mention insertion that can be accessed directly
+@MainActor
+final class MentionInsertionController: ObservableObject {
+    weak var textView: NSTextView?
+    weak var coordinator: PromptTextEditor.Coordinator?
+    
+    func insert(suggestion: MentionSuggestion, at range: NSRange) {
+        guard let textView = textView, let coordinator = coordinator else { return }
+        coordinator.insertMention(suggestion: suggestion, at: range, in: textView)
+    }
+    
+    /// Clear the text view content directly
+    func clearTextView() {
+        guard let textView = textView, let coordinator = coordinator else { return }
+        coordinator.isProgrammaticUpdate = true
+        textView.string = ""
+        textView.invalidateIntrinsicContentSize()
+    }
+    
+    /// Get the text with mention attachments replaced by their file paths
+    func getResolvedText() -> String {
+        guard let textView = textView,
+              let textStorage = textView.textStorage else {
+            return textView?.string ?? ""
+        }
+        
+        var resolvedText = ""
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        
+        textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, range, _ in
+            if let attachment = attributes[.attachment] as? MentionTextAttachment {
+                // Replace attachment with quoted file path
+                resolvedText += "\"\(attachment.fileURL.path)\""
+            } else {
+                // Regular text - extract from storage
+                let substring = textStorage.attributedSubstring(from: range).string
+                resolvedText += substring
+            }
+        }
+        
+        return resolvedText
+    }
+}
 
 /// A multiline text editor that supports drag-and-drop for files and images
 struct PromptTextEditor: NSViewRepresentable {
@@ -17,6 +68,10 @@ struct PromptTextEditor: NSViewRepresentable {
     @Binding var insertionPoint: Int
     let placeholder: String
     var onFileDrop: ((URL) -> Void)?
+    /// Callback when an @mention query is detected or updated, includes screen position for popup
+    var onMentionQuery: ((MentionQuery?, CGPoint?) -> Void)?
+    /// Controller for directly inserting mentions
+    var mentionInsertionController: MentionInsertionController?
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -67,6 +122,13 @@ struct PromptTextEditor: NSViewRepresentable {
         scrollView.setContentHuggingPriority(.defaultHigh, for: .vertical)
         scrollView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         
+        // Store reference to text view
+        context.coordinator.textView = textView
+        
+        // Set up mention insertion controller
+        mentionInsertionController?.textView = textView
+        mentionInsertionController?.coordinator = context.coordinator
+        
         return scrollView
     }
     
@@ -75,6 +137,10 @@ struct PromptTextEditor: NSViewRepresentable {
         let coordinator = context.coordinator
         let isFirstResponder = textView.window?.firstResponder == textView
         let hasMarkedText = textView.hasMarkedText()
+        
+        // Update mention insertion controller references
+        mentionInsertionController?.textView = textView
+        mentionInsertionController?.coordinator = coordinator
         
         let desiredTextColor: NSColor = .labelColor
         let desiredInsertionColor: NSColor = .controlAccentColor
@@ -100,8 +166,8 @@ struct PromptTextEditor: NSViewRepresentable {
         // Enable scroll position preservation during programmatic updates
         textView.shouldPreserveScrollPosition = true
         
-        // Only update if not editing (or not composing)
-        if !isFirstResponder || !hasMarkedText {
+        // Only update if not editing - don't sync text back while editing to preserve attachments
+        if !isFirstResponder {
             if textView.string != text {
                 coordinator.isProgrammaticUpdate = true
                 textView.string = text
@@ -110,6 +176,11 @@ struct PromptTextEditor: NSViewRepresentable {
                 coordinator.isProgrammaticUpdate = true
                 textView.setSelectedRange(NSRange(location: insertionPoint, length: 0))
             }
+        } else if hasMarkedText {
+            // Don't interfere with IME composition
+        } else {
+            // When editing, only update cursor position if needed and it won't disrupt user input
+            // Skip text sync to preserve attachments
         }
         
         textView.setPlaceholder(placeholder)
@@ -128,6 +199,10 @@ struct PromptTextEditor: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: PromptTextEditor
         var isProgrammaticUpdate = false
+        weak var textView: NSTextView?
+        
+        /// Current mention range for replacement
+        var currentMentionRange: NSRange?
         
         init(_ parent: PromptTextEditor) {
             self.parent = parent
@@ -154,6 +229,9 @@ struct PromptTextEditor: NSViewRepresentable {
             }
             textView.invalidateIntrinsicContentSize()
             textView.enclosingScrollView?.invalidateIntrinsicContentSize()
+            
+            // Check for @mention query
+            checkForMentionQuery(in: textView)
         }
         
         func textViewDidChangeSelection(_ notification: Notification) {
@@ -166,7 +244,230 @@ struct PromptTextEditor: NSViewRepresentable {
             if parent.insertionPoint != cursor {
                 parent.insertionPoint = cursor
             }
+            
+            // Check for @mention query on selection change
+            checkForMentionQuery(in: textView)
         }
+        
+        /// Detects if the cursor is within an @mention and extracts the query
+        private func checkForMentionQuery(in textView: NSTextView) {
+            let text = textView.string
+            let cursorLocation = textView.selectedRange.location
+            
+            // Find the @ symbol before the cursor
+            guard cursorLocation > 0, cursorLocation <= text.count else {
+                currentMentionRange = nil
+                parent.onMentionQuery?(nil, nil)
+                return
+            }
+            
+            let textBeforeCursor = String(text.prefix(cursorLocation))
+            
+            // Look for @ that starts a mention (after whitespace/newline or at start)
+            guard let atIndex = textBeforeCursor.lastIndex(of: "@") else {
+                currentMentionRange = nil
+                parent.onMentionQuery?(nil, nil)
+                return
+            }
+            
+            let atPosition = textBeforeCursor.distance(from: textBeforeCursor.startIndex, to: atIndex)
+            
+            // Check if @ is at start or preceded by whitespace/newline
+            if atPosition > 0 {
+                let charBeforeAt = textBeforeCursor[textBeforeCursor.index(before: atIndex)]
+                if !charBeforeAt.isWhitespace && !charBeforeAt.isNewline {
+                    currentMentionRange = nil
+                    parent.onMentionQuery?(nil, nil)
+                    return
+                }
+            }
+            
+            // Extract the query text after @
+            let queryStartIndex = textBeforeCursor.index(after: atIndex)
+            let queryText = String(textBeforeCursor[queryStartIndex...])
+            
+            // Query should not contain spaces (would end the mention)
+            if queryText.contains(" ") || queryText.contains("\n") {
+                currentMentionRange = nil
+                parent.onMentionQuery?(nil, nil)
+                return
+            }
+            
+            // Store the mention range for later replacement
+            let mentionRange = NSRange(location: atPosition, length: queryText.count + 1)
+            currentMentionRange = mentionRange
+            
+            // Get the screen position for the popup
+            guard let layoutManager = textView.layoutManager,
+                  let textContainer = textView.textContainer,
+                  let window = textView.window else {
+                parent.onMentionQuery?(nil, nil)
+                return
+            }
+            
+            let nsRange = NSRange(location: cursorLocation, length: 0)
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: nsRange, actualCharacterRange: nil)
+            var boundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            
+            // Adjust for text container inset
+            boundingRect.origin.x += textView.textContainerInset.width
+            boundingRect.origin.y += textView.textContainerInset.height
+            
+            // Convert to screen coordinates
+            let pointInTextView = CGPoint(x: boundingRect.origin.x, y: boundingRect.origin.y + boundingRect.height)
+            let pointInWindow = textView.convert(pointInTextView, to: nil)
+            let screenPoint = window.convertPoint(toScreen: pointInWindow)
+            
+            let mentionQuery = MentionQuery(
+                query: queryText,
+                range: mentionRange,
+                position: pointInTextView
+            )
+            
+            parent.onMentionQuery?(mentionQuery, screenPoint)
+        }
+        
+        /// Insert a mention suggestion at the given range
+        func insertMention(suggestion: MentionSuggestion, at range: NSRange, in textView: NSTextView) {
+            guard let textStorage = textView.textStorage else { return }
+            
+            isProgrammaticUpdate = true
+            
+            // Create the mention attachment
+            let attachment = MentionTextAttachment(
+                displayName: suggestion.displayName,
+                fileURL: suggestion.url
+            )
+            
+            // Create attributed string with the attachment
+            let attachmentString = NSAttributedString(attachment: attachment)
+            
+            // Add a space after the attachment for easier editing
+            let spaceString = NSAttributedString(string: " ", attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+                .foregroundColor: NSColor.labelColor
+            ])
+            
+            let combinedString = NSMutableAttributedString()
+            combinedString.append(attachmentString)
+            combinedString.append(spaceString)
+            
+            // Replace the @query range with the attachment
+            textStorage.replaceCharacters(in: range, with: combinedString)
+            
+            // Move cursor to after the attachment and space
+            let newCursorPosition = range.location + combinedString.length
+            textView.setSelectedRange(NSRange(location: newCursorPosition, length: 0))
+            
+            // Reset typing attributes to normal
+            var typingAttrs = textView.typingAttributes
+            typingAttrs[.foregroundColor] = NSColor.labelColor
+            typingAttrs.removeValue(forKey: .attachment)
+            textView.typingAttributes = typingAttrs
+            
+            // Update parent state
+            parent.text = textView.string
+            parent.insertionPoint = newCursorPosition
+            currentMentionRange = nil
+            parent.onMentionQuery?(nil, nil)
+            
+            textView.invalidateIntrinsicContentSize()
+        }
+    }
+}
+
+// MARK: - Mention Text Attachment
+
+/// Custom text attachment that renders a mention as a styled tag
+class MentionTextAttachment: NSTextAttachment {
+    
+    let displayName: String
+    let fileURL: URL
+    
+    init(displayName: String, fileURL: URL) {
+        self.displayName = displayName
+        self.fileURL = fileURL
+        super.init(data: nil, ofType: nil)
+        
+        // Render and set the image immediately
+        self.image = renderTagImage()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func attachmentBounds(
+        for textContainer: NSTextContainer?,
+        proposedLineFragment lineFrag: CGRect,
+        glyphPosition position: CGPoint,
+        characterIndex charIndex: Int
+    ) -> CGRect {
+        guard let image = self.image else { return .zero }
+        let height = lineFrag.height - 2
+        let aspectRatio = image.size.width / image.size.height
+        let width = height * aspectRatio
+        
+        // Position lower in the line (negative yOffset moves it down in flipped coordinates)
+        let yOffset = -3.0
+        
+        return CGRect(x: 0, y: yOffset, width: width, height: height)
+    }
+    
+    private func renderTagImage() -> NSImage {
+        // Configuration
+        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let iconSize: CGFloat = 14
+        let horizontalPadding: CGFloat = 6
+        let verticalPadding: CGFloat = 3
+        let iconTextSpacing: CGFloat = 4
+        let cornerRadius: CGFloat = 5
+        
+        // Calculate text size
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white
+        ]
+        let textSize = displayName.size(withAttributes: textAttributes)
+        
+        // Calculate total size
+        let totalWidth = horizontalPadding + iconSize + iconTextSpacing + textSize.width + horizontalPadding
+        let totalHeight = max(textSize.height, iconSize) + verticalPadding * 2
+        
+        let size = CGSize(width: totalWidth, height: totalHeight)
+        
+        let image = NSImage(size: size, flipped: false) { rect in
+            // Draw rounded rectangle background with transparent blue
+            let bgColor = NSColor.systemBlue.withAlphaComponent(0.4)
+            let bgPath = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+            bgColor.setFill()
+            bgPath.fill()
+            
+            // Draw file icon from the file system
+            let iconRect = CGRect(
+                x: horizontalPadding,
+                y: (rect.height - iconSize) / 2,
+                width: iconSize,
+                height: iconSize
+            )
+            
+            // Get the actual file icon from the system
+            let fileIcon = NSWorkspace.shared.icon(forFile: self.fileURL.path)
+            fileIcon.draw(in: iconRect)
+            
+            // Draw text
+            let textRect = CGRect(
+                x: horizontalPadding + iconSize + iconTextSpacing,
+                y: (rect.height - textSize.height) / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            self.displayName.draw(in: textRect, withAttributes: textAttributes)
+            
+            return true
+        }
+        
+        return image
     }
 }
 

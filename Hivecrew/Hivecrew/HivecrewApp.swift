@@ -5,6 +5,7 @@
 //  Created by John Bean on 1/10/26.
 //
 
+import Combine
 import Sparkle
 import SwiftUI
 import SwiftData

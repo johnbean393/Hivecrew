@@ -85,6 +85,8 @@
 		209C61D32F12ABE300062D0E /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 209C61CB2F12ABE300062D0E /* Info.plist */; };
 		209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */; };
 		209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */; };
+		209EB6C62F1DFA0300A7F13F /* MentionSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */; };
+		209EB6C82F1DFEB200A7F13F /* MentionSuggestionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */; };
 		20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 20A0FC092F1D1707000A066A /* HivecrewAPI */; };
 		20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */; };
 		20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563982F1B74D200CA7546 /* CredentialManager.swift */; };
@@ -226,6 +228,8 @@
 		209C61CD2F12ABE300062D0E /* VMManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMManager.swift; sourceTree = "<group>"; };
 		209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVMRuntime.swift; sourceTree = "<group>"; };
 		209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestAgentConnection.swift; sourceTree = "<group>"; };
+		209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionSuggestion.swift; sourceTree = "<group>"; };
+		209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionSuggestionsPanel.swift; sourceTree = "<group>"; };
 		20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsSettingsView.swift; sourceTree = "<group>"; };
 		20A563982F1B74D200CA7546 /* CredentialManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialManager.swift; sourceTree = "<group>"; };
 		20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTracePanel.swift; sourceTree = "<group>"; };
@@ -317,6 +321,8 @@
 		204DF42E2F1571AB004AB99B /* Prompt Bar */ = {
 			isa = PBXGroup;
 			children = (
+				209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */,
+				209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */,
 				204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */,
 				204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */,
 				204DF42B2F1571AB004AB99B /* PromptBar.swift */,
@@ -809,6 +815,7 @@
 				209C61BD2F12ABD700062D0E /* HivecrewApp.swift in Sources */,
 				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
 				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
+				209EB6C82F1DFEB200A7F13F /* MentionSuggestionsPanel.swift in Sources */,
 				3001B0032F15000000000003 /* AgentQuestion.swift in Sources */,
 				204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */,
 				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
@@ -827,6 +834,7 @@
 				3001B0062F15000000000006 /* ToolExecutor.swift in Sources */,
 				3001B0072F15000000000007 /* TaskService.swift in Sources */,
 				2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */,
+				209EB6C62F1DFA0300A7F13F /* MentionSuggestion.swift in Sources */,
 				3001B0082F15000000000008 /* TaskTitleGenerator.swift in Sources */,
 				3001B0092F15000000000009 /* AgentStatePublisher.swift in Sources */,
 				3001B00A2F1500000000000A /* TaskInputView.swift in Sources */,
@@ -1020,7 +1028,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1034,7 +1042,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1056,7 +1064,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1070,7 +1078,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
