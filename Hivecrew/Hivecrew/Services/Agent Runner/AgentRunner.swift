@@ -63,6 +63,9 @@ final class AgentRunner {
     /// Input file names available in the inbox
     private let inputFileNames: [String]
     
+    /// Skills matched for this task
+    private let matchedSkills: [Skill]
+    
     /// Todo manager for tracking agent tasks
     let todoManager: TodoManager
     
@@ -98,6 +101,7 @@ final class AgentRunner {
         sessionPath: URL,
         statePublisher: AgentStatePublisher,
         inputFileNames: [String] = [],
+        matchedSkills: [Skill] = [],
         maxSteps: Int = 100,
         timeoutMinutes: Int = 30,
         taskService: TaskService
@@ -108,6 +112,7 @@ final class AgentRunner {
         self.connection = connection
         self.statePublisher = statePublisher
         self.inputFileNames = inputFileNames
+        self.matchedSkills = matchedSkills
         self.maxSteps = maxSteps
         self.timeoutMinutes = timeoutMinutes
         self.todoManager = TodoManager()
@@ -187,12 +192,18 @@ final class AgentRunner {
         
         statePublisher.logInfo("Screen dimensions: \(screenWidth)x\(screenHeight)")
         
-        // Initialize conversation with system prompt including screen dimensions and input files
+        // Log matched skills
+        if !matchedSkills.isEmpty {
+            statePublisher.logInfo("Matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
+        }
+        
+        // Initialize conversation with system prompt including screen dimensions, input files, and skills
         let systemPrompt = AgentPrompts.systemPrompt(
             task: task.taskDescription,
             screenWidth: screenWidth,
             screenHeight: screenHeight,
-            inputFiles: inputFileNames
+            inputFiles: inputFileNames,
+            skills: matchedSkills
         )
         conversationHistory = [.system(systemPrompt)]
         

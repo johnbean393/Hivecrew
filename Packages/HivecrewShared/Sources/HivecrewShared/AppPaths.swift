@@ -157,6 +157,46 @@ public enum AppPaths {
         templateBundlePath(id: id).appendingPathComponent("HardwareModel.bin")
     }
     
+    // MARK: - Skills Storage
+    
+    /// Directory containing all skills (Agent Skills spec)
+    /// Structure: Skills/{skill-name}/SKILL.md
+    public static let skillsDirectory: URL = {
+        let url = appSupportDirectory.appendingPathComponent("Skills", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+    
+    /// Returns the directory for a specific skill (name must match SKILL.md name field)
+    public static func skillDirectory(name: String) -> URL {
+        skillsDirectory.appendingPathComponent(name, isDirectory: true)
+    }
+    
+    /// Returns the SKILL.md file path for a skill
+    public static func skillFilePath(name: String) -> URL {
+        skillDirectory(name: name).appendingPathComponent("SKILL.md")
+    }
+    
+    /// Returns the scripts directory for a skill (optional per Agent Skills spec)
+    public static func skillScriptsDirectory(name: String) -> URL {
+        skillDirectory(name: name).appendingPathComponent("scripts", isDirectory: true)
+    }
+    
+    /// Returns the references directory for a skill (optional per Agent Skills spec)
+    public static func skillReferencesDirectory(name: String) -> URL {
+        skillDirectory(name: name).appendingPathComponent("references", isDirectory: true)
+    }
+    
+    /// Returns the assets directory for a skill (optional per Agent Skills spec)
+    public static func skillAssetsDirectory(name: String) -> URL {
+        skillDirectory(name: name).appendingPathComponent("assets", isDirectory: true)
+    }
+    
+    /// Human-readable path for skills storage (for display in UI)
+    public static var skillsDirectoryDisplayPath: String {
+        skillsDirectory.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+    }
+    
     // MARK: - Logs
     
     /// Directory for application logs

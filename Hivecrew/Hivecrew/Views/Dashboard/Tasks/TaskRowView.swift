@@ -168,6 +168,43 @@ struct TaskRowView: View {
         .sheet(isPresented: $showingTrace) {
             SessionTraceView(task: task)
         }
+        .contextMenu {
+            // View trace option
+            Button {
+                showingTrace = true
+            } label: {
+                Label("View Trace", systemImage: "list.bullet.rectangle")
+            }
+            
+            // Show deliverables
+            if let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
+                Button {
+                    showDeliverablesInFinder()
+                } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                }
+            }
+            
+            // Cancel option for active tasks
+            if task.status.isActive {
+                Divider()
+                Button(role: .destructive) {
+                    Task { await taskService.cancelTask(task) }
+                } label: {
+                    Label("Cancel", systemImage: "xmark.circle")
+                }
+            }
+            
+            // Delete option for inactive tasks
+            if !task.status.isActive {
+                Divider()
+                Button(role: .destructive) {
+                    Task { await taskService.deleteTask(task) }
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
         .padding(2)
     }
     

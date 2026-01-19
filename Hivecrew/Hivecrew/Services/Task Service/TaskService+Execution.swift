@@ -160,6 +160,72 @@ extension TaskService {
             // Create LLM client
             let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
             
+            // Get skills for this task (both explicitly mentioned and auto-matched)
+            var skillsToUse: [Skill] = []
+            let allSkills = skillManager.skills
+            
+            // First, add explicitly mentioned skills (user typed @skill-name)
+            if let mentionedNames = task.mentionedSkillNames, !mentionedNames.isEmpty {
+                let mentionedSkills = allSkills.filter { mentionedNames.contains($0.name) }
+                if !mentionedSkills.isEmpty {
+                    skillsToUse.append(contentsOf: mentionedSkills)
+                    statePublisher.logInfo("Using \(mentionedSkills.count) mentioned skill(s): \(mentionedSkills.map { $0.name }.joined(separator: ", "))")
+                }
+            }
+            
+            // Then, auto-match additional skills from enabled skills
+            let enabledSkills = skillManager.enabledSkills
+            let alreadyIncluded = Set(skillsToUse.map { $0.name })
+            let availableForMatching = enabledSkills.filter { !alreadyIncluded.contains($0.name) }
+            
+            if !availableForMatching.isEmpty {
+                do {
+                    statePublisher.logInfo("Matching additional skills for task...")
+                    let skillMatcher = SkillMatcher(llmClient: llmClient)
+                    let matchedSkills = try await skillMatcher.matchSkills(
+                        forTask: task.taskDescription,
+                        availableSkills: availableForMatching
+                    )
+                    if !matchedSkills.isEmpty {
+                        skillsToUse.append(contentsOf: matchedSkills)
+                        statePublisher.logInfo("Auto-matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
+                    } else {
+                        statePublisher.logInfo("No additional skills matched")
+                    }
+                } catch {
+                    // Skill matching is non-fatal, continue with just mentioned skills
+                    statePublisher.logInfo("Skill matching failed (non-fatal): \(error.localizedDescription)")
+                }
+            }
+            
+            // Copy skill scripts to the VM inbox (if any skills have scripts)
+            if !skillsToUse.isEmpty {
+                let inboxPath = AppPaths.vmInboxDirectory(id: vmId!)
+                do {
+                    let copiedSkills = try skillManager.copySkillScripts(for: skillsToUse, to: inboxPath)
+                    if !copiedSkills.isEmpty {
+                        statePublisher.logInfo("Copied scripts for \(copiedSkills.count) skill(s) to inbox")
+                        
+                        // Copy skill scripts from shared folder to guest Desktop
+                        let copyScriptsResult = try await connection.runShell(command: """
+                            for skill_dir in /Volumes/Shared/inbox/*/; do
+                                if [ -d "$skill_dir/scripts" ]; then
+                                    skill_name=$(basename "$skill_dir")
+                                    mkdir -p ~/Desktop/inbox/"$skill_name"/scripts
+                                    cp -R "$skill_dir"/scripts/* ~/Desktop/inbox/"$skill_name"/scripts/ 2>/dev/null
+                                    echo "Copied scripts for skill: $skill_name"
+                                fi
+                            done
+                            """, timeout: 30)
+                        if !copyScriptsResult.stdout.isEmpty {
+                            print("TaskService: Skill scripts copy result: \(copyScriptsResult.stdout)")
+                        }
+                    }
+                } catch {
+                    statePublisher.logInfo("Failed to copy skill scripts (non-fatal): \(error.localizedDescription)")
+                }
+            }
+            
             // Get timeout and max iterations from settings
             let timeoutMinutes = UserDefaults.standard.integer(forKey: "defaultTaskTimeoutMinutes")
             let maxIterations = UserDefaults.standard.integer(forKey: "defaultMaxIterations")
@@ -173,6 +239,7 @@ extension TaskService {
                 sessionPath: sessionPath,
                 statePublisher: statePublisher,
                 inputFileNames: inputFileNames,
+                matchedSkills: skillsToUse,
                 maxSteps: maxIterations > 0 ? maxIterations : 100,
                 timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 30,
                 taskService: self

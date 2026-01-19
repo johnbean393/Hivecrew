@@ -108,6 +108,10 @@ final class TaskRecord {
     /// If nil, uses the app's default output directory setting
     var outputDirectory: String?
     
+    /// Names of skills explicitly mentioned by the user via @skill-name
+    /// These skills will be force-included in addition to auto-matched skills
+    var mentionedSkillNames: [String]?
+    
     /// Whether the task was verified as successful by the completion check
     /// nil = not yet checked, true = verified success, false = verified failure
     var wasSuccessful: Bool?
@@ -128,7 +132,8 @@ final class TaskRecord {
         errorMessage: String? = nil,
         attachedFilePaths: [String] = [],
         outputFilePaths: [String]? = nil,
-        outputDirectory: String? = nil
+        outputDirectory: String? = nil,
+        mentionedSkillNames: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -146,6 +151,7 @@ final class TaskRecord {
         self.attachedFilePaths = attachedFilePaths
         self.outputFilePaths = outputFilePaths
         self.outputDirectory = outputDirectory
+        self.mentionedSkillNames = mentionedSkillNames
     }
     
     /// Computed status property

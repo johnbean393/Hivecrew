@@ -188,6 +188,10 @@ struct MentionSuggestionsPanelContent: View {
         suggestions.filter { $0.type == .deliverable }
     }
     
+    private var skills: [MentionSuggestion] {
+        suggestions.filter { $0.type == .skill }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Current Attachments section
@@ -221,6 +225,30 @@ struct MentionSuggestionsPanelContent: View {
                 
                 ForEach(Array(deliverables.enumerated()), id: \.element.id) { index, suggestion in
                     let globalIndex = attachments.count + index
+                    MentionSuggestionPanelRow(
+                        suggestion: suggestion,
+                        isSelected: globalIndex == selectedIndex
+                    )
+                    .frame(height: itemHeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelect(suggestion)
+                    }
+                    .onHover { isHovering in
+                        if isHovering {
+                            onHover(globalIndex)
+                        }
+                    }
+                }
+            }
+            
+            // Skills section
+            if !skills.isEmpty {
+                SectionHeader(title: "Skills")
+                    .frame(height: sectionHeaderHeight)
+                
+                ForEach(Array(skills.enumerated()), id: \.element.id) { index, suggestion in
+                    let globalIndex = attachments.count + deliverables.count + index
                     MentionSuggestionPanelRow(
                         suggestion: suggestion,
                         isSelected: globalIndex == selectedIndex
@@ -272,8 +300,12 @@ struct MentionSuggestionPanelRow: View {
     
     var body: some View {
         HStack(spacing: 10) {
-            // File icon
-            if let icon = suggestion.icon {
+            // Icon based on type
+            if suggestion.type == .skill {
+                Image(systemName: "sparkles")
+                    .frame(width: 22, height: 22)
+                    .foregroundStyle(.purple)
+            } else if let icon = suggestion.icon {
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -284,7 +316,7 @@ struct MentionSuggestionPanelRow: View {
                     .foregroundStyle(.secondary)
             }
             
-            // File name and path
+            // Name and detail
             VStack(alignment: .leading, spacing: 2) {
                 Text(suggestion.displayName)
                     .font(.system(size: 13, weight: .medium))
@@ -297,7 +329,7 @@ struct MentionSuggestionPanelRow: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .truncationMode(.head)
+                        .truncationMode(.tail)
                 }
             }
             
@@ -307,10 +339,12 @@ struct MentionSuggestionPanelRow: View {
         .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
         .contentShape(Rectangle())
         .contextMenu {
-            Button(action: {
-                NSWorkspace.shared.activateFileViewerSelecting([suggestion.url])
-            }) {
-                Text("Show in Finder")
+            if let url = suggestion.url {
+                Button(action: {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }) {
+                    Text("Show in Finder")
+                }
             }
         }
     }

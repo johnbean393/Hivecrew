@@ -125,6 +125,11 @@ struct HivecrewApp: App {
                 .modelContainer(sharedModelContainer)
         }
         
+        Window("Skills", id: "skills-window") {
+            SkillsWindow()
+        }
+        .defaultSize(width: 900, height: 600)
+        
     }
     
     /// Function to run on startup

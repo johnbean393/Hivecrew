@@ -41,7 +41,9 @@ final class MentionInsertionController: ObservableObject {
         textView.insertNewline(nil)
     }
     
-    /// Get the text with mention attachments replaced by their file paths
+    /// Get the text with mention attachments replaced
+    /// - File mentions become VM inbox paths
+    /// - Skill mentions become "{skill-name} skill" format
     func getResolvedText() -> String {
         guard let textView = textView,
               let textStorage = textView.textStorage else {
@@ -53,10 +55,25 @@ final class MentionInsertionController: ObservableObject {
         
         textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, range, _ in
             if let attachment = attributes[.attachment] as? MentionTextAttachment {
-                // Replace attachment with VM inbox path (where files are copied to in the VM)
-                let filename = attachment.fileURL.lastPathComponent
-                let vmPath = "/Users/hivecrew/Desktop/inbox/\(filename)"
-                resolvedText += "\"\(vmPath)\""
+                switch attachment.mentionType {
+                case .file:
+                    // Replace file attachment with VM inbox path
+                    if let fileURL = attachment.fileURL {
+                        let filename = fileURL.lastPathComponent
+                        let vmPath = "/Users/hivecrew/Desktop/inbox/\(filename)"
+                        resolvedText += "\"\(vmPath)\""
+                    }
+                case .skill:
+                    // Replace skill mention with "{skill-name} skill" format
+                    // Avoid duplicating "skill" if the name already ends with it
+                    if let skillName = attachment.skillName {
+                        if skillName.lowercased().hasSuffix("skill") || skillName.lowercased().hasSuffix("-skill") {
+                            resolvedText += skillName
+                        } else {
+                            resolvedText += "\(skillName) skill"
+                        }
+                    }
+                }
             } else {
                 // Regular text - extract from storage
                 let substring = textStorage.attributedSubstring(from: range).string
@@ -65,6 +82,27 @@ final class MentionInsertionController: ObservableObject {
         }
         
         return resolvedText
+    }
+    
+    /// Get the names of skills mentioned in the text
+    func getMentionedSkillNames() -> [String] {
+        guard let textView = textView,
+              let textStorage = textView.textStorage else {
+            return []
+        }
+        
+        var skillNames: [String] = []
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        
+        textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, _, _ in
+            if let attachment = attributes[.attachment] as? MentionTextAttachment,
+               attachment.mentionType == .skill,
+               let skillName = attachment.skillName {
+                skillNames.append(skillName)
+            }
+        }
+        
+        return skillNames
     }
 }
 
@@ -339,11 +377,21 @@ struct PromptTextEditor: NSViewRepresentable {
             
             isProgrammaticUpdate = true
             
-            // Create the mention attachment
-            let attachment = MentionTextAttachment(
-                displayName: suggestion.displayName,
-                fileURL: suggestion.url
-            )
+            // Create the mention attachment based on type
+            let attachment: MentionTextAttachment
+            switch suggestion.type {
+            case .skill:
+                attachment = MentionTextAttachment(
+                    displayName: suggestion.displayName,
+                    skillName: suggestion.skillName ?? suggestion.displayName
+                )
+            case .attachment, .deliverable:
+                guard let url = suggestion.url else { return }
+                attachment = MentionTextAttachment(
+                    displayName: suggestion.displayName,
+                    fileURL: url
+                )
+            }
             
             // Create attributed string with the attachment
             let attachmentString = NSAttributedString(attachment: attachment)

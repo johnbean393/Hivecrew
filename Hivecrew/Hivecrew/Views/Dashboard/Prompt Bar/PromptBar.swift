@@ -43,6 +43,9 @@ struct PromptBar: View {
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
     
+    // Mentioned skill names (populated on submit)
+    @Binding var mentionedSkillNames: [String]
+    
     // Send key configuration
     @AppStorage("useCommandReturn") private var useCommandReturn: Bool = true
     
@@ -279,6 +282,9 @@ struct PromptBar: View {
         guard !trimmed.isEmpty else { return }
         guard !selectedProviderId.isEmpty else { return }
         
+        // Get mentioned skill names before clearing
+        mentionedSkillNames = mentionInsertionController.getMentionedSkillNames()
+        
         // Update the text binding with resolved paths before submission
         text = resolvedText
         
@@ -295,9 +301,11 @@ struct PromptBar: View {
             // Insert the mention directly using the controller with the stored range
             mentionInsertionController.insert(suggestion: suggestion, at: range)
             
-            // Add the file as an attachment
-            Task {
-                await addAttachment(suggestion.url)
+            // Add files as attachments (but not skills)
+            if suggestion.type != .skill, let url = suggestion.url {
+                Task {
+                    await addAttachment(url)
+                }
             }
             
             // Clear state
@@ -414,6 +422,7 @@ struct PromptBar: View {
         @State var providerId = ""
         @State var modelId = ""
         @State var isSubmitting = false
+        @State var mentionedSkills: [String] = []
         
         var body: some View {
             VStack {
@@ -424,6 +433,7 @@ struct PromptBar: View {
                     attachments: $attachments,
                     selectedProviderId: $providerId,
                     selectedModelId: $modelId,
+                    mentionedSkillNames: $mentionedSkills,
                     onSubmit: {
                         isSubmitting = true
                         try? await Task.sleep(for: .seconds(1))

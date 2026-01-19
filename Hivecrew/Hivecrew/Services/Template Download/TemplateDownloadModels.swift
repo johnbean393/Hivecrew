@@ -5,6 +5,7 @@
 //  Models and types for template downloads
 //
 
+import Combine
 import Foundation
 
 /// Configuration for remote template downloads

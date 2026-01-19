@@ -47,6 +47,9 @@ class TaskService: ObservableObject {
     private let titleGenerator: TaskTitleGenerator
     var modelContext: ModelContext?
     
+    /// Skill manager for loading and matching skills
+    let skillManager: SkillManager
+    
     /// Combine subscriptions for state publisher observations
     var cancellables: [String: AnyCancellable] = [:]
     
@@ -62,6 +65,7 @@ class TaskService: ObservableObject {
         self.vmRuntime = vmRuntime
         self.vmServiceClient = vmServiceClient
         self.titleGenerator = TaskTitleGenerator()
+        self.skillManager = SkillManager()
     }
     
     /// Set the model context for SwiftData operations
@@ -83,7 +87,8 @@ class TaskService: ObservableObject {
         providerId: String,
         modelId: String,
         attachedFilePaths: [String] = [],
-        outputDirectory: String? = nil
+        outputDirectory: String? = nil,
+        mentionedSkillNames: [String] = []
     ) async throws -> TaskRecord {
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
@@ -100,7 +105,8 @@ class TaskService: ObservableObject {
             providerId: providerId,
             modelId: modelId,
             attachedFilePaths: attachedFilePaths,
-            outputDirectory: outputDirectory
+            outputDirectory: outputDirectory,
+            mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames
         )
         
         // Save to SwiftData

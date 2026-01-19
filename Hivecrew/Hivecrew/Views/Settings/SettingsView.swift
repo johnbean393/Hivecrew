@@ -43,7 +43,7 @@ struct SettingsView: View {
             apiTab
             developerTab
         }
-        .frame(width: 550, height: 500)
+        .frame(width: 650, height: 500)
     }
     
     // MARK: - Tabs

@@ -19,6 +19,7 @@ struct TaskInputView: View {
     @State private var taskDescription: String = ""
     @State private var attachments: [PromptAttachment] = []
     @State private var isSubmitting: Bool = false
+    @State private var mentionedSkillNames: [String] = []
     
     // Persisted selections
     @AppStorage("lastSelectedProviderId") private var selectedProviderId: String = ""
@@ -30,6 +31,7 @@ struct TaskInputView: View {
             attachments: $attachments,
             selectedProviderId: $selectedProviderId,
             selectedModelId: $selectedModelId,
+            mentionedSkillNames: $mentionedSkillNames,
             onSubmit: {
                 await submitTask()
             },
@@ -77,12 +79,14 @@ struct TaskInputView: View {
                 description: taskDescription.trimmingCharacters(in: .whitespacesAndNewlines),
                 providerId: effectiveProviderId,
                 modelId: effectiveModelId,
-                attachedFilePaths: filePaths
+                attachedFilePaths: filePaths,
+                mentionedSkillNames: mentionedSkillNames
             )
             
             // Clear input
             taskDescription = ""
             attachments = []
+            mentionedSkillNames = []
         } catch {
             print("Failed to create task: \(error)")
         }

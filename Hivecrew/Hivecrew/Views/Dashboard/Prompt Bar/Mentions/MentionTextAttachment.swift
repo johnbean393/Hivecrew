@@ -7,15 +7,38 @@
 
 import AppKit
 
+/// Type of mention represented by the attachment
+enum MentionType {
+    case file
+    case skill
+}
+
 /// Custom text attachment that renders a mention as a styled tag
 class MentionTextAttachment: NSTextAttachment {
     
     let displayName: String
-    let fileURL: URL
+    let fileURL: URL?
+    let skillName: String?
+    let mentionType: MentionType
     
+    /// Initialize with a file URL
     init(displayName: String, fileURL: URL) {
         self.displayName = displayName
         self.fileURL = fileURL
+        self.skillName = nil
+        self.mentionType = .file
+        super.init(data: nil, ofType: nil)
+        
+        // Render and set the image immediately
+        self.image = renderTagImage()
+    }
+    
+    /// Initialize with a skill name
+    init(displayName: String, skillName: String) {
+        self.displayName = displayName
+        self.fileURL = nil
+        self.skillName = skillName
+        self.mentionType = .skill
         super.init(data: nil, ofType: nil)
         
         // Render and set the image immediately
@@ -68,13 +91,19 @@ class MentionTextAttachment: NSTextAttachment {
         let size = CGSize(width: totalWidth, height: totalHeight)
         
         let image = NSImage(size: size, flipped: false) { rect in
-            // Draw rounded rectangle background with transparent blue
-            let bgColor = NSColor.systemBlue.withAlphaComponent(0.4)
+            // Draw rounded rectangle background
+            let bgColor: NSColor
+            switch self.mentionType {
+            case .file:
+                bgColor = NSColor.systemBlue.withAlphaComponent(0.4)
+            case .skill:
+                bgColor = NSColor.systemPurple.withAlphaComponent(0.4)
+            }
             let bgPath = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
             bgColor.setFill()
             bgPath.fill()
             
-            // Draw file icon from the file system
+            // Draw icon
             let iconRect = CGRect(
                 x: horizontalPadding,
                 y: (rect.height - iconSize) / 2,
@@ -82,9 +111,21 @@ class MentionTextAttachment: NSTextAttachment {
                 height: iconSize
             )
             
-            // Get the actual file icon from the system
-            let fileIcon = NSWorkspace.shared.icon(forFile: self.fileURL.path)
-            fileIcon.draw(in: iconRect)
+            switch self.mentionType {
+            case .file:
+                // Get the actual file icon from the system
+                if let url = self.fileURL {
+                    let fileIcon = NSWorkspace.shared.icon(forFile: url.path)
+                    fileIcon.draw(in: iconRect)
+                }
+            case .skill:
+                // Draw sparkles symbol for skills
+                let symbolConfig = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
+                if let symbolImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)?
+                    .withSymbolConfiguration(symbolConfig) {
+                    symbolImage.draw(in: iconRect)
+                }
+            }
             
             // Draw text
             let textRect = CGRect(

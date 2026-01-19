@@ -16,6 +16,8 @@ import MarkdownView
 struct SessionTraceView: View {
     
     let task: TaskRecord
+    @EnvironmentObject var taskService: TaskService
+    
     @State private var traceContent: String = ""
     @State private var isLoading: Bool = true
     @State private var errorMessage: String?
@@ -27,6 +29,7 @@ struct SessionTraceView: View {
     @State var currentScreenshotStep: Int = 0
     @State var isExportingVideo: Bool = false
     @State var exportProgress: Double = 0
+    @State var showingSkillExtraction: Bool = false
     
     /// The last LLM text response (from session_end summary or llm_response with no tool calls)
     var lastLLMTextResponse: String? {
@@ -60,6 +63,9 @@ struct SessionTraceView: View {
             loadTrace()
         }
         .quickLookPreview($quickLookURL)
+        .sheet(isPresented: $showingSkillExtraction) {
+            SkillExtractionSheet(task: task, taskService: taskService)
+        }
     }
     
     // MARK: - Main Content View

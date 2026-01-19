@@ -293,6 +293,13 @@ extension SessionTraceView {
         .padding()
     }
     
+    /// Whether this task can have a skill extracted
+    private var canExtractSkill: Bool {
+        task.status == .completed &&
+        task.wasSuccessful == true &&
+        task.sessionId != nil
+    }
+    
     var tracePanelFooter: some View {
         HStack(spacing: 16) {
             
@@ -309,6 +316,21 @@ extension SessionTraceView {
                 .buttonStyle(.plain)
                 .foregroundStyle(.blue)
                 .help("Show deliverables in Finder")
+            }
+            
+            // Extract skill button (for completed successful tasks)
+            if canExtractSkill {
+                Button(action: { showingSkillExtraction = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.caption2)
+                        Text("Extract Skill")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.purple)
+                .help("Create a reusable skill from this task")
             }
             
             Spacer()

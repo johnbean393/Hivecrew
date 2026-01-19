@@ -5,6 +5,7 @@
 //  Settings view for managing stored authentication credentials
 //
 
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 

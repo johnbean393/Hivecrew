@@ -10,6 +10,8 @@ import UniformTypeIdentifiers
 
 /// Tasks settings tab - operating limits, output directory, and web tools
 struct TaskDefaultsSettingsView: View {
+    @Environment(\.openWindow) private var openWindow
+    
     // Task limits
     @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 30
     @AppStorage("defaultMaxIterations") private var defaultMaxIterations = 100
@@ -39,6 +41,7 @@ struct TaskDefaultsSettingsView: View {
             limitsSection
             outputSection
             webToolsSection
+            skillsSection
         }
         .formStyle(.grouped)
         .padding()
@@ -168,6 +171,28 @@ struct TaskDefaultsSettingsView: View {
             Text("Configure the search engine and default result count for the web_search tool.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+    
+    // MARK: - Skills Section
+    
+    private var skillsSection: some View {
+        Section("Agent Skills") {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Skills")
+                        .font(.headline)
+                    Text("Reusable instructions that enhance agent capabilities")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button("Manage Skills...") {
+                    openWindow(id: "skills-window")
+                }
+            }
         }
     }
     

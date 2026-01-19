@@ -7,22 +7,41 @@
 
 import Foundation
 import HivecrewLLM
+import HivecrewShared
 
 /// System prompts for the agent
 enum AgentPrompts {
     
     /// Generate the system prompt for the agent
-    static func systemPrompt(task: String, screenWidth: Int = 1344, screenHeight: Int = 840, inputFiles: [String] = []) -> String {
+    /// - Parameters:
+    ///   - task: The task description
+    ///   - screenWidth: Screen width in pixels
+    ///   - screenHeight: Screen height in pixels
+    ///   - inputFiles: List of input file names
+    ///   - skills: Optional array of skills to inject into the prompt
+    static func systemPrompt(
+        task: String,
+        screenWidth: Int = 1344,
+        screenHeight: Int = 840,
+        inputFiles: [String] = [],
+        skills: [Skill] = []
+    ) -> String {
         var filesSection = ""
         if !inputFiles.isEmpty {
-            let fileList = inputFiles.map { "  - ~/Desktop/inbox/\($0)" }.joined(separator: "\n")
+            let treeView = buildTreeView(files: inputFiles)
             filesSection = """
             
             INPUT FILES:
             The user has provided the following files for you to work with:
-            \(fileList)
+            \(treeView)
             
             """
+        }
+        
+        // Build skills section
+        var skillsSection = ""
+        if !skills.isEmpty {
+            skillsSection = buildSkillsSection(skills: skills)
         }
         
         return """
@@ -89,9 +108,91 @@ TIPS:
 - Wait briefly after actions that cause animations or page loads.
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
 - Use LibreOffice for creating documents
-
+\(skillsSection)
 When the task is complete, stop calling tools and respond with a summary of what you accomplished.
 """
+    }
+    
+    /// Build the skills section for the system prompt
+    private static func buildSkillsSection(skills: [Skill]) -> String {
+        guard !skills.isEmpty else { return "" }
+        
+        var section = """
+        
+        AVAILABLE SKILLS:
+        The following skills may help you complete this task. Follow their instructions when applicable. Scripts for skills can be found in `~/Desktop/inbox/{skill-name}/scripts/`.
+        
+        """
+        
+        for skill in skills {
+            section += """
+            ---
+            ## \(skill.name) Skill
+            \(skill.description)
+            
+            \(skill.instructions)
+            ---
+            
+            """
+        }
+        
+        return section
+    }
+    
+    /// Build a tree view representation of file paths
+    private static func buildTreeView(files: [String]) -> String {
+        // Build a nested dictionary structure from file paths
+        class TreeNode {
+            var children: [String: TreeNode] = [:]
+            var isFile: Bool = false
+        }
+        
+        let root = TreeNode()
+        
+        for file in files {
+            let components = file.split(separator: "/").map(String.init)
+            var current = root
+            
+            for (index, component) in components.enumerated() {
+                if current.children[component] == nil {
+                    current.children[component] = TreeNode()
+                }
+                current = current.children[component]!
+                if index == components.count - 1 {
+                    current.isFile = true
+                }
+            }
+        }
+        
+        // Render the tree
+        func renderNode(_ node: TreeNode, prefix: String, isLast: Bool, isRoot: Bool) -> [String] {
+            var lines: [String] = []
+            let sortedKeys = node.children.keys.sorted()
+            
+            for (index, key) in sortedKeys.enumerated() {
+                let child = node.children[key]!
+                let isLastChild = index == sortedKeys.count - 1
+                let connector = isLastChild ? "└── " : "├── "
+                let childPrefix = isLastChild ? "    " : "│   "
+                
+                let displayName = child.isFile && child.children.isEmpty ? key : "\(key)/"
+                lines.append("\(prefix)\(connector)\(displayName)")
+                
+                if !child.children.isEmpty {
+                    lines.append(contentsOf: renderNode(child, prefix: prefix + childPrefix, isLast: isLastChild, isRoot: false))
+                }
+            }
+            
+            return lines
+        }
+        
+        var result = "~/Desktop/inbox/"
+        let treeLines = renderNode(root, prefix: "", isLast: true, isRoot: true)
+        if !treeLines.isEmpty {
+            result += "\n" + treeLines.joined(separator: "\n")
+        }
+        
+        return result
     }
     
     /// Generate a structured completion verification prompt

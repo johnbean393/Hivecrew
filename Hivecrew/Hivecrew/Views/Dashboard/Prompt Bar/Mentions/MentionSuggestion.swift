@@ -9,6 +9,7 @@ import AppKit
 import Combine
 import Foundation
 import UniformTypeIdentifiers
+import HivecrewShared
 
 /// A suggestion item for @mention autocomplete
 struct MentionSuggestion: Identifiable, Equatable {
@@ -17,15 +18,20 @@ struct MentionSuggestion: Identifiable, Equatable {
     enum SuggestionType: Equatable {
         case attachment
         case deliverable
+        case skill
     }
     
     let id: String
     let displayName: String
     let detail: String?
     let icon: NSImage?
-    let url: URL
+    let url: URL?
     let type: SuggestionType
     
+    /// For skill suggestions, the skill name
+    let skillName: String?
+    
+    /// Initialize with a file URL (for attachments and deliverables)
     init(url: URL, type: SuggestionType) {
         self.id = url.absoluteString
         self.displayName = url.lastPathComponent
@@ -33,6 +39,18 @@ struct MentionSuggestion: Identifiable, Equatable {
         self.url = url
         self.type = type
         self.icon = NSWorkspace.shared.icon(forFile: url.path)
+        self.skillName = nil
+    }
+    
+    /// Initialize with a skill
+    init(skill: Skill) {
+        self.id = "skill:\(skill.name)"
+        self.displayName = skill.name
+        self.detail = String(skill.description.prefix(60)) + (skill.description.count > 60 ? "..." : "")
+        self.url = nil
+        self.type = .skill
+        self.icon = nil
+        self.skillName = skill.name
     }
     
     static func == (lhs: MentionSuggestion, rhs: MentionSuggestion) -> Bool {
@@ -40,8 +58,8 @@ struct MentionSuggestion: Identifiable, Equatable {
     }
 }
 
-/// Provides file suggestions for @mentions
-/// Shows current attachments and recent deliverables from output directory
+/// Provides file and skill suggestions for @mentions
+/// Shows current attachments, recent deliverables, and available skills
 @MainActor
 final class MentionSuggestionsProvider: ObservableObject {
     
@@ -54,17 +72,24 @@ final class MentionSuggestionsProvider: ObservableObject {
     /// Current attachment suggestions (updated via updateAttachments)
     private var attachmentSuggestions: [MentionSuggestion] = []
     
+    /// Available skill suggestions
+    private var skillSuggestions: [MentionSuggestion] = []
+    
+    /// Skill manager for loading skills
+    private let skillManager = SkillManager()
+    
     /// Combined suggestions for filtering (deduplicated)
     private var allSuggestions: [MentionSuggestion] {
         // Get attachment URLs to filter duplicates
-        let attachmentURLs = Set(attachmentSuggestions.map { $0.url })
+        let attachmentURLs = Set(attachmentSuggestions.compactMap { $0.url })
         
         // Filter deliverables that aren't already attachments
         let filteredDeliverables = deliverableSuggestions.filter { suggestion in
-            !attachmentURLs.contains(suggestion.url)
+            guard let url = suggestion.url else { return true }
+            return !attachmentURLs.contains(url)
         }
         
-        return attachmentSuggestions + filteredDeliverables
+        return attachmentSuggestions + filteredDeliverables + skillSuggestions
     }
     
     /// The configured output directory for deliverables
@@ -79,6 +104,7 @@ final class MentionSuggestionsProvider: ObservableObject {
     
     init() {
         loadDeliverables()
+        loadSkills()
     }
     
     /// Update the current attachments to show in suggestions
@@ -159,6 +185,23 @@ final class MentionSuggestionsProvider: ObservableObject {
         }
     }
     
+    /// Load available skills
+    func loadSkills() {
+        Task {
+            do {
+                let skills = try await skillManager.loadAllSkills()
+                await MainActor.run {
+                    self.skillSuggestions = skills
+                        .filter { $0.isEnabled }
+                        .map { MentionSuggestion(skill: $0) }
+                    self.updateSuggestions()
+                }
+            } catch {
+                print("MentionSuggestionsProvider: Failed to load skills: \(error)")
+            }
+        }
+    }
+    
     /// Filter suggestions based on query
     /// Returns empty if query is empty (user must type at least one character after @)
     func filter(query: String) {
@@ -176,9 +219,10 @@ final class MentionSuggestionsProvider: ObservableObject {
         suggestions = Array(filtered.prefix(8))
     }
     
-    /// Refresh the deliverables cache
+    /// Refresh the deliverables and skills cache
     func refresh() {
         loadDeliverables()
+        loadSkills()
     }
     
     /// Update displayed suggestions from current state

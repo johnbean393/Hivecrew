@@ -5,6 +5,7 @@
 //  Delegate-based downloader for efficient large file downloads with resume support
 //
 
+import Combine
 import Foundation
 
 /// Delegate-based downloader for efficient large file downloads with resume support

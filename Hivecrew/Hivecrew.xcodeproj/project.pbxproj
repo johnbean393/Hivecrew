@@ -101,6 +101,12 @@
 		209EB6E12F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E02F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift */; };
 		209EB6E22F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6DF2F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift */; };
 		209EB6E42F1E1A6300A7F13F /* ToolExecutor+WebTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */; };
+		209EB6EA2F1E26D000A7F13F /* SkillExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E52F1E26D000A7F13F /* SkillExtractor.swift */; };
+		209EB6EB2F1E26D000A7F13F /* SkillMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E72F1E26D000A7F13F /* SkillMatcher.swift */; };
+		209EB6EC2F1E26D000A7F13F /* SkillManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E62F1E26D000A7F13F /* SkillManager.swift */; };
+		209EB6ED2F1E26D000A7F13F /* SkillMatcherTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E82F1E26D000A7F13F /* SkillMatcherTypes.swift */; };
+		209EB6F22F1E284700A7F13F /* SkillExtractionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6F02F1E284700A7F13F /* SkillExtractionSheet.swift */; };
+		209EB6F42F1E2BD800A7F13F /* SkillsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6F32F1E2BD800A7F13F /* SkillsWindow.swift */; };
 		20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 20A0FC092F1D1707000A066A /* HivecrewAPI */; };
 		20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */; };
 		20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563982F1B74D200CA7546 /* CredentialManager.swift */; };
@@ -258,6 +264,12 @@
 		209EB6DF2F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TemplateDownloadService+Extraction.swift"; sourceTree = "<group>"; };
 		209EB6E02F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TemplateDownloadService+UpdateChecking.swift"; sourceTree = "<group>"; };
 		209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+WebTools.swift"; sourceTree = "<group>"; };
+		209EB6E52F1E26D000A7F13F /* SkillExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillExtractor.swift; sourceTree = "<group>"; };
+		209EB6E62F1E26D000A7F13F /* SkillManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillManager.swift; sourceTree = "<group>"; };
+		209EB6E72F1E26D000A7F13F /* SkillMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillMatcher.swift; sourceTree = "<group>"; };
+		209EB6E82F1E26D000A7F13F /* SkillMatcherTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillMatcherTypes.swift; sourceTree = "<group>"; };
+		209EB6F02F1E284700A7F13F /* SkillExtractionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillExtractionSheet.swift; sourceTree = "<group>"; };
+		209EB6F32F1E2BD800A7F13F /* SkillsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsWindow.swift; sourceTree = "<group>"; };
 		20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsSettingsView.swift; sourceTree = "<group>"; };
 		20A563982F1B74D200CA7546 /* CredentialManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialManager.swift; sourceTree = "<group>"; };
 		20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTracePanel.swift; sourceTree = "<group>"; };
@@ -347,26 +359,16 @@
 			path = Onboarding;
 			sourceTree = "<group>";
 		};
-		AAAA00012F1E200000000001 /* Mentions */ = {
-			isa = PBXGroup;
-			children = (
-				209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */,
-				209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */,
-				209EB6CD2F1E17F000A7F13F /* MentionTextAttachment.swift */,
-			);
-			path = Mentions;
-			sourceTree = "<group>";
-		};
 		204DF42E2F1571AB004AB99B /* Prompt Bar */ = {
 			isa = PBXGroup;
 			children = (
-				AAAA00012F1E200000000001 /* Mentions */,
 				209EB6CE2F1E17F000A7F13F /* PromptTextView.swift */,
 				204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */,
 				204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */,
 				204DF42B2F1571AB004AB99B /* PromptBar.swift */,
 				204DF42C2F1571AB004AB99B /* PromptModelButton.swift */,
 				204DF42D2F1571AB004AB99B /* PromptTextEditor.swift */,
+				AAAA00012F1E200000000001 /* Mentions */,
 			);
 			path = "Prompt Bar";
 			sourceTree = "<group>";
@@ -450,43 +452,10 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		AAAA00022F1E200000000002 /* API */ = {
-			isa = PBXGroup;
-			children = (
-				2052ACB32F1D1984007E4475 /* APIKeyManager.swift */,
-				2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */,
-				2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */,
-				2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */,
-				209EB6D92F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift */,
-			);
-			path = API;
-			sourceTree = "<group>";
-		};
-		AAAA00032F1E200000000003 /* Template Download */ = {
-			isa = PBXGroup;
-			children = (
-				209EB6C92F1E174200A7F13F /* ResumableDownloader.swift */,
-				209EB6CA2F1E174200A7F13F /* TemplateDownloadModels.swift */,
-				204DF44C2F15A957004AB99B /* TemplateDownloadService.swift */,
-				209EB6DF2F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift */,
-				209EB6E02F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift */,
-			);
-			path = "Template Download";
-			sourceTree = "<group>";
-		};
-		AAAA00042F1E200000000004 /* Tool Executor */ = {
-			isa = PBXGroup;
-			children = (
-				3001A0062F15000000000006 /* ToolExecutor.swift */,
-				209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */,
-				209EB6DD2F1E19B400A7F13F /* ToolExecutorTypes.swift */,
-			);
-			path = "Tool Executor";
-			sourceTree = "<group>";
-		};
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				209EB6E92F1E26D000A7F13F /* Skills */,
 				AAAA00022F1E200000000002 /* API */,
 				AAAA00032F1E200000000003 /* Template Download */,
 				AAAA00042F1E200000000004 /* Tool Executor */,
@@ -506,26 +475,6 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		AAAA00052F1E200000000005 /* Session Trace */ = {
-			isa = PBXGroup;
-			children = (
-				204DF43C2F157424004AB99B /* SessionTraceModels.swift */,
-				3001A0102F15000000000010 /* SessionTraceView.swift */,
-				204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */,
-			);
-			path = "Session Trace";
-			sourceTree = "<group>";
-		};
-		AAAA00062F1E200000000006 /* Tasks */ = {
-			isa = PBXGroup;
-			children = (
-				3001A00A2F1500000000000A /* TaskInputView.swift */,
-				3001A00B2F1500000000000B /* TaskListView.swift */,
-				3001A00C2F1500000000000C /* TaskRowView.swift */,
-			);
-			path = Tasks;
-			sourceTree = "<group>";
-		};
 		209C618C2F12ABD700062D0E /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
@@ -536,26 +485,6 @@
 				209C618B2F12ABD700062D0E /* StatCard.swift */,
 			);
 			path = Dashboard;
-			sourceTree = "<group>";
-		};
-		AAAA00072F1E200000000007 /* Credentials */ = {
-			isa = PBXGroup;
-			children = (
-				209EB6D12F1E188400A7F13F /* CredentialImportSheet.swift */,
-				209EB6D22F1E188400A7F13F /* CredentialRowView.swift */,
-				209EB6D32F1E188400A7F13F /* CredentialSheets.swift */,
-				20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */,
-			);
-			path = Credentials;
-			sourceTree = "<group>";
-		};
-		AAAA00082F1E200000000008 /* Providers */ = {
-			isa = PBXGroup;
-			children = (
-				209EB6DB2F1E194800A7F13F /* ProviderEditSheet.swift */,
-				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
-			);
-			path = Providers;
 			sourceTree = "<group>";
 		};
 		209C61932F12ABD700062D0E /* Settings */ = {
@@ -570,29 +499,6 @@
 				209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */,
 			);
 			path = Settings;
-			sourceTree = "<group>";
-		};
-		AAAA00092F1E200000000009 /* Agent */ = {
-			isa = PBXGroup;
-			children = (
-				3001A00E2F1500000000000E /* AgentActivityStreamView.swift */,
-				209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */,
-				3001A00F2F1500000000000F /* AgentStatusBar.swift */,
-				20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */,
-			);
-			path = Agent;
-			sourceTree = "<group>";
-		};
-		AAAA000A2F1E20000000000A /* VM */ = {
-			isa = PBXGroup;
-			children = (
-				209C61982F12ABD700062D0E /* VMDetailView.swift */,
-				209C61992F12ABD700062D0E /* VMDisplayContainer.swift */,
-				209C619A2F12ABD700062D0E /* VMDisplayView.swift */,
-				209C619B2F12ABD700062D0E /* VMInfoBar.swift */,
-				209C619E2F12ABD700062D0E /* VMPlaceholderView.swift */,
-			);
-			path = VM;
 			sourceTree = "<group>";
 		};
 		209C619F2F12ABD700062D0E /* Environments */ = {
@@ -611,6 +517,7 @@
 				20C413EB2F142C6B00C6E8A9 /* App */,
 				3001C0012F15000000000001 /* Agent */,
 				209C618C2F12ABD700062D0E /* Dashboard */,
+				209EB6F12F1E284700A7F13F /* Skills */,
 				209C619F2F12ABD700062D0E /* Environments */,
 				209C61932F12ABD700062D0E /* Settings */,
 				2049633A2F17DDAC007DD5FD /* Updates */,
@@ -666,6 +573,26 @@
 			path = HivecrewVMService;
 			sourceTree = "<group>";
 		};
+		209EB6E92F1E26D000A7F13F /* Skills */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6E52F1E26D000A7F13F /* SkillExtractor.swift */,
+				209EB6E62F1E26D000A7F13F /* SkillManager.swift */,
+				209EB6E72F1E26D000A7F13F /* SkillMatcher.swift */,
+				209EB6E82F1E26D000A7F13F /* SkillMatcherTypes.swift */,
+			);
+			path = Skills;
+			sourceTree = "<group>";
+		};
+		209EB6F12F1E284700A7F13F /* Skills */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6F32F1E2BD800A7F13F /* SkillsWindow.swift */,
+				209EB6F02F1E284700A7F13F /* SkillExtractionSheet.swift */,
+			);
+			path = Skills;
+			sourceTree = "<group>";
+		};
 		20C413EB2F142C6B00C6E8A9 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -691,6 +618,113 @@
 				3001A00D2F1500000000000D /* AgentQuestionSheet.swift */,
 			);
 			path = Agent;
+			sourceTree = "<group>";
+		};
+		AAAA00012F1E200000000001 /* Mentions */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */,
+				209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */,
+				209EB6CD2F1E17F000A7F13F /* MentionTextAttachment.swift */,
+			);
+			path = Mentions;
+			sourceTree = "<group>";
+		};
+		AAAA00022F1E200000000002 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				2052ACB32F1D1984007E4475 /* APIKeyManager.swift */,
+				2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */,
+				2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */,
+				2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */,
+				209EB6D92F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift */,
+			);
+			path = API;
+			sourceTree = "<group>";
+		};
+		AAAA00032F1E200000000003 /* Template Download */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6C92F1E174200A7F13F /* ResumableDownloader.swift */,
+				209EB6CA2F1E174200A7F13F /* TemplateDownloadModels.swift */,
+				204DF44C2F15A957004AB99B /* TemplateDownloadService.swift */,
+				209EB6DF2F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift */,
+				209EB6E02F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift */,
+			);
+			path = "Template Download";
+			sourceTree = "<group>";
+		};
+		AAAA00042F1E200000000004 /* Tool Executor */ = {
+			isa = PBXGroup;
+			children = (
+				3001A0062F15000000000006 /* ToolExecutor.swift */,
+				209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */,
+				209EB6DD2F1E19B400A7F13F /* ToolExecutorTypes.swift */,
+			);
+			path = "Tool Executor";
+			sourceTree = "<group>";
+		};
+		AAAA00052F1E200000000005 /* Session Trace */ = {
+			isa = PBXGroup;
+			children = (
+				204DF43C2F157424004AB99B /* SessionTraceModels.swift */,
+				3001A0102F15000000000010 /* SessionTraceView.swift */,
+				204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */,
+			);
+			path = "Session Trace";
+			sourceTree = "<group>";
+		};
+		AAAA00062F1E200000000006 /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				3001A00A2F1500000000000A /* TaskInputView.swift */,
+				3001A00B2F1500000000000B /* TaskListView.swift */,
+				3001A00C2F1500000000000C /* TaskRowView.swift */,
+			);
+			path = Tasks;
+			sourceTree = "<group>";
+		};
+		AAAA00072F1E200000000007 /* Credentials */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6D12F1E188400A7F13F /* CredentialImportSheet.swift */,
+				209EB6D22F1E188400A7F13F /* CredentialRowView.swift */,
+				209EB6D32F1E188400A7F13F /* CredentialSheets.swift */,
+				20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */,
+			);
+			path = Credentials;
+			sourceTree = "<group>";
+		};
+		AAAA00082F1E200000000008 /* Providers */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6DB2F1E194800A7F13F /* ProviderEditSheet.swift */,
+				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
+			);
+			path = Providers;
+			sourceTree = "<group>";
+		};
+		AAAA00092F1E200000000009 /* Agent */ = {
+			isa = PBXGroup;
+			children = (
+				3001A00E2F1500000000000E /* AgentActivityStreamView.swift */,
+				209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */,
+				3001A00F2F1500000000000F /* AgentStatusBar.swift */,
+				20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */,
+			);
+			path = Agent;
+			sourceTree = "<group>";
+		};
+		AAAA000A2F1E20000000000A /* VM */ = {
+			isa = PBXGroup;
+			children = (
+				209C61982F12ABD700062D0E /* VMDetailView.swift */,
+				209C61992F12ABD700062D0E /* VMDisplayContainer.swift */,
+				209C619A2F12ABD700062D0E /* VMDisplayView.swift */,
+				209C619B2F12ABD700062D0E /* VMInfoBar.swift */,
+				209C619E2F12ABD700062D0E /* VMPlaceholderView.swift */,
+			);
+			path = VM;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -901,6 +935,7 @@
 				209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */,
 				204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */,
 				20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */,
+				209EB6F22F1E284700A7F13F /* SkillExtractionSheet.swift in Sources */,
 				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
 				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
 				209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */,
@@ -930,7 +965,12 @@
 				209EB6CB2F1E174200A7F13F /* ResumableDownloader.swift in Sources */,
 				209EB6CC2F1E174200A7F13F /* TemplateDownloadModels.swift in Sources */,
 				20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */,
+				209EB6F42F1E2BD800A7F13F /* SkillsWindow.swift in Sources */,
 				20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */,
+				209EB6EA2F1E26D000A7F13F /* SkillExtractor.swift in Sources */,
+				209EB6EB2F1E26D000A7F13F /* SkillMatcher.swift in Sources */,
+				209EB6EC2F1E26D000A7F13F /* SkillManager.swift in Sources */,
+				209EB6ED2F1E26D000A7F13F /* SkillMatcherTypes.swift in Sources */,
 				204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */,
 				204DF45B2F162AF8004AB99B /* SearchResult.swift in Sources */,
 				204DF45C2F162AF8004AB99B /* WebpageExtractor.swift in Sources */,
