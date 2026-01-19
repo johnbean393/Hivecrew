@@ -49,11 +49,19 @@ struct OnboardingTemplateStep: View {
                 ProgressView("Loading templates...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if downloadService.isDownloading {
-                downloadProgressView
+                TemplateDownloadProgressView(
+                    progress: downloadService.progress,
+                    onPause: { downloadService.pauseDownload() },
+                    onCancel: { downloadService.cancelDownload() }
+                )
             } else if downloadService.isPaused {
-                pausedDownloadView
+                TemplatePausedDownloadView(
+                    progress: downloadService.progress,
+                    onResume: { Task { await resumeDownload() } },
+                    onCancel: { downloadService.cancelAndDeleteDownload() }
+                )
             } else if templates.isEmpty {
-                emptyState
+                TemplateEmptyStateView()
             } else {
                 templatesList
             }
@@ -78,128 +86,17 @@ struct OnboardingTemplateStep: View {
         }
     }
     
-    // MARK: - Download Progress View
-    
-    private var downloadProgressView: some View {
-        VStack(spacing: 20) {
-            if let progress = downloadService.progress {
-                // Progress indicator
-                VStack(spacing: 12) {
-                    ProgressView(value: progress.fractionComplete)
-                        .progressViewStyle(.linear)
-                    
-                    HStack {
-                        Text(progress.phaseDescription)
-                            .font(.callout)
-                        
-                        Spacer()
-                        
-                        if case .downloading = progress.phase {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(ByteCountFormatter.string(fromByteCount: progress.bytesDownloaded, countStyle: .file)) / \(ByteCountFormatter.string(fromByteCount: progress.totalBytes, countStyle: .file))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                
-                                if let timeRemaining = progress.estimatedTimeRemaining {
-                                    Text(formatTimeRemaining(timeRemaining))
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
-                                }
-                            }
-                        } else {
-                            Text("\(progress.percentComplete)%")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .padding(.horizontal, 60)
-                
-                // Pause and Cancel buttons
-                HStack(spacing: 16) {
-                    Button("Pause") {
-                        downloadService.pauseDownload()
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Button("Cancel Download") {
-                        downloadService.cancelDownload()
-                    }
-                    .foregroundStyle(.red)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
-    /// Format time remaining as human-readable string
-    private func formatTimeRemaining(_ seconds: TimeInterval) -> String {
-        if seconds < 60 {
-            return "Less than a minute remaining"
-        } else if seconds < 3600 {
-            let minutes = Int(seconds / 60)
-            return "\(minutes) minute\(minutes == 1 ? "" : "s") remaining"
-        } else {
-            let hours = Int(seconds / 3600)
-            let minutes = Int((seconds.truncatingRemainder(dividingBy: 3600)) / 60)
-            if minutes == 0 {
-                return "\(hours) hour\(hours == 1 ? "" : "s") remaining"
-            }
-            return "\(hours)h \(minutes)m remaining"
-        }
-    }
-    
-    // MARK: - Paused Download View
-    
-    private var pausedDownloadView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "pause.circle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange)
-            
-            Text("Download Paused")
-                .font(.title2)
-                .fontWeight(.semibold)
-            
-            if let progress = downloadService.progress {
-                VStack(spacing: 12) {
-                    ProgressView(value: progress.fractionComplete)
-                        .progressViewStyle(.linear)
-                    
-                    Text("\(ByteCountFormatter.string(fromByteCount: progress.bytesDownloaded, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: progress.totalBytes, countStyle: .file))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 60)
-            }
-            
-            HStack(spacing: 16) {
-                Button {
-                    Task { await resumeDownload() }
-                } label: {
-                    HStack {
-                        Image(systemName: "play.fill")
-                        Text("Resume")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                
-                Button("Cancel") {
-                    downloadService.cancelAndDeleteDownload()
-                }
-                .foregroundStyle(.red)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
     // MARK: - Action Buttons
     
     private var actionButtons: some View {
         VStack(spacing: 12) {
             // Resume button if there's a partial download
             if downloadService.hasResumableDownload {
-                resumeDownloadSection
+                TemplateResumeDownloadSection(
+                    info: downloadService.getResumableDownloadInfo(),
+                    onResume: { Task { await resumeDownload() } },
+                    onDiscard: { downloadService.clearPartialDownload() }
+                )
             } else if templates.isEmpty {
                 // Download button (primary action for empty state)
                 Button {
@@ -263,78 +160,16 @@ struct OnboardingTemplateStep: View {
         .padding(.bottom, 20)
     }
     
-    // MARK: - Resume Download Section
-    
-    private var resumeDownloadSection: some View {
-        VStack(spacing: 12) {
-            if let info = downloadService.getResumableDownloadInfo() {
-                VStack(spacing: 4) {
-                    Text("Incomplete Download Found")
-                        .font(.headline)
-                    
-                    Text("\(ByteCountFormatter.string(fromByteCount: info.bytesDownloaded, countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: info.totalBytes, countStyle: .file)) downloaded")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    // Progress bar showing downloaded portion
-                    ProgressView(value: Double(info.bytesDownloaded), total: Double(info.totalBytes))
-                        .progressViewStyle(.linear)
-                        .frame(maxWidth: 300)
-                }
-                .padding(.vertical, 8)
-            }
-            
-            HStack(spacing: 16) {
-                Button {
-                    Task { await resumeDownload() }
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.clockwise.circle.fill")
-                        Text("Resume Download")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                
-                Button(role: .destructive) {
-                    downloadService.clearPartialDownload()
-                } label: {
-                    HStack {
-                        Image(systemName: "trash")
-                        Text("Discard")
-                    }
-                }
-            }
-        }
-    }
-    
-    // MARK: - Empty State
-    
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "square.stack.3d.up.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            
-            Text("No templates found")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            
-            Text("Download the official Hivecrew Golden Image or import a template folder\ncontaining a pre-configured macOS VM.")
-                .font(.callout)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
     // MARK: - Templates List
     
     private var templatesList: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Update available banner
             if downloadService.updateAvailable, let update = downloadService.availableUpdate {
-                updateAvailableBanner(update)
-                    .padding(.horizontal, 60)
+                TemplateUpdateBanner(update: update) {
+                    Task { await downloadUpdate(update) }
+                }
+                .padding(.horizontal, 60)
             }
             
             Text("Available Templates")
@@ -345,83 +180,17 @@ struct OnboardingTemplateStep: View {
             ScrollView {
                 VStack(spacing: 8) {
                     ForEach(templates) { template in
-                        templateRow(template)
+                        TemplateRow(
+                            template: template,
+                            isDefault: template.id == defaultTemplateId,
+                            onSetDefault: { defaultTemplateId = template.id }
+                        )
                     }
                 }
                 .padding(.horizontal, 60)
             }
             .frame(maxHeight: 150)
         }
-    }
-    
-    // MARK: - Update Available Banner
-    
-    private func updateAvailableBanner(_ update: RemoteTemplate) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "arrow.down.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.blue)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Template Update Available")
-                    .font(.headline)
-                Text("Version \(update.version)" + (update.sizeFormatted.map { " • \($0)" } ?? ""))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-            
-            Button("Update") {
-                Task { await downloadUpdate(update) }
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-        }
-        .padding(12)
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-        )
-    }
-    
-    private func templateRow(_ template: TemplateInfo) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(template.name)
-                    .fontWeight(.medium)
-                HStack(spacing: 12) {
-                    Label("\(template.cpuCount) CPU", systemImage: "cpu")
-                    Label(template.memorySizeFormatted, systemImage: "memorychip")
-                    Label(template.diskSizeFormatted, systemImage: "internaldrive")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            
-            Spacer()
-            
-            if template.id == defaultTemplateId {
-                Text("Default")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.2))
-                    .cornerRadius(4)
-            } else {
-                Button("Set Default") {
-                    defaultTemplateId = template.id
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .font(.caption)
-            }
-        }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
     }
     
     // MARK: - Data Loading
@@ -457,15 +226,10 @@ struct OnboardingTemplateStep: View {
         
         do {
             let templateId = try await downloadService.downloadTemplate(KnownTemplates.default)
-            
-            // Auto-select the downloaded template as default
             defaultTemplateId = templateId
-            
-            // Reload templates to show the new one
             await loadTemplates()
         } catch {
             if case TemplateDownloadError.cancelled = error {
-                // User cancelled, don't show error but check for resumable
                 downloadService.checkForResumableDownload()
                 return
             }
@@ -479,15 +243,10 @@ struct OnboardingTemplateStep: View {
         
         do {
             let templateId = try await downloadService.resumeDownload()
-            
-            // Auto-select the downloaded template as default
             defaultTemplateId = templateId
-            
-            // Reload templates to show the new one
             await loadTemplates()
         } catch {
             if case TemplateDownloadError.cancelled = error {
-                // User cancelled, don't show error
                 downloadService.checkForResumableDownload()
                 return
             }
@@ -501,11 +260,7 @@ struct OnboardingTemplateStep: View {
         
         do {
             let templateId = try await downloadService.downloadTemplate(update)
-            
-            // Auto-select the updated template as default
             defaultTemplateId = templateId
-            
-            // Reload templates to show the updated one
             await loadTemplates()
         } catch {
             if case TemplateDownloadError.cancelled = error {

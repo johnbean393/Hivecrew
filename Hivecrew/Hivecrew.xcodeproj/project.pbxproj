@@ -87,6 +87,20 @@
 		209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */; };
 		209EB6C62F1DFA0300A7F13F /* MentionSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */; };
 		209EB6C82F1DFEB200A7F13F /* MentionSuggestionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */; };
+		209EB6CB2F1E174200A7F13F /* ResumableDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6C92F1E174200A7F13F /* ResumableDownloader.swift */; };
+		209EB6CC2F1E174200A7F13F /* TemplateDownloadModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6CA2F1E174200A7F13F /* TemplateDownloadModels.swift */; };
+		209EB6CF2F1E17F000A7F13F /* PromptTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6CE2F1E17F000A7F13F /* PromptTextView.swift */; };
+		209EB6D02F1E17F000A7F13F /* MentionTextAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6CD2F1E17F000A7F13F /* MentionTextAttachment.swift */; };
+		209EB6D42F1E188400A7F13F /* CredentialSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6D32F1E188400A7F13F /* CredentialSheets.swift */; };
+		209EB6D52F1E188400A7F13F /* CredentialRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6D22F1E188400A7F13F /* CredentialRowView.swift */; };
+		209EB6D62F1E188400A7F13F /* CredentialImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6D12F1E188400A7F13F /* CredentialImportSheet.swift */; };
+		209EB6D82F1E18A000A7F13F /* OnboardingTemplateSubviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6D72F1E18A000A7F13F /* OnboardingTemplateSubviews.swift */; };
+		209EB6DA2F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6D92F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift */; };
+		209EB6DC2F1E194800A7F13F /* ProviderEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6DB2F1E194800A7F13F /* ProviderEditSheet.swift */; };
+		209EB6DE2F1E19B400A7F13F /* ToolExecutorTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6DD2F1E19B400A7F13F /* ToolExecutorTypes.swift */; };
+		209EB6E12F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E02F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift */; };
+		209EB6E22F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6DF2F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift */; };
+		209EB6E42F1E1A6300A7F13F /* ToolExecutor+WebTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */; };
 		20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 20A0FC092F1D1707000A066A /* HivecrewAPI */; };
 		20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */; };
 		20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563982F1B74D200CA7546 /* CredentialManager.swift */; };
@@ -230,6 +244,20 @@
 		209C61FF2F12C00000062D0E /* GuestAgentConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestAgentConnection.swift; sourceTree = "<group>"; };
 		209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionSuggestion.swift; sourceTree = "<group>"; };
 		209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionSuggestionsPanel.swift; sourceTree = "<group>"; };
+		209EB6C92F1E174200A7F13F /* ResumableDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumableDownloader.swift; sourceTree = "<group>"; };
+		209EB6CA2F1E174200A7F13F /* TemplateDownloadModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateDownloadModels.swift; sourceTree = "<group>"; };
+		209EB6CD2F1E17F000A7F13F /* MentionTextAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionTextAttachment.swift; sourceTree = "<group>"; };
+		209EB6CE2F1E17F000A7F13F /* PromptTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTextView.swift; sourceTree = "<group>"; };
+		209EB6D12F1E188400A7F13F /* CredentialImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialImportSheet.swift; sourceTree = "<group>"; };
+		209EB6D22F1E188400A7F13F /* CredentialRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialRowView.swift; sourceTree = "<group>"; };
+		209EB6D32F1E188400A7F13F /* CredentialSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialSheets.swift; sourceTree = "<group>"; };
+		209EB6D72F1E18A000A7F13F /* OnboardingTemplateSubviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTemplateSubviews.swift; sourceTree = "<group>"; };
+		209EB6D92F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIServiceProviderBridge+Conversions.swift"; sourceTree = "<group>"; };
+		209EB6DB2F1E194800A7F13F /* ProviderEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderEditSheet.swift; sourceTree = "<group>"; };
+		209EB6DD2F1E19B400A7F13F /* ToolExecutorTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolExecutorTypes.swift; sourceTree = "<group>"; };
+		209EB6DF2F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TemplateDownloadService+Extraction.swift"; sourceTree = "<group>"; };
+		209EB6E02F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TemplateDownloadService+UpdateChecking.swift"; sourceTree = "<group>"; };
+		209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+WebTools.swift"; sourceTree = "<group>"; };
 		20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsSettingsView.swift; sourceTree = "<group>"; };
 		20A563982F1B74D200CA7546 /* CredentialManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialManager.swift; sourceTree = "<group>"; };
 		20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTracePanel.swift; sourceTree = "<group>"; };
@@ -309,6 +337,7 @@
 		204DF4192F14D5E7004AB99B /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
+				209EB6D72F1E18A000A7F13F /* OnboardingTemplateSubviews.swift */,
 				204DF4142F14D5E7004AB99B /* OnboardingCompleteStep.swift */,
 				204DF4152F14D5E7004AB99B /* OnboardingProviderStep.swift */,
 				204DF4162F14D5E7004AB99B /* OnboardingTemplateStep.swift */,
@@ -318,11 +347,21 @@
 			path = Onboarding;
 			sourceTree = "<group>";
 		};
+		AAAA00012F1E200000000001 /* Mentions */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */,
+				209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */,
+				209EB6CD2F1E17F000A7F13F /* MentionTextAttachment.swift */,
+			);
+			path = Mentions;
+			sourceTree = "<group>";
+		};
 		204DF42E2F1571AB004AB99B /* Prompt Bar */ = {
 			isa = PBXGroup;
 			children = (
-				209EB6C72F1DFEB200A7F13F /* MentionSuggestionsPanel.swift */,
-				209EB6C32F1DFA0300A7F13F /* MentionSuggestion.swift */,
+				AAAA00012F1E200000000001 /* Mentions */,
+				209EB6CE2F1E17F000A7F13F /* PromptTextView.swift */,
 				204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */,
 				204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */,
 				204DF42B2F1571AB004AB99B /* PromptBar.swift */,
@@ -411,73 +450,156 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		AAAA00022F1E200000000002 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				2052ACB32F1D1984007E4475 /* APIKeyManager.swift */,
+				2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */,
+				2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */,
+				2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */,
+				209EB6D92F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift */,
+			);
+			path = API;
+			sourceTree = "<group>";
+		};
+		AAAA00032F1E200000000003 /* Template Download */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6C92F1E174200A7F13F /* ResumableDownloader.swift */,
+				209EB6CA2F1E174200A7F13F /* TemplateDownloadModels.swift */,
+				204DF44C2F15A957004AB99B /* TemplateDownloadService.swift */,
+				209EB6DF2F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift */,
+				209EB6E02F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift */,
+			);
+			path = "Template Download";
+			sourceTree = "<group>";
+		};
+		AAAA00042F1E200000000004 /* Tool Executor */ = {
+			isa = PBXGroup;
+			children = (
+				3001A0062F15000000000006 /* ToolExecutor.swift */,
+				209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */,
+				209EB6DD2F1E19B400A7F13F /* ToolExecutorTypes.swift */,
+			);
+			path = "Tool Executor";
+			sourceTree = "<group>";
+		};
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */,
-				2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */,
-				2052ACB32F1D1984007E4475 /* APIKeyManager.swift */,
-				2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */,
-				20A563982F1B74D200CA7546 /* CredentialManager.swift */,
-				204DF4612F16404E004AB99B /* VideoExporter.swift */,
-				3001A0052F15000000000005 /* AgentPrompts.swift */,
-				3001A0092F15000000000009 /* AgentStatePublisher.swift */,
-				20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */,
-				209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */,
-				3001A0082F15000000000008 /* TaskTitleGenerator.swift */,
-				204DF44C2F15A957004AB99B /* TemplateDownloadService.swift */,
-				3001A0062F15000000000006 /* ToolExecutor.swift */,
-				209C61882F12ABD700062D0E /* VMServiceClient.swift */,
+				AAAA00022F1E200000000002 /* API */,
+				AAAA00032F1E200000000003 /* Template Download */,
+				AAAA00042F1E200000000004 /* Tool Executor */,
 				204DF4582F162AF8004AB99B /* Web Tools */,
 				204DF4482F15771A004AB99B /* Guest Agent Connection */,
 				204DF4432F157454004AB99B /* Agent Runner */,
 				204DF43E2F15743E004AB99B /* Task Service */,
+				3001A0052F15000000000005 /* AgentPrompts.swift */,
+				3001A0092F15000000000009 /* AgentStatePublisher.swift */,
+				20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */,
+				209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */,
+				20A563982F1B74D200CA7546 /* CredentialManager.swift */,
+				3001A0082F15000000000008 /* TaskTitleGenerator.swift */,
+				204DF4612F16404E004AB99B /* VideoExporter.swift */,
+				209C61882F12ABD700062D0E /* VMServiceClient.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		AAAA00052F1E200000000005 /* Session Trace */ = {
+			isa = PBXGroup;
+			children = (
+				204DF43C2F157424004AB99B /* SessionTraceModels.swift */,
+				3001A0102F15000000000010 /* SessionTraceView.swift */,
+				204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */,
+			);
+			path = "Session Trace";
+			sourceTree = "<group>";
+		};
+		AAAA00062F1E200000000006 /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				3001A00A2F1500000000000A /* TaskInputView.swift */,
+				3001A00B2F1500000000000B /* TaskListView.swift */,
+				3001A00C2F1500000000000C /* TaskRowView.swift */,
+			);
+			path = Tasks;
 			sourceTree = "<group>";
 		};
 		209C618C2F12ABD700062D0E /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
-				209C618A2F12ABD700062D0E /* DashboardView.swift */,
-				3001A0102F15000000000010 /* SessionTraceView.swift */,
-				204DF43A2F1573C0004AB99B /* SessionTraceView+Panels.swift */,
-				204DF43C2F157424004AB99B /* SessionTraceModels.swift */,
-				209C618B2F12ABD700062D0E /* StatCard.swift */,
-				3001A00A2F1500000000000A /* TaskInputView.swift */,
-				3001A00B2F1500000000000B /* TaskListView.swift */,
-				3001A00C2F1500000000000C /* TaskRowView.swift */,
+				AAAA00052F1E200000000005 /* Session Trace */,
+				AAAA00062F1E200000000006 /* Tasks */,
 				204DF42E2F1571AB004AB99B /* Prompt Bar */,
+				209C618A2F12ABD700062D0E /* DashboardView.swift */,
+				209C618B2F12ABD700062D0E /* StatCard.swift */,
 			);
 			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		AAAA00072F1E200000000007 /* Credentials */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6D12F1E188400A7F13F /* CredentialImportSheet.swift */,
+				209EB6D22F1E188400A7F13F /* CredentialRowView.swift */,
+				209EB6D32F1E188400A7F13F /* CredentialSheets.swift */,
+				20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */,
+			);
+			path = Credentials;
+			sourceTree = "<group>";
+		};
+		AAAA00082F1E200000000008 /* Providers */ = {
+			isa = PBXGroup;
+			children = (
+				209EB6DB2F1E194800A7F13F /* ProviderEditSheet.swift */,
+				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
+			);
+			path = Providers;
 			sourceTree = "<group>";
 		};
 		209C61932F12ABD700062D0E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				AAAA00072F1E200000000007 /* Credentials */,
+				AAAA00082F1E200000000008 /* Providers */,
 				2052ACB72F1D19B0007E4475 /* APISettingsView.swift */,
-				20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */,
-				209C618F2F12ABD700062D0E /* SettingsView.swift */,
 				204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */,
 				204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */,
-				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
+				209C618F2F12ABD700062D0E /* SettingsView.swift */,
 				209C61912F12ABD700062D0E /* TaskDefaultsSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
 		};
-		209C619F2F12ABD700062D0E /* Environments */ = {
+		AAAA00092F1E200000000009 /* Agent */ = {
 			isa = PBXGroup;
 			children = (
-				20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */,
 				3001A00E2F1500000000000E /* AgentActivityStreamView.swift */,
 				209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */,
 				3001A00F2F1500000000000F /* AgentStatusBar.swift */,
+				20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */,
+			);
+			path = Agent;
+			sourceTree = "<group>";
+		};
+		AAAA000A2F1E20000000000A /* VM */ = {
+			isa = PBXGroup;
+			children = (
 				209C61982F12ABD700062D0E /* VMDetailView.swift */,
 				209C61992F12ABD700062D0E /* VMDisplayContainer.swift */,
 				209C619A2F12ABD700062D0E /* VMDisplayView.swift */,
 				209C619B2F12ABD700062D0E /* VMInfoBar.swift */,
 				209C619E2F12ABD700062D0E /* VMPlaceholderView.swift */,
+			);
+			path = VM;
+			sourceTree = "<group>";
+		};
+		209C619F2F12ABD700062D0E /* Environments */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA00092F1E200000000009 /* Agent */,
+				AAAA000A2F1E20000000000A /* VM */,
 			);
 			path = Environments;
 			sourceTree = "<group>";
@@ -766,12 +888,16 @@
 				204DF41B2F14D5E7004AB99B /* OnboardingView.swift in Sources */,
 				204DF41C2F14D5E7004AB99B /* OnboardingWelcomeStep.swift in Sources */,
 				204DF41D2F14D5E7004AB99B /* OnboardingCompleteStep.swift in Sources */,
+				209EB6E42F1E1A6300A7F13F /* ToolExecutor+WebTools.swift in Sources */,
 				204DF41E2F14D5E7004AB99B /* OnboardingProviderStep.swift in Sources */,
 				2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */,
 				209C61A72F12ABD700062D0E /* VMRecord.swift in Sources */,
+				209EB6DC2F1E194800A7F13F /* ProviderEditSheet.swift in Sources */,
 				209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */,
+				209EB6DA2F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift in Sources */,
 				209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */,
 				209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */,
+				209EB6DE2F1E19B400A7F13F /* ToolExecutorTypes.swift in Sources */,
 				209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */,
 				204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */,
 				20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */,
@@ -794,17 +920,23 @@
 				209C61B72F12ABD700062D0E /* VMDisplayView.swift in Sources */,
 				209C61B82F12ABD700062D0E /* VMInfoBar.swift in Sources */,
 				204DF4202F14D5F4004AB99B /* ToolConfirmationSheet.swift in Sources */,
+				209EB6D82F1E18A000A7F13F /* OnboardingTemplateSubviews.swift in Sources */,
 				2049633F2F1822A7007DD5FD /* HivecrewAppDelegate.swift in Sources */,
 				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
 				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
 				204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */,
 				2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */,
 				2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */,
+				209EB6CB2F1E174200A7F13F /* ResumableDownloader.swift in Sources */,
+				209EB6CC2F1E174200A7F13F /* TemplateDownloadModels.swift in Sources */,
 				20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */,
 				20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */,
 				204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */,
 				204DF45B2F162AF8004AB99B /* SearchResult.swift in Sources */,
 				204DF45C2F162AF8004AB99B /* WebpageExtractor.swift in Sources */,
+				209EB6D42F1E188400A7F13F /* CredentialSheets.swift in Sources */,
+				209EB6D52F1E188400A7F13F /* CredentialRowView.swift in Sources */,
+				209EB6D62F1E188400A7F13F /* CredentialImportSheet.swift in Sources */,
 				204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */,
 				204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */,
 				204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */,
@@ -819,6 +951,8 @@
 				3001B0032F15000000000003 /* AgentQuestion.swift in Sources */,
 				204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */,
 				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
+				209EB6E12F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift in Sources */,
+				209EB6E22F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
 				2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */,
@@ -833,6 +967,8 @@
 				204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */,
 				3001B0062F15000000000006 /* ToolExecutor.swift in Sources */,
 				3001B0072F15000000000007 /* TaskService.swift in Sources */,
+				209EB6CF2F1E17F000A7F13F /* PromptTextView.swift in Sources */,
+				209EB6D02F1E17F000A7F13F /* MentionTextAttachment.swift in Sources */,
 				2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */,
 				209EB6C62F1DFA0300A7F13F /* MentionSuggestion.swift in Sources */,
 				3001B0082F15000000000008 /* TaskTitleGenerator.swift in Sources */,
