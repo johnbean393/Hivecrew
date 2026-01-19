@@ -122,6 +122,44 @@ final class AgentDaemon: @unchecked Sendable {
                 self.logger.log("Screen Recording permission request triggered: \(error)")
             }
         }
+        
+        // 3. THIRD: Trigger file access permissions for common user folders
+        // Attempting to list directory contents will trigger permission prompts
+        triggerFileAccessPermissions()
+    }
+    
+    /// Trigger file access permission prompts for protected user folders
+    /// This allows the user to grant permissions on startup rather than during task execution
+    private func triggerFileAccessPermissions() {
+        logger.log("Requesting file access permissions for user folders...")
+        
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+        
+        // List of protected folders that commonly need access
+        let protectedFolders = [
+            "Desktop",
+            "Documents",
+            "Downloads"
+        ]
+        
+        for folderName in protectedFolders {
+            let folderPath = (homeDirectory as NSString).appendingPathComponent(folderName)
+            
+            // Attempt to list directory contents - this triggers the permission prompt
+            // We use a minimal operation (contentsOfDirectory) that has no side effects
+            do {
+                let contents = try FileManager.default.contentsOfDirectory(atPath: folderPath)
+                logger.log("\(folderName) folder access: granted (\(contents.count) items)")
+            } catch let error as NSError {
+                if error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoPermissionError {
+                    logger.log("\(folderName) folder access: permission dialog shown or denied")
+                } else if error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+                    logger.log("\(folderName) folder: does not exist")
+                } else {
+                    logger.log("\(folderName) folder access: \(error.localizedDescription)")
+                }
+            }
+        }
     }
     
     /// Try to mount the shared folder if not already mounted

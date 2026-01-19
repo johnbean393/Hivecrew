@@ -198,31 +198,31 @@ extension TaskService {
                 }
             }
             
-            // Copy skill scripts to the VM inbox (if any skills have scripts)
+            // Copy skill files to the VM inbox (if any skills have additional files)
             if !skillsToUse.isEmpty {
                 let inboxPath = AppPaths.vmInboxDirectory(id: vmId!)
                 do {
-                    let copiedSkills = try skillManager.copySkillScripts(for: skillsToUse, to: inboxPath)
+                    let copiedSkills = try skillManager.copySkillFiles(for: skillsToUse, to: inboxPath)
                     if !copiedSkills.isEmpty {
-                        statePublisher.logInfo("Copied scripts for \(copiedSkills.count) skill(s) to inbox")
+                        statePublisher.logInfo("Copied files for \(copiedSkills.count) skill(s) to inbox")
                         
-                        // Copy skill scripts from shared folder to guest Desktop
-                        let copyScriptsResult = try await connection.runShell(command: """
+                        // Copy skill files from shared folder to guest Desktop
+                        let copyFilesResult = try await connection.runShell(command: """
                             for skill_dir in /Volumes/Shared/inbox/*/; do
-                                if [ -d "$skill_dir/scripts" ]; then
+                                if [ -d "$skill_dir" ]; then
                                     skill_name=$(basename "$skill_dir")
-                                    mkdir -p ~/Desktop/inbox/"$skill_name"/scripts
-                                    cp -R "$skill_dir"/scripts/* ~/Desktop/inbox/"$skill_name"/scripts/ 2>/dev/null
-                                    echo "Copied scripts for skill: $skill_name"
+                                    mkdir -p ~/Desktop/inbox/"$skill_name"
+                                    cp -R "$skill_dir"/* ~/Desktop/inbox/"$skill_name"/ 2>/dev/null
+                                    echo "Copied files for skill: $skill_name"
                                 fi
                             done
                             """, timeout: 30)
-                        if !copyScriptsResult.stdout.isEmpty {
-                            print("TaskService: Skill scripts copy result: \(copyScriptsResult.stdout)")
+                        if !copyFilesResult.stdout.isEmpty {
+                            print("TaskService: Skill files copy result: \(copyFilesResult.stdout)")
                         }
                     }
                 } catch {
-                    statePublisher.logInfo("Failed to copy skill scripts (non-fatal): \(error.localizedDescription)")
+                    statePublisher.logInfo("Failed to copy skill files (non-fatal): \(error.localizedDescription)")
                 }
             }
             

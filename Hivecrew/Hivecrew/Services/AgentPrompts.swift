@@ -89,7 +89,7 @@ AVAILABLE TOOLS:
 - request_user_intervention: Request user to perform manual actions (sign-in, 2FA, CAPTCHA)
 - get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
 - web_search: Search the web and get results with URLs, titles, and snippets
-- read_webpage_content: Extract full webpage text content in Markdown format (removes ads/nav)
+- read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search
 - extract_info_from_webpage: Extract specific information from a webpage by asking a question
 - get_location: Get current geographic location (city, region, country) based on IP address
 - create_todo_list: Create a todo list to plan, organize and track subtasks for complex tasks
@@ -108,8 +108,10 @@ TIPS:
 - Wait briefly after actions that cause animations or page loads.
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
 - Use LibreOffice for creating documents
+
+TO FINISH:
+When the task is complete, stop calling tools and respond with a summary of what you accomplished. 
 \(skillsSection)
-When the task is complete, stop calling tools and respond with a summary of what you accomplished.
 """
     }
     
@@ -119,7 +121,9 @@ When the task is complete, stop calling tools and respond with a summary of what
         
         var section = """
         
-        AVAILABLE SKILLS:
+        ---
+        
+        SKILLS:
         The following skills may help you complete this task. Follow their instructions when applicable. Scripts for skills can be found in `~/Desktop/inbox/{skill-name}/scripts/`.
         
         """

@@ -442,10 +442,14 @@ public class SkillManager: ObservableObject {
         // Save SKILL.md
         try data.write(to: AppPaths.skillFilePath(name: skillName))
         
-        // Try to download optional directories (scripts/, references/, assets/)
-        await downloadOptionalDirectoryFromURL(rawBaseURL: rawBaseURL, skillName: skillName, dirName: "scripts")
-        await downloadOptionalDirectoryFromURL(rawBaseURL: rawBaseURL, skillName: skillName, dirName: "references")
-        await downloadOptionalDirectoryFromURL(rawBaseURL: rawBaseURL, skillName: skillName, dirName: "assets")
+        // Download all other files and directories from the skill folder
+        await downloadAllSkillContents(
+            owner: owner,
+            repo: repo,
+            branch: branch,
+            skillPath: skillPath,
+            skillName: skillName
+        )
         
         // Parse and save local metadata
         let skill = try SkillParser.parse(
@@ -480,7 +484,7 @@ public class SkillManager: ObservableObject {
             throw SkillError.skillAlreadyExists(skillName)
         }
         
-        // Download SKILL.md
+        // Download SKILL.md first to verify the skill exists
         let skillMdURL = URL(string: "\(Self.githubBaseURL)/\(skillName)/SKILL.md")!
         
         let (data, response) = try await URLSession.shared.data(from: skillMdURL)
@@ -502,10 +506,14 @@ public class SkillManager: ObservableObject {
         // Save SKILL.md
         try data.write(to: AppPaths.skillFilePath(name: skillName))
         
-        // Try to download optional directories (scripts/, references/, assets/)
-        await downloadOptionalDirectory(skillName: skillName, dirName: "scripts")
-        await downloadOptionalDirectory(skillName: skillName, dirName: "references")
-        await downloadOptionalDirectory(skillName: skillName, dirName: "assets")
+        // Download all other files and directories from the skill folder
+        await downloadAllSkillContents(
+            owner: "anthropics",
+            repo: "skills",
+            branch: "main",
+            skillPath: "skills/\(skillName)",
+            skillName: skillName
+        )
         
         // Parse and save local metadata
         let skill = try SkillParser.parse(
@@ -527,34 +535,16 @@ public class SkillManager: ObservableObject {
         return skill
     }
     
-    /// Download optional directory from GitHub (best effort) - for anthropics/skills repo
-    private func downloadOptionalDirectory(skillName: String, dirName: String) async {
-        await downloadOptionalDirectoryFromURL(
-            rawBaseURL: "\(Self.githubBaseURL)/\(skillName)",
-            skillName: skillName,
-            dirName: dirName
-        )
-    }
-    
-    /// Download optional directory from a custom GitHub URL using GitHub API
-    private func downloadOptionalDirectoryFromURL(rawBaseURL: String, skillName: String, dirName: String) async {
-        // Parse the raw URL to get API URL components
-        // rawBaseURL format: https://raw.githubusercontent.com/owner/repo/branch/path
-        guard let rawURL = URL(string: rawBaseURL),
-              rawURL.pathComponents.count >= 4 else {
-            return
-        }
-        
-        let pathComponents = rawURL.pathComponents.filter { $0 != "/" }
-        guard pathComponents.count >= 3 else { return }
-        
-        let owner = pathComponents[0]
-        let repo = pathComponents[1]
-        let branch = pathComponents[2]
-        let skillPath = pathComponents.dropFirst(3).joined(separator: "/")
-        
-        // Use GitHub API to list directory contents
-        let apiURL = "https://api.github.com/repos/\(owner)/\(repo)/contents/\(skillPath)/\(dirName)?ref=\(branch)"
+    /// Download all contents of a skill directory from GitHub (files and subdirectories)
+    private func downloadAllSkillContents(
+        owner: String,
+        repo: String,
+        branch: String,
+        skillPath: String,
+        skillName: String
+    ) async {
+        // Use GitHub API to list all contents
+        let apiURL = "https://api.github.com/repos/\(owner)/\(repo)/contents/\(skillPath)?ref=\(branch)"
         
         guard let url = URL(string: apiURL) else { return }
         
@@ -566,93 +556,119 @@ public class SkillManager: ObservableObject {
             
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
-                // Directory doesn't exist or API error, fall back to common files
-                await downloadCommonFilesFromURL(rawBaseURL: rawBaseURL, skillName: skillName, dirName: dirName)
+                print("SkillManager: Failed to list skill contents via API")
                 return
             }
             
-            // Parse the JSON response
-            guard let files = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            guard let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 return
             }
             
-            // Get the local directory
-            let localDir: URL
-            switch dirName {
-            case "scripts":
-                localDir = AppPaths.skillScriptsDirectory(name: skillName)
-            case "references":
-                localDir = AppPaths.skillReferencesDirectory(name: skillName)
-            case "assets":
-                localDir = AppPaths.skillAssetsDirectory(name: skillName)
-            default:
-                return
-            }
+            let destDir = AppPaths.skillDirectory(name: skillName)
             
-            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
-            
-            // Download each file
-            for file in files {
-                guard let type = file["type"] as? String,
-                      type == "file",
-                      let name = file["name"] as? String,
-                      let downloadURL = file["download_url"] as? String,
-                      let fileURL = URL(string: downloadURL) else {
+            for item in items {
+                guard let name = item["name"] as? String,
+                      let type = item["type"] as? String else {
                     continue
                 }
                 
-                do {
-                    let (fileData, _) = try await URLSession.shared.data(from: fileURL)
-                    try fileData.write(to: localDir.appendingPathComponent(name))
-                    print("SkillManager: Downloaded \(dirName)/\(name) for skill '\(skillName)'")
-                } catch {
-                    print("SkillManager: Failed to download \(dirName)/\(name): \(error.localizedDescription)")
+                // Skip SKILL.md (already downloaded) and metadata files
+                if name == "SKILL.md" || name == ".skill-metadata.json" {
+                    continue
+                }
+                
+                if type == "file" {
+                    // Download file
+                    if let downloadURL = item["download_url"] as? String,
+                       let fileURL = URL(string: downloadURL) {
+                        await downloadFile(from: fileURL, to: destDir.appendingPathComponent(name))
+                    }
+                } else if type == "dir" {
+                    // Recursively download directory
+                    await downloadDirectoryRecursively(
+                        owner: owner,
+                        repo: repo,
+                        branch: branch,
+                        path: "\(skillPath)/\(name)",
+                        localDir: destDir.appendingPathComponent(name)
+                    )
                 }
             }
         } catch {
-            // API failed, fall back to common files approach
-            await downloadCommonFilesFromURL(rawBaseURL: rawBaseURL, skillName: skillName, dirName: dirName)
+            print("SkillManager: Error downloading skill contents: \(error.localizedDescription)")
         }
     }
     
-    /// Fallback: try to download common files when API is unavailable
-    private func downloadCommonFilesFromURL(rawBaseURL: String, skillName: String, dirName: String) async {
-        let commonFiles: [String: [String]] = [
-            "scripts": ["init_skill.py", "package_skill.py", "extract.py", "main.py", "run.py", "setup.py", "script.py"],
-            "references": ["REFERENCE.md", "FORMS.md", "README.md", "GUIDE.md"],
-            "assets": []
-        ]
+    /// Recursively download a directory from GitHub
+    private func downloadDirectoryRecursively(
+        owner: String,
+        repo: String,
+        branch: String,
+        path: String,
+        localDir: URL
+    ) async {
+        let apiURL = "https://api.github.com/repos/\(owner)/\(repo)/contents/\(path)?ref=\(branch)"
         
-        guard let files = commonFiles[dirName] else { return }
+        guard let url = URL(string: apiURL) else { return }
         
-        for fileName in files {
-            guard let fileURL = URL(string: "\(rawBaseURL)/\(dirName)/\(fileName)") else { continue }
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
             
-            do {
-                let (data, response) = try await URLSession.shared.data(from: fileURL)
-                
-                guard let httpResponse = response as? HTTPURLResponse,
-                      httpResponse.statusCode == 200 else {
-                    continue
-                }
-                
-                let localDir: URL
-                switch dirName {
-                case "scripts":
-                    localDir = AppPaths.skillScriptsDirectory(name: skillName)
-                case "references":
-                    localDir = AppPaths.skillReferencesDirectory(name: skillName)
-                case "assets":
-                    localDir = AppPaths.skillAssetsDirectory(name: skillName)
-                default:
-                    continue
-                }
-                
-                try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
-                try data.write(to: localDir.appendingPathComponent(fileName))
-            } catch {
-                // Ignore errors for optional files
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                return
             }
+            
+            guard let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return
+            }
+            
+            // Create local directory
+            try FileManager.default.createDirectory(at: localDir, withIntermediateDirectories: true)
+            
+            for item in items {
+                guard let name = item["name"] as? String,
+                      let type = item["type"] as? String else {
+                    continue
+                }
+                
+                if type == "file" {
+                    if let downloadURL = item["download_url"] as? String,
+                       let fileURL = URL(string: downloadURL) {
+                        await downloadFile(from: fileURL, to: localDir.appendingPathComponent(name))
+                    }
+                } else if type == "dir" {
+                    await downloadDirectoryRecursively(
+                        owner: owner,
+                        repo: repo,
+                        branch: branch,
+                        path: "\(path)/\(name)",
+                        localDir: localDir.appendingPathComponent(name)
+                    )
+                }
+            }
+        } catch {
+            print("SkillManager: Error downloading directory \(path): \(error.localizedDescription)")
+        }
+    }
+    
+    /// Download a single file from URL to local path
+    private func downloadFile(from url: URL, to localPath: URL) async {
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                return
+            }
+            
+            try data.write(to: localPath)
+            print("SkillManager: Downloaded \(localPath.lastPathComponent)")
+        } catch {
+            print("SkillManager: Failed to download \(url.lastPathComponent): \(error.localizedDescription)")
         }
     }
     
@@ -729,54 +745,53 @@ public class SkillManager: ObservableObject {
         enabledSkills.map { SkillSummary(from: $0) }
     }
     
-    // MARK: - Skill Scripts
+    // MARK: - Skill Files for VM
     
-    /// Get the scripts directory for a skill (if it exists)
-    public func scriptsDirectory(for skillName: String) -> URL? {
-        let scriptsDir = AppPaths.skillScriptsDirectory(name: skillName)
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: scriptsDir.path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
-            return nil
-        }
-        return scriptsDir
-    }
-    
-    /// Copy skill scripts to a destination directory
-    /// Creates a subdirectory for each skill: destination/skill-name/scripts/
-    /// Returns the list of skill names that had scripts copied
+    /// Copy all skill files (except SKILL.md) to a destination directory
+    /// Creates a subdirectory for each skill: destination/skill-name/
+    /// Returns the list of skill names that had files copied
     @discardableResult
-    public func copySkillScripts(for skills: [Skill], to destinationDir: URL) throws -> [String] {
+    public func copySkillFiles(for skills: [Skill], to destinationDir: URL) throws -> [String] {
         let fm = FileManager.default
         var copiedSkills: [String] = []
         
         for skill in skills {
-            guard let scriptsDir = scriptsDirectory(for: skill.name) else {
+            let skillDir = AppPaths.skillDirectory(name: skill.name)
+            
+            // Check if skill directory exists
+            guard fm.fileExists(atPath: skillDir.path) else {
                 continue
             }
             
-            // Check if scripts directory has any files
-            guard let contents = try? fm.contentsOfDirectory(at: scriptsDir, includingPropertiesForKeys: nil),
+            // Get contents of skill directory
+            guard let contents = try? fm.contentsOfDirectory(at: skillDir, includingPropertiesForKeys: [.isDirectoryKey]),
                   !contents.isEmpty else {
                 continue
             }
             
-            // Create skill scripts directory at destination: destination/skill-name/scripts/
-            let skillDestDir = destinationDir
-                .appendingPathComponent(skill.name, isDirectory: true)
-                .appendingPathComponent("scripts", isDirectory: true)
+            // Filter out SKILL.md and metadata (these are handled separately)
+            let filesToCopy = contents.filter { url in
+                let name = url.lastPathComponent
+                return name != "SKILL.md" && name != ".skill-metadata.json"
+            }
             
+            guard !filesToCopy.isEmpty else {
+                continue
+            }
+            
+            // Create skill directory at destination: destination/skill-name/
+            let skillDestDir = destinationDir.appendingPathComponent(skill.name, isDirectory: true)
             try fm.createDirectory(at: skillDestDir, withIntermediateDirectories: true)
             
-            // Copy all files from scripts directory
-            for fileURL in contents {
-                let destURL = skillDestDir.appendingPathComponent(fileURL.lastPathComponent)
+            // Copy all files and directories
+            for itemURL in filesToCopy {
+                let destURL = skillDestDir.appendingPathComponent(itemURL.lastPathComponent)
                 try? fm.removeItem(at: destURL) // Remove if exists
-                try fm.copyItem(at: fileURL, to: destURL)
+                try fm.copyItem(at: itemURL, to: destURL)
             }
             
             copiedSkills.append(skill.name)
-            print("SkillManager: Copied scripts for skill '\(skill.name)' to \(skillDestDir.path)")
+            print("SkillManager: Copied files for skill '\(skill.name)' to \(skillDestDir.path)")
         }
         
         return copiedSkills
