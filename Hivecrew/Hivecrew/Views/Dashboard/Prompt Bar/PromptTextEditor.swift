@@ -54,8 +54,10 @@ final class MentionInsertionController: ObservableObject {
         
         textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, range, _ in
             if let attachment = attributes[.attachment] as? MentionTextAttachment {
-                // Replace attachment with quoted file path
-                resolvedText += "\"\(attachment.fileURL.path)\""
+                // Replace attachment with VM inbox path (where files are copied to in the VM)
+                let filename = attachment.fileURL.lastPathComponent
+                let vmPath = "/Users/hivecrew/Desktop/inbox/\(filename)"
+                resolvedText += "\"\(vmPath)\""
             } else {
                 // Regular text - extract from storage
                 let substring = textStorage.attributedSubstring(from: range).string
