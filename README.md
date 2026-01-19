@@ -26,7 +26,11 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 
 - **Multi-LLM Support**: Works with Anthropic, OpenAI, and any OpenAI-compatible local LLM provider. Easy provider switching in settings.
 
-- **File Handover**: Attach input files to tasks and specify output directories for deliverables. Agents work with files through a secure shared folder system.
+- **Agent Skills**: Browse and apply pre-built skill templates that give agents specialized capabilities for common tasks like web research, data entry, or document processing. Skills can be discovered and applied to customize agent behavior.
+
+- **File Handover**: Attach input files to tasks using @ mentions in the prompt bar and specify output directories for deliverables. Agents work with files through a secure shared folder system.
+
+- **Credential Management**: Securely provide login credentials to agents for authenticated workflows. Credentials are stored safely and passed to agents only when needed.
 
 - **Safety Controls**: Built-in timeouts, iteration limits, tool permission controls, and emergency stop switches keep agents under control.
 
