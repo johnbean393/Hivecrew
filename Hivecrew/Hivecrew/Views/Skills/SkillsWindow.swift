@@ -79,6 +79,7 @@ struct SkillsWindow: View {
                 selectedSkill = updated
             }
         }
+        .searchable(text: $searchText, placement: .toolbar, prompt: "Search skills")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -100,31 +101,6 @@ struct SkillsWindow: View {
     
     private var skillsList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Search field
-            if !skillManager.skills.isEmpty {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search skills...", text: $searchText)
-                        .textFieldStyle(.plain)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(8)
-                .background(Color(nsColor: .textBackgroundColor))
-                .cornerRadius(8)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
-            }
-            
             // Skills list
             if skillManager.skills.isEmpty {
                 VStack(spacing: 8) {
