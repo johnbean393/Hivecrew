@@ -42,6 +42,12 @@ final class APIServerManager {
     
     /// Start the API server if enabled
     func startIfEnabled() {
+        // Don't start if already running
+        if serverSuccessfullyStarted {
+            print("APIServerManager: startIfEnabled called but server already running - ignoring")
+            return
+        }
+        
         var config = APIConfiguration.load()
         config.apiKey = APIKeyManager.retrieveAPIKey()
         
@@ -51,6 +57,7 @@ final class APIServerManager {
             return
         }
         
+        print("APIServerManager: startIfEnabled - starting server on port \(config.port)")
         startServer(with: config)
     }
     
@@ -71,16 +78,19 @@ final class APIServerManager {
         if serverSuccessfullyStarted, let port = startedPort {
             // Server was successfully started and should still be running
             APIServerStatus.shared.serverStarted(port: port)
-        } else if serverTask != nil {
-            // Server is starting
-            APIServerStatus.shared.serverStarting()
-        } else if UserDefaults.standard.bool(forKey: "apiServerEnabled") {
-            // Server should be enabled but isn't running - it may have failed
-            // Don't change status, keep whatever error state we're in
-        } else {
+        } else if serverTask != nil, !serverTask!.isCancelled {
+            // Server task is actively running (starting up)
+            // Only set to starting if not already in a failed state
+            if case .failed = APIServerStatus.shared.state {
+                // Keep the failed state - don't overwrite it
+            } else {
+                APIServerStatus.shared.serverStarting()
+            }
+        } else if !UserDefaults.standard.bool(forKey: "apiServerEnabled") {
             // Server is disabled
             APIServerStatus.shared.serverStopped()
         }
+        // If enabled but not running and not starting, keep current state (could be failed)
     }
     
     /// Restart the server with current configuration
@@ -98,6 +108,19 @@ final class APIServerManager {
     
     /// Start the server with the given configuration
     private func startServer(with config: APIConfiguration) {
+        // Don't start if already running
+        if serverSuccessfullyStarted {
+            print("APIServerManager: Server already running, skipping start")
+            return
+        }
+        
+        // Cancel any existing server task before starting a new one
+        if serverTask != nil {
+            print("APIServerManager: Cancelling existing server task")
+            serverTask?.cancel()
+            serverTask = nil
+        }
+        
         guard let taskService = taskService, let modelContext = modelContext else {
             print("APIServerManager: Not configured - call configure() first")
             APIServerStatus.shared.serverFailed(error: "Server not configured")
@@ -140,9 +163,12 @@ final class APIServerManager {
                 // Start the server (this will throw if port is in use)
                 try await server.start()
                 
-                // If start() returns normally, the server has shut down
+                // If start() returns normally, the server has shut down gracefully
                 if !Task.isCancelled {
+                    print("APIServerManager: Server shut down gracefully")
                     await MainActor.run {
+                        self.serverTask = nil
+                        self.currentServer = nil
                         self.serverSuccessfullyStarted = false
                         self.startedPort = nil
                         APIServerStatus.shared.serverStopped()
@@ -150,15 +176,33 @@ final class APIServerManager {
                 }
             } catch {
                 if !Task.isCancelled {
+                    let errorString = String(describing: error)
                     print("APIServerManager: Server error: \(error)")
+                    
+                    // Check if this is a startup error (port in use) vs runtime error
+                    let isStartupError = errorString.contains("bind") || 
+                                         errorString.contains("address already in use") ||
+                                         errorString.contains("EADDRINUSE")
+                    
                     await MainActor.run {
-                        // Only report failure if we haven't successfully started yet
                         if !self.serverSuccessfullyStarted {
+                            // Failed during startup - report the error
+                            self.serverTask = nil
+                            self.currentServer = nil
                             let errorMessage = self.parseServerError(error)
                             APIServerStatus.shared.serverFailed(error: errorMessage)
+                        } else if isStartupError {
+                            // This shouldn't happen if server was running - ignore
+                            // (might be a duplicate start attempt)
+                            print("APIServerManager: Ignoring startup error for already-running server")
+                        } else {
+                            // Runtime error - server has stopped
+                            self.serverTask = nil
+                            self.currentServer = nil
+                            self.serverSuccessfullyStarted = false
+                            self.startedPort = nil
+                            APIServerStatus.shared.serverStopped()
                         }
-                        // If server was running and threw an error, it's now stopped
-                        // but we don't want to show error for runtime issues
                     }
                 }
             }
