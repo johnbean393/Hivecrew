@@ -24,14 +24,8 @@ struct CredentialRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(credential.displayName)
-                        .font(.headline)
-                    
-                    Text("2 tokens available")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(credential.displayName)
+                    .font(.headline)
                 
                 Spacer()
                 
@@ -62,11 +56,10 @@ struct CredentialRow: View {
             
             if showingTokens {
                 VStack(alignment: .leading, spacing: 6) {
-                    TokenCopyRow(
-                        label: "Username",
-                        token: credential.usernameToken.uuidString,
-                        revealedValue: showingRealValues ? realUsername : nil
-                    )
+                    // Username is shown directly (not obfuscated) since it's not sensitive
+                    if let username = CredentialManager.shared.resolveToken(credential.usernameToken.uuidString) {
+                        UsernameRow(label: "Username", username: username)
+                    }
                     TokenCopyRow(
                         label: "Password",
                         token: credential.passwordToken.uuidString,
@@ -74,7 +67,7 @@ struct CredentialRow: View {
                         isPassword: true
                     )
                     
-                    // Reveal / Hide button
+                    // Reveal / Hide button for password only
                     HStack {
                         Spacer()
                         
@@ -86,7 +79,7 @@ struct CredentialRow: View {
                             }
                         } label: {
                             Label(
-                                showingRealValues ? "Hide Values" : "Reveal Values",
+                                showingRealValues ? "Hide Password" : "Reveal Password",
                                 systemImage: showingRealValues ? "eye.slash" : "eye"
                             )
                             .font(.caption)
@@ -142,6 +135,47 @@ struct CredentialRow: View {
         realUsername = nil
         realPassword = nil
         authError = nil
+    }
+}
+
+// MARK: - Username Row (not obfuscated)
+
+struct UsernameRow: View {
+    let label: String
+    let username: String
+    
+    @State private var copied = false
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .leading)
+            
+            Text(username)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(username, forType: .string)
+                copied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    copied = false
+                }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .foregroundStyle(copied ? .green : .accentColor)
+            }
+            .buttonStyle(.borderless)
+            .help("Copy username")
+        }
+        .padding(6)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
 

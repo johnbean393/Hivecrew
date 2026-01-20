@@ -96,6 +96,16 @@ extension OpenAICompatibleClient {
                 }
             }
             dict["content"] = contentParts
+        } else if message.role == .tool {
+            // Tool messages need to extract content from .toolResult, not .text
+            var resultContent = ""
+            for content in message.content {
+                if case .toolResult(_, let c) = content {
+                    resultContent = c
+                    break
+                }
+            }
+            dict["content"] = resultContent
         } else {
             dict["content"] = message.textContent
         }

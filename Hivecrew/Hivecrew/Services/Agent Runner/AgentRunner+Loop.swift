@@ -68,6 +68,10 @@ extension AgentRunner {
                 // Add tool results to conversation
                 for result in results {
                     let content = result.success ? result.result : "Error: \(result.errorMessage ?? "Unknown error")"
+                    print("AgentRunner: Adding tool result for '\(result.toolName)' (success: \(result.success), content length: \(content.count) chars)")
+                    if result.toolName == "get_login_credentials" {
+                        print("AgentRunner: get_login_credentials content:\n\(content)")
+                    }
                     conversationHistory.append(.toolResult(toolCallId: result.toolCallId, content: content))
                     
                     // If the tool result contains an image, inject it into the conversation

@@ -86,7 +86,7 @@ AVAILABLE TOOLS:
 - wait: Wait for the specified number of seconds before continuing
 - ask_text_question: Ask the user an open-ended question when you need clarification
 - ask_multiple_choice: Ask the user to select from predefined options
-- request_user_intervention: Request user to perform manual actions (sign-in, 2FA, CAPTCHA)
+- request_user_intervention: Request user to perform manual actions. Only use this if you are absolutely unable to complete the task.
 - get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
 - web_search: Search the web and get results with URLs, titles, and snippets
 - read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search

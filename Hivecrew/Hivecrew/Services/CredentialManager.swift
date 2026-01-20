@@ -184,23 +184,17 @@ class CredentialManager: ObservableObject {
     func substituteTokens(in text: String) -> String {
         var result = text
         
-        // UUID regex pattern
-        let uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-        
-        guard let regex = try? NSRegularExpression(pattern: uuidPattern, options: []) else {
-            return text
-        }
-        
-        let range = NSRange(text.startIndex..., in: text)
-        let matches = regex.matches(in: text, options: [], range: range)
-        
-        // Process matches in reverse order to maintain correct indices
-        for match in matches.reversed() {
-            guard let swiftRange = Range(match.range, in: result) else { continue }
-            let uuidString = String(result[swiftRange])
-            
-            if let replacement = resolveToken(uuidString) {
-                result.replaceSubrange(swiftRange, with: replacement)
+        // Direct substitution: iterate through all known tokens and replace them
+        // This is more reliable than regex matching as it handles case insensitivity properly
+        for (token, value) in tokenMap {
+            let tokenString = token.uuidString
+            // Replace all occurrences (case-insensitive since UUIDs can be upper or lower)
+            if let range = result.range(of: tokenString, options: .caseInsensitive) {
+                result.replaceSubrange(range, with: value)
+                // Continue checking in case there are multiple occurrences
+                while let nextRange = result.range(of: tokenString, options: .caseInsensitive) {
+                    result.replaceSubrange(nextRange, with: value)
+                }
             }
         }
         
@@ -209,23 +203,12 @@ class CredentialManager: ObservableObject {
     
     /// Check if text contains any credential tokens
     func containsCredentialTokens(in text: String) -> Bool {
-        let uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-        
-        guard let regex = try? NSRegularExpression(pattern: uuidPattern, options: []) else {
-            return false
-        }
-        
-        let range = NSRange(text.startIndex..., in: text)
-        let matches = regex.matches(in: text, options: [], range: range)
-        
-        for match in matches {
-            guard let swiftRange = Range(match.range, in: text) else { continue }
-            let uuidString = String(text[swiftRange])
-            if let uuid = UUID(uuidString: uuidString), tokenMap[uuid] != nil {
+        // Check if any known token exists in the text (case-insensitive)
+        for token in tokenMap.keys {
+            if text.range(of: token.uuidString, options: .caseInsensitive) != nil {
                 return true
             }
         }
-        
         return false
     }
     
@@ -273,16 +256,26 @@ class CredentialManager: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: credentialsKey),
            let decoded = try? JSONDecoder().decode([StoredCredential].self, from: data) {
             credentials = decoded
+            print("CredentialManager: Loaded \(credentials.count) credentials from UserDefaults")
             
             // Load values from Keychain into token map
             for credential in credentials {
                 if let username = loadFromKeychain(forToken: credential.usernameToken) {
                     tokenMap[credential.usernameToken] = username
+                    print("CredentialManager: Loaded username for '\(credential.displayName)' (token: \(credential.usernameToken.uuidString.prefix(8))...)")
+                } else {
+                    print("CredentialManager: WARNING - Failed to load username from keychain for '\(credential.displayName)'")
                 }
                 if let password = loadFromKeychain(forToken: credential.passwordToken) {
                     tokenMap[credential.passwordToken] = password
+                    print("CredentialManager: Loaded password for '\(credential.displayName)' (token: \(credential.passwordToken.uuidString.prefix(8))...)")
+                } else {
+                    print("CredentialManager: WARNING - Failed to load password from keychain for '\(credential.displayName)'")
                 }
             }
+            print("CredentialManager: tokenMap has \(tokenMap.count) entries")
+        } else {
+            print("CredentialManager: No credentials found in UserDefaults")
         }
         
         // Add default VM credential if no credentials exist

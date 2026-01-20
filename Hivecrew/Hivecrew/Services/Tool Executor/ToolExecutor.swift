@@ -102,6 +102,14 @@ class ToolExecutor {
         case "keyboard_type":
             let originalText = args["text"] as? String ?? ""
             let actualText = CredentialManager.shared.substituteTokens(in: originalText)
+            // Debug: check if substitution happened
+            if originalText != actualText {
+                print("ToolExecutor: keyboard_type - token substitution performed (original contained credential token)")
+            } else if originalText.contains("-") && originalText.count == 36 {
+                // Looks like a UUID that wasn't substituted
+                print("ToolExecutor: keyboard_type - WARNING: text looks like UUID but was NOT substituted. tokenMap may be missing this token.")
+                print("ToolExecutor: tokenMap has \(CredentialManager.shared.credentials.count) credentials loaded")
+            }
             try await connection.keyboardType(text: actualText)
             return .text("Typed: \"\(originalText.prefix(50))\(originalText.count > 50 ? "..." : "")\"")
             
@@ -231,7 +239,11 @@ class ToolExecutor {
     
     private func executeGetCredentials(args: [String: Any]) -> InternalToolResult {
         let serviceFilter = args["service"] as? String
+        print("ToolExecutor: get_login_credentials called with service filter: \(serviceFilter ?? "nil")")
+        
         var credentials = CredentialManager.shared.getCredentialsForAgent(service: serviceFilter)
+        print("ToolExecutor: getCredentialsForAgent returned \(credentials.count) credentials")
+        
         var noMatchMsg: String? = nil
         
         if credentials.isEmpty, let service = serviceFilter {
@@ -239,13 +251,20 @@ class ToolExecutor {
             if !credentials.isEmpty { noMatchMsg = "No credentials matching '\(service)'. Returning all." }
         }
         
-        if credentials.isEmpty { return .text("No credentials stored.") }
+        if credentials.isEmpty {
+            print("ToolExecutor: No credentials found, returning empty message")
+            return .text("No credentials stored.")
+        }
         
         var output = noMatchMsg.map { "\($0)\n\n" } ?? ""
         output += "Available credentials:\n\n"
         for cred in credentials {
-            output += "\(cred.displayName):\n  Username: \(cred.usernameToken)\n  Password: \(cred.passwordToken)\n\n"
+            // Get the actual username to display (not tokenized since usernames aren't sensitive)
+            let usernameDisplay = CredentialManager.shared.resolveToken(cred.usernameToken.uuidString) ?? "(no username)"
+            // Use explicit .uuidString for password token to ensure consistent format for substitution
+            output += "\(cred.displayName):\n  Username: \(usernameDisplay)\n  Password: \(cred.passwordToken.uuidString)\n\n"
         }
+        print("ToolExecutor: get_login_credentials returning output (\(output.count) chars):\n\(output)")
         return .text(output)
     }
     
