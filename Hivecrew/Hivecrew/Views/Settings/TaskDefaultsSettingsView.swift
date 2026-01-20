@@ -21,6 +21,13 @@ struct TaskDefaultsSettingsView: View {
     @AppStorage("searchEngine") private var searchEngine: String = "google"
     @AppStorage("defaultResultCount") private var defaultResultCount: Int = 10
     
+    // Notification settings
+    @AppStorage("notifyTaskCompleted") private var notifyTaskCompleted = true
+    @AppStorage("notifyTaskIncomplete") private var notifyTaskIncomplete = true
+    @AppStorage("notifyTaskFailed") private var notifyTaskFailed = true
+    @AppStorage("notifyTaskTimedOut") private var notifyTaskTimedOut = true
+    @AppStorage("notifyTaskMaxIterations") private var notifyTaskMaxIterations = true
+    
     @State private var showingFolderPicker = false
     
     /// Default output directory (Downloads)
@@ -40,6 +47,7 @@ struct TaskDefaultsSettingsView: View {
         Form {
             limitsSection
             outputSection
+            notificationsSection
             webToolsSection
             skillsSection
         }
@@ -132,6 +140,25 @@ struct TaskDefaultsSettingsView: View {
                 Text("Files produced by agents will be copied here from the VM's outbox")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    // MARK: - Notifications Section
+    
+    private var notificationsSection: some View {
+        Section("Notifications") {
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Task Completed", isOn: $notifyTaskCompleted)
+                Toggle("Task Incomplete", isOn: $notifyTaskIncomplete)
+                Toggle("Task Failed", isOn: $notifyTaskFailed)
+                Toggle("Task Timed Out", isOn: $notifyTaskTimedOut)
+                Toggle("Task Hit Max Steps", isOn: $notifyTaskMaxIterations)
+                
+                Text("Choose which task completion events trigger system notifications")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
             }
         }
     }

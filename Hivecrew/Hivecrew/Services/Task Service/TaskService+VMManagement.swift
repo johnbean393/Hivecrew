@@ -339,16 +339,27 @@ extension TaskService {
     func sendTaskCompletionNotification(task: TaskRecord) {
         let content = UNMutableNotificationContent()
         
+        // Check notification preferences from UserDefaults
+        let defaults = UserDefaults.standard
+        
         // Determine the notification title and body based on task status
         switch task.status {
             case .completed:
                 if let success = task.wasSuccessful, success {
-                    content.title = "Task Completed ✓"
+                    // Check if task completed notifications are enabled
+                    guard defaults.object(forKey: "notifyTaskCompleted") == nil || defaults.bool(forKey: "notifyTaskCompleted") else {
+                        return
+                    }
+                    content.title = "Task Completed"
                     content.body = task.title
                     if let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
                         content.subtitle = "\(outputPaths.count) deliverable(s) ready"
                     }
                 } else {
+                    // Check if task incomplete notifications are enabled
+                    guard defaults.object(forKey: "notifyTaskIncomplete") == nil || defaults.bool(forKey: "notifyTaskIncomplete") else {
+                        return
+                    }
                     content.title = "Task Incomplete"
                     content.body = task.title
                     if let summary = task.resultSummary {
@@ -356,15 +367,27 @@ extension TaskService {
                     }
                 }
             case .failed:
+                // Check if task failed notifications are enabled
+                guard defaults.object(forKey: "notifyTaskFailed") == nil || defaults.bool(forKey: "notifyTaskFailed") else {
+                    return
+                }
                 content.title = "Task Failed"
                 content.body = task.title
                 if let error = task.errorMessage {
                     content.subtitle = String(error.prefix(50))
                 }
             case .timedOut:
+                // Check if task timed out notifications are enabled
+                guard defaults.object(forKey: "notifyTaskTimedOut") == nil || defaults.bool(forKey: "notifyTaskTimedOut") else {
+                    return
+                }
                 content.title = "Task Timed Out"
                 content.body = task.title
             case .maxIterations:
+                // Check if task max iterations notifications are enabled
+                guard defaults.object(forKey: "notifyTaskMaxIterations") == nil || defaults.bool(forKey: "notifyTaskMaxIterations") else {
+                    return
+                }
                 content.title = "Task Hit Max Steps"
                 content.body = task.title
             default:

@@ -40,7 +40,13 @@ public struct LLMFunctionCall: Sendable, Codable, Equatable {
     
     /// Parse arguments as a dictionary
     public func argumentsDictionary() throws -> [String: Any] {
-        guard let data = arguments.data(using: .utf8) else {
+        // Handle empty or whitespace-only arguments (common for tools with no required params)
+        let trimmed = arguments.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return [:]
+        }
+        
+        guard let data = trimmed.data(using: .utf8) else {
             throw LLMError.invalidToolArguments("Arguments not valid UTF-8")
         }
         guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {

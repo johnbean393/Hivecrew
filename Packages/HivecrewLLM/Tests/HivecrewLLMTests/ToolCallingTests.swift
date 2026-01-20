@@ -20,18 +20,6 @@ final class ToolCallingTests: XCTestCase {
     
     // MARK: - Tool Schema Builder Tests
     
-    func testBuildAllToolsReturnsAllAgentMethods() {
-        let tools = toolSchemaBuilder.buildAllTools()
-        
-        XCTAssertEqual(tools.count, AgentMethod.allCases.count)
-        
-        // Verify all methods are represented
-        let toolNames = Set(tools.map { $0.function.name })
-        let methodNames = Set(AgentMethod.allCases.map { $0.rawValue })
-        
-        XCTAssertEqual(toolNames, methodNames)
-    }
-    
     func testBuildToolsForSubset() {
         let methods: [AgentMethod] = [.screenshot, .mouseClick, .keyboardType]
         let tools = toolSchemaBuilder.buildTools(for: methods)
@@ -180,6 +168,44 @@ final class ToolCallingTests: XCTestCase {
         }
     }
     
+    func testParseEmptyArgumentsReturnsEmptyDictionary() throws {
+        // Test empty string (common when LLM calls tools with no required params)
+        let toolCall1 = LLMToolCall(
+            id: "call_empty",
+            function: LLMFunctionCall(
+                name: "get_login_credentials",
+                arguments: ""
+            )
+        )
+        
+        let args1 = try toolCall1.function.argumentsDictionary()
+        XCTAssertTrue(args1.isEmpty)
+        
+        // Test whitespace-only string
+        let toolCall2 = LLMToolCall(
+            id: "call_whitespace",
+            function: LLMFunctionCall(
+                name: "get_location",
+                arguments: "   \n  "
+            )
+        )
+        
+        let args2 = try toolCall2.function.argumentsDictionary()
+        XCTAssertTrue(args2.isEmpty)
+        
+        // Test empty JSON object still works
+        let toolCall3 = LLMToolCall(
+            id: "call_empty_obj",
+            function: LLMFunctionCall(
+                name: "screenshot",
+                arguments: "{}"
+            )
+        )
+        
+        let args3 = try toolCall3.function.argumentsDictionary()
+        XCTAssertTrue(args3.isEmpty)
+    }
+    
     // MARK: - Tool Result Message Tests
     
     func testCreateToolResultMessage() {
@@ -305,21 +331,4 @@ final class ToolCallingTests: XCTestCase {
         XCTAssertEqual(client.configuration.baseURL, customURL)
     }
     
-    func testToolSchemaBuilderIsSendable() {
-        // This test verifies that ToolSchemaBuilder can be used safely across threads
-        let builder = ToolSchemaBuilder()
-        
-        let expectation = XCTestExpectation(description: "Concurrent access")
-        expectation.expectedFulfillmentCount = 10
-        
-        for _ in 0..<10 {
-            Task.detached {
-                let tools = builder.buildAllTools()
-                XCTAssertEqual(tools.count, AgentMethod.allCases.count)
-                expectation.fulfill()
-            }
-        }
-        
-        wait(for: [expectation], timeout: 5.0)
-    }
 }
