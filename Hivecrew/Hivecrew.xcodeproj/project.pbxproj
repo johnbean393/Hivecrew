@@ -110,6 +110,11 @@
 		20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 20A0FC092F1D1707000A066A /* HivecrewAPI */; };
 		20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */; };
 		20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A563982F1B74D200CA7546 /* CredentialManager.swift */; };
+		20B899452F1FAEB5003887A3 /* ScheduledTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B899442F1FAEB5003887A3 /* ScheduledTask.swift */; };
+		20B899482F1FAEC4003887A3 /* SchedulerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B899462F1FAEC4003887A3 /* SchedulerService.swift */; };
+		20B8994D2F1FAEE1003887A3 /* ScheduledTaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8994A2F1FAEE1003887A3 /* ScheduledTaskRowView.swift */; };
+		20B8994E2F1FAEE1003887A3 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B899492F1FAEE1003887A3 /* ScheduleCreationSheet.swift */; };
+		20B8994F2F1FAEE1003887A3 /* ScheduledTasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8994B2F1FAEE1003887A3 /* ScheduledTasksView.swift */; };
 		20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */; };
 		20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */; };
 		20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */; };
@@ -272,6 +277,11 @@
 		209EB6F32F1E2BD800A7F13F /* SkillsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsWindow.swift; sourceTree = "<group>"; };
 		20A563962F1B74A300CA7546 /* CredentialsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialsSettingsView.swift; sourceTree = "<group>"; };
 		20A563982F1B74D200CA7546 /* CredentialManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialManager.swift; sourceTree = "<group>"; };
+		20B899442F1FAEB5003887A3 /* ScheduledTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledTask.swift; sourceTree = "<group>"; };
+		20B899462F1FAEC4003887A3 /* SchedulerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulerService.swift; sourceTree = "<group>"; };
+		20B899492F1FAEE1003887A3 /* ScheduleCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCreationSheet.swift; sourceTree = "<group>"; };
+		20B8994A2F1FAEE1003887A3 /* ScheduledTaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledTaskRowView.swift; sourceTree = "<group>"; };
+		20B8994B2F1FAEE1003887A3 /* ScheduledTasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledTasksView.swift; sourceTree = "<group>"; };
 		20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTracePanel.swift; sourceTree = "<group>"; };
 		20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTerminationManager.swift; sourceTree = "<group>"; };
 		20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedTasksStartupSheet.swift; sourceTree = "<group>"; };
@@ -443,6 +453,7 @@
 		209C61872F12ABD700062D0E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				20B899442F1FAEB5003887A3 /* ScheduledTask.swift */,
 				3001A0032F15000000000003 /* AgentQuestion.swift */,
 				3001A0022F15000000000002 /* AgentSessionRecord.swift */,
 				2019E34F2F13A00000041819 /* LLMProviderRecord.swift */,
@@ -455,6 +466,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				20B899472F1FAEC4003887A3 /* Scheduler */,
 				209EB6E92F1E26D000A7F13F /* Skills */,
 				AAAA00022F1E200000000002 /* API */,
 				AAAA00032F1E200000000003 /* Template Download */,
@@ -513,6 +525,7 @@
 		209C61A02F12ABD700062D0E /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				20B8994C2F1FAEE1003887A3 /* Schedule */,
 				204DF4192F14D5E7004AB99B /* Onboarding */,
 				20C413EB2F142C6B00C6E8A9 /* App */,
 				3001C0012F15000000000001 /* Agent */,
@@ -591,6 +604,24 @@
 				209EB6F02F1E284700A7F13F /* SkillExtractionSheet.swift */,
 			);
 			path = Skills;
+			sourceTree = "<group>";
+		};
+		20B899472F1FAEC4003887A3 /* Scheduler */ = {
+			isa = PBXGroup;
+			children = (
+				20B899462F1FAEC4003887A3 /* SchedulerService.swift */,
+			);
+			path = Scheduler;
+			sourceTree = "<group>";
+		};
+		20B8994C2F1FAEE1003887A3 /* Schedule */ = {
+			isa = PBXGroup;
+			children = (
+				20B899492F1FAEE1003887A3 /* ScheduleCreationSheet.swift */,
+				20B8994A2F1FAEE1003887A3 /* ScheduledTaskRowView.swift */,
+				20B8994B2F1FAEE1003887A3 /* ScheduledTasksView.swift */,
+			);
+			path = Schedule;
 			sourceTree = "<group>";
 		};
 		20C413EB2F142C6B00C6E8A9 /* App */ = {
@@ -920,6 +951,9 @@
 			files = (
 				204DF41A2F14D5E7004AB99B /* OnboardingTemplateStep.swift in Sources */,
 				204DF41B2F14D5E7004AB99B /* OnboardingView.swift in Sources */,
+				20B8994D2F1FAEE1003887A3 /* ScheduledTaskRowView.swift in Sources */,
+				20B8994E2F1FAEE1003887A3 /* ScheduleCreationSheet.swift in Sources */,
+				20B8994F2F1FAEE1003887A3 /* ScheduledTasksView.swift in Sources */,
 				204DF41C2F14D5E7004AB99B /* OnboardingWelcomeStep.swift in Sources */,
 				204DF41D2F14D5E7004AB99B /* OnboardingCompleteStep.swift in Sources */,
 				209EB6E42F1E1A6300A7F13F /* ToolExecutor+WebTools.swift in Sources */,
@@ -1000,6 +1034,8 @@
 				204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */,
 				2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */,
 				204DF43C2F157398004AB99B /* TaskService+VMCleanup.swift in Sources */,
+				20B899482F1FAEC4003887A3 /* SchedulerService.swift in Sources */,
+				20B899452F1FAEB5003887A3 /* ScheduledTask.swift in Sources */,
 				3001B0052F15000000000005 /* AgentPrompts.swift in Sources */,
 				204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */,
 				204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */,

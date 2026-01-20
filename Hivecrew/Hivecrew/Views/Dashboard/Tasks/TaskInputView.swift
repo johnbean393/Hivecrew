@@ -98,7 +98,8 @@ struct TaskInputView: View {
 #Preview {
     TaskInputView()
         .environmentObject(TaskService())
-        .modelContainer(for: [LLMProviderRecord.self, TaskRecord.self], inMemory: true)
+        .environmentObject(SchedulerService.shared)
+        .modelContainer(for: [LLMProviderRecord.self, TaskRecord.self, ScheduledTask.self], inMemory: true)
         .frame(width: 600)
         .padding()
 }

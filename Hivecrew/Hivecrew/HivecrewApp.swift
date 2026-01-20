@@ -24,6 +24,7 @@ struct HivecrewApp: App {
             LLMProviderRecord.self,
             TaskRecord.self,
             AgentSessionRecord.self,
+            ScheduledTask.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         
@@ -38,6 +39,7 @@ struct HivecrewApp: App {
     @NSApplicationDelegateAdaptor(HivecrewAppDelegate.self) var appDelegate
     @StateObject private var vmService = VMServiceClient.shared
     @StateObject private var taskService = TaskService()
+    @StateObject private var schedulerService = SchedulerService.shared
     @StateObject private var terminationManager = AppTerminationManager.shared
     @StateObject private var downloadService = TemplateDownloadService.shared
     
@@ -64,6 +66,7 @@ struct HivecrewApp: App {
             ContentView()
                 .environmentObject(vmService)
                 .environmentObject(taskService)
+                .environmentObject(schedulerService)
                 .onAppear {
                     self.onStartup()
                 }
@@ -124,6 +127,7 @@ struct HivecrewApp: App {
             SettingsView()
                 .environmentObject(vmService)
                 .environmentObject(taskService)
+                .environmentObject(schedulerService)
                 .modelContainer(sharedModelContainer)
         }
         
@@ -138,6 +142,10 @@ struct HivecrewApp: App {
     private func onStartup() {
         // Wire up the model context to services
         taskService.setModelContext(sharedModelContainer.mainContext)
+        
+        // Configure and start scheduler service
+        schedulerService.configure(modelContext: sharedModelContainer.mainContext, taskService: taskService)
+        schedulerService.start()
         
         // Configure termination manager
         terminationManager.configure(taskService: taskService)

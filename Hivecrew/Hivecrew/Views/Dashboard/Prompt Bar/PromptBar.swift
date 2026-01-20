@@ -59,6 +59,9 @@ struct PromptBar: View {
     // Loading state
     @Binding var isSubmitting: Bool
     
+    // Schedule sheet state
+    @State private var showScheduleSheet: Bool = false
+    
     // Mention suggestions state
     @StateObject private var mentionProvider = MentionSuggestionsProvider()
     @StateObject private var mentionPanelController = MentionSuggestionsPanelController()
@@ -202,15 +205,26 @@ struct PromptBar: View {
             
             Spacer(minLength: 8)
             
-            // RIGHT: Send button (vertically centered)
+            // RIGHT: Schedule and Send buttons (vertically centered)
             if hasText {
-                sendButton
-                    .frame(width: 36)
-                    .padding(.trailing, 8)
-                    .transition(.scale.combined(with: .opacity))
+                HStack(spacing: 4) {
+                    scheduleButton
+                    sendButton
+                }
+                .padding(.trailing, 8)
+                .transition(.scale.combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.15), value: hasText)
+        .sheet(isPresented: $showScheduleSheet) {
+            ScheduleCreationSheet(
+                taskDescription: mentionInsertionController.getResolvedText(),
+                providerId: selectedProviderId,
+                modelId: selectedModelId,
+                attachedFilePaths: attachments.map { $0.url.path },
+                mentionedSkillNames: mentionInsertionController.getMentionedSkillNames()
+            )
+        }
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(rect)
         .overlay(
@@ -221,6 +235,21 @@ struct PromptBar: View {
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleFileDrop(providers)
         }
+    }
+    
+    // MARK: - Schedule Button
+    
+    private var scheduleButton: some View {
+        Button {
+            showScheduleSheet = true
+        } label: {
+            Image(systemName: "clock")
+                .font(.system(size: 16))
+                .foregroundStyle(Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(isSubmitting || selectedProviderId.isEmpty)
+        .help("Schedule this task")
     }
     
     // MARK: - Send Button
@@ -448,7 +477,8 @@ struct PromptBar: View {
             }
             .frame(width: 600, height: 300)
             .background(Color(nsColor: .windowBackgroundColor))
-            .modelContainer(for: LLMProviderRecord.self, inMemory: true)
+            .environmentObject(SchedulerService.shared)
+            .modelContainer(for: [LLMProviderRecord.self, ScheduledTask.self], inMemory: true)
         }
     }
     

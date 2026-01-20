@@ -98,5 +98,6 @@ struct ContentView: View {
     ContentView()
         .environmentObject(VMServiceClient.shared)
         .environmentObject(TaskService())
-        .modelContainer(for: [VMRecord.self, TaskRecord.self], inMemory: true)
+        .environmentObject(SchedulerService.shared)
+        .modelContainer(for: [VMRecord.self, TaskRecord.self, ScheduledTask.self], inMemory: true)
 }

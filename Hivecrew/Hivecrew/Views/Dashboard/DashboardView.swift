@@ -8,10 +8,19 @@
 import SwiftUI
 import SwiftData
 
+/// Tab selection for the task list section
+enum TaskListTab: String, CaseIterable {
+    case tasks = "Tasks"
+    case scheduled = "Scheduled"
+}
+
 /// Dashboard tab - Command center for dispatching tasks and reviewing results
 struct DashboardView: View {
     @EnvironmentObject var vmService: VMServiceClient
     @EnvironmentObject var taskService: TaskService
+    @EnvironmentObject var schedulerService: SchedulerService
+    
+    @State private var selectedTab: TaskListTab = .tasks
     
     var body: some View {
         VStack(spacing: 0) {
@@ -33,8 +42,12 @@ struct DashboardView: View {
             Spacer()
                 .frame(height: 32)
             
-            // Bottom section: Task list
-            TaskListView()
+            // Bottom section: Task list or Scheduled tasks
+            if selectedTab == .tasks {
+                TaskListView(selectedTab: $selectedTab, schedulerService: schedulerService)
+            } else {
+                ScheduledTasksView(selectedTab: $selectedTab, schedulerService: schedulerService)
+            }
             
             Spacer()
         }
@@ -47,5 +60,6 @@ struct DashboardView: View {
     DashboardView()
         .environmentObject(VMServiceClient.shared)
         .environmentObject(TaskService())
-        .modelContainer(for: [LLMProviderRecord.self, TaskRecord.self], inMemory: true)
+        .environmentObject(SchedulerService.shared)
+        .modelContainer(for: [LLMProviderRecord.self, TaskRecord.self, ScheduledTask.self], inMemory: true)
 }

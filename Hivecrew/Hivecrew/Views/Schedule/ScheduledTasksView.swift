@@ -1,31 +1,32 @@
 //
-//  TaskListView.swift
+//  ScheduledTasksView.swift
 //  Hivecrew
 //
-//  Searchable list of tasks with status indicators
+//  View for displaying and managing scheduled tasks
 //
 
 import SwiftUI
+import SwiftData
 
-/// List of tasks with search functionality
-struct TaskListView: View {
-    
-    @EnvironmentObject var taskService: TaskService
+/// View displaying the list of scheduled tasks
+struct ScheduledTasksView: View {
     @Binding var selectedTab: TaskListTab
     @ObservedObject var schedulerService: SchedulerService
     
     @State private var searchText: String = ""
+    @State private var showCreateSheet: Bool = false
+    @State private var scheduleToEdit: ScheduledTask?
     @FocusState private var isSearching: Bool
     
-    var searchFieldColor: Color {
-        return self.isSearching ? .accentColor : .secondary
+    private var searchFieldColor: Color {
+        isSearching ? .accentColor : .secondary
     }
     
-    var filteredTasks: [TaskRecord] {
+    private var filteredSchedules: [ScheduledTask] {
         if searchText.isEmpty {
-            return taskService.tasks
+            return schedulerService.scheduledTasks
         } else {
-            return taskService.tasks.filter {
+            return schedulerService.scheduledTasks.filter {
                 $0.title.localizedCaseInsensitiveContains(searchText) ||
                 $0.taskDescription.localizedCaseInsensitiveContains(searchText)
             }
@@ -34,19 +35,24 @@ struct TaskListView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header with tabs and search
+            // Header with tabs, search and add button
             header
                 .padding(.horizontal, 11)
-            // Task list
-            if filteredTasks.isEmpty {
+            
+            // Schedule list
+            if filteredSchedules.isEmpty {
                 emptyState
             } else {
                 List {
-                    ForEach(filteredTasks, id: \.id) { task in
-                        TaskRowView(task: task)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
+                    ForEach(filteredSchedules, id: \.id) { schedule in
+                        ScheduledTaskRowView(
+                            schedule: schedule,
+                            onEdit: { scheduleToEdit = schedule },
+                            onRunNow: { runNow(schedule) }
+                        )
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
                 }
                 .listStyle(.plain)
@@ -54,9 +60,17 @@ struct TaskListView: View {
             }
         }
         .padding(.horizontal, 40)
+        .sheet(isPresented: $showCreateSheet) {
+            ScheduleCreationSheet()
+        }
+        .sheet(item: $scheduleToEdit) { schedule in
+            ScheduleCreationSheet(editing: schedule)
+        }
     }
     
-    var header: some View {
+    // MARK: - Header
+    
+    private var header: some View {
         HStack {
             // Tab buttons
             tabButtons
@@ -84,6 +98,22 @@ struct TaskListView: View {
                         lineWidth: 1
                     )
             }
+            
+            // Add button (sized to match search bar height)
+            Button {
+                showCreateSheet = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 21, height: 21)
+                    .background(
+                        Circle()
+                            .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Create scheduled task")
         }
     }
     
@@ -123,29 +153,50 @@ struct TaskListView: View {
         }
     }
     
+    // MARK: - Empty State
+    
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "tray")
+            Image(systemName: "calendar.badge.clock")
                 .font(.system(size: 32))
                 .foregroundStyle(.tertiary)
             
-            Text(searchText.isEmpty ? "No tasks yet" : "No matching tasks")
+            Text(searchText.isEmpty ? "No scheduled tasks" : "No matching schedules")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             
             if searchText.isEmpty {
-                Text("Enter a task above to get started")
+                Text("Schedule tasks to run at specific times")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                
+                Button {
+                    showCreateSheet = true
+                } label: {
+                    Label("Create Schedule", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .padding(.top, 8)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
     }
+    
+    // MARK: - Actions
+    
+    private func runNow(_ schedule: ScheduledTask) {
+        Task {
+            await schedulerService.runNow(schedule)
+        }
+    }
 }
 
+// MARK: - Preview
+
 #Preview {
-    TaskListView(selectedTab: .constant(.tasks), schedulerService: SchedulerService.shared)
-        .environmentObject(TaskService())
+    ScheduledTasksView(selectedTab: .constant(.scheduled), schedulerService: SchedulerService.shared)
+        .modelContainer(for: ScheduledTask.self, inMemory: true)
         .frame(width: 600, height: 400)
 }
