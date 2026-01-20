@@ -77,6 +77,8 @@ public struct APIScheduledTask: Codable, Sendable {
     public let nextRunAt: Date?
     public let lastRunAt: Date?
     public let createdAt: Date
+    public let inputFiles: [APIFile]
+    public let inputFileCount: Int
     
     public init(
         id: String,
@@ -90,7 +92,9 @@ public struct APIScheduledTask: Codable, Sendable {
         recurrence: APIRecurrence?,
         nextRunAt: Date?,
         lastRunAt: Date?,
-        createdAt: Date
+        createdAt: Date,
+        inputFiles: [APIFile] = [],
+        inputFileCount: Int = 0
     ) {
         self.id = id
         self.title = title
@@ -104,6 +108,8 @@ public struct APIScheduledTask: Codable, Sendable {
         self.nextRunAt = nextRunAt
         self.lastRunAt = lastRunAt
         self.createdAt = createdAt
+        self.inputFiles = inputFiles
+        self.inputFileCount = inputFileCount
     }
 }
 

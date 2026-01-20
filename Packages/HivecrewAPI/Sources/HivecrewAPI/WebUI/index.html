@@ -8,9 +8,9 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css">
+    <link rel="stylesheet" href="/web/css/styles.css?v=4">
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js"></script>
+    <script defer src="/web/js/app.js?v=4"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -251,7 +251,7 @@
                             <div class="form-row">
                                 <div class="form-group">
                                     <label for="provider-select">Provider</label>
-                                    <select id="provider-select" x-model="newTask.providerId" @change="loadModels()">
+                                    <select id="provider-select" x-model="newTask.providerId" @change="saveProviderSelection()">
                                         <option value="">Select provider...</option>
                                         <template x-for="provider in providers" :key="provider.id">
                                             <option :value="provider.id" x-text="provider.displayName"></option>
@@ -259,14 +259,52 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="model-select">Model</label>
-                                    <select id="model-select" x-model="newTask.modelId" :disabled="!newTask.providerId">
-                                        <option value="">Select model...</option>
-                                        <template x-for="model in models" :key="model.id">
-                                            <option :value="model.id" x-text="model.name"></option>
-                                        </template>
-                                    </select>
+                                    <label for="model-input">Model</label>
+                                    <input 
+                                        type="text" 
+                                        id="model-input"
+                                        x-model="newTask.modelId"
+                                        placeholder="e.g. anthropic/claude-sonnet-4"
+                                        @input="saveModelSelection()"
+                                    >
                                 </div>
+                            </div>
+
+                            <!-- File Attachments -->
+                            <div class="form-group file-upload-group">
+                                <label for="task-files-input">Attach Files (optional)</label>
+                                <div class="file-input-wrapper">
+                                    <input 
+                                        type="file" 
+                                        id="task-files-input" 
+                                        multiple 
+                                        @change="handleFileSelect($event)"
+                                        class="file-input"
+                                    >
+                                    <div class="file-input-label">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                                        </svg>
+                                        <span>Choose files or drag and drop</span>
+                                    </div>
+                                </div>
+                                <!-- Selected files list -->
+                                <template x-if="newTask.files.length > 0">
+                                    <div class="selected-files">
+                                        <template x-for="(file, index) in newTask.files" :key="index">
+                                            <div class="selected-file">
+                                                <span class="file-name" x-text="file.name"></span>
+                                                <span class="file-size" x-text="formatFileSize(file.size)"></span>
+                                                <button type="button" class="file-remove" @click="removeFile(index)" title="Remove file">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
                             </div>
 
                             <!-- Schedule Options (when scheduling) -->
@@ -452,24 +490,49 @@
                                 </div>
                             </template>
 
-                            <!-- Files -->
+                            <!-- Output Files -->
                             <template x-if="selectedTask?.outputFiles?.length > 0">
                                 <div class="detail-section">
                                     <h4>Output Files</h4>
                                     <div class="file-list">
                                         <template x-for="file in selectedTask?.outputFiles" :key="file.name">
-                                            <a 
-                                                class="file-item" 
-                                                :href="'/api/v1/tasks/' + selectedTask?.id + '/files/' + file.name"
-                                                target="_blank"
-                                            >
+                                            <div class="file-item downloadable" @click="downloadFile(selectedTask?.id, file.name)">
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                                     <polyline points="14 2 14 8 20 8"></polyline>
                                                 </svg>
-                                                <span x-text="file.name"></span>
+                                                <span class="file-name" x-text="file.name"></span>
                                                 <span class="file-size" x-text="formatFileSize(file.size)"></span>
-                                            </a>
+                                                <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                </svg>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Input Files -->
+                            <template x-if="selectedTask?.inputFiles?.length > 0">
+                                <div class="detail-section">
+                                    <h4>Input Files</h4>
+                                    <div class="file-list">
+                                        <template x-for="file in selectedTask?.inputFiles" :key="file.name">
+                                            <div class="file-item downloadable" @click="downloadFile(selectedTask?.id, file.name, true)">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                                </svg>
+                                                <span class="file-name" x-text="file.name"></span>
+                                                <span class="file-size" x-text="formatFileSize(file.size)"></span>
+                                                <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                </svg>
+                                            </div>
                                         </template>
                                     </div>
                                 </div>

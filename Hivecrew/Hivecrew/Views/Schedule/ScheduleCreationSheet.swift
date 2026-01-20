@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Sheet for creating or editing a scheduled task
 struct ScheduleCreationSheet: View {
@@ -35,6 +36,7 @@ struct ScheduleCreationSheet: View {
     @State private var errorMessage: String?
     @State private var showModelOptions: Bool = false
     @State private var showDatePicker: Bool = false
+    @State private var showFilePicker: Bool = false
     
     // Edit mode
     let existingSchedule: ScheduledTask?
@@ -100,6 +102,9 @@ struct ScheduleCreationSheet: View {
                 // Prompt input
                 promptSection
                 
+                // File attachments
+                fileAttachmentSection
+                
                 // Schedule selection
                 scheduleSection
                 
@@ -115,7 +120,8 @@ struct ScheduleCreationSheet: View {
             // Footer
             footer
         }
-        .frame(width: 440, height: 480)
+        .frame(width: 440)
+        .frame(minHeight: 550)
         .onAppear {
             setupDefaults()
         }
@@ -158,6 +164,71 @@ struct ScheduleCreationSheet: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
                 )
+        }
+    }
+    
+    // MARK: - File Attachment Section
+    
+    private var fileAttachmentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Attachments")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Button {
+                    showFilePicker = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "paperclip")
+                            .font(.caption)
+                        Text("Add Files")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            
+            if attachedFilePaths.isEmpty {
+                Text("No files attached. Files will be available in the agent's inbox when the task runs.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(attachedFilePaths, id: \.self) { filePath in
+                            ScheduleAttachmentItem(
+                                filePath: filePath,
+                                onRemove: {
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        attachedFilePaths.removeAll { $0 == filePath }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            if case .success(let urls) = result {
+                for url in urls {
+                    let path = url.path
+                    if !attachedFilePaths.contains(path) {
+                        attachedFilePaths.append(path)
+                    }
+                }
+            }
         }
     }
     
@@ -539,6 +610,84 @@ struct ScheduleCreationSheet: View {
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Schedule Attachment Item
+
+/// Individual file attachment preview for scheduled tasks
+private struct ScheduleAttachmentItem: View {
+    let filePath: String
+    var onRemove: () -> Void
+    
+    @State private var isHovering: Bool = false
+    
+    private var fileName: String {
+        URL(fileURLWithPath: filePath).lastPathComponent
+    }
+    
+    private var fileIcon: String {
+        let ext = URL(fileURLWithPath: filePath).pathExtension.lowercased()
+        guard let uti = UTType(filenameExtension: ext) else { return "doc" }
+        
+        if uti.conforms(to: .image) {
+            return "photo"
+        } else if uti.conforms(to: .pdf) {
+            return "doc.richtext"
+        } else if uti.conforms(to: .plainText) || uti.conforms(to: .sourceCode) {
+            return "doc.text"
+        } else if uti.conforms(to: .archive) {
+            return "doc.zipper"
+        } else if uti.conforms(to: .spreadsheet) {
+            return "tablecells"
+        } else if uti.conforms(to: .presentation) {
+            return "slider.horizontal.below.rectangle"
+        } else {
+            return "doc"
+        }
+    }
+    
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            HStack(spacing: 8) {
+                Image(systemName: fileIcon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+                
+                Text(fileName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 100, alignment: .leading)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            
+            // Remove button
+            if isHovering {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white, .red)
+                }
+                .buttonStyle(.plain)
+                .offset(x: 6, y: -6)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
         }
     }
 }

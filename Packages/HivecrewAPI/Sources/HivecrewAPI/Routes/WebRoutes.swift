@@ -16,40 +16,6 @@ public final class WebRoutes: Sendable {
     public init() {}
     
     public func register(with router: Router<APIRequestContext>) {
-        // Debug endpoint to check WebUI directory
-        router.get("web-debug") { _, _ in
-            var info: [String: Any] = [:]
-            
-            if let webUIDir = Self.findWebUIDirectory() {
-                info["webUIDirectory"] = webUIDir.path
-                info["exists"] = FileManager.default.fileExists(atPath: webUIDir.path)
-                
-                // List contents
-                if let contents = try? FileManager.default.contentsOfDirectory(atPath: webUIDir.path) {
-                    info["contents"] = contents
-                }
-                
-                // Check specific files
-                let cssPath = webUIDir.appendingPathComponent("css/styles.css").path
-                let jsPath = webUIDir.appendingPathComponent("js/app.js").path
-                info["css/styles.css exists"] = FileManager.default.fileExists(atPath: cssPath)
-                info["js/app.js exists"] = FileManager.default.fileExists(atPath: jsPath)
-                info["cssPath"] = cssPath
-                info["jsPath"] = jsPath
-            } else {
-                info["webUIDirectory"] = "NOT FOUND"
-                info["Bundle.module.resourcePath"] = Bundle.module.resourcePath ?? "nil"
-                info["Bundle.main.resourcePath"] = Bundle.main.resourcePath ?? "nil"
-            }
-            
-            let jsonData = try JSONSerialization.data(withJSONObject: info, options: .prettyPrinted)
-            return Response(
-                status: .ok,
-                headers: [.contentType: "application/json"],
-                body: .init(byteBuffer: ByteBuffer(data: jsonData))
-            )
-        }
-        
         // Serve index.html at /web
         router.get("web") { _, _ in
             try Self.serveStaticFile(filename: "index.html")
@@ -60,7 +26,6 @@ public final class WebRoutes: Sendable {
             guard let file = context.parameters.get("file") else {
                 throw APIError.notFound("File not found")
             }
-            print("[WebRoutes] Serving CSS: '\(file)'")
             return try Self.serveStaticFile(filename: "css/\(file)")
         }
         
@@ -69,7 +34,6 @@ public final class WebRoutes: Sendable {
             guard let file = context.parameters.get("file") else {
                 throw APIError.notFound("File not found")
             }
-            print("[WebRoutes] Serving JS: '\(file)'")
             return try Self.serveStaticFile(filename: "js/\(file)")
         }
     }
@@ -172,9 +136,13 @@ public final class WebRoutes: Sendable {
         headers[.contentType] = mimeType
         headers[.contentLength] = "\(data.count)"
         
-        // Cache static assets
-        if filename.hasSuffix(".js") || filename.hasSuffix(".css") {
-            headers[.cacheControl] = "public, max-age=3600"
+        // Cache control based on file type
+        if filename.hasSuffix(".html") || filename.hasSuffix(".htm") {
+            // Don't cache HTML - always revalidate to get fresh content
+            headers[.cacheControl] = "no-cache, must-revalidate"
+        } else if filename.hasSuffix(".js") || filename.hasSuffix(".css") {
+            // Cache JS/CSS with version query params for cache busting
+            headers[.cacheControl] = "public, max-age=86400"
         }
         
         return Response(

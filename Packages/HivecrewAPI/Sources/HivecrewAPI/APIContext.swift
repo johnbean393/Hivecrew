@@ -45,6 +45,9 @@ public protocol APIServiceProvider: Sendable {
     /// Get files for a task
     func getTaskFiles(id: String) async throws -> APITaskFilesResponse
     
+    /// Get file data for download (serves from actual file paths stored in task)
+    func getTaskFileData(taskId: String, filename: String, isInput: Bool) async throws -> (data: Data, mimeType: String)
+    
     // MARK: - Schedule Operations
     
     /// Get scheduled tasks
@@ -59,6 +62,7 @@ public protocol APIServiceProvider: Sendable {
         description: String,
         providerName: String,
         modelId: String,
+        attachedFilePaths: [String],
         outputDirectory: String?,
         schedule: APISchedule
     ) async throws -> APIScheduledTask

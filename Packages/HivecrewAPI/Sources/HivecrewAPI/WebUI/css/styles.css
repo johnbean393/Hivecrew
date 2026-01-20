@@ -503,6 +503,12 @@ body {
     gap: 8px;
     padding: 16px 20px;
     border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.modal-footer .btn {
+    min-height: 36px;
+    white-space: nowrap;
 }
 
 .action-buttons {
@@ -721,9 +727,42 @@ body {
 }
 
 .file-size {
-    margin-left: auto;
     font-size: 12px;
     color: var(--text-tertiary);
+}
+
+.file-item .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-item.downloadable {
+    cursor: pointer;
+}
+
+.file-item.downloadable:hover {
+    background: var(--accent-color);
+    color: white;
+}
+
+.file-item.downloadable:hover svg {
+    color: white;
+}
+
+.file-item.downloadable:hover .file-size {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.file-item .download-icon {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    flex-shrink: 0;
+}
+
+.file-item.downloadable:hover .download-icon {
+    opacity: 1;
 }
 
 /* Toast Notifications */
@@ -822,11 +861,15 @@ body {
 }
 
 @media (max-width: 480px) {
+    html {
+        font-size: 14px;
+    }
+    
     .nav-brand span {
         display: none;
     }
     
-    .btn-primary span {
+    .header .btn-primary span {
         display: none;
     }
     
@@ -835,4 +878,309 @@ body {
         align-items: flex-start;
         gap: 4px;
     }
+    
+    /* Modal adjustments for mobile */
+    .modal {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        border-radius: 0;
+        max-height: 100vh;
+        height: 100vh;
+    }
+    
+    /* Auth modal stays compact on mobile */
+    .auth-modal {
+        width: auto;
+        max-width: calc(100% - 32px);
+        margin: 16px;
+        height: auto;
+        max-height: calc(100vh - 32px);
+        border-radius: var(--radius-lg);
+    }
+    
+    .modal-header {
+        padding: 12px 16px;
+    }
+    
+    .modal-header h2 {
+        font-size: 16px;
+    }
+    
+    .modal-body {
+        padding: 16px;
+    }
+    
+    .modal-footer {
+        padding: 12px 16px;
+        gap: 6px;
+    }
+    
+    .modal-footer .btn {
+        padding: 8px 12px;
+        font-size: 13px;
+        min-width: auto;
+    }
+    
+    .modal-footer .btn-primary {
+        min-width: 80px;
+    }
+    
+    /* Hide icon-accompanied button text on very small screens, but keep primary button text visible */
+    .modal-footer .btn-secondary svg ~ span {
+        display: none;
+    }
+    
+    /* Ensure primary button always shows text */
+    .modal-footer .btn-primary span {
+        display: inline !important;
+    }
+    
+    /* Form adjustments */
+    .form-group label {
+        font-size: 12px;
+    }
+    
+    input, select, textarea {
+        font-size: 16px; /* Prevents iOS zoom on focus */
+        padding: 10px 12px;
+    }
+    
+    .toggle-group {
+        flex-direction: column;
+    }
+    
+    .toggle-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Day selector adjustments */
+    .day-selector {
+        gap: 4px;
+    }
+    
+    .day-btn {
+        min-width: 36px;
+        padding: 6px;
+        font-size: 12px;
+    }
+    
+    /* Task card adjustments */
+    .task-card {
+        padding: 12px;
+    }
+    
+    .task-title {
+        font-size: 14px;
+    }
+    
+    .task-description {
+        font-size: 12px;
+    }
+    
+    /* Detail panel adjustments */
+    .detail-label {
+        font-size: 11px;
+    }
+    
+    .detail-value {
+        font-size: 13px;
+    }
+    
+    /* Action buttons stack on mobile */
+    .action-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .action-buttons .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* File upload adjustments */
+    .file-input-label {
+        padding: 12px;
+        font-size: 13px;
+    }
+    
+    .selected-file {
+        padding: 6px 10px;
+    }
+}
+
+/* File Upload Styles */
+.file-upload-group {
+    margin-top: 8px;
+}
+
+.file-input-wrapper {
+    position: relative;
+}
+
+.file-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.file-input-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.file-input-wrapper:hover .file-input-label,
+.file-input:focus + .file-input-label {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background: color-mix(in srgb, var(--accent-color) 5%, var(--bg-tertiary));
+}
+
+.selected-files {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.selected-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+
+.selected-file .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+}
+
+.selected-file .file-size {
+    color: var(--text-secondary);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.file-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.file-remove:hover {
+    background: var(--status-failed-bg);
+    color: var(--status-failed);
+}
+
+/* Searchable Select */
+.searchable-select {
+    position: relative;
+}
+
+.searchable-select.is-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.searchable-select-input {
+    position: relative;
+}
+
+.searchable-select-input input {
+    width: 100%;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+.searchable-select-input input:focus {
+    cursor: text;
+}
+
+.searchable-select-input .dropdown-arrow {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.searchable-select.is-open .searchable-select-input .dropdown-arrow {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+
+.searchable-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+}
+
+.searchable-select-option {
+    padding: 10px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.searchable-select-option:hover {
+    background: var(--bg-hover);
+}
+
+.searchable-select-option.is-selected {
+    background: var(--accent);
+    color: white;
+}
+
+.searchable-select-option.is-selected:hover {
+    background: var(--accent-hover);
+}
+
+.searchable-select-empty {
+    padding: 12px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13px;
 }

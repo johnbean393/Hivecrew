@@ -222,6 +222,9 @@ extension APIServiceProviderBridge {
             recurrence = convertToAPIRecurrence(rule)
         }
         
+        // Get input files metadata
+        let inputFiles = getInputFilesForSchedule(schedule)
+        
         return APIScheduledTask(
             id: schedule.id,
             title: schedule.title,
@@ -234,8 +237,20 @@ extension APIServiceProviderBridge {
             recurrence: recurrence,
             nextRunAt: schedule.nextRunAt,
             lastRunAt: schedule.lastRunAt,
-            createdAt: schedule.createdAt
+            createdAt: schedule.createdAt,
+            inputFiles: inputFiles,
+            inputFileCount: inputFiles.count
         )
+    }
+    
+    /// Get input files metadata for a scheduled task
+    func getInputFilesForSchedule(_ schedule: ScheduledTask) -> [APIFile] {
+        return schedule.attachedFilePaths.map { path in
+            let url = URL(fileURLWithPath: path)
+            let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+            let mimeType = APIFile.mimeType(for: url.lastPathComponent)
+            return APIFile(name: url.lastPathComponent, size: size, mimeType: mimeType)
+        }
     }
     
     /// Convert RecurrenceRule to APIRecurrence

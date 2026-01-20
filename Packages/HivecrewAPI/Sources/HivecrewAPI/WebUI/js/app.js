@@ -35,7 +35,8 @@ document.addEventListener('alpine:init', () => {
             scheduleTime: '09:00',
             recurrenceType: 'weekly',
             daysOfWeek: [2], // 1=Sunday, 2=Monday, etc.
-            dayOfMonth: 1
+            dayOfMonth: 1,
+            files: [] // Supports both immediate and scheduled tasks
         },
         
         // Selected schedule (for detail view)
@@ -43,7 +44,6 @@ document.addEventListener('alpine:init', () => {
         
         // Providers & Models
         providers: [],
-        models: [],
         
         // Task Actions
         actionLoading: false,
@@ -60,12 +60,41 @@ document.addEventListener('alpine:init', () => {
             if (this.apiKey) {
                 await this.loadInitialData();
                 this.startAutoRefresh();
+                
+                // Restore persisted selections
+                this.restoreSelections();
             }
             
             // Set default schedule date to tomorrow
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             this.newTask.scheduleDate = tomorrow.toISOString().split('T')[0];
+        },
+        
+        // Persist model selection
+        saveModelSelection() {
+            if (this.newTask.modelId) {
+                localStorage.setItem('hivecrew_model_id', this.newTask.modelId);
+            }
+        },
+        
+        saveProviderSelection() {
+            if (this.newTask.providerId) {
+                localStorage.setItem('hivecrew_provider_id', this.newTask.providerId);
+            }
+        },
+        
+        restoreSelections() {
+            const savedProviderId = localStorage.getItem('hivecrew_provider_id');
+            const savedModelId = localStorage.getItem('hivecrew_model_id');
+            
+            if (savedProviderId && this.providers.some(p => p.id === savedProviderId)) {
+                this.newTask.providerId = savedProviderId;
+            }
+            
+            if (savedModelId) {
+                this.newTask.modelId = savedModelId;
+            }
         },
         
         // Authentication
@@ -186,11 +215,12 @@ document.addEventListener('alpine:init', () => {
                     const data = await response.json();
                     this.providers = data.providers || [];
                     
-                    // Auto-select default provider
-                    const defaultProvider = this.providers.find(p => p.isDefault);
-                    if (defaultProvider) {
-                        this.newTask.providerId = defaultProvider.id;
-                        await this.loadModels();
+                    // Auto-select default provider only if no persisted selection
+                    if (!this.newTask.providerId) {
+                        const defaultProvider = this.providers.find(p => p.isDefault);
+                        if (defaultProvider) {
+                            this.newTask.providerId = defaultProvider.id;
+                        }
                     }
                 }
             } catch (error) {
@@ -198,39 +228,57 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        async loadModels() {
-            if (!this.newTask.providerId) {
-                this.models = [];
-                this.newTask.modelId = '';
-                return;
-            }
-            
-            try {
-                const response = await this.apiFetch(`/api/v1/providers/${this.newTask.providerId}/models`);
-                if (response.ok) {
-                    const data = await response.json();
-                    this.models = data.models || [];
-                    
-                    // Auto-select first model if available
-                    if (this.models.length > 0 && !this.newTask.modelId) {
-                        this.newTask.modelId = this.models[0].id;
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load models:', error);
-            }
-        },
-        
         // Auto-refresh
         startAutoRefresh() {
             this.stopAutoRefresh();
-            this.refreshInterval = setInterval(() => {
+            this.refreshInterval = setInterval(async () => {
+                // Refresh the current view's list
                 if (this.view === 'tasks') {
-                    this.loadTasks();
+                    await this.loadTasks();
+                    // Also refresh selected task details if viewing one
+                    if (this.selectedTask) {
+                        await this.refreshSelectedTask();
+                    }
                 } else if (this.view === 'scheduled') {
-                    this.loadScheduledTasks();
+                    await this.loadScheduledTasks();
+                    // Also refresh selected schedule details if viewing one
+                    if (this.selectedSchedule) {
+                        await this.refreshSelectedSchedule();
+                    }
                 }
-            }, 5000); // Refresh every 5 seconds
+            }, 10000); // Refresh every 10 seconds
+        },
+        
+        // Refresh selected task without closing the modal
+        async refreshSelectedTask() {
+            if (!this.selectedTask) return;
+            try {
+                const response = await fetch(`/api/v1/tasks/${this.selectedTask.id}`, {
+                    headers: { 'Authorization': `Bearer ${this.apiKey}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.selectedTask = data.task;
+                }
+            } catch (error) {
+                console.error('Failed to refresh task:', error);
+            }
+        },
+        
+        // Refresh selected schedule without closing the modal
+        async refreshSelectedSchedule() {
+            if (!this.selectedSchedule) return;
+            try {
+                const response = await fetch(`/api/v1/schedules/${this.selectedSchedule.id}`, {
+                    headers: { 'Authorization': `Bearer ${this.apiKey}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.selectedSchedule = data.schedule;
+                }
+            } catch (error) {
+                console.error('Failed to refresh schedule:', error);
+            }
         },
         
         stopAutoRefresh() {
@@ -261,26 +309,48 @@ document.addEventListener('alpine:init', () => {
             this.createError = '';
         },
         
+        // File handling for task creation
+        handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            this.newTask.files = files;
+        },
+        
+        removeFile(index) {
+            this.newTask.files.splice(index, 1);
+            // Update file input to reflect changes
+            const fileInput = document.getElementById('task-files-input');
+            if (fileInput) fileInput.value = '';
+        },
+        
         resetNewTask() {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             
+            // Restore persisted selections or use defaults
+            const savedProviderId = localStorage.getItem('hivecrew_provider_id');
+            const savedModelId = localStorage.getItem('hivecrew_model_id');
+            
+            const defaultProviderId = (savedProviderId && this.providers.some(p => p.id === savedProviderId))
+                ? savedProviderId
+                : (this.providers.find(p => p.isDefault)?.id || '');
+            
             this.newTask = {
                 title: '',
                 description: '',
-                providerId: this.providers.find(p => p.isDefault)?.id || '',
-                modelId: '',
+                providerId: defaultProviderId,
+                modelId: savedModelId || '',
                 isRecurring: false,
                 scheduleDate: tomorrow.toISOString().split('T')[0],
                 scheduleTime: '09:00',
                 recurrenceType: 'weekly',
                 daysOfWeek: [2], // Monday (1=Sunday, 2=Monday, etc.)
-                dayOfMonth: 1
+                dayOfMonth: 1,
+                files: []
             };
             
-            if (this.newTask.providerId) {
-                this.loadModels();
-            }
+            // Clear file input if it exists
+            const fileInput = document.getElementById('task-files-input');
+            if (fileInput) fileInput.value = '';
         },
         
         canCreateTask() {
@@ -313,37 +383,64 @@ document.addEventListener('alpine:init', () => {
                     // Create a scheduled task via /api/v1/schedules
                     const [hours, minutes] = this.newTask.scheduleTime.split(':').map(Number);
                     
-                    const body = {
-                        title: this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50),
-                        description: this.newTask.description.trim(),
-                        providerName: providerName,
-                        modelId: this.newTask.modelId,
-                        schedule: {}
-                    };
-                    
+                    // Build schedule object
+                    const schedule = {};
                     if (this.newTask.isRecurring) {
                         // Recurring schedule
-                        body.schedule.recurrence = {
+                        schedule.recurrence = {
                             type: this.newTask.recurrenceType,
                             hour: hours,
                             minute: minutes
                         };
                         
                         if (this.newTask.recurrenceType === 'weekly') {
-                            body.schedule.recurrence.daysOfWeek = this.newTask.daysOfWeek;
+                            schedule.recurrence.daysOfWeek = this.newTask.daysOfWeek;
                         } else if (this.newTask.recurrenceType === 'monthly') {
-                            body.schedule.recurrence.dayOfMonth = this.newTask.dayOfMonth;
+                            schedule.recurrence.dayOfMonth = this.newTask.dayOfMonth;
                         }
                     } else {
                         // One-time schedule
                         const scheduledAt = new Date(`${this.newTask.scheduleDate}T${this.newTask.scheduleTime}:00`);
-                        body.schedule.scheduledAt = scheduledAt.toISOString();
+                        schedule.scheduledAt = scheduledAt.toISOString();
                     }
                     
-                    const response = await this.apiFetch('/api/v1/schedules', {
-                        method: 'POST',
-                        body: JSON.stringify(body)
-                    });
+                    let response;
+                    
+                    if (this.newTask.files.length > 0) {
+                        // Use FormData for file uploads
+                        const formData = new FormData();
+                        formData.append('title', this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50));
+                        formData.append('description', this.newTask.description.trim());
+                        formData.append('providerName', providerName);
+                        formData.append('modelId', this.newTask.modelId);
+                        formData.append('schedule', JSON.stringify(schedule));
+                        
+                        for (const file of this.newTask.files) {
+                            formData.append('files', file);
+                        }
+                        
+                        response = await fetch('/api/v1/schedules', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${this.apiKey}`
+                            },
+                            body: formData
+                        });
+                    } else {
+                        // Regular JSON request
+                        const body = {
+                            title: this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50),
+                            description: this.newTask.description.trim(),
+                            providerName: providerName,
+                            modelId: this.newTask.modelId,
+                            schedule: schedule
+                        };
+                        
+                        response = await this.apiFetch('/api/v1/schedules', {
+                            method: 'POST',
+                            body: JSON.stringify(body)
+                        });
+                    }
                     
                     if (!response.ok) {
                         const error = await response.json();
@@ -356,16 +453,39 @@ document.addEventListener('alpine:init', () => {
                     await this.loadScheduledTasks();
                 } else {
                     // Create an immediate task via /api/v1/tasks
-                    const body = {
-                        description: this.newTask.description.trim(),
-                        providerName: providerName,
-                        modelId: this.newTask.modelId
-                    };
+                    let response;
                     
-                    const response = await this.apiFetch('/api/v1/tasks', {
-                        method: 'POST',
-                        body: JSON.stringify(body)
-                    });
+                    if (this.newTask.files.length > 0) {
+                        // Use FormData for file uploads
+                        const formData = new FormData();
+                        formData.append('description', this.newTask.description.trim());
+                        formData.append('providerName', providerName);
+                        formData.append('modelId', this.newTask.modelId);
+                        
+                        for (const file of this.newTask.files) {
+                            formData.append('files', file);
+                        }
+                        
+                        response = await fetch('/api/v1/tasks', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${this.apiKey}`
+                            },
+                            body: formData
+                        });
+                    } else {
+                        // Regular JSON request
+                        const body = {
+                            description: this.newTask.description.trim(),
+                            providerName: providerName,
+                            modelId: this.newTask.modelId
+                        };
+                        
+                        response = await this.apiFetch('/api/v1/tasks', {
+                            method: 'POST',
+                            body: JSON.stringify(body)
+                        });
+                    }
                     
                     if (!response.ok) {
                         const error = await response.json();
@@ -559,6 +679,40 @@ document.addEventListener('alpine:init', () => {
                 this.showToast(error.message, 'error');
             } finally {
                 this.actionLoading = false;
+            }
+        },
+        
+        // File Downloads
+        async downloadFile(taskId, filename, isInput = false) {
+            try {
+                const typeParam = isInput ? '?type=input' : '';
+                const response = await fetch(`/api/v1/tasks/${taskId}/files/${encodeURIComponent(filename)}${typeParam}`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKey}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to download file');
+                }
+                
+                // Get the blob from the response
+                const blob = await response.blob();
+                
+                // Create a download link and trigger it
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Cleanup
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+            } catch (error) {
+                this.showToast(`Download failed: ${error.message}`, 'error');
             }
         },
         

@@ -154,18 +154,56 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     }
     
     func getTaskFiles(id: String) async throws -> APITaskFilesResponse {
-        guard taskService.tasks.contains(where: { $0.id == id }) else {
+        guard let task = taskService.tasks.first(where: { $0.id == id }) else {
             throw APIError.notFound("Task with ID '\(id)' not found")
         }
         
-        let inputFiles = try await fileStorage.getUploadedFiles(for: id)
-        let outputFiles = try await fileStorage.getOutputFiles(for: id)
+        // Get input files from task's attachedFilePaths
+        let inputFiles: [APIFileDetail] = task.attachedFilePaths.compactMap { path in
+            let url = URL(fileURLWithPath: path)
+            guard FileManager.default.fileExists(atPath: path) else { return nil }
+            let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+            let mimeType = APIFile.mimeType(for: url.lastPathComponent)
+            return APIFileDetail(name: url.lastPathComponent, size: size, mimeType: mimeType, uploadedAt: nil, createdAt: nil)
+        }
+        
+        // Get output files from task's outputFilePaths
+        let outputFiles: [APIFileDetail] = (task.outputFilePaths ?? []).compactMap { path in
+            let url = URL(fileURLWithPath: path)
+            guard FileManager.default.fileExists(atPath: path) else { return nil }
+            let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+            let mimeType = APIFile.mimeType(for: url.lastPathComponent)
+            return APIFileDetail(name: url.lastPathComponent, size: size, mimeType: mimeType, uploadedAt: nil, createdAt: nil)
+        }
         
         return APITaskFilesResponse(
             taskId: id,
             inputFiles: inputFiles,
             outputFiles: outputFiles
         )
+    }
+    
+    func getTaskFileData(taskId: String, filename: String, isInput: Bool) async throws -> (data: Data, mimeType: String) {
+        guard let task = taskService.tasks.first(where: { $0.id == taskId }) else {
+            throw APIError.notFound("Task with ID '\(taskId)' not found")
+        }
+        
+        // Find the file path that matches the filename
+        let paths = isInput ? task.attachedFilePaths : (task.outputFilePaths ?? [])
+        
+        guard let filePath = paths.first(where: { URL(fileURLWithPath: $0).lastPathComponent == filename }) else {
+            throw APIError.notFound("File '\(filename)' not found in task")
+        }
+        
+        guard FileManager.default.fileExists(atPath: filePath) else {
+            throw APIError.notFound("File '\(filename)' no longer exists at expected location")
+        }
+        
+        let url = URL(fileURLWithPath: filePath)
+        let data = try Data(contentsOf: url)
+        let mimeType = APIFile.mimeType(for: filename)
+        
+        return (data, mimeType)
     }
     
     // MARK: - Schedule Operations
@@ -203,6 +241,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         description: String,
         providerName: String,
         modelId: String,
+        attachedFilePaths: [String],
         outputDirectory: String?,
         schedule: APISchedule
     ) async throws -> APIScheduledTask {
@@ -232,6 +271,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             taskDescription: description,
             providerId: providerId,
             modelId: modelId,
+            attachedFilePaths: attachedFilePaths,
             outputDirectory: outputDirectory,
             scheduleType: scheduleType,
             scheduledDate: scheduledDate,

@@ -425,6 +425,39 @@ curl -X POST http://localhost:5482/api/v1/schedules \
   }'
 ```
 
+### Create Scheduled Task with File Attachments
+
+Use `multipart/form-data` to upload files that will be available each time the scheduled task runs:
+
+```bash
+curl -X POST http://localhost:5482/api/v1/schedules \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -F "title=Weekly Sales Report" \
+  -F "description=Process the attached sales data and generate a summary report" \
+  -F "providerName=OpenRouter" \
+  -F "modelId=anthropic/claude-sonnet-4.5" \
+  -F 'schedule={"recurrence":{"type":"weekly","daysOfWeek":[2],"hour":9,"minute":0}}' \
+  -F "files=@/path/to/sales_template.xlsx" \
+  -F "files=@/path/to/report_format.docx"
+```
+
+**With one-time schedule and custom output directory:**
+
+```bash
+curl -X POST http://localhost:5482/api/v1/schedules \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -F "title=Analyze Q4 Data" \
+  -F "description=Analyze the attached Q4 data files and create visualizations" \
+  -F "providerName=OpenRouter" \
+  -F "modelId=anthropic/claude-sonnet-4.5" \
+  -F "outputDirectory=/Users/me/Desktop/q4-analysis" \
+  -F 'schedule={"scheduledAt":"2026-01-21T09:00:00Z"}' \
+  -F "files=@/path/to/q4_revenue.csv" \
+  -F "files=@/path/to/q4_expenses.csv"
+```
+
+The attached files will be available in the agent's inbox folder when the scheduled task runs.
+
 **Response:**
 
 ```json
@@ -443,7 +476,44 @@ curl -X POST http://localhost:5482/api/v1/schedules \
     "minute": 0
   },
   "nextRunAt": "2026-01-27T09:00:00Z",
-  "createdAt": "2026-01-20T10:00:00Z"
+  "createdAt": "2026-01-20T10:00:00Z",
+  "inputFiles": [],
+  "inputFileCount": 0
+}
+```
+
+**Response (with file attachments):**
+
+```json
+{
+  "id": "B2C3D4E5...",
+  "title": "Weekly Sales Report",
+  "description": "Process the attached sales data and generate a summary report",
+  "providerName": "OpenRouter",
+  "modelId": "anthropic/claude-sonnet-4.5",
+  "isEnabled": true,
+  "scheduleType": "recurring",
+  "recurrence": {
+    "type": "weekly",
+    "daysOfWeek": [2],
+    "hour": 9,
+    "minute": 0
+  },
+  "nextRunAt": "2026-01-27T09:00:00Z",
+  "createdAt": "2026-01-20T10:00:00Z",
+  "inputFiles": [
+    {
+      "name": "sales_template.xlsx",
+      "size": 45678,
+      "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    },
+    {
+      "name": "report_format.docx",
+      "size": 23456,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    }
+  ],
+  "inputFileCount": 2
 }
 ```
 
@@ -480,7 +550,9 @@ GET /api/v1/schedules
       },
       "nextRunAt": "2026-01-21T06:00:00Z",
       "lastRunAt": "2026-01-20T06:00:00Z",
-      "createdAt": "2026-01-15T10:00:00Z"
+      "createdAt": "2026-01-15T10:00:00Z",
+      "inputFiles": [],
+      "inputFileCount": 0
     }
   ],
   "total": 1,

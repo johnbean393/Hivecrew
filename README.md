@@ -112,6 +112,39 @@ else:
     print(f"Test failed: {result.result_summary}")
 ```
 
+**Example: Scheduled Task with File Attachments**
+
+```python
+from hivecrew import HivecrewClient
+from datetime import datetime, timedelta
+
+client = HivecrewClient()
+
+# Schedule a weekly report task with input files attached
+schedule = client.schedules.create(
+    title="Weekly Sales Report",
+    description="""
+    Process the attached sales data files:
+    1. Open the CSV files and analyze the data
+    2. Create a summary report with key metrics
+    3. Generate charts for revenue trends
+    4. Save the report as PDF to the outbox
+    """,
+    provider_name="OpenRouter",
+    model_id="anthropic/claude-sonnet-4.5",
+    files=["./data/sales_q1.csv", "./data/sales_q2.csv"],
+    recurrence={
+        "type": "weekly",
+        "days_of_week": [2],  # Monday (1=Sunday, 7=Saturday)
+        "hour": 9,
+        "minute": 0
+    }
+)
+
+print(f"Scheduled task created: {schedule.id}")
+print(f"Next run: {schedule.next_run_at}")
+```
+
 See the [hivecrew-python](https://github.com/johnbean393/hivecrew-python) repository for full documentation.
 
 ## Contributing
