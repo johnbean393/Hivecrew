@@ -5,6 +5,7 @@
 //  Implementation of APIServiceProvider that bridges the API to the app's services
 //
 
+import Combine
 import Foundation
 import SwiftData
 import HivecrewAPI
@@ -15,6 +16,7 @@ import HivecrewShared
 final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     
     let taskService: TaskService
+    let schedulerService: SchedulerService
     let vmServiceClient: VMServiceClient
     let modelContext: ModelContext
     let fileStorage: TaskFileStorage
@@ -24,11 +26,13 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     
     init(
         taskService: TaskService,
+        schedulerService: SchedulerService,
         vmServiceClient: VMServiceClient,
         modelContext: ModelContext,
         fileStorage: TaskFileStorage
     ) {
         self.taskService = taskService
+        self.schedulerService = schedulerService
         self.vmServiceClient = vmServiceClient
         self.modelContext = modelContext
         self.fileStorage = fileStorage
@@ -162,6 +166,134 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             inputFiles: inputFiles,
             outputFiles: outputFiles
         )
+    }
+    
+    // MARK: - Schedule Operations
+    
+    func getScheduledTasks(limit: Int, offset: Int) async throws -> APIScheduledTaskListResponse {
+        var schedules = schedulerService.scheduledTasks
+        
+        // Sort by nextRunAt (ascending - earliest first)
+        schedules.sort { ($0.nextRunAt ?? Date.distantFuture) < ($1.nextRunAt ?? Date.distantFuture) }
+        
+        let total = schedules.count
+        
+        // Apply pagination
+        let startIndex = min(offset, schedules.count)
+        let endIndex = min(offset + limit, schedules.count)
+        let paginatedSchedules = Array(schedules[startIndex..<endIndex])
+        
+        return APIScheduledTaskListResponse(
+            schedules: paginatedSchedules.map { convertToAPIScheduledTask($0) },
+            total: total,
+            limit: limit,
+            offset: offset
+        )
+    }
+    
+    func getScheduledTask(id: String) async throws -> APIScheduledTask {
+        guard let schedule = schedulerService.scheduledTasks.first(where: { $0.id == id }) else {
+            throw APIError.notFound("Scheduled task with ID '\(id)' not found")
+        }
+        return convertToAPIScheduledTask(schedule)
+    }
+    
+    func createScheduledTask(
+        title: String,
+        description: String,
+        providerName: String,
+        modelId: String,
+        outputDirectory: String?,
+        schedule: APISchedule
+    ) async throws -> APIScheduledTask {
+        // Find provider by name
+        let providerId = try await findProviderIdByName(providerName)
+        
+        // Determine schedule type and configuration
+        let scheduleType: ScheduleType
+        var scheduledDate: Date? = nil
+        var recurrenceRule: RecurrenceRule? = nil
+        
+        if let recurrence = schedule.recurrence {
+            // Recurring schedule
+            scheduleType = .recurring
+            recurrenceRule = convertFromAPIRecurrence(recurrence)
+        } else if let scheduledAt = schedule.scheduledAt {
+            // One-time schedule
+            scheduleType = .oneTime
+            scheduledDate = scheduledAt
+        } else {
+            throw APIError.badRequest("Schedule must include either scheduledAt (one-time) or recurrence (recurring)")
+        }
+        
+        // Create the scheduled task
+        let scheduledTask = try schedulerService.createScheduledTask(
+            title: title,
+            taskDescription: description,
+            providerId: providerId,
+            modelId: modelId,
+            outputDirectory: outputDirectory,
+            scheduleType: scheduleType,
+            scheduledDate: scheduledDate,
+            recurrenceRule: recurrenceRule
+        )
+        
+        return convertToAPIScheduledTask(scheduledTask)
+    }
+    
+    func updateScheduledTask(id: String, request: UpdateScheduleRequest) async throws -> APIScheduledTask {
+        guard let schedule = schedulerService.scheduledTasks.first(where: { $0.id == id }) else {
+            throw APIError.notFound("Scheduled task with ID '\(id)' not found")
+        }
+        
+        // Determine updated schedule type and configuration
+        var scheduleType: ScheduleType? = nil
+        var scheduledDate: Date? = nil
+        var recurrenceRule: RecurrenceRule? = nil
+        
+        if let recurrence = request.recurrence {
+            scheduleType = .recurring
+            recurrenceRule = convertFromAPIRecurrence(recurrence)
+        } else if let scheduledAt = request.scheduledAt {
+            scheduleType = .oneTime
+            scheduledDate = scheduledAt
+        }
+        
+        try schedulerService.updateScheduledTask(
+            schedule,
+            title: request.title,
+            taskDescription: request.description,
+            scheduleType: scheduleType,
+            scheduledDate: scheduledDate,
+            recurrenceRule: recurrenceRule,
+            isEnabled: request.isEnabled
+        )
+        
+        return convertToAPIScheduledTask(schedule)
+    }
+    
+    func deleteScheduledTask(id: String) async throws {
+        guard let schedule = schedulerService.scheduledTasks.first(where: { $0.id == id }) else {
+            throw APIError.notFound("Scheduled task with ID '\(id)' not found")
+        }
+        
+        try schedulerService.deleteScheduledTask(schedule)
+    }
+    
+    func runScheduledTaskNow(id: String) async throws -> APITask {
+        guard let schedule = schedulerService.scheduledTasks.first(where: { $0.id == id }) else {
+            throw APIError.notFound("Scheduled task with ID '\(id)' not found")
+        }
+        
+        // Run the scheduled task immediately
+        await schedulerService.runNow(schedule)
+        
+        // Find the task that was just created (most recent task with matching description)
+        if let task = taskService.tasks.first(where: { $0.taskDescription == schedule.taskDescription }) {
+            return convertToAPITask(task)
+        }
+        
+        throw APIError.internalError("Failed to find created task")
     }
     
     // MARK: - Provider Operations

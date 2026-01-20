@@ -17,6 +17,9 @@ let package = Package(
             dependencies: [
                 .product(name: "Hummingbird", package: "hummingbird"),
                 "HivecrewShared"
+            ],
+            resources: [
+                .copy("WebUI")
             ]
         )
     ]

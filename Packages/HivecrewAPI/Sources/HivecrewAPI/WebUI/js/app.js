@@ -1,0 +1,759 @@
+/**
+ * Hivecrew Web UI - Alpine.js Application
+ */
+
+// Register the main Alpine.js component
+document.addEventListener('alpine:init', () => {
+    Alpine.data('hivecrew', () => ({
+        // Authentication
+        apiKey: localStorage.getItem('hivecrew_api_key') || '',
+        apiKeyInput: '',
+        authError: '',
+        
+        // Navigation
+        view: 'tasks',
+        
+        // Tasks
+        tasks: [],
+        scheduledTasks: [],
+        selectedTask: null,
+        loading: false,
+        statusFilter: '',
+        
+        // Create Task
+        showCreateModal: false,
+        isScheduling: false,
+        creating: false,
+        createError: '',
+        newTask: {
+            title: '',
+            description: '',
+            providerId: '',
+            modelId: '',
+            isRecurring: false,
+            scheduleDate: '',
+            scheduleTime: '09:00',
+            recurrenceType: 'weekly',
+            daysOfWeek: [2], // 1=Sunday, 2=Monday, etc.
+            dayOfMonth: 1
+        },
+        
+        // Selected schedule (for detail view)
+        selectedSchedule: null,
+        
+        // Providers & Models
+        providers: [],
+        models: [],
+        
+        // Task Actions
+        actionLoading: false,
+        
+        // Toasts
+        toasts: [],
+        toastId: 0,
+        
+        // Auto-refresh
+        refreshInterval: null,
+        
+        // Initialize
+        async init() {
+            if (this.apiKey) {
+                await this.loadInitialData();
+                this.startAutoRefresh();
+            }
+            
+            // Set default schedule date to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            this.newTask.scheduleDate = tomorrow.toISOString().split('T')[0];
+        },
+        
+        // Authentication
+        async saveApiKey() {
+            if (!this.apiKeyInput) return;
+            
+            this.authError = '';
+            
+            // Test the API key
+            try {
+                const response = await fetch('/api/v1/system/status', {
+                    headers: {
+                        'Authorization': `Bearer ${this.apiKeyInput}`
+                    }
+                });
+                
+                if (response.status === 401) {
+                    this.authError = 'Invalid API key. Please check and try again.';
+                    return;
+                }
+                
+                if (!response.ok) {
+                    this.authError = 'Failed to connect. Is the API server running?';
+                    return;
+                }
+                
+                // Save the key
+                this.apiKey = this.apiKeyInput;
+                localStorage.setItem('hivecrew_api_key', this.apiKey);
+                this.apiKeyInput = '';
+                
+                // Load initial data
+                await this.loadInitialData();
+                this.startAutoRefresh();
+                
+            } catch (error) {
+                this.authError = 'Connection failed. Please check the server is running.';
+            }
+        },
+        
+        logout() {
+            this.apiKey = '';
+            localStorage.removeItem('hivecrew_api_key');
+            this.stopAutoRefresh();
+            this.tasks = [];
+            this.scheduledTasks = [];
+            this.providers = [];
+            this.models = [];
+        },
+        
+        // API Helpers
+        async apiFetch(endpoint, options = {}) {
+            const response = await fetch(endpoint, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+            
+            if (response.status === 401) {
+                this.logout();
+                this.authError = 'Session expired. Please log in again.';
+                throw new Error('Unauthorized');
+            }
+            
+            return response;
+        },
+        
+        // Data Loading
+        async loadInitialData() {
+            await Promise.all([
+                this.loadTasks(),
+                this.loadProviders()
+            ]);
+        },
+        
+        async loadTasks() {
+            this.loading = true;
+            try {
+                let url = '/api/v1/tasks?limit=100&sort=createdAt&order=desc';
+                if (this.statusFilter) {
+                    url += `&status=${this.statusFilter}`;
+                }
+                
+                const response = await this.apiFetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.tasks = data.tasks || [];
+                }
+            } catch (error) {
+                console.error('Failed to load tasks:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadScheduledTasks() {
+            this.loading = true;
+            try {
+                const response = await this.apiFetch('/api/v1/schedules?limit=100');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.scheduledTasks = data.schedules || [];
+                }
+            } catch (error) {
+                console.error('Failed to load scheduled tasks:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadProviders() {
+            try {
+                const response = await this.apiFetch('/api/v1/providers');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.providers = data.providers || [];
+                    
+                    // Auto-select default provider
+                    const defaultProvider = this.providers.find(p => p.isDefault);
+                    if (defaultProvider) {
+                        this.newTask.providerId = defaultProvider.id;
+                        await this.loadModels();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load providers:', error);
+            }
+        },
+        
+        async loadModels() {
+            if (!this.newTask.providerId) {
+                this.models = [];
+                this.newTask.modelId = '';
+                return;
+            }
+            
+            try {
+                const response = await this.apiFetch(`/api/v1/providers/${this.newTask.providerId}/models`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.models = data.models || [];
+                    
+                    // Auto-select first model if available
+                    if (this.models.length > 0 && !this.newTask.modelId) {
+                        this.newTask.modelId = this.models[0].id;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load models:', error);
+            }
+        },
+        
+        // Auto-refresh
+        startAutoRefresh() {
+            this.stopAutoRefresh();
+            this.refreshInterval = setInterval(() => {
+                if (this.view === 'tasks') {
+                    this.loadTasks();
+                } else if (this.view === 'scheduled') {
+                    this.loadScheduledTasks();
+                }
+            }, 5000); // Refresh every 5 seconds
+        },
+        
+        stopAutoRefresh() {
+            if (this.refreshInterval) {
+                clearInterval(this.refreshInterval);
+                this.refreshInterval = null;
+            }
+        },
+        
+        // Create Task Modal
+        openCreateModal() {
+            this.showCreateModal = true;
+            this.isScheduling = false;
+            this.createError = '';
+            this.resetNewTask();
+        },
+        
+        openScheduleModal() {
+            this.showCreateModal = true;
+            this.isScheduling = true;
+            this.createError = '';
+            this.resetNewTask();
+        },
+        
+        closeCreateModal() {
+            this.showCreateModal = false;
+            this.isScheduling = false;
+            this.createError = '';
+        },
+        
+        resetNewTask() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            this.newTask = {
+                title: '',
+                description: '',
+                providerId: this.providers.find(p => p.isDefault)?.id || '',
+                modelId: '',
+                isRecurring: false,
+                scheduleDate: tomorrow.toISOString().split('T')[0],
+                scheduleTime: '09:00',
+                recurrenceType: 'weekly',
+                daysOfWeek: [2], // Monday (1=Sunday, 2=Monday, etc.)
+                dayOfMonth: 1
+            };
+            
+            if (this.newTask.providerId) {
+                this.loadModels();
+            }
+        },
+        
+        canCreateTask() {
+            return this.newTask.description.trim() && 
+                   this.newTask.providerId && 
+                   this.newTask.modelId;
+        },
+        
+        toggleDay(day) {
+            const index = this.newTask.daysOfWeek.indexOf(day);
+            if (index === -1) {
+                this.newTask.daysOfWeek.push(day);
+            } else if (this.newTask.daysOfWeek.length > 1) {
+                this.newTask.daysOfWeek.splice(index, 1);
+            }
+        },
+        
+        async createTask() {
+            if (!this.canCreateTask()) return;
+            
+            this.creating = true;
+            this.createError = '';
+            
+            try {
+                // Find provider name
+                const provider = this.providers.find(p => p.id === this.newTask.providerId);
+                const providerName = provider?.displayName || this.newTask.providerId;
+                
+                if (this.isScheduling) {
+                    // Create a scheduled task via /api/v1/schedules
+                    const [hours, minutes] = this.newTask.scheduleTime.split(':').map(Number);
+                    
+                    const body = {
+                        title: this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50),
+                        description: this.newTask.description.trim(),
+                        providerName: providerName,
+                        modelId: this.newTask.modelId,
+                        schedule: {}
+                    };
+                    
+                    if (this.newTask.isRecurring) {
+                        // Recurring schedule
+                        body.schedule.recurrence = {
+                            type: this.newTask.recurrenceType,
+                            hour: hours,
+                            minute: minutes
+                        };
+                        
+                        if (this.newTask.recurrenceType === 'weekly') {
+                            body.schedule.recurrence.daysOfWeek = this.newTask.daysOfWeek;
+                        } else if (this.newTask.recurrenceType === 'monthly') {
+                            body.schedule.recurrence.dayOfMonth = this.newTask.dayOfMonth;
+                        }
+                    } else {
+                        // One-time schedule
+                        const scheduledAt = new Date(`${this.newTask.scheduleDate}T${this.newTask.scheduleTime}:00`);
+                        body.schedule.scheduledAt = scheduledAt.toISOString();
+                    }
+                    
+                    const response = await this.apiFetch('/api/v1/schedules', {
+                        method: 'POST',
+                        body: JSON.stringify(body)
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error?.message || 'Failed to create schedule');
+                    }
+                    
+                    this.closeCreateModal();
+                    this.showToast('Task scheduled successfully', 'success');
+                    this.view = 'scheduled';
+                    await this.loadScheduledTasks();
+                } else {
+                    // Create an immediate task via /api/v1/tasks
+                    const body = {
+                        description: this.newTask.description.trim(),
+                        providerName: providerName,
+                        modelId: this.newTask.modelId
+                    };
+                    
+                    const response = await this.apiFetch('/api/v1/tasks', {
+                        method: 'POST',
+                        body: JSON.stringify(body)
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error?.message || 'Failed to create task');
+                    }
+                    
+                    this.closeCreateModal();
+                    this.showToast('Task created successfully', 'success');
+                    this.view = 'tasks';
+                    await this.loadTasks();
+                }
+                
+            } catch (error) {
+                this.createError = error.message;
+            } finally {
+                this.creating = false;
+            }
+        },
+        
+        // Task Detail
+        async openTaskDetail(task) {
+            // Load full task details
+            try {
+                const response = await this.apiFetch(`/api/v1/tasks/${task.id}`);
+                if (response.ok) {
+                    this.selectedTask = await response.json();
+                } else {
+                    this.selectedTask = task;
+                }
+            } catch (error) {
+                this.selectedTask = task;
+            }
+        },
+        
+        // Schedule Detail
+        async openScheduleDetail(schedule) {
+            // Load full schedule details
+            try {
+                const response = await this.apiFetch(`/api/v1/schedules/${schedule.id}`);
+                if (response.ok) {
+                    this.selectedSchedule = await response.json();
+                } else {
+                    this.selectedSchedule = schedule;
+                }
+            } catch (error) {
+                this.selectedSchedule = schedule;
+            }
+        },
+        
+        closeTaskDetail() {
+            this.selectedTask = null;
+        },
+        
+        closeScheduleDetail() {
+            this.selectedSchedule = null;
+        },
+        
+        // Task Actions
+        async performAction(action, instructions = null) {
+            if (!this.selectedTask) return;
+            
+            this.actionLoading = true;
+            
+            try {
+                const body = { action };
+                if (instructions) {
+                    body.instructions = instructions;
+                }
+                
+                const response = await this.apiFetch(`/api/v1/tasks/${this.selectedTask.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(body)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || `Failed to ${action} task`);
+                }
+                
+                const updatedTask = await response.json();
+                this.selectedTask = updatedTask;
+                
+                this.showToast(`Task ${action}ed successfully`, 'success');
+                
+                // Refresh task list
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async cancelTask() {
+            await this.performAction('cancel');
+        },
+        
+        async pauseTask() {
+            await this.performAction('pause');
+        },
+        
+        async resumeTask() {
+            await this.performAction('resume');
+        },
+        
+        async runScheduleNow() {
+            if (!this.selectedSchedule) return;
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(`/api/v1/schedules/${this.selectedSchedule.id}/run`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to run schedule');
+                }
+                
+                this.showToast('Task started', 'success');
+                this.closeScheduleDetail();
+                
+                // Switch to tasks view and refresh
+                this.view = 'tasks';
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async toggleSchedule() {
+            if (!this.selectedSchedule) return;
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(`/api/v1/schedules/${this.selectedSchedule.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        isEnabled: !this.selectedSchedule.isEnabled
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to update schedule');
+                }
+                
+                const updatedSchedule = await response.json();
+                this.selectedSchedule = updatedSchedule;
+                
+                this.showToast(`Schedule ${updatedSchedule.isEnabled ? 'enabled' : 'disabled'}`, 'success');
+                await this.loadScheduledTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async deleteSchedule() {
+            if (!this.selectedSchedule) return;
+            
+            if (!confirm('Are you sure you want to delete this scheduled task?')) {
+                return;
+            }
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(`/api/v1/schedules/${this.selectedSchedule.id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to delete schedule');
+                }
+                
+                this.showToast('Schedule deleted', 'success');
+                this.closeScheduleDetail();
+                await this.loadScheduledTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        // Toast Notifications
+        showToast(message, type = 'info') {
+            const id = ++this.toastId;
+            this.toasts.push({ id, message, type, visible: true });
+            
+            // Auto-remove after 4 seconds
+            setTimeout(() => {
+                this.removeToast(id);
+            }, 4000);
+        },
+        
+        removeToast(id) {
+            const index = this.toasts.findIndex(t => t.id === id);
+            if (index !== -1) {
+                this.toasts[index].visible = false;
+                setTimeout(() => {
+                    this.toasts = this.toasts.filter(t => t.id !== id);
+                }, 300);
+            }
+        },
+        
+        // Formatting Helpers
+        formatStatus(status) {
+            if (!status) return '';
+            
+            const statusMap = {
+                'queued': 'Queued',
+                'waiting_for_vm': 'Starting',
+                'running': 'Running',
+                'paused': 'Paused',
+                'completed': 'Completed',
+                'failed': 'Failed',
+                'cancelled': 'Cancelled',
+                'timed_out': 'Timed Out',
+                'max_iterations': 'Max Steps',
+                'scheduled': 'Scheduled'
+            };
+            
+            return statusMap[status] || status;
+        },
+        
+        formatDate(dateString) {
+            if (!dateString) return '';
+            
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            // Less than a minute
+            if (diff < 60000) {
+                return 'Just now';
+            }
+            
+            // Less than an hour
+            if (diff < 3600000) {
+                const minutes = Math.floor(diff / 60000);
+                return `${minutes}m ago`;
+            }
+            
+            // Less than a day
+            if (diff < 86400000) {
+                const hours = Math.floor(diff / 3600000);
+                return `${hours}h ago`;
+            }
+            
+            // Less than a week
+            if (diff < 604800000) {
+                const days = Math.floor(diff / 86400000);
+                return `${days}d ago`;
+            }
+            
+            // Otherwise show date
+            return date.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric'
+            });
+        },
+        
+        formatDateTime(dateString) {
+            if (!dateString) return '';
+            
+            const date = new Date(dateString);
+            return date.toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+        },
+        
+        formatScheduledTime(schedule) {
+            // Use nextRunAt for scheduled tasks
+            const dateStr = schedule.nextRunAt || schedule.scheduledAt;
+            if (!dateStr) return '';
+            
+            const date = new Date(dateStr);
+            const now = new Date();
+            
+            // If today
+            if (date.toDateString() === now.toDateString()) {
+                return `Today at ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+            }
+            
+            // If tomorrow
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            if (date.toDateString() === tomorrow.toDateString()) {
+                return `Tomorrow at ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+            }
+            
+            return date.toLocaleString(undefined, {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+        },
+        
+        formatRecurrence(schedule) {
+            if (!schedule.recurrence) return '';
+            
+            const r = schedule.recurrence;
+            const time = this.formatTime(r.hour, r.minute);
+            
+            switch (r.type) {
+                case 'daily':
+                    return `Daily at ${time}`;
+                case 'weekly':
+                    const days = (r.daysOfWeek || []).map(d => {
+                        const dayNames = ['', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        return dayNames[d] || '';
+                    }).filter(Boolean).join(', ');
+                    return `Every ${days} at ${time}`;
+                case 'monthly':
+                    const suffix = this.getOrdinalSuffix(r.dayOfMonth);
+                    return `Monthly on the ${r.dayOfMonth}${suffix} at ${time}`;
+                default:
+                    return '';
+            }
+        },
+        
+        formatTime(hour, minute) {
+            const h = hour % 12 || 12;
+            const m = String(minute).padStart(2, '0');
+            const ampm = hour < 12 ? 'AM' : 'PM';
+            return `${h}:${m} ${ampm}`;
+        },
+        
+        getOrdinalSuffix(n) {
+            if (n >= 11 && n <= 13) return 'th';
+            switch (n % 10) {
+                case 1: return 'st';
+                case 2: return 'nd';
+                case 3: return 'rd';
+                default: return 'th';
+            }
+        },
+        
+        formatDuration(seconds) {
+            if (!seconds) return '';
+            
+            if (seconds < 60) {
+                return `${seconds}s`;
+            }
+            
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            
+            if (minutes < 60) {
+                return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+            }
+            
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            
+            return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+        },
+        
+        formatFileSize(bytes) {
+            if (!bytes) return '';
+            
+            if (bytes < 1024) {
+                return `${bytes} B`;
+            }
+            
+            if (bytes < 1024 * 1024) {
+                return `${(bytes / 1024).toFixed(1)} KB`;
+            }
+            
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        }
+    }));
+});

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+    <title>Hivecrew</title>
+    <link rel="stylesheet" href="/web/css/styles.css">
+    <script defer src="/web/js/htmx.min.js"></script>
+    <script defer src="/web/js/app.js"></script>
+    <script defer src="/web/js/alpine.min.js"></script>
+</head>
+<body>
+    <div id="app" x-data="hivecrew()" x-init="init()">
+        <!-- Auth Modal -->
+        <div class="modal-overlay" x-show="!apiKey" x-cloak>
+            <div class="modal auth-modal">
+                <div class="modal-header">
+                    <h2>Welcome to Hivecrew</h2>
+                </div>
+                <div class="modal-body">
+                    <p class="auth-description">Enter your API key to connect to Hivecrew. You can find this in the Hivecrew app under Settings → API.</p>
+                    <div class="form-group">
+                        <label for="api-key-input">API Key</label>
+                        <input 
+                            type="password" 
+                            id="api-key-input" 
+                            x-model="apiKeyInput" 
+                            placeholder="hc_..."
+                            @keydown.enter="saveApiKey()"
+                        >
+                    </div>
+                    <p class="error-text" x-show="authError" x-text="authError"></p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" @click="saveApiKey()" :disabled="!apiKeyInput">Connect</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main App (shown when authenticated) -->
+        <template x-if="apiKey">
+            <div class="app-container">
+                <!-- Navigation -->
+                <nav class="navbar">
+                    <div class="nav-brand">
+                        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
+                            <line x1="12" y1="22" x2="12" y2="15.5"></line>
+                            <polyline points="22 8.5 12 15.5 2 8.5"></polyline>
+                        </svg>
+                        <span>Hivecrew</span>
+                    </div>
+                    <div class="nav-links">
+                        <button 
+                            class="nav-link" 
+                            :class="{ active: view === 'tasks' }" 
+                            @click="view = 'tasks'; loadTasks()"
+                        >
+                            Tasks
+                        </button>
+                        <button 
+                            class="nav-link" 
+                            :class="{ active: view === 'scheduled' }" 
+                            @click="view = 'scheduled'; loadScheduledTasks()"
+                        >
+                            Scheduled
+                        </button>
+                    </div>
+                    <div class="nav-actions">
+                        <button class="btn btn-primary" @click="openCreateModal()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            New Task
+                        </button>
+                        <button class="btn btn-icon" @click="logout()" title="Disconnect">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </nav>
+
+                <!-- Tasks View -->
+                <main class="main-content" x-show="view === 'tasks'">
+                    <div class="content-header">
+                        <h1>Tasks</h1>
+                        <div class="filter-bar">
+                            <select x-model="statusFilter" @change="loadTasks()">
+                                <option value="">All Status</option>
+                                <option value="queued,waiting_for_vm,running">Active</option>
+                                <option value="completed">Completed</option>
+                                <option value="failed">Failed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                            <button class="btn btn-icon" @click="loadTasks()" title="Refresh">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" :class="{ 'spin': loading }">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div class="loading-state" x-show="loading && tasks.length === 0">
+                        <div class="spinner"></div>
+                        <p>Loading tasks...</p>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div class="empty-state" x-show="!loading && tasks.length === 0">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        <h3>No tasks yet</h3>
+                        <p>Create your first task to get started</p>
+                        <button class="btn btn-primary" @click="openCreateModal()">Create Task</button>
+                    </div>
+
+                    <!-- Task List -->
+                    <div class="task-list" x-show="tasks.length > 0">
+                        <template x-for="task in tasks" :key="task.id">
+                            <div class="task-card" @click="openTaskDetail(task)">
+                                <div class="task-header">
+                                    <span class="task-status" :class="'status-' + task.status" x-text="formatStatus(task.status)"></span>
+                                    <span class="task-time" x-text="formatDate(task.createdAt)"></span>
+                                </div>
+                                <h3 class="task-title" x-text="task.title"></h3>
+                                <div class="task-meta">
+                                    <span class="task-model" x-text="task.modelId"></span>
+                                    <span class="task-provider" x-text="task.providerName"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </main>
+
+                <!-- Scheduled Tasks View -->
+                <main class="main-content" x-show="view === 'scheduled'">
+                    <div class="content-header">
+                        <h1>Scheduled Tasks</h1>
+                        <div class="filter-bar">
+                            <button class="btn btn-icon" @click="loadScheduledTasks()" title="Refresh">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" :class="{ 'spin': loading }">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div class="loading-state" x-show="loading && scheduledTasks.length === 0">
+                        <div class="spinner"></div>
+                        <p>Loading scheduled tasks...</p>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div class="empty-state" x-show="!loading && scheduledTasks.length === 0">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <h3>No scheduled tasks</h3>
+                        <p>Schedule a task to run at a specific time</p>
+                        <button class="btn btn-primary" @click="openScheduleModal()">Schedule Task</button>
+                    </div>
+
+                    <!-- Scheduled Task List -->
+                    <div class="task-list" x-show="scheduledTasks.length > 0">
+                        <template x-for="schedule in scheduledTasks" :key="schedule.id">
+                            <div class="task-card scheduled-card" :class="{ 'disabled-card': !schedule.isEnabled }" @click="openScheduleDetail(schedule)">
+                                <div class="task-header">
+                                    <span class="task-status" :class="schedule.isEnabled ? 'status-scheduled' : 'status-cancelled'">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                        </svg>
+                                        <span x-text="schedule.isEnabled ? 'Scheduled' : 'Disabled'"></span>
+                                    </span>
+                                    <span class="task-time" x-text="formatScheduledTime(schedule)"></span>
+                                </div>
+                                <h3 class="task-title" x-text="schedule.title"></h3>
+                                <div class="task-meta">
+                                    <span class="task-model" x-text="schedule.modelId"></span>
+                                    <template x-if="schedule.recurrence">
+                                        <span class="task-recurrence">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                <polyline points="17 1 21 5 17 9"></polyline>
+                                                <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                                                <polyline points="7 23 3 19 7 15"></polyline>
+                                                <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                                            </svg>
+                                            Recurring
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </main>
+
+                <!-- Create/Schedule Task Modal -->
+                <div class="modal-overlay" x-show="showCreateModal" x-cloak @click.self="closeCreateModal()">
+                    <div class="modal create-modal">
+                        <div class="modal-header">
+                            <h2 x-text="isScheduling ? 'Schedule Task' : 'New Task'"></h2>
+                            <button class="btn btn-icon" @click="closeCreateModal()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Title (for scheduling) -->
+                            <template x-if="isScheduling">
+                                <div class="form-group">
+                                    <label for="task-title">Title</label>
+                                    <input 
+                                        type="text" 
+                                        id="task-title" 
+                                        x-model="newTask.title" 
+                                        placeholder="Give this scheduled task a name..."
+                                    >
+                                </div>
+                            </template>
+
+                            <!-- Task Description -->
+                            <div class="form-group">
+                                <label for="task-description">What should the agent do?</label>
+                                <textarea 
+                                    id="task-description" 
+                                    x-model="newTask.description" 
+                                    placeholder="Describe the task for the agent..."
+                                    rows="4"
+                                ></textarea>
+                            </div>
+
+                            <!-- Provider Selection -->
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="provider-select">Provider</label>
+                                    <select id="provider-select" x-model="newTask.providerId" @change="loadModels()">
+                                        <option value="">Select provider...</option>
+                                        <template x-for="provider in providers" :key="provider.id">
+                                            <option :value="provider.id" x-text="provider.displayName"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="model-select">Model</label>
+                                    <select id="model-select" x-model="newTask.modelId" :disabled="!newTask.providerId">
+                                        <option value="">Select model...</option>
+                                        <template x-for="model in models" :key="model.id">
+                                            <option :value="model.id" x-text="model.name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Schedule Options (when scheduling) -->
+                            <template x-if="isScheduling">
+                                <div class="schedule-options">
+                                    <div class="form-group">
+                                        <label>Schedule Type</label>
+                                        <div class="toggle-group">
+                                            <button 
+                                                type="button"
+                                                class="toggle-btn" 
+                                                :class="{ active: !newTask.isRecurring }"
+                                                @click="newTask.isRecurring = false"
+                                            >One-time</button>
+                                            <button 
+                                                type="button"
+                                                class="toggle-btn" 
+                                                :class="{ active: newTask.isRecurring }"
+                                                @click="newTask.isRecurring = true"
+                                            >Recurring</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="schedule-date">Date</label>
+                                            <input type="date" id="schedule-date" x-model="newTask.scheduleDate">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="schedule-time">Time</label>
+                                            <input type="time" id="schedule-time" x-model="newTask.scheduleTime">
+                                        </div>
+                                    </div>
+
+                                    <!-- Recurrence Options -->
+                                    <template x-if="newTask.isRecurring">
+                                        <div class="recurrence-options">
+                                            <div class="form-group">
+                                                <label for="recurrence-type">Repeat</label>
+                                                <select id="recurrence-type" x-model="newTask.recurrenceType">
+                                                    <option value="daily">Daily</option>
+                                                    <option value="weekly">Weekly</option>
+                                                    <option value="monthly">Monthly</option>
+                                                </select>
+                                            </div>
+
+                                            <!-- Days of Week (for weekly) - 1=Sunday, 2=Monday, etc. -->
+                                            <template x-if="newTask.recurrenceType === 'weekly'">
+                                                <div class="form-group">
+                                                    <label>Days of Week</label>
+                                                    <div class="day-selector">
+                                                        <template x-for="(day, index) in [{n:'S',v:1},{n:'M',v:2},{n:'T',v:3},{n:'W',v:4},{n:'T',v:5},{n:'F',v:6},{n:'S',v:7}]" :key="day.v">
+                                                            <button 
+                                                                type="button"
+                                                                class="day-btn" 
+                                                                :class="{ active: newTask.daysOfWeek.includes(day.v) }"
+                                                                @click="toggleDay(day.v)"
+                                                                x-text="day.n"
+                                                            ></button>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <!-- Day of Month (for monthly) -->
+                                            <template x-if="newTask.recurrenceType === 'monthly'">
+                                                <div class="form-group">
+                                                    <label for="day-of-month">Day of Month</label>
+                                                    <input type="number" id="day-of-month" x-model="newTask.dayOfMonth" min="1" max="31">
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <p class="error-text" x-show="createError" x-text="createError"></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" @click="closeCreateModal()">Cancel</button>
+                            <template x-if="!isScheduling">
+                                <button class="btn btn-secondary" @click="isScheduling = true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    Schedule Instead
+                                </button>
+                            </template>
+                            <button 
+                                class="btn btn-primary" 
+                                @click="createTask()" 
+                                :disabled="!canCreateTask() || creating"
+                            >
+                                <span x-show="creating" class="spinner-small"></span>
+                                <span x-text="isScheduling ? 'Schedule' : 'Create Task'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Detail Modal -->
+                <div class="modal-overlay" x-show="selectedTask" x-cloak @click.self="closeTaskDetail()">
+                    <div class="modal detail-modal" x-show="selectedTask">
+                        <div class="modal-header">
+                            <div class="detail-header-content">
+                                <span class="task-status" :class="'status-' + selectedTask?.status" x-text="formatStatus(selectedTask?.status)"></span>
+                                <h2 x-text="selectedTask?.title"></h2>
+                            </div>
+                            <button class="btn btn-icon" @click="closeTaskDetail()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-body" x-show="selectedTask">
+                            <!-- Task Description -->
+                            <div class="detail-section">
+                                <h4>Description</h4>
+                                <p class="detail-description" x-text="selectedTask?.description"></p>
+                            </div>
+
+                            <!-- Task Info Grid -->
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Provider</span>
+                                    <span class="detail-value" x-text="selectedTask?.providerName"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Model</span>
+                                    <span class="detail-value" x-text="selectedTask?.modelId"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Created</span>
+                                    <span class="detail-value" x-text="formatDateTime(selectedTask?.createdAt)"></span>
+                                </div>
+                                <template x-if="selectedTask?.startedAt">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Started</span>
+                                        <span class="detail-value" x-text="formatDateTime(selectedTask?.startedAt)"></span>
+                                    </div>
+                                </template>
+                                <template x-if="selectedTask?.completedAt">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Completed</span>
+                                        <span class="detail-value" x-text="formatDateTime(selectedTask?.completedAt)"></span>
+                                    </div>
+                                </template>
+                                <template x-if="selectedTask?.duration">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Duration</span>
+                                        <span class="detail-value" x-text="formatDuration(selectedTask?.duration)"></span>
+                                    </div>
+                                </template>
+                                <template x-if="selectedTask?.stepCount">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Steps</span>
+                                        <span class="detail-value" x-text="selectedTask?.stepCount"></span>
+                                    </div>
+                                </template>
+                                <template x-if="selectedTask?.tokenUsage">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Tokens</span>
+                                        <span class="detail-value" x-text="selectedTask?.tokenUsage?.total?.toLocaleString()"></span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Result Summary -->
+                            <template x-if="selectedTask?.resultSummary">
+                                <div class="detail-section">
+                                    <h4>Result</h4>
+                                    <p class="detail-result" x-text="selectedTask?.resultSummary"></p>
+                                </div>
+                            </template>
+
+                            <!-- Error Message -->
+                            <template x-if="selectedTask?.errorMessage">
+                                <div class="detail-section error-section">
+                                    <h4>Error</h4>
+                                    <p class="detail-error" x-text="selectedTask?.errorMessage"></p>
+                                </div>
+                            </template>
+
+                            <!-- Files -->
+                            <template x-if="selectedTask?.outputFiles?.length > 0">
+                                <div class="detail-section">
+                                    <h4>Output Files</h4>
+                                    <div class="file-list">
+                                        <template x-for="file in selectedTask?.outputFiles" :key="file.name">
+                                            <a 
+                                                class="file-item" 
+                                                :href="'/api/v1/tasks/' + selectedTask?.id + '/files/' + file.name"
+                                                target="_blank"
+                                            >
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                                </svg>
+                                                <span x-text="file.name"></span>
+                                                <span class="file-size" x-text="formatFileSize(file.size)"></span>
+                                            </a>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="modal-footer" x-show="selectedTask">
+                            <!-- Actions based on status -->
+                            <template x-if="selectedTask?.status === 'running'">
+                                <div class="action-buttons">
+                                    <button class="btn btn-secondary" @click="pauseTask()" :disabled="actionLoading">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <rect x="6" y="4" width="4" height="16"></rect>
+                                            <rect x="14" y="4" width="4" height="16"></rect>
+                                        </svg>
+                                        Pause
+                                    </button>
+                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                </div>
+                            </template>
+                            <template x-if="selectedTask?.status === 'paused'">
+                                <div class="action-buttons">
+                                    <button class="btn btn-primary" @click="resumeTask()" :disabled="actionLoading">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                        </svg>
+                                        Resume
+                                    </button>
+                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                </div>
+                            </template>
+                            <template x-if="selectedTask?.status === 'queued' || selectedTask?.status === 'waiting_for_vm'">
+                                <div class="action-buttons">
+                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                </div>
+                            </template>
+                            <button class="btn btn-secondary" @click="closeTaskDetail()">Close</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule Detail Modal -->
+                <div class="modal-overlay" x-show="selectedSchedule" x-cloak @click.self="closeScheduleDetail()">
+                    <div class="modal detail-modal" x-show="selectedSchedule">
+                        <div class="modal-header">
+                            <div class="detail-header-content">
+                                <span class="task-status" :class="selectedSchedule?.isEnabled ? 'status-scheduled' : 'status-cancelled'" x-text="selectedSchedule?.isEnabled ? 'Scheduled' : 'Disabled'"></span>
+                                <h2 x-text="selectedSchedule?.title"></h2>
+                            </div>
+                            <button class="btn btn-icon" @click="closeScheduleDetail()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-body" x-show="selectedSchedule">
+                            <!-- Task Description -->
+                            <div class="detail-section">
+                                <h4>Description</h4>
+                                <p class="detail-description" x-text="selectedSchedule?.description"></p>
+                            </div>
+
+                            <!-- Schedule Info Grid -->
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Provider</span>
+                                    <span class="detail-value" x-text="selectedSchedule?.providerName"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Model</span>
+                                    <span class="detail-value" x-text="selectedSchedule?.modelId"></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Type</span>
+                                    <span class="detail-value" x-text="selectedSchedule?.scheduleType === 'recurring' ? 'Recurring' : 'One-time'"></span>
+                                </div>
+                                <template x-if="selectedSchedule?.recurrence">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Schedule</span>
+                                        <span class="detail-value" x-text="formatRecurrence(selectedSchedule)"></span>
+                                    </div>
+                                </template>
+                                <template x-if="selectedSchedule?.nextRunAt">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Next Run</span>
+                                        <span class="detail-value" x-text="formatDateTime(selectedSchedule?.nextRunAt)"></span>
+                                    </div>
+                                </template>
+                                <template x-if="selectedSchedule?.lastRunAt">
+                                    <div class="detail-item">
+                                        <span class="detail-label">Last Run</span>
+                                        <span class="detail-value" x-text="formatDateTime(selectedSchedule?.lastRunAt)"></span>
+                                    </div>
+                                </template>
+                                <div class="detail-item">
+                                    <span class="detail-label">Created</span>
+                                    <span class="detail-value" x-text="formatDateTime(selectedSchedule?.createdAt)"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer" x-show="selectedSchedule">
+                            <div class="action-buttons">
+                                <button class="btn btn-primary" @click="runScheduleNow()" :disabled="actionLoading">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                    </svg>
+                                    Run Now
+                                </button>
+                                <button class="btn btn-secondary" @click="toggleSchedule()" :disabled="actionLoading">
+                                    <span x-text="selectedSchedule?.isEnabled ? 'Disable' : 'Enable'"></span>
+                                </button>
+                                <button class="btn btn-danger" @click="deleteSchedule()" :disabled="actionLoading">Delete</button>
+                            </div>
+                            <button class="btn btn-secondary" @click="closeScheduleDetail()">Close</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Toast Notifications -->
+                <div class="toast-container">
+                    <template x-for="toast in toasts" :key="toast.id">
+                        <div class="toast" :class="'toast-' + toast.type" x-show="toast.visible" x-transition>
+                            <span x-text="toast.message"></span>
+                            <button class="toast-close" @click="removeToast(toast.id)">&times;</button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+</body>
+</html>

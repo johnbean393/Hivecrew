@@ -336,6 +336,210 @@ curl -o document.pdf \
 
 ---
 
+## Schedules API
+
+Scheduled tasks are task templates that run at specified times. They are separate from regular tasks - when a scheduled task triggers, it creates a new task that runs immediately.
+
+### Create Scheduled Task
+
+```bash
+POST /api/v1/schedules
+```
+
+**Request Body (JSON):**
+
+```json
+{
+  "title": "Daily Backup Check",
+  "description": "Check that all backups completed successfully",
+  "providerName": "OpenRouter",
+  "modelId": "anthropic/claude-sonnet-4.5",
+  "schedule": {
+    "scheduledAt": "2026-01-21T09:00:00Z"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | Yes | Title for the scheduled task |
+| `description` | string | Yes | Task description for the agent |
+| `providerName` | string | Yes | Name of the LLM provider |
+| `modelId` | string | Yes | Model identifier |
+| `outputDirectory` | string | No | Custom output directory |
+| `schedule` | object | Yes | Schedule configuration |
+
+**Schedule Object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `scheduledAt` | string | For one-time | ISO 8601 datetime for one-time schedules |
+| `recurrence` | object | For recurring | Recurrence configuration |
+
+**Recurrence Object:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | `daily`, `weekly`, or `monthly` |
+| `daysOfWeek` | int[] | For weekly | Days of week (1=Sunday, 7=Saturday) |
+| `dayOfMonth` | int | For monthly | Day of month (1-31) |
+| `hour` | int | Yes | Hour of day (0-23) |
+| `minute` | int | Yes | Minute of hour (0-59) |
+
+**Example - One-time schedule:**
+
+```bash
+curl -X POST http://localhost:5482/api/v1/schedules \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Generate Report",
+    "description": "Generate the weekly status report",
+    "providerName": "OpenRouter",
+    "modelId": "anthropic/claude-sonnet-4.5",
+    "schedule": {
+      "scheduledAt": "2026-01-21T09:00:00Z"
+    }
+  }'
+```
+
+**Example - Recurring schedule (every Monday at 9am):**
+
+```bash
+curl -X POST http://localhost:5482/api/v1/schedules \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Weekly Email Summary",
+    "description": "Check emails and create a summary",
+    "providerName": "OpenRouter",
+    "modelId": "anthropic/claude-sonnet-4.5",
+    "schedule": {
+      "recurrence": {
+        "type": "weekly",
+        "daysOfWeek": [2],
+        "hour": 9,
+        "minute": 0
+      }
+    }
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "id": "A1B2C3D4...",
+  "title": "Weekly Email Summary",
+  "description": "Check emails and create a summary",
+  "providerName": "OpenRouter",
+  "modelId": "anthropic/claude-sonnet-4.5",
+  "isEnabled": true,
+  "scheduleType": "recurring",
+  "recurrence": {
+    "type": "weekly",
+    "daysOfWeek": [2],
+    "hour": 9,
+    "minute": 0
+  },
+  "nextRunAt": "2026-01-27T09:00:00Z",
+  "createdAt": "2026-01-20T10:00:00Z"
+}
+```
+
+### List Scheduled Tasks
+
+```bash
+GET /api/v1/schedules
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | int | 50 | Max results (1-200) |
+| `offset` | int | 0 | Pagination offset |
+
+**Response:**
+
+```json
+{
+  "schedules": [
+    {
+      "id": "A1B2C3D4...",
+      "title": "Daily Backup Check",
+      "description": "Check that all backups completed",
+      "providerName": "OpenRouter",
+      "modelId": "anthropic/claude-sonnet-4.5",
+      "isEnabled": true,
+      "scheduleType": "recurring",
+      "recurrence": {
+        "type": "daily",
+        "hour": 6,
+        "minute": 0
+      },
+      "nextRunAt": "2026-01-21T06:00:00Z",
+      "lastRunAt": "2026-01-20T06:00:00Z",
+      "createdAt": "2026-01-15T10:00:00Z"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### Get Scheduled Task
+
+```bash
+GET /api/v1/schedules/:id
+```
+
+### Update Scheduled Task
+
+```bash
+PATCH /api/v1/schedules/:id
+```
+
+**Request Body:**
+
+```json
+{
+  "title": "Updated Title",
+  "isEnabled": false
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | New title |
+| `description` | string | New description |
+| `scheduledAt` | string | New scheduled time (one-time) |
+| `recurrence` | object | New recurrence configuration |
+| `isEnabled` | bool | Enable/disable the schedule |
+
+### Delete Scheduled Task
+
+```bash
+DELETE /api/v1/schedules/:id
+```
+
+Returns `204 No Content` on success.
+
+### Run Scheduled Task Now
+
+```bash
+POST /api/v1/schedules/:id/run
+```
+
+Triggers the scheduled task to run immediately, creating a new task. Does not affect the schedule's next run time.
+
+**Response:**
+
+Returns the created task object.
+
+---
+
 ## Providers API
 
 ### List Providers

@@ -208,6 +208,79 @@ extension APIServiceProviderBridge {
     }
 }
 
+// MARK: - Schedule Conversions
+
+extension APIServiceProviderBridge {
+    
+    /// Convert ScheduledTask to APIScheduledTask
+    func convertToAPIScheduledTask(_ schedule: ScheduledTask) -> APIScheduledTask {
+        let providerName = getProviderName(for: schedule.providerId)
+        
+        // Convert recurrence rule if present
+        var recurrence: APIRecurrence? = nil
+        if let rule = schedule.recurrenceRule {
+            recurrence = convertToAPIRecurrence(rule)
+        }
+        
+        return APIScheduledTask(
+            id: schedule.id,
+            title: schedule.title,
+            description: schedule.taskDescription,
+            providerName: providerName,
+            modelId: schedule.modelId,
+            isEnabled: schedule.isEnabled,
+            scheduleType: schedule.scheduleType.displayName.lowercased(),
+            scheduledAt: schedule.scheduledDate,
+            recurrence: recurrence,
+            nextRunAt: schedule.nextRunAt,
+            lastRunAt: schedule.lastRunAt,
+            createdAt: schedule.createdAt
+        )
+    }
+    
+    /// Convert RecurrenceRule to APIRecurrence
+    func convertToAPIRecurrence(_ rule: RecurrenceRule) -> APIRecurrence {
+        let type: APIRecurrenceType
+        switch rule.frequency {
+        case .daily: type = .daily
+        case .weekly: type = .weekly
+        case .monthly: type = .monthly
+        }
+        
+        // Convert daysOfWeek from Set to Array if present
+        let daysArray: [Int]? = rule.daysOfWeek.map { Array($0).sorted() }
+        
+        return APIRecurrence(
+            type: type,
+            daysOfWeek: daysArray,
+            dayOfMonth: rule.dayOfMonth,
+            hour: rule.hour,
+            minute: rule.minute
+        )
+    }
+    
+    /// Convert APIRecurrence to RecurrenceRule
+    func convertFromAPIRecurrence(_ recurrence: APIRecurrence) -> RecurrenceRule {
+        let frequency: RecurrenceFrequency
+        switch recurrence.type {
+        case .daily: frequency = .daily
+        case .weekly: frequency = .weekly
+        case .monthly: frequency = .monthly
+        }
+        
+        // Convert daysOfWeek from Array to Set if present
+        let daysSet: Set<Int>? = recurrence.daysOfWeek.map { Set($0) }
+        
+        return RecurrenceRule(
+            frequency: frequency,
+            daysOfWeek: daysSet,
+            dayOfMonth: recurrence.dayOfMonth,
+            hour: recurrence.hour,
+            minute: recurrence.minute
+        )
+    }
+}
+
 // MARK: - Model Fetching
 
 extension APIServiceProviderBridge {

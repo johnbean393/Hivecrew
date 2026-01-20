@@ -179,6 +179,32 @@ public struct CreateTaskRequest: Codable, Sendable {
     }
 }
 
+/// Request for POST /schedules (create scheduled task)
+public struct CreateScheduleRequest: Codable, Sendable {
+    public let title: String
+    public let description: String
+    public let providerName: String
+    public let modelId: String
+    public let outputDirectory: String?
+    public let schedule: APISchedule
+    
+    public init(
+        title: String,
+        description: String,
+        providerName: String,
+        modelId: String,
+        outputDirectory: String? = nil,
+        schedule: APISchedule
+    ) {
+        self.title = title
+        self.description = description
+        self.providerName = providerName
+        self.modelId = modelId
+        self.outputDirectory = outputDirectory
+        self.schedule = schedule
+    }
+}
+
 /// Task action types for PATCH /tasks/:id
 public enum APITaskAction: String, Codable, Sendable {
     case cancel = "cancel"

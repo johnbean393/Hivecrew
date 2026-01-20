@@ -45,6 +45,33 @@ public protocol APIServiceProvider: Sendable {
     /// Get files for a task
     func getTaskFiles(id: String) async throws -> APITaskFilesResponse
     
+    // MARK: - Schedule Operations
+    
+    /// Get scheduled tasks
+    func getScheduledTasks(limit: Int, offset: Int) async throws -> APIScheduledTaskListResponse
+    
+    /// Get a scheduled task by ID
+    func getScheduledTask(id: String) async throws -> APIScheduledTask
+    
+    /// Create a scheduled task
+    func createScheduledTask(
+        title: String,
+        description: String,
+        providerName: String,
+        modelId: String,
+        outputDirectory: String?,
+        schedule: APISchedule
+    ) async throws -> APIScheduledTask
+    
+    /// Update a scheduled task
+    func updateScheduledTask(id: String, request: UpdateScheduleRequest) async throws -> APIScheduledTask
+    
+    /// Delete a scheduled task
+    func deleteScheduledTask(id: String) async throws
+    
+    /// Run a scheduled task immediately
+    func runScheduledTaskNow(id: String) async throws -> APITask
+    
     // MARK: - Provider Operations
     
     /// Get all providers

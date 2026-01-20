@@ -141,6 +141,9 @@ public actor HivecrewAPIServer {
             return Response(status: .ok, body: .init(byteBuffer: ByteBuffer(string: "OK")))
         }
         
+        // Register web UI routes (no auth required)
+        WebRoutes().register(with: router)
+        
         return router
     }
 }

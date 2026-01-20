@@ -22,22 +22,22 @@ struct TaskRowView: View {
     
     var statusColor: Color {
         switch task.status {
-        case .queued, .waitingForVM, .paused:
-            return .yellow
-        case .running:
-            return .green
-        case .completed:
-            // Use wasSuccessful to determine color if available
-            if let success = task.wasSuccessful {
-                return success ? .green : .red
-            }
-            return .gray
-        case .failed:
-            return .red
-        case .cancelled:
-            return .gray
-        case .timedOut, .maxIterations:
-            return .orange
+            case .queued, .waitingForVM, .paused:
+                return .yellow
+            case .running:
+                return .green
+            case .completed:
+                // Use wasSuccessful to determine color if available
+                if let success = task.wasSuccessful {
+                    return success ? .green : .red
+                }
+                return .gray
+            case .failed:
+                return .red
+            case .cancelled:
+                return .gray
+            case .timedOut, .maxIterations:
+                return .orange
         }
     }
     

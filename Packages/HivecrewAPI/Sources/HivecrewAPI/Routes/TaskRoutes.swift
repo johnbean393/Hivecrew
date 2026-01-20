@@ -52,6 +52,27 @@ public final class TaskRoutes: Sendable {
         
         // GET /tasks/:id/files/:filename - Download file
         tasks.get(":id/files/:filename", use: downloadFile)
+        
+        // Schedule endpoints
+        let schedules = router.group("schedules")
+        
+        // POST /schedules - Create scheduled task
+        schedules.post(use: createScheduledTask)
+        
+        // GET /schedules - List scheduled tasks
+        schedules.get(use: listScheduledTasks)
+        
+        // GET /schedules/:id - Get scheduled task
+        schedules.get(":id", use: getScheduledTask)
+        
+        // PATCH /schedules/:id - Update scheduled task
+        schedules.patch(":id", use: updateScheduledTask)
+        
+        // DELETE /schedules/:id - Delete scheduled task
+        schedules.delete(":id", use: deleteScheduledTask)
+        
+        // POST /schedules/:id/run - Run scheduled task now
+        schedules.post(":id/run", use: runScheduledTaskNow)
     }
     
     // MARK: - Route Handlers
@@ -79,6 +100,7 @@ public final class TaskRoutes: Sendable {
             // Handle JSON request
             let body = try await request.body.collect(upTo: 1024 * 1024) // 1MB limit for JSON
             let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
             let createRequest = try decoder.decode(CreateTaskRequest.self, from: body)
             
             description = createRequest.description
@@ -219,6 +241,118 @@ public final class TaskRoutes: Sendable {
             headers: headers,
             body: .init(byteBuffer: ByteBuffer(data: data))
         )
+    }
+    
+    @Sendable
+    func createScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
+        let body = try await request.body.collect(upTo: 1024 * 1024) // 1MB limit
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let createRequest = try decoder.decode(CreateScheduleRequest.self, from: body)
+        
+        // Validate
+        guard !createRequest.title.isEmpty else {
+            throw APIError.badRequest("Missing required field: title")
+        }
+        guard !createRequest.description.isEmpty else {
+            throw APIError.badRequest("Missing required field: description")
+        }
+        guard !createRequest.providerName.isEmpty else {
+            throw APIError.badRequest("Missing required field: providerName")
+        }
+        guard !createRequest.modelId.isEmpty else {
+            throw APIError.badRequest("Missing required field: modelId")
+        }
+        
+        // Validate schedule - need either scheduledAt (one-time) or recurrence (recurring)
+        if createRequest.schedule.scheduledAt == nil && createRequest.schedule.recurrence == nil {
+            throw APIError.badRequest("Schedule must include either scheduledAt (one-time) or recurrence (recurring)")
+        }
+        
+        if let scheduledAt = createRequest.schedule.scheduledAt, scheduledAt < Date() {
+            throw APIError.badRequest("scheduledAt must be in the future")
+        }
+        
+        let scheduledTask = try await serviceProvider.createScheduledTask(
+            title: createRequest.title,
+            description: createRequest.description,
+            providerName: createRequest.providerName,
+            modelId: createRequest.modelId,
+            outputDirectory: createRequest.outputDirectory,
+            schedule: createRequest.schedule
+        )
+        
+        return try createJSONResponse(scheduledTask, status: .created)
+    }
+    
+    @Sendable
+    func listScheduledTasks(request: Request, context: APIRequestContext) async throws -> Response {
+        let uri = request.uri
+        let queryItems = parseQueryItems(from: uri.string)
+        
+        let limit = min(queryItems["limit"].flatMap { Int($0) } ?? 50, 200)
+        let offset = queryItems["offset"].flatMap { Int($0) } ?? 0
+        
+        let response = try await serviceProvider.getScheduledTasks(
+            limit: limit,
+            offset: offset
+        )
+        
+        return try createJSONResponse(response)
+    }
+    
+    @Sendable
+    func getScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let scheduleId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing schedule ID")
+        }
+        
+        let scheduledTask = try await serviceProvider.getScheduledTask(id: scheduleId)
+        return try createJSONResponse(scheduledTask)
+    }
+    
+    @Sendable
+    func updateScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let scheduleId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing schedule ID")
+        }
+        
+        let body = try await request.body.collect(upTo: 64 * 1024) // 64KB limit
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let updateRequest = try decoder.decode(UpdateScheduleRequest.self, from: body)
+        
+        // Validate scheduled time if provided
+        if let scheduledAt = updateRequest.scheduledAt, scheduledAt < Date() {
+            throw APIError.badRequest("scheduledAt must be in the future")
+        }
+        
+        let scheduledTask = try await serviceProvider.updateScheduledTask(
+            id: scheduleId,
+            request: updateRequest
+        )
+        
+        return try createJSONResponse(scheduledTask)
+    }
+    
+    @Sendable
+    func deleteScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let scheduleId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing schedule ID")
+        }
+        
+        try await serviceProvider.deleteScheduledTask(id: scheduleId)
+        return Response(status: .noContent)
+    }
+    
+    @Sendable
+    func runScheduledTaskNow(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let scheduleId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing schedule ID")
+        }
+        
+        let task = try await serviceProvider.runScheduledTaskNow(id: scheduleId)
+        return try createJSONResponse(task)
     }
     
     // MARK: - Helpers

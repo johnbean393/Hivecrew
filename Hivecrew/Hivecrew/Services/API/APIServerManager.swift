@@ -140,6 +140,7 @@ final class APIServerManager {
         // Create service provider
         let serviceProvider = APIServiceProviderBridge(
             taskService: taskService,
+            schedulerService: SchedulerService.shared,
             vmServiceClient: VMServiceClient.shared,
             modelContext: modelContext,
             fileStorage: fileStorage
