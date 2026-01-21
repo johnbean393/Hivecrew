@@ -84,6 +84,22 @@ struct APISettingsView: View {
                             .buttonStyle(.borderless)
                             .help("Copy base URL")
                         }
+                        
+                        HStack {
+                            Text("Web UI URL")
+                            Spacer()
+                            Text(webUiURL)
+                                .foregroundColor(.secondary)
+                                .textSelection(.enabled)
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(webUiURL, forType: .string)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Copy Web UI URL")
+                        }
                     }
                 }
             } header: {
@@ -223,6 +239,11 @@ struct APISettingsView: View {
     private var baseURL: String {
         let port = serverStatus.actualPort ?? apiServerPort
         return "http://localhost:\(port)/api/v1"
+    }
+    
+    private var webUiURL: String {
+        let port = serverStatus.actualPort ?? apiServerPort
+        return "http://localhost:\(port)/web"
     }
     
     private var exampleCurlCommand: String {

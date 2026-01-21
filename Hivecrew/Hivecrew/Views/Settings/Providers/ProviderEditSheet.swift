@@ -72,7 +72,7 @@ struct ProviderEditSheet: View {
                         .textFieldStyle(.roundedBorder)
                         .textContentType(.URL)
                     
-                    Text("Leave empty to use the default OpenAI API endpoint. For other providers, enter the full API base URL. Models will be fetched automatically.")
+                    Text("Leave empty to use the default OpenAI API endpoint. For other providers, enter the full API base URL.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

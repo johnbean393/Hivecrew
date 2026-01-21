@@ -8,9 +8,9 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=4">
+    <link rel="stylesheet" href="/web/css/styles.css?v=12">
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=4"></script>
+    <script defer src="/web/js/app.js?v=12"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -395,11 +395,13 @@
                                 </button>
                             </template>
                             <button 
+                                type="button"
                                 class="btn btn-primary" 
                                 @click="createTask()" 
-                                :disabled="!canCreateTask() || creating"
+                                @touchend.prevent="createTask()"
+                                :disabled="creating"
                             >
-                                <span x-show="creating" class="spinner-small"></span>
+                                <span x-show="creating" x-cloak class="spinner-small"></span>
                                 <span x-text="isScheduling ? 'Schedule' : 'Create Task'"></span>
                             </button>
                         </div>

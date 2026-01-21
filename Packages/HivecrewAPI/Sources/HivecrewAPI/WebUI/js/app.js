@@ -2,8 +2,11 @@
  * Hivecrew Web UI - Alpine.js Application
  */
 
+console.log('[Hivecrew] app.js loaded');
+
 // Register the main Alpine.js component
 document.addEventListener('alpine:init', () => {
+    console.log('[Hivecrew] Alpine initializing...');
     Alpine.data('hivecrew', () => ({
         // Authentication
         apiKey: localStorage.getItem('hivecrew_api_key') || '',
@@ -57,6 +60,8 @@ document.addEventListener('alpine:init', () => {
         
         // Initialize
         async init() {
+            console.log('[Hivecrew] Component init() called, apiKey:', this.apiKey ? 'present' : 'missing');
+            this.creating = false;
             if (this.apiKey) {
                 await this.loadInitialData();
                 this.startAutoRefresh();
@@ -69,6 +74,7 @@ document.addEventListener('alpine:init', () => {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             this.newTask.scheduleDate = tomorrow.toISOString().split('T')[0];
+            console.log('[Hivecrew] Component init() complete');
         },
         
         // Persist model selection
@@ -147,6 +153,8 @@ document.addEventListener('alpine:init', () => {
         
         // API Helpers
         async apiFetch(endpoint, options = {}) {
+            console.log('[Hivecrew] apiFetch:', options.method || 'GET', endpoint);
+            
             const response = await fetch(endpoint, {
                 ...options,
                 headers: {
@@ -155,6 +163,8 @@ document.addEventListener('alpine:init', () => {
                     ...options.headers
                 }
             });
+            
+            console.log('[Hivecrew] apiFetch response:', response.status, endpoint);
             
             if (response.status === 401) {
                 this.logout();
@@ -293,6 +303,7 @@ document.addEventListener('alpine:init', () => {
             this.showCreateModal = true;
             this.isScheduling = false;
             this.createError = '';
+            this.creating = false;
             this.resetNewTask();
         },
         
@@ -300,6 +311,7 @@ document.addEventListener('alpine:init', () => {
             this.showCreateModal = true;
             this.isScheduling = true;
             this.createError = '';
+            this.creating = false;
             this.resetNewTask();
         },
         
@@ -307,6 +319,7 @@ document.addEventListener('alpine:init', () => {
             this.showCreateModal = false;
             this.isScheduling = false;
             this.createError = '';
+            this.creating = false;
         },
         
         // File handling for task creation
@@ -354,9 +367,10 @@ document.addEventListener('alpine:init', () => {
         },
         
         canCreateTask() {
-            return this.newTask.description.trim() && 
+            const can = !!(this.newTask.description.trim() && 
                    this.newTask.providerId && 
-                   this.newTask.modelId;
+                   this.newTask.modelId);
+            return can;
         },
         
         toggleDay(day) {
@@ -369,7 +383,11 @@ document.addEventListener('alpine:init', () => {
         },
         
         async createTask() {
-            if (!this.canCreateTask()) return;
+            if (this.creating) return;
+            if (!this.canCreateTask()) {
+                this.createError = 'Please fill in the description, provider, and model.';
+                return;
+            }
             
             this.creating = true;
             this.createError = '';
@@ -453,14 +471,23 @@ document.addEventListener('alpine:init', () => {
                     await this.loadScheduledTasks();
                 } else {
                     // Create an immediate task via /api/v1/tasks
+                    console.log('[Hivecrew] Creating immediate task...');
+                    
+                    const body = {
+                        description: this.newTask.description.trim(),
+                        providerName: providerName,
+                        modelId: this.newTask.modelId
+                    };
+                    
                     let response;
                     
                     if (this.newTask.files.length > 0) {
                         // Use FormData for file uploads
+                        console.log('[Hivecrew] Using FormData for file upload');
                         const formData = new FormData();
-                        formData.append('description', this.newTask.description.trim());
-                        formData.append('providerName', providerName);
-                        formData.append('modelId', this.newTask.modelId);
+                        formData.append('description', body.description);
+                        formData.append('providerName', body.providerName);
+                        formData.append('modelId', body.modelId);
                         
                         for (const file of this.newTask.files) {
                             formData.append('files', file);
@@ -475,23 +502,22 @@ document.addEventListener('alpine:init', () => {
                         });
                     } else {
                         // Regular JSON request
-                        const body = {
-                            description: this.newTask.description.trim(),
-                            providerName: providerName,
-                            modelId: this.newTask.modelId
-                        };
-                        
+                        console.log('[Hivecrew] Sending JSON request:', body);
                         response = await this.apiFetch('/api/v1/tasks', {
                             method: 'POST',
                             body: JSON.stringify(body)
                         });
                     }
                     
+                    console.log('[Hivecrew] Response status:', response.status);
+                    
                     if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.error?.message || 'Failed to create task');
+                        const errorData = await response.json();
+                        console.log('[Hivecrew] Error response:', errorData);
+                        throw new Error(errorData.error?.message || 'Failed to create task');
                     }
                     
+                    console.log('[Hivecrew] Task created successfully');
                     this.closeCreateModal();
                     this.showToast('Task created successfully', 'success');
                     this.view = 'tasks';
@@ -499,8 +525,10 @@ document.addEventListener('alpine:init', () => {
                 }
                 
             } catch (error) {
-                this.createError = error.message;
+                console.error('[Hivecrew] Create task error:', error);
+                this.createError = error.message || 'An unexpected error occurred';
             } finally {
+                console.log('[Hivecrew] Create task finished, creating =', this.creating);
                 this.creating = false;
             }
         },
