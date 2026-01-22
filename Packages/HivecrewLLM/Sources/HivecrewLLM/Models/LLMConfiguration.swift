@@ -73,4 +73,10 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
         let path = baseURL.path
         return path.isEmpty ? nil : path
     }
+    
+    /// Whether this configuration points to OpenRouter API
+    public var isOpenRouter: Bool {
+        guard let host = baseURL?.host?.lowercased() else { return false }
+        return host.contains("openrouter.ai")
+    }
 }

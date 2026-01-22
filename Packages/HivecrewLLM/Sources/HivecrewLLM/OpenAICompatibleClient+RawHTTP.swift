@@ -36,6 +36,12 @@ extension OpenAICompatibleClient {
         if let tools = tools, !tools.isEmpty {
             body["tools"] = tools.map { convertToolToDict($0) }
         }
+        
+        // Enable reasoning tokens by default for OpenRouter
+        if configuration.isOpenRouter {
+            body["reasoning"] = ["enabled": true]
+        }
+        
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: request)
         

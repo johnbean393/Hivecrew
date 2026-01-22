@@ -62,6 +62,11 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         messages: [LLMMessage],
         tools: [LLMToolDefinition]?
     ) async throws -> LLMResponse {
+        // Use raw HTTP for OpenRouter to enable reasoning tokens and handle provider quirks
+        if configuration.isOpenRouter {
+            return try await chatRaw(messages: messages, tools: tools)
+        }
+        
         // Convert messages to OpenAI format
         let openAIMessages = try messages.map { try convertMessage($0) }
         // Convert tools to OpenAI format
