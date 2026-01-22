@@ -240,17 +240,19 @@ struct SessionTraceView: View {
             let timestamp = json["timestamp"] as? String ?? ""
             let step = json["step"] as? Int ?? 0
             
-            // Extract summary, details, screenshot path, and response text from data
+            // Extract summary, details, screenshot path, response text, and reasoning from data
             var summary = ""
             var details: String? = nil
             var screenshotPath: String? = nil
             var responseText: String? = nil
+            var reasoning: String? = nil
             if let eventData = json["data"] as? [String: Any] {
                 let extracted = extractEventDetails(from: eventData, type: type)
                 summary = extracted.summary
                 details = extracted.details
                 screenshotPath = extracted.screenshotPath
                 responseText = extracted.responseText
+                reasoning = extracted.reasoning
             }
             
             return TraceEventInfo(
@@ -262,16 +264,18 @@ struct SessionTraceView: View {
                 rawJSON: line,
                 screenshotPath: screenshotPath,
                 details: details,
-                responseText: responseText
+                responseText: responseText,
+                reasoning: reasoning
             )
         }
     }
     
-    private func extractEventDetails(from data: [String: Any], type: String) -> (summary: String, details: String?, screenshotPath: String?, responseText: String?) {
+    private func extractEventDetails(from data: [String: Any], type: String) -> (summary: String, details: String?, screenshotPath: String?, responseText: String?, reasoning: String?) {
         var summary = ""
         var details: String? = nil
         var screenshotPath: String? = nil
         var responseText: String? = nil
+        var reasoning: String? = nil
         
         switch type {
         case "session_start":
@@ -317,6 +321,8 @@ struct SessionTraceView: View {
                 // Prefer responseText (full text, new) over contentPreview (truncated, legacy)
                 let fullResponseText = inner["responseText"] as? String
                 let contentPreview = inner["contentPreview"] as? String
+                // Extract reasoning tokens (optional for backward compatibility)
+                reasoning = inner["reasoning"] as? String
                 
                 if toolCallCount > 0 {
                     summary = "LLM requested \(toolCallCount) tool call(s)"
@@ -364,7 +370,7 @@ struct SessionTraceView: View {
             summary = type.replacingOccurrences(of: "_", with: " ").capitalized
         }
         
-        return (summary, details, screenshotPath, responseText)
+        return (summary, details, screenshotPath, responseText, reasoning)
     }
 }
 

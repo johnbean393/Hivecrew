@@ -84,7 +84,7 @@ extension AgentRunner {
 
 extension AgentRunner {
     
-    /// Call LLM with retry logic for transient failures
+    /// Call LLM with retry logic for transient failures and streaming reasoning support
     func callLLMWithRetry(
         messages: [LLMMessage],
         tools: [LLMToolDefinition]?
@@ -93,7 +93,25 @@ extension AgentRunner {
         
         for attempt in 1...maxLLMRetries {
             do {
-                return try await llmClient.chat(messages: messages, tools: tools)
+                // Start reasoning stream before the LLM call
+                await MainActor.run {
+                    statePublisher.startReasoningStream()
+                }
+                
+                // Create a callback that updates the state publisher on the main actor
+                let reasoningCallback: ReasoningStreamCallback = { [weak self] reasoning in
+                    guard let self = self else { return }
+                    Task { @MainActor in
+                        self.statePublisher.updateStreamingReasoning(reasoning)
+                    }
+                }
+                
+                // Use streaming method for reasoning
+                return try await llmClient.chatWithReasoningStream(
+                    messages: messages,
+                    tools: tools,
+                    onReasoningUpdate: reasoningCallback
+                )
             } catch {
                 lastError = error
                 

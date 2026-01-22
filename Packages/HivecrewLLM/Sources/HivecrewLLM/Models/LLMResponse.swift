@@ -114,4 +114,9 @@ public struct LLMResponse: Sendable, Codable, Equatable {
     public var finishReason: LLMFinishReason? {
         choices.first?.finishReason
     }
+    
+    /// Convenience accessor for reasoning content from the first choice
+    public var reasoning: String? {
+        message?.reasoning
+    }
 }

@@ -47,28 +47,31 @@ public struct LLMMessage: Sendable, Codable, Equatable {
     /// Tool call ID this message is responding to (only for tool messages)
     public let toolCallId: String?
     
+    /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
+    public let reasoning: String?
+    
     // MARK: - Convenience Initializers
     
     /// Create a system message
     public static func system(_ text: String) -> LLMMessage {
-        LLMMessage(role: .system, content: [.text(text)], name: nil, toolCalls: nil, toolCallId: nil)
+        LLMMessage(role: .system, content: [.text(text)], name: nil, toolCalls: nil, toolCallId: nil, reasoning: nil)
     }
     
     /// Create a user message with text only
     public static func user(_ text: String) -> LLMMessage {
-        LLMMessage(role: .user, content: [.text(text)], name: nil, toolCalls: nil, toolCallId: nil)
+        LLMMessage(role: .user, content: [.text(text)], name: nil, toolCalls: nil, toolCallId: nil, reasoning: nil)
     }
     
     /// Create a user message with text and images
     public static func user(text: String, images: [LLMMessageContent]) -> LLMMessage {
         var content: [LLMMessageContent] = [.text(text)]
         content.append(contentsOf: images)
-        return LLMMessage(role: .user, content: content, name: nil, toolCalls: nil, toolCallId: nil)
+        return LLMMessage(role: .user, content: content, name: nil, toolCalls: nil, toolCallId: nil, reasoning: nil)
     }
     
     /// Create an assistant message
-    public static func assistant(_ text: String, toolCalls: [LLMToolCall]? = nil) -> LLMMessage {
-        LLMMessage(role: .assistant, content: [.text(text)], name: nil, toolCalls: toolCalls, toolCallId: nil)
+    public static func assistant(_ text: String, toolCalls: [LLMToolCall]? = nil, reasoning: String? = nil) -> LLMMessage {
+        LLMMessage(role: .assistant, content: [.text(text)], name: nil, toolCalls: toolCalls, toolCallId: nil, reasoning: reasoning)
     }
     
     /// Create a tool result message
@@ -78,7 +81,8 @@ public struct LLMMessage: Sendable, Codable, Equatable {
             content: [.toolResult(toolCallId: toolCallId, content: content)],
             name: nil,
             toolCalls: nil,
-            toolCallId: toolCallId
+            toolCallId: toolCallId,
+            reasoning: nil
         )
     }
     
@@ -87,13 +91,15 @@ public struct LLMMessage: Sendable, Codable, Equatable {
         content: [LLMMessageContent],
         name: String? = nil,
         toolCalls: [LLMToolCall]? = nil,
-        toolCallId: String? = nil
+        toolCallId: String? = nil,
+        reasoning: String? = nil
     ) {
         self.role = role
         self.content = content
         self.name = name
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
+        self.reasoning = reasoning
     }
     
     /// Get the text content of the message (concatenates all text parts)

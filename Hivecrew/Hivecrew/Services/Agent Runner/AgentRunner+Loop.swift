@@ -307,7 +307,8 @@ extension AgentRunner {
             toolCallCount: toolCalls?.count ?? 0,
             promptTokens: response.usage?.promptTokens ?? 0,
             completionTokens: response.usage?.completionTokens ?? 0,
-            totalTokens: response.usage?.totalTokens ?? 0
+            totalTokens: response.usage?.totalTokens ?? 0,
+            reasoning: response.reasoning
         )
         try await tracer.logLLMResponse(response, latencyMs: latencyMs)
         

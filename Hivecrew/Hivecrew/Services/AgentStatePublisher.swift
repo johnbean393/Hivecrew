@@ -38,6 +38,8 @@ struct AgentActivityEntry: Identifiable, Sendable {
     let summary: String
     let details: String?
     let screenshotPath: String?
+    /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
+    let reasoning: String?
     
     enum ActivityType: String, Sendable {
         case observation = "observation"
@@ -57,7 +59,8 @@ struct AgentActivityEntry: Identifiable, Sendable {
         type: ActivityType,
         summary: String,
         details: String? = nil,
-        screenshotPath: String? = nil
+        screenshotPath: String? = nil,
+        reasoning: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -65,6 +68,7 @@ struct AgentActivityEntry: Identifiable, Sendable {
         self.summary = summary
         self.details = details
         self.screenshotPath = screenshotPath
+        self.reasoning = reasoning
     }
 }
 
@@ -106,6 +110,12 @@ class AgentStatePublisher: ObservableObject {
     
     /// Pending instructions from the user to inject into conversation
     @Published var pendingInstructions: String?
+    
+    /// Current streaming reasoning text (updated as reasoning streams in)
+    @Published var streamingReasoning: String = ""
+    
+    /// Whether reasoning is currently streaming
+    @Published var isReasoningStreaming: Bool = false
     
     /// Whether the trace panel for this task is currently visible (user can answer inline)
     var isTracePanelVisible: Bool = false
@@ -276,12 +286,15 @@ class AgentStatePublisher: ObservableObject {
     }
     
     /// Log an LLM response
-    func logLLMResponse(text: String?, toolCallCount: Int, promptTokens: Int, completionTokens: Int, totalTokens: Int) {
+    func logLLMResponse(text: String?, toolCallCount: Int, promptTokens: Int, completionTokens: Int, totalTokens: Int, reasoning: String? = nil) {
         self.promptTokens += promptTokens
         self.completionTokens += completionTokens
         // Use API-provided totalTokens which reflects actual billed usage
         // (may differ from promptTokens + completionTokens due to caching)
         self.totalTokens += totalTokens
+        
+        // Stop streaming when response is logged
+        isReasoningStreaming = false
         
         var summary = ""
         if toolCallCount > 0 {
@@ -292,11 +305,29 @@ class AgentStatePublisher: ObservableObject {
             summary = "LLM responded (no content)"
         }
         
+        // Use the streamed reasoning if available and no reasoning was passed
+        let finalReasoning = reasoning ?? (streamingReasoning.isEmpty ? nil : streamingReasoning)
+        
         addActivity(AgentActivityEntry(
             type: .llmResponse,
             summary: summary,
-            details: "Tokens: +\(totalTokens) total (+\(promptTokens) prompt, +\(completionTokens) completion)"
+            details: "Tokens: +\(totalTokens) total (+\(promptTokens) prompt, +\(completionTokens) completion)",
+            reasoning: finalReasoning
         ))
+        
+        // Clear streaming reasoning after logging
+        streamingReasoning = ""
+    }
+    
+    /// Start streaming reasoning (called when LLM request begins)
+    func startReasoningStream() {
+        streamingReasoning = ""
+        isReasoningStreaming = true
+    }
+    
+    /// Update streaming reasoning (called as reasoning tokens arrive)
+    func updateStreamingReasoning(_ reasoning: String) {
+        streamingReasoning = reasoning
     }
     
     /// Log a tool call starting

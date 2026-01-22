@@ -194,7 +194,8 @@ public actor AgentTracer {
                 completionTokens: response.usage?.completionTokens ?? 0,
                 totalTokens: response.usage?.totalTokens ?? 0,
                 contentPreview: contentPreview,
-                responseText: responseText
+                responseText: responseText,
+                reasoning: response.reasoning
             )),
             durationMs: latencyMs
         )

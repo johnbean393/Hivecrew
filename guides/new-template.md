@@ -3,14 +3,13 @@
 ## 1. Compress
 
 ```bash
-cd ~/Library/Application\ Support/Hivecrew/Templates
-gtar --sparse -cvf - "golden-v0.0.8" | zstd -T0 -10 -o /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.8.tar.zst --progress
+cd ~/Library/Application\ Support/Hivecrew/Templates; gtar --sparse -cvf - "golden-v0.0.9" | zstd -T0 -10 -o /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.9.tar.zst --progress
 ```
 
 ## 2. Upload
 
 ```bash
-rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.8.tar.zst cloudflare-r2:hivecrew-templates/ --progress
+rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.9.tar.zst cloudflare-r2:hivecrew-templates/ --progress
 ```
 
 ## 3. Update Manifest
@@ -22,10 +21,10 @@ Edit `manifest.json` and add the new template at the top:
   "version": 1,
   "templates": [
     {
-      "id": "golden-v0.0.8",
+      "id": "golden-v0.0.9",
       "name": "Hivecrew Golden Image",
-      "version": "0.0.8",
-      "url": "https://templates.hivecrew.org/golden-v0.0.8.tar.zst",
+      "version": "0.0.9",
+      "url": "https://templates.hivecrew.org/golden-v0.0.9.tar.zst",
       "minimumAppVersion": "{MIN_APP_VERSION}"
     }
   ]
@@ -47,11 +46,11 @@ Only needed to change the **fallback default for new users** before they fetch t
 In `TemplateDownloadService.swift`:
 
 ```swift
-public static let goldenV0.0.8 = RemoteTemplate(
-    id: "golden-v0.0.8",
+public static let goldenV0.0.9 = RemoteTemplate(
+    id: "golden-v0.0.9",
     ...
 )
 
-public static let all: [RemoteTemplate] = [goldenV0.0.8, ...]
-public static let `default` = goldenV0.0.8
+public static let all: [RemoteTemplate] = [goldenV0.0.9, ...]
+public static let `default` = goldenV0.0.9
 ```

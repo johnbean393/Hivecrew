@@ -7,6 +7,9 @@
 
 import Foundation
 
+/// Callback for streaming reasoning updates
+public typealias ReasoningStreamCallback = @Sendable (String) -> Void
+
 /// Protocol for LLM client implementations
 ///
 /// This protocol provides an abstraction layer for different LLM providers,
@@ -25,6 +28,20 @@ public protocol LLMClientProtocol: Sendable {
     func chat(
         messages: [LLMMessage],
         tools: [LLMToolDefinition]?
+    ) async throws -> LLMResponse
+    
+    /// Send a chat completion request with streaming reasoning callback
+    ///
+    /// - Parameters:
+    ///   - messages: The conversation messages
+    ///   - tools: Optional tool definitions for function calling
+    ///   - onReasoningUpdate: Callback invoked with accumulated reasoning text as it streams
+    /// - Returns: The LLM response
+    /// - Throws: LLMError if the request fails
+    func chatWithReasoningStream(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?,
+        onReasoningUpdate: ReasoningStreamCallback?
     ) async throws -> LLMResponse
     
     /// Test the connection to the LLM provider
@@ -46,6 +63,21 @@ extension LLMClientProtocol {
     /// Simple chat with just messages
     public func chat(messages: [LLMMessage]) async throws -> LLMResponse {
         try await chat(messages: messages, tools: nil)
+    }
+    
+    /// Default implementation of streaming chat falls back to non-streaming
+    public func chatWithReasoningStream(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?,
+        onReasoningUpdate: ReasoningStreamCallback?
+    ) async throws -> LLMResponse {
+        // Default: just call non-streaming version
+        let response = try await chat(messages: messages, tools: tools)
+        // If there's reasoning in the response, send it all at once
+        if let reasoning = response.reasoning, let callback = onReasoningUpdate {
+            callback(reasoning)
+        }
+        return response
     }
     
     /// Default implementation returns empty list (providers can override)

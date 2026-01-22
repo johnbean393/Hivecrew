@@ -11,6 +11,211 @@ import Foundation
 
 extension OpenAICompatibleClient {
     
+    /// Raw HTTP-based streaming chat method with reasoning callback
+    /// Streams reasoning tokens as they arrive from OpenRouter
+    public func chatRawStreaming(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?,
+        onReasoningUpdate: ReasoningStreamCallback?
+    ) async throws -> LLMResponse {
+        let endpoint = buildChatURL()
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let orgId = configuration.organizationId {
+            request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
+        }
+        request.timeoutInterval = configuration.timeoutInterval
+        
+        // Build request body with streaming enabled
+        var body: [String: Any] = [
+            "model": configuration.model,
+            "messages": try messages.map { try convertMessageToDict($0) },
+            "stream": true
+        ]
+        
+        if let tools = tools, !tools.isEmpty {
+            body["tools"] = tools.map { convertToolToDict($0) }
+        }
+        
+        // Enable reasoning tokens by default for OpenRouter
+        if configuration.isOpenRouter {
+            body["reasoning"] = ["enabled": true]
+        }
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        // Use URLSession bytes for streaming
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LLMError.unknown(message: "Invalid response type")
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            // For errors, we need to collect all bytes first
+            var errorData = Data()
+            for try await byte in bytes {
+                errorData.append(byte)
+            }
+            let errorBody = String(data: errorData, encoding: .utf8) ?? "No response body"
+            throw LLMError.unknown(message: "HTTP \(httpResponse.statusCode): \(errorBody)")
+        }
+        
+        // Parse SSE stream
+        var accumulatedContent = ""
+        var accumulatedReasoning = ""
+        var responseId = ""
+        var responseModel = ""
+        var finishReasonStr: String? = nil
+        var toolCalls: [LLMToolCall] = []
+        var toolCallDeltas: [String: (id: String, name: String, arguments: String)] = [:]
+        var usage: LLMUsage? = nil
+        
+        var lineBuffer = ""
+        
+        for try await byte in bytes {
+            let char = Character(UnicodeScalar(byte))
+            
+            if char == "\n" {
+                // Process the line
+                let line = lineBuffer.trimmingCharacters(in: .whitespaces)
+                lineBuffer = ""
+                
+                if line.isEmpty {
+                    continue
+                }
+                
+                // SSE format: "data: {...}" or "data: [DONE]"
+                if line.hasPrefix("data: ") {
+                    let jsonString = String(line.dropFirst(6))
+                    
+                    if jsonString == "[DONE]" {
+                        break
+                    }
+                    
+                    if let jsonData = jsonString.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                        
+                        // Extract response metadata
+                        if let id = json["id"] as? String, !id.isEmpty {
+                            responseId = id
+                        }
+                        if let model = json["model"] as? String, !model.isEmpty {
+                            responseModel = model
+                        }
+                        
+                        // Extract usage (sometimes included in final chunk)
+                        if let usageDict = json["usage"] as? [String: Any] {
+                            usage = LLMUsage(
+                                promptTokens: usageDict["prompt_tokens"] as? Int ?? 0,
+                                completionTokens: usageDict["completion_tokens"] as? Int ?? 0,
+                                totalTokens: usageDict["total_tokens"] as? Int ?? 0
+                            )
+                        }
+                        
+                        // Process choices
+                        if let choices = json["choices"] as? [[String: Any]] {
+                            for choice in choices {
+                                // Check finish reason
+                                if let reason = choice["finish_reason"] as? String {
+                                    finishReasonStr = reason
+                                }
+                                
+                                // Process delta (streaming chunk)
+                                if let delta = choice["delta"] as? [String: Any] {
+                                    // Content delta
+                                    if let contentDelta = delta["content"] as? String {
+                                        accumulatedContent += contentDelta
+                                    }
+                                    
+                                    // Reasoning delta (OpenRouter streams reasoning in delta.reasoning)
+                                    if let reasoningDelta = delta["reasoning"] as? String {
+                                        accumulatedReasoning += reasoningDelta
+                                        // Call callback with accumulated reasoning
+                                        onReasoningUpdate?(accumulatedReasoning)
+                                    }
+                                    
+                                    // Tool call deltas
+                                    if let toolCallDeltas_arr = delta["tool_calls"] as? [[String: Any]] {
+                                        for tcDelta in toolCallDeltas_arr {
+                                            let index = tcDelta["index"] as? Int ?? 0
+                                            let indexStr = String(index)
+                                            
+                                            // Initialize or update the tool call
+                                            var current = toolCallDeltas[indexStr] ?? (id: "", name: "", arguments: "")
+                                            
+                                            if let id = tcDelta["id"] as? String {
+                                                current.id = id
+                                            }
+                                            if let function = tcDelta["function"] as? [String: Any] {
+                                                if let name = function["name"] as? String {
+                                                    current.name = name
+                                                }
+                                                if let args = function["arguments"] as? String {
+                                                    current.arguments += args
+                                                }
+                                            }
+                                            
+                                            toolCallDeltas[indexStr] = current
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                lineBuffer.append(char)
+            }
+        }
+        
+        // Convert accumulated tool call deltas to LLMToolCall array
+        let sortedToolCalls = toolCallDeltas.sorted { Int($0.key) ?? 0 < Int($1.key) ?? 0 }
+        toolCalls = sortedToolCalls.compactMap { (_, value) in
+            guard !value.id.isEmpty, !value.name.isEmpty else { return nil }
+            return LLMToolCall(
+                id: value.id,
+                type: "function",
+                function: LLMFunctionCall(name: value.name, arguments: value.arguments)
+            )
+        }
+        
+        // Build final response
+        let finishReason: LLMFinishReason?
+        switch finishReasonStr {
+        case "stop": finishReason = .stop
+        case "length": finishReason = .length
+        case "tool_calls": finishReason = .toolCalls
+        case "content_filter": finishReason = .contentFilter
+        default: finishReason = .unknown
+        }
+        
+        let message = LLMMessage(
+            role: .assistant,
+            content: [.text(accumulatedContent)],
+            name: nil,
+            toolCalls: toolCalls.isEmpty ? nil : toolCalls,
+            toolCallId: nil,
+            reasoning: accumulatedReasoning.isEmpty ? nil : accumulatedReasoning
+        )
+        
+        let choice = LLMResponseChoice(
+            index: 0,
+            message: message,
+            finishReason: finishReason
+        )
+        
+        return LLMResponse(
+            id: responseId,
+            model: responseModel,
+            created: Date(),
+            choices: [choice],
+            usage: usage
+        )
+    }
+    
     /// Raw HTTP-based chat method that bypasses the OpenAI library
     /// Use this if the library fails to parse responses
     public func chatRaw(
@@ -177,6 +382,9 @@ extension OpenAICompatibleClient {
                 
                 let content = messageDict["content"] as? String ?? ""
                 
+                // Parse reasoning tokens (OpenRouter returns these in the "reasoning" field)
+                let reasoning = messageDict["reasoning"] as? String
+                
                 // Parse tool calls
                 var toolCalls: [LLMToolCall]? = nil
                 if let toolCallsArray = messageDict["tool_calls"] as? [[String: Any]] {
@@ -198,7 +406,8 @@ extension OpenAICompatibleClient {
                     content: [.text(content)],
                     name: nil,
                     toolCalls: toolCalls,
-                    toolCallId: nil
+                    toolCallId: nil,
+                    reasoning: reasoning
                 )
                 
                 let finishReason: LLMFinishReason?

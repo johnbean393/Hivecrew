@@ -212,13 +212,14 @@ extension OpenAICompatibleClient {
                 }
             }
             
-            // Build the message
+            // Build the message (reasoning is nil when using OpenAI library - not yet supported)
             let message = LLMMessage(
                 role: .assistant,
                 content: [.text(choice.message.content ?? "")],
                 name: nil,
                 toolCalls: toolCalls,
-                toolCallId: nil
+                toolCallId: nil,
+                reasoning: nil
             )
             
             // Convert finish reason

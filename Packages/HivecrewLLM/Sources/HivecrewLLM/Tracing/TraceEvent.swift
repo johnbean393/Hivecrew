@@ -231,6 +231,9 @@ public struct LLMResponseData: Sendable, Codable {
     /// Full response text (only stored when toolCallCount == 0)
     public let responseText: String?
     
+    /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
+    public let reasoning: String?
+    
     public init(
         responseId: String,
         model: String,
@@ -240,7 +243,8 @@ public struct LLMResponseData: Sendable, Codable {
         completionTokens: Int,
         totalTokens: Int,
         contentPreview: String?,
-        responseText: String? = nil
+        responseText: String? = nil,
+        reasoning: String? = nil
     ) {
         self.responseId = responseId
         self.model = model
@@ -251,6 +255,7 @@ public struct LLMResponseData: Sendable, Codable {
         self.totalTokens = totalTokens
         self.contentPreview = contentPreview
         self.responseText = responseText
+        self.reasoning = reasoning
     }
 }
 

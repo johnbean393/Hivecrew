@@ -108,6 +108,24 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         }
     }
     
+    public func chatWithReasoningStream(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?,
+        onReasoningUpdate: ReasoningStreamCallback?
+    ) async throws -> LLMResponse {
+        // Use streaming raw HTTP for OpenRouter to stream reasoning tokens
+        if configuration.isOpenRouter {
+            return try await chatRawStreaming(messages: messages, tools: tools, onReasoningUpdate: onReasoningUpdate)
+        }
+        
+        // For non-OpenRouter providers, fall back to non-streaming
+        let response = try await chat(messages: messages, tools: tools)
+        if let reasoning = response.reasoning, let callback = onReasoningUpdate {
+            callback(reasoning)
+        }
+        return response
+    }
+    
     /// Extract detailed information from a DecodingError
     private func extractDecodingErrorDetails(_ error: DecodingError) -> String {
         switch error {

@@ -33,13 +33,28 @@ struct AgentTracePanel: View {
                             TraceEntryView(entry: entry)
                                 .id(entry.id)
                         }
+                        
+                        // Streaming reasoning view (shows while reasoning is being streamed)
+                        if statePublisher.isReasoningStreaming && !statePublisher.streamingReasoning.isEmpty {
+                            StreamingReasoningView(reasoning: statePublisher.streamingReasoning)
+                                .id("streaming-reasoning")
+                        }
                     }
                     .padding()
                 }
+                .scrollIndicators(.never)
                 .onChange(of: statePublisher.activityLog.count) { oldCount, newCount in
                     if newCount > oldCount, let lastEntry = statePublisher.activityLog.last {
                         withAnimation {
                             proxy.scrollTo(lastEntry.id, anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: statePublisher.streamingReasoning) { _, _ in
+                    // Auto-scroll to bottom while reasoning is streaming
+                    if statePublisher.isReasoningStreaming {
+                        withAnimation {
+                            proxy.scrollTo("streaming-reasoning", anchor: .bottom)
                         }
                     }
                 }
@@ -340,6 +355,7 @@ struct TraceEntryView: View {
     let entry: AgentActivityEntry
     
     @State private var isExpanded: Bool = false
+    @State private var isReasoningExpanded: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -361,6 +377,17 @@ struct TraceEntryView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(isExpanded ? nil : 2)
+                    }
+                    
+                    // Reasoning indicator (collapsed)
+                    if let reasoning = entry.reasoning, !reasoning.isEmpty, !isExpanded {
+                        HStack(spacing: 4) {
+                            Image(systemName: "brain")
+                                .font(.caption2)
+                            Text("Reasoning available")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.purple.opacity(0.8))
                     }
                 }
                 
@@ -394,6 +421,60 @@ struct TraceEntryView: View {
                         .background(Color(nsColor: .controlBackgroundColor))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                         .padding(.leading, 24)
+                }
+                
+                // Reasoning section (collapsible)
+                if let reasoning = entry.reasoning, !reasoning.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isReasoningExpanded.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "brain")
+                                    .font(.caption)
+                                Text("Reasoning")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Image(systemName: isReasoningExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.purple)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        if isReasoningExpanded {
+                            ScrollViewReader { proxy in
+                                ScrollView {
+                                    Text(reasoning)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 6)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                    // Invisible anchor at bottom
+                                    Color.clear
+                                        .frame(height: 1)
+                                        .id("entry-reasoning-bottom")
+                                }
+                                .onAppear {
+                                    // Scroll to bottom when expanded
+                                    proxy.scrollTo("entry-reasoning-bottom", anchor: .bottom)
+                                }
+                            }
+                            .frame(maxHeight: 200)
+                            .background(Color.purple.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                    }
+                    .padding(.leading, 24)
+                    .padding(.top, 4)
                 }
             }
         }
@@ -433,6 +514,91 @@ struct TraceEntryView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         return formatter.string(from: entry.timestamp)
+    }
+}
+
+// MARK: - Streaming Reasoning View
+
+/// View that displays streaming reasoning as it arrives in real-time
+struct StreamingReasoningView: View {
+    let reasoning: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Header with animated indicator
+            HStack(spacing: 8) {
+                Image(systemName: "brain")
+                    .font(.caption)
+                    .foregroundStyle(.purple)
+                    .frame(width: 16)
+                
+                HStack(spacing: 4) {
+                    Text("Reasoning")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.purple)
+                    
+                    // Animated streaming indicator
+                    StreamingIndicator()
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            
+            // Reasoning content with auto-scroll to bottom
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(reasoning)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    // Invisible anchor at bottom for scrolling
+                    Color.clear
+                        .frame(height: 1)
+                        .id("reasoning-bottom")
+                }
+                .onChange(of: reasoning) { _, _ in
+                    // Auto-scroll to bottom when reasoning updates
+                    withAnimation(.easeOut(duration: 0.1)) {
+                        proxy.scrollTo("reasoning-bottom", anchor: .bottom)
+                    }
+                }
+            }
+            .frame(maxHeight: 200)
+            .background(Color.purple.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .padding(.leading, 24)
+        }
+    }
+}
+
+/// Animated dots indicator for streaming
+struct StreamingIndicator: View {
+    @State private var animationOffset: Int = 0
+    
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<3) { index in
+                Circle()
+                    .fill(Color.purple)
+                    .frame(width: 4, height: 4)
+                    .opacity(animationOffset == index ? 1.0 : 0.3)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.4).repeatForever(autoreverses: false)) {
+                // Start animation timer
+            }
+            Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { _ in
+                animationOffset = (animationOffset + 1) % 3
+            }
+        }
     }
 }
 

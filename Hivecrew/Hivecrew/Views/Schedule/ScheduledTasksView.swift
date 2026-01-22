@@ -57,6 +57,7 @@ struct ScheduledTasksView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .scrollIndicators(.never)
             }
         }
         .padding(.horizontal, 40)

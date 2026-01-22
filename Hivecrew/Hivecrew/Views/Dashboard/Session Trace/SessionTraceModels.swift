@@ -37,8 +37,10 @@ struct TraceEventInfo: Identifiable {
     let details: String?
     /// Full response text from LLM (when responding with text, not tool calls)
     let responseText: String?
+    /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
+    let reasoning: String?
     
-    init(id: String, type: String, timestamp: String, step: Int, summary: String, rawJSON: String, screenshotPath: String? = nil, details: String? = nil, responseText: String? = nil) {
+    init(id: String, type: String, timestamp: String, step: Int, summary: String, rawJSON: String, screenshotPath: String? = nil, details: String? = nil, responseText: String? = nil, reasoning: String? = nil) {
         self.id = id
         self.type = type
         self.timestamp = timestamp
@@ -48,6 +50,7 @@ struct TraceEventInfo: Identifiable {
         self.screenshotPath = screenshotPath
         self.details = details
         self.responseText = responseText
+        self.reasoning = reasoning
     }
 }
 
@@ -58,6 +61,7 @@ struct HistoricalTraceEventRow: View {
     let isCurrentScreenshot: Bool
     
     @State private var isExpanded: Bool = false
+    @State private var isReasoningExpanded: Bool = false
     
     private var hasScreenshot: Bool {
         event.screenshotPath != nil
@@ -86,6 +90,17 @@ struct HistoricalTraceEventRow: View {
                             .lineLimit(isExpanded ? nil : 2)
                             .textSelection(.enabled)
                     }
+                    
+                    // Reasoning indicator (collapsed)
+                    if let reasoning = event.reasoning, !reasoning.isEmpty, !isExpanded {
+                        HStack(spacing: 4) {
+                            Image(systemName: "brain")
+                                .font(.caption2)
+                            Text("Reasoning available")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.purple.opacity(0.8))
+                    }
                 }
                 
                 Spacer()
@@ -102,12 +117,15 @@ struct HistoricalTraceEventRow: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 if !hasScreenshot {
-                    isExpanded.toggle()
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isExpanded.toggle()
+                    }
                 }
             }
             
-            // Expanded JSON view
+            // Expanded content
             if isExpanded && !hasScreenshot {
+                // JSON view
                 ScrollView(.horizontal, showsIndicators: true) {
                     Text(prettyJSON)
                         .font(.system(.caption2, design: .monospaced))
@@ -119,6 +137,49 @@ struct HistoricalTraceEventRow: View {
                 .background(Color(nsColor: .controlBackgroundColor))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .padding(.leading, 24)
+                
+                // Reasoning section (collapsible)
+                if let reasoning = event.reasoning, !reasoning.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isReasoningExpanded.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "brain")
+                                    .font(.caption)
+                                Text("Reasoning")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Image(systemName: isReasoningExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.purple)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        if isReasoningExpanded {
+                            ScrollView {
+                                Text(reasoning)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 200)
+                            .background(Color.purple.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                    }
+                    .padding(.leading, 24)
+                    .padding(.top, 4)
+                }
             }
         }
     }
