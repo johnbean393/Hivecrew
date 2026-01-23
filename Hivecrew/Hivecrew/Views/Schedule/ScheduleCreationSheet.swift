@@ -8,11 +8,13 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import HivecrewShared
 
 /// Sheet for creating or editing a scheduled task
 struct ScheduleCreationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var schedulerService: SchedulerService
+    @StateObject private var skillManager = SkillManager()
     @Query private var providers: [LLMProviderRecord]
     
     // Task configuration
@@ -37,6 +39,7 @@ struct ScheduleCreationSheet: View {
     @State private var showModelOptions: Bool = false
     @State private var showDatePicker: Bool = false
     @State private var showFilePicker: Bool = false
+    @State private var showSkillPicker: Bool = false
     
     // Edit mode
     let existingSchedule: ScheduledTask?
@@ -104,6 +107,9 @@ struct ScheduleCreationSheet: View {
                 
                 // File attachments
                 fileAttachmentSection
+                
+                // Skills section
+                skillsSection
                 
                 // Schedule selection
                 scheduleSection
@@ -229,6 +235,122 @@ struct ScheduleCreationSheet: View {
                     }
                 }
             }
+        }
+    }
+    
+    // MARK: - Skills Section
+    
+    private var skillsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Skills")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Button {
+                    showSkillPicker.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.caption)
+                        Text("Add Skills")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .popover(isPresented: $showSkillPicker, arrowEdge: .bottom) {
+                    skillPickerPopover
+                }
+            }
+            
+            if mentionedSkillNames.isEmpty {
+                Text("No skills selected. The agent will auto-select relevant skills based on the task.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(mentionedSkillNames, id: \.self) { skillName in
+                            ScheduleSkillChip(
+                                skillName: skillName,
+                                onRemove: {
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        mentionedSkillNames.removeAll { $0 == skillName }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+    
+    private var skillPickerPopover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("Select Skills")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    showSkillPicker = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(12)
+            
+            Divider()
+            
+            if skillManager.skills.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.tertiary)
+                    Text("No skills available")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("Import skills from the Skills window")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+            } else {
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(skillManager.skills) { skill in
+                            SkillPickerRow(
+                                skill: skill,
+                                isSelected: mentionedSkillNames.contains(skill.name),
+                                onToggle: {
+                                    toggleSkill(skill.name)
+                                }
+                            )
+                        }
+                    }
+                    .padding(8)
+                }
+                .frame(maxHeight: 300)
+            }
+        }
+        .frame(width: 280)
+    }
+    
+    private func toggleSkill(_ skillName: String) {
+        if mentionedSkillNames.contains(skillName) {
+            mentionedSkillNames.removeAll { $0 == skillName }
+        } else {
+            mentionedSkillNames.append(skillName)
         }
     }
     
@@ -688,6 +810,112 @@ private struct ScheduleAttachmentItem: View {
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
             }
+        }
+    }
+}
+
+// MARK: - Schedule Skill Chip
+
+/// Chip displaying a selected skill with remove button
+private struct ScheduleSkillChip: View {
+    let skillName: String
+    var onRemove: () -> Void
+    
+    @State private var isHovering: Bool = false
+    
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.purple)
+                
+                Text(skillName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.purple.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+            )
+            
+            // Remove button
+            if isHovering {
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white, .red)
+                }
+                .buttonStyle(.plain)
+                .offset(x: 6, y: -6)
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
+// MARK: - Skill Picker Row
+
+/// Row in the skill picker popover
+private struct SkillPickerRow: View {
+    let skill: Skill
+    let isSelected: Bool
+    var onToggle: () -> Void
+    
+    @State private var isHovering: Bool = false
+    
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 10) {
+                // Checkbox
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                
+                // Skill info
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(skill.name)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary)
+                        
+                        if !skill.isEnabled {
+                            Text("disabled")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.secondary.opacity(0.15))
+                                .cornerRadius(3)
+                        }
+                    }
+                    
+                    Text(skill.description)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(isHovering ? Color.primary.opacity(0.05) : Color.clear)
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovering = hovering
         }
     }
 }
