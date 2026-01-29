@@ -99,13 +99,13 @@ class AgentStatePublisher: ObservableObject {
     /// Pending permission request from the agent (nil if no request)
     @Published var pendingPermissionRequest: PermissionRequest?
     
-    /// Total prompt tokens used (includes cached tokens for some providers)
+    /// Latest prompt tokens used (includes cached tokens for some providers)
     @Published var promptTokens: Int = 0
     
-    /// Total completion tokens used
+    /// Latest completion tokens used
     @Published var completionTokens: Int = 0
     
-    /// Total tokens used (actual billed tokens from API)
+    /// Latest total tokens used (actual billed tokens from API)
     @Published var totalTokens: Int = 0
     
     /// Pending instructions from the user to inject into conversation
@@ -287,11 +287,15 @@ class AgentStatePublisher: ObservableObject {
     
     /// Log an LLM response
     func logLLMResponse(text: String?, toolCallCount: Int, promptTokens: Int, completionTokens: Int, totalTokens: Int, reasoning: String? = nil) {
-        self.promptTokens += promptTokens
-        self.completionTokens += completionTokens
-        // Use API-provided totalTokens which reflects actual billed usage
-        // (may differ from promptTokens + completionTokens due to caching)
-        self.totalTokens += totalTokens
+        let hasUsage = promptTokens > 0 || completionTokens > 0 || totalTokens > 0
+        if hasUsage {
+            // API usage already includes prior context; use latest values directly.
+            self.promptTokens = promptTokens
+            self.completionTokens = completionTokens
+            // Use API-provided totalTokens which reflects actual billed usage
+            // (may differ from promptTokens + completionTokens due to caching)
+            self.totalTokens = totalTokens
+        }
         
         // Stop streaming when response is logged
         isReasoningStreaming = false
@@ -311,7 +315,7 @@ class AgentStatePublisher: ObservableObject {
         addActivity(AgentActivityEntry(
             type: .llmResponse,
             summary: summary,
-            details: "Tokens: +\(totalTokens) total (+\(promptTokens) prompt, +\(completionTokens) completion)",
+            details: "Tokens: \(totalTokens) total (\(promptTokens) prompt, \(completionTokens) completion)",
             reasoning: finalReasoning
         ))
         

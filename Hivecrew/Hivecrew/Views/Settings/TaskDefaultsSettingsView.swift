@@ -21,6 +21,9 @@ struct TaskDefaultsSettingsView: View {
     @AppStorage("searchEngine") private var searchEngine: String = "google"
     @AppStorage("defaultResultCount") private var defaultResultCount: Int = 10
     
+    // Skills
+    @AppStorage("automaticSkillMatching") private var automaticSkillMatching = true
+    
     // Notification settings
     @AppStorage("notifyTaskCompleted") private var notifyTaskCompleted = true
     @AppStorage("notifyTaskIncomplete") private var notifyTaskIncomplete = true
@@ -205,19 +208,30 @@ struct TaskDefaultsSettingsView: View {
     
     private var skillsSection: some View {
         Section("Agent Skills") {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Skills")
-                        .font(.headline)
-                    Text("Reusable instructions that enhance agent capabilities")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Skills")
+                            .font(.headline)
+                        Text("Reusable instructions that enhance agent capabilities")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Manage Skills...") {
+                        openWindow(id: "skills-window")
+                    }
                 }
                 
-                Spacer()
+                Divider()
                 
-                Button("Manage Skills...") {
-                    openWindow(id: "skills-window")
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Automatic Skill Matching", isOn: $automaticSkillMatching)
+                    Text("Automatically match enabled skills to tasks using AI. When disabled, only explicitly mentioned skills (@skill-name) will be used.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

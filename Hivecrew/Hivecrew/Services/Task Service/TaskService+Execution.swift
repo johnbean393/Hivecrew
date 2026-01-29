@@ -173,28 +173,32 @@ extension TaskService {
                 }
             }
             
-            // Then, auto-match additional skills from enabled skills
-            let enabledSkills = skillManager.enabledSkills
-            let alreadyIncluded = Set(skillsToUse.map { $0.name })
-            let availableForMatching = enabledSkills.filter { !alreadyIncluded.contains($0.name) }
+            // Then, auto-match additional skills from enabled skills (if automatic matching is enabled)
+            let automaticSkillMatching = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
             
-            if !availableForMatching.isEmpty {
-                do {
-                    statePublisher.logInfo("Matching additional skills for task...")
-                    let skillMatcher = SkillMatcher(llmClient: llmClient)
-                    let matchedSkills = try await skillMatcher.matchSkills(
-                        forTask: task.taskDescription,
-                        availableSkills: availableForMatching
-                    )
-                    if !matchedSkills.isEmpty {
-                        skillsToUse.append(contentsOf: matchedSkills)
-                        statePublisher.logInfo("Auto-matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
-                    } else {
-                        statePublisher.logInfo("No additional skills matched")
+            if automaticSkillMatching {
+                let enabledSkills = skillManager.enabledSkills
+                let alreadyIncluded = Set(skillsToUse.map { $0.name })
+                let availableForMatching = enabledSkills.filter { !alreadyIncluded.contains($0.name) }
+                
+                if !availableForMatching.isEmpty {
+                    do {
+                        statePublisher.logInfo("Matching additional skills for task...")
+                        let skillMatcher = SkillMatcher(llmClient: llmClient)
+                        let matchedSkills = try await skillMatcher.matchSkills(
+                            forTask: task.taskDescription,
+                            availableSkills: availableForMatching
+                        )
+                        if !matchedSkills.isEmpty {
+                            skillsToUse.append(contentsOf: matchedSkills)
+                            statePublisher.logInfo("Auto-matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
+                        } else {
+                            statePublisher.logInfo("No additional skills matched")
+                        }
+                    } catch {
+                        // Skill matching is non-fatal, continue with just mentioned skills
+                        statePublisher.logInfo("Skill matching failed (non-fatal): \(error.localizedDescription)")
                     }
-                } catch {
-                    // Skill matching is non-fatal, continue with just mentioned skills
-                    statePublisher.logInfo("Skill matching failed (non-fatal): \(error.localizedDescription)")
                 }
             }
             

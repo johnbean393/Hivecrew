@@ -104,8 +104,18 @@ extension GuestAgentConnection {
     }
     
     /// Run a shell command
+    /// Note: The command is automatically wrapped to include common tool paths (Homebrew, Cargo, etc.)
+    /// since the GuestAgent runs zsh non-interactively without sourcing profile files.
     func runShell(command: String, timeout: Double? = nil) async throws -> ShellResult {
-        var params: [String: Any] = ["command": command]
+        // Prepend common tool paths to ensure Homebrew, Cargo, and other tools are available.
+        // The GuestAgent runs /bin/zsh -c which doesn't source ~/.zshrc or ~/.zprofile,
+        // so tools installed via package managers won't be in PATH by default.
+        let pathSetup = """
+            export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH" 2>/dev/null
+            """
+        let wrappedCommand = "\(pathSetup); \(command)"
+        
+        var params: [String: Any] = ["command": wrappedCommand]
         if let timeout = timeout { params["timeout"] = timeout }
         
         let response = try await call(method: "run_shell", params: params)

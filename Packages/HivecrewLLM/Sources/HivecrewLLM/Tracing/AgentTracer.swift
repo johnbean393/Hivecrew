@@ -18,9 +18,10 @@ public actor AgentTracer {
     private var fileHandle: FileHandle?
     private let encoder: JSONEncoder
     
-    /// Token usage accumulator
+    /// Token usage accumulator (latest values from API usage)
     private var totalPromptTokens: Int = 0
     private var totalCompletionTokens: Int = 0
+    private var totalTokens: Int = 0
     
     /// Create a tracer for a new session
     ///
@@ -97,7 +98,7 @@ public actor AgentTracer {
             data: .sessionEnd(SessionEndData(
                 status: status,
                 totalSteps: currentStep,
-                totalTokens: totalPromptTokens + totalCompletionTokens,
+                totalTokens: totalTokens > 0 ? totalTokens : (totalPromptTokens + totalCompletionTokens),
                 estimatedCost: estimatedCost,
                 summary: summary
             ))
@@ -157,10 +158,11 @@ public actor AgentTracer {
         _ response: LLMResponse,
         latencyMs: Int
     ) throws {
-        // Update token accumulators
+        // Update token accumulators with latest usage values
         if let usage = response.usage {
-            totalPromptTokens += usage.promptTokens
-            totalCompletionTokens += usage.completionTokens
+            totalPromptTokens = usage.promptTokens
+            totalCompletionTokens = usage.completionTokens
+            totalTokens = usage.totalTokens
         }
         
         let toolCallCount = response.toolCalls?.count ?? 0
@@ -306,7 +308,8 @@ public actor AgentTracer {
     
     /// Get accumulated token usage
     public func getTokenUsage() -> (prompt: Int, completion: Int, total: Int) {
-        (totalPromptTokens, totalCompletionTokens, totalPromptTokens + totalCompletionTokens)
+        let total = totalTokens > 0 ? totalTokens : (totalPromptTokens + totalCompletionTokens)
+        return (totalPromptTokens, totalCompletionTokens, total)
     }
     
     /// Flush any buffered data to disk
