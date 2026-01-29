@@ -143,16 +143,16 @@ public class SkillMatcher {
         \(skillsText)
         
         SELECTION RULES:
-        1. ONLY select a skill if the task requires that skill's specific capability
+        1. ONLY select a skill if the task requires and makes HEAVY use of that skill's specific capability
         2. A skill must match the PRIMARY deliverable or format requested in the task
         3. Do NOT select skills for tangential or "nice to have" features
-        4. Do NOT select skills just because they COULD be useful - they must be REQUIRED
+        4. Do NOT select skills just because they COULD be useful - they must be REQUIRED and HEAVILY USED
         5. When in doubt, do NOT include the skill
         6. Prefer selecting ZERO skills over selecting marginally relevant ones
         
         Examples of when to select:
         - Task asks to "create a PowerPoint" → select pptx skill
-        - Task asks to "write a Word document" → select docx skill  
+        - Task asks to "read a PDF, then write a Word document" → select docx skill  
         - Task asks to "extract text from a PDF" → select pdf skill
         
         Examples of when NOT to select:

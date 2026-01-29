@@ -130,6 +130,25 @@ class TaskService: ObservableObject {
         return task
     }
     
+    /// Create a new task with the same parameters as a previous task
+    /// - Parameter originalTask: The task to rerun
+    /// - Returns: The newly created task
+    func rerunTask(_ originalTask: TaskRecord) async throws -> TaskRecord {
+        // Filter to only attachments that still exist on disk
+        let validAttachments = originalTask.attachedFilePaths.filter {
+            FileManager.default.fileExists(atPath: $0)
+        }
+        
+        return try await createTask(
+            description: originalTask.taskDescription,
+            providerId: originalTask.providerId,
+            modelId: originalTask.modelId,
+            attachedFilePaths: validAttachments,
+            outputDirectory: originalTask.outputDirectory,
+            mentionedSkillNames: originalTask.mentionedSkillNames ?? []
+        )
+    }
+    
     /// Generate a better title using LLM and update the task
     private func generateAndUpdateTitle(for task: TaskRecord, description: String, providerId: String, modelId: String) async {
         do {
