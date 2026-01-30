@@ -11,6 +11,9 @@
 		2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33F2F139C0000041819 /* HivecrewLLM */; };
 		2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2019E34F2F13A00000041819 /* LLMProviderRecord.swift */; };
 		202F64692F2BD82A00F6F359 /* PromptCopyCountButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */; };
+		202F646D2F2D26DE00F6F359 /* ImageGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646B2F2D26DE00F6F359 /* ImageGenerationService.swift */; };
+		202F646E2F2D26DE00F6F359 /* ImageGenerationAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646A2F2D26DE00F6F359 /* ImageGenerationAvailability.swift */; };
+		202F64702F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -181,6 +184,9 @@
 /* Begin PBXFileReference section */
 		2019E34F2F13A00000041819 /* LLMProviderRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProviderRecord.swift; sourceTree = "<group>"; };
 		202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCopyCountButton.swift; sourceTree = "<group>"; };
+		202F646A2F2D26DE00F6F359 /* ImageGenerationAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageGenerationAvailability.swift; sourceTree = "<group>"; };
+		202F646B2F2D26DE00F6F359 /* ImageGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageGenerationService.swift; sourceTree = "<group>"; };
+		202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+ImageGeneration.swift"; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -349,6 +355,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		202F646C2F2D26DE00F6F359 /* Image Generation */ = {
+			isa = PBXGroup;
+			children = (
+				202F646A2F2D26DE00F6F359 /* ImageGenerationAvailability.swift */,
+				202F646B2F2D26DE00F6F359 /* ImageGenerationService.swift */,
+			);
+			path = "Image Generation";
+			sourceTree = "<group>";
+		};
 		2049633A2F17DDAC007DD5FD /* Updates */ = {
 			isa = PBXGroup;
 			children = (
@@ -469,6 +484,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				202F646C2F2D26DE00F6F359 /* Image Generation */,
 				20B899472F1FAEC4003887A3 /* Scheduler */,
 				209EB6E92F1E26D000A7F13F /* Skills */,
 				AAAA00022F1E200000000002 /* API */,
@@ -693,6 +709,7 @@
 			children = (
 				3001A0062F15000000000006 /* ToolExecutor.swift */,
 				209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */,
+				202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */,
 				209EB6DD2F1E19B400A7F13F /* ToolExecutorTypes.swift */,
 			);
 			path = "Tool Executor";
@@ -972,6 +989,7 @@
 				209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */,
 				204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */,
 				20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */,
+				202F64702F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift in Sources */,
 				209EB6F22F1E284700A7F13F /* SkillExtractionSheet.swift in Sources */,
 				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
 				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
@@ -1043,6 +1061,8 @@
 				3001B0052F15000000000005 /* AgentPrompts.swift in Sources */,
 				204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */,
 				204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */,
+				202F646D2F2D26DE00F6F359 /* ImageGenerationService.swift in Sources */,
+				202F646E2F2D26DE00F6F359 /* ImageGenerationAvailability.swift in Sources */,
 				204DF4422F15744D004AB99B /* AgentRunner+Loop.swift in Sources */,
 				204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */,
 				3001B0062F15000000000006 /* ToolExecutor.swift in Sources */,

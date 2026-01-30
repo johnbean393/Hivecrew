@@ -22,6 +22,14 @@ public final class ToolSchemaBuilder: Sendable {
             .map { buildToolDefinition(for: $0) }
     }
     
+    /// Build CUA tools excluding specific methods
+    /// - Parameter excluding: Methods to exclude from the tool list
+    public func buildCUATools(excluding: Set<AgentMethod>) -> [LLMToolDefinition] {
+        AgentMethod.allCases
+            .filter { !$0.isInternalTool && !excluding.contains($0) }
+            .map { buildToolDefinition(for: $0) }
+    }
+    
     /// Build tool definitions for a subset of methods
     public func buildTools(for methods: [AgentMethod]) -> [LLMToolDefinition] {
         methods.map { buildToolDefinition(for: $0) }
@@ -359,6 +367,26 @@ public final class ToolSchemaBuilder: Sendable {
                             "service": stringProperty("Optional: Filter by service name (e.g., 'GitHub', 'Gmail'). If omitted, returns all available credentials.")
                         ],
                         required: []
+                    )
+                )
+                
+            // Image generation tool
+            case .generateImage:
+                return (
+                    "Generate an image from a text prompt using AI. Optionally provide reference images for style or content guidance. The generated image will be saved to the images inbox folder and can be used in the task.",
+                    objectSchema(
+                        properties: [
+                            "prompt": stringProperty("Detailed description of the image to generate. Be specific about style, composition, colors, and subject matter."),
+                            "referenceImagePaths": arrayProperty(
+                                "Optional paths to reference images for style or content guidance (relative to shared folder or absolute)",
+                                itemType: ["type": "string"]
+                            ),
+                            "aspectRatio": enumProperty(
+                                "Aspect ratio for the generated image",
+                                ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]
+                            )
+                        ],
+                        required: ["prompt"]
                     )
                 )
         }

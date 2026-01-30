@@ -54,6 +54,9 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case addTodoItem = "add_todo_item"
     case finishTodoItem = "finish_todo_item"
     
+    // Host-side image generation tool
+    case generateImage = "generate_image"
+    
     /// Returns true if this tool executes on the host (not in the guest VM)
     /// Host-side tools don't affect VM state, so screenshot capture can be skipped
     public var isHostSideTool: Bool {
@@ -61,7 +64,7 @@ public enum AgentMethod: String, CaseIterable, Sendable {
         case .webSearch, .readWebpageContent, .extractInfoFromWebpage,
              .getLocation, .createTodoList, .addTodoItem, .finishTodoItem,
              .askTextQuestion, .askMultipleChoice, .requestUserIntervention,
-             .getLoginCredentials:
+             .getLoginCredentials, .generateImage:
             return true
         default:
             return false
@@ -484,5 +487,23 @@ public struct GetLoginCredentialsParams: Codable, Sendable {
     
     public init(service: String? = nil) {
         self.service = service
+    }
+}
+
+// MARK: - Image Generation Tools
+
+/// Parameters for generate_image tool
+public struct GenerateImageParams: Codable, Sendable {
+    /// Detailed description of the image to generate
+    public let prompt: String
+    /// Optional paths to reference images for style or content guidance
+    public let referenceImagePaths: [String]?
+    /// Aspect ratio for the generated image (e.g., "1:1", "16:9", "9:16")
+    public let aspectRatio: String?
+    
+    public init(prompt: String, referenceImagePaths: [String]? = nil, aspectRatio: String? = nil) {
+        self.prompt = prompt
+        self.referenceImagePaths = referenceImagePaths
+        self.aspectRatio = aspectRatio
     }
 }

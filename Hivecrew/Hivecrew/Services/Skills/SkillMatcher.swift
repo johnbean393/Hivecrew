@@ -154,6 +154,7 @@ public class SkillMatcher {
         - Task asks to "create a PowerPoint" → select pptx skill
         - Task asks to "read a PDF, then write a Word document" → select docx skill  
         - Task asks to "extract text from a PDF" → select pdf skill
+        - Task asks to "create a website" -> select a frontend-design skill
         
         Examples of when NOT to select:
         - Task mentions "research" but doesn't specifically need web artifacts → don't select web-artifacts-builder

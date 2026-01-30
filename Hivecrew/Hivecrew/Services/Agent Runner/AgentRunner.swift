@@ -10,6 +10,7 @@ import AppKit
 import Virtualization
 import HivecrewLLM
 import HivecrewShared
+import HivecrewAgentProtocol
 
 /// Reason for agent termination
 enum AgentTerminationReason: String, Sendable {
@@ -130,7 +131,9 @@ final class AgentRunner {
             todoManager: todoManager,
             taskProviderId: task.providerId,
             taskModelId: task.modelId,
-            taskService: taskService
+            taskService: taskService,
+            modelContext: taskService.modelContext,
+            vmId: vmId
         )
         self.toolExecutor.taskId = task.id
         
@@ -149,7 +152,25 @@ final class AgentRunner {
         // Build essential CUA tool definitions (includes user interaction tools)
         // Note: Screenshot is NOT a tool - we automatically capture after each action
         let schemaBuilder = ToolSchemaBuilder()
-        self.tools = schemaBuilder.buildCUATools()
+        
+        // Determine which tools to exclude based on availability
+        var excludedTools: Set<AgentMethod> = []
+        
+        // Exclude image generation tool if not configured
+        if let modelContext = taskService.modelContext {
+            if !ImageGenerationAvailability.isAvailable(modelContext: modelContext) {
+                excludedTools.insert(.generateImage)
+            }
+        } else {
+            // No model context available, exclude image generation
+            excludedTools.insert(.generateImage)
+        }
+        
+        if excludedTools.isEmpty {
+            self.tools = schemaBuilder.buildCUATools()
+        } else {
+            self.tools = schemaBuilder.buildCUATools(excluding: excludedTools)
+        }
     }
     
     // MARK: - Public Methods

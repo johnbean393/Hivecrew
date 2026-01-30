@@ -6,7 +6,9 @@
 //
 
 import Foundation
+import SwiftData
 import HivecrewLLM
+import HivecrewShared
 
 /// Executes tool calls from the LLM using the GuestAgentConnection
 @MainActor
@@ -14,6 +16,7 @@ class ToolExecutor {
     let connection: GuestAgentConnection
     
     var taskId: String = ""
+    var vmId: String = ""
     var onAskQuestion: ((AgentQuestion) async -> String)?
     var onRequestPermission: ((String, String) async -> Bool)?
     
@@ -21,19 +24,24 @@ class ToolExecutor {
     let taskProviderId: String
     let taskModelId: String
     weak var taskService: (any CreateWorkerClientProtocol)?
+    let modelContext: ModelContext?
     
     init(
         connection: GuestAgentConnection,
         todoManager: TodoManager,
         taskProviderId: String,
         taskModelId: String,
-        taskService: (any CreateWorkerClientProtocol)?
+        taskService: (any CreateWorkerClientProtocol)?,
+        modelContext: ModelContext?,
+        vmId: String
     ) {
         self.connection = connection
         self.todoManager = todoManager
         self.taskProviderId = taskProviderId
         self.taskModelId = taskModelId
         self.taskService = taskService
+        self.modelContext = modelContext
+        self.vmId = vmId
     }
     
     func execute(toolCall: LLMToolCall) async -> ToolExecutionResult {
@@ -183,6 +191,9 @@ class ToolExecutor {
             
         case "finish_todo_item":
             return try executeFinishTodoItem(args: args)
+            
+        case "generate_image":
+            return try await executeGenerateImage(args: args)
             
         default:
             throw ToolExecutorError.unknownTool(name)

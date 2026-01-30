@@ -6,11 +6,14 @@
 //
 
 import SwiftUI
+import SwiftData
 import UniformTypeIdentifiers
 
 /// Tasks settings tab - operating limits, output directory, and web tools
 struct TaskDefaultsSettingsView: View {
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.modelContext) private var modelContext
+    @Query private var providers: [LLMProviderRecord]
     
     // Task limits
     @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 30
@@ -23,6 +26,11 @@ struct TaskDefaultsSettingsView: View {
     
     // Skills
     @AppStorage("automaticSkillMatching") private var automaticSkillMatching = true
+    
+    // Image generation
+    @AppStorage("imageGenerationEnabled") private var imageGenerationEnabled = false
+    @AppStorage("imageGenerationProvider") private var imageGenerationProvider: String = "openRouter"
+    @AppStorage("imageGenerationModel") private var imageGenerationModel: String = "google/gemini-3-pro-image-preview"
     
     // Notification settings
     @AppStorage("notifyTaskCompleted") private var notifyTaskCompleted = true
@@ -52,6 +60,7 @@ struct TaskDefaultsSettingsView: View {
             outputSection
             notificationsSection
             webToolsSection
+            imageGenerationSection
             skillsSection
         }
         .formStyle(.grouped)
@@ -234,6 +243,137 @@ struct TaskDefaultsSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+    
+    // MARK: - Image Generation Section
+    
+    private var imageGenerationSection: some View {
+        Section("Image Generation") {
+            VStack(alignment: .leading, spacing: 12) {
+                // Enable toggle with warning if not configured
+                HStack {
+                    Toggle("Enable Image Generation", isOn: $imageGenerationEnabled)
+                    
+                    if imageGenerationEnabled && !isProviderConfigured {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .help("Provider not configured")
+                    }
+                }
+                
+                if imageGenerationEnabled {
+                    Divider()
+                    
+                    // Provider picker
+                    Picker("Provider", selection: $imageGenerationProvider) {
+                        Text("OpenRouter").tag("openRouter")
+                        Text("Google Gemini").tag("gemini")
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    // Provider-specific configuration
+                    if imageGenerationProvider == "openRouter" {
+                        openRouterConfigView
+                    } else {
+                        geminiConfigView
+                    }
+                    
+                    Divider()
+                    
+                    // Model ID
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Model:")
+                            TextField("Model ID", text: $imageGenerationModel)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        Text(modelHelpText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Text("Allow agents to generate images using AI. Generated images are saved to the VM's images inbox folder.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    private var openRouterConfigView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if hasOpenRouterProvider {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Using OpenRouter provider from Providers settings")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("No OpenRouter provider configured. Add one in the Providers tab.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var geminiConfigView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if hasGeminiProvider {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Using Google AI Studio provider from Providers settings")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("No Google AI Studio provider configured. Add one in the Providers tab.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var modelHelpText: String {
+        if imageGenerationProvider == "openRouter" {
+            return "e.g., google/gemini-2.5-flash-preview-image-generation, google/gemini-3-pro-image-preview"
+        } else {
+            return "e.g., gemini-2.5-flash-image, gemini-3-pro-image-preview"
+        }
+    }
+    
+    private var hasOpenRouterProvider: Bool {
+        providers.contains { provider in
+            guard let baseURL = provider.baseURL else { return false }
+            return baseURL.lowercased().contains("openrouter.ai") && provider.hasAPIKey
+        }
+    }
+    
+    private var hasGeminiProvider: Bool {
+        providers.contains { provider in
+            guard let baseURL = provider.baseURL else { return false }
+            return baseURL.lowercased().contains("generativelanguage.googleapis.com") && provider.hasAPIKey
+        }
+    }
+    
+    private var isProviderConfigured: Bool {
+        if imageGenerationProvider == "openRouter" {
+            return hasOpenRouterProvider
+        } else {
+            return hasGeminiProvider
         }
     }
     
