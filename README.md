@@ -58,6 +58,13 @@ The app runs agents in macOS Tahoe VMs with a lightweight guest agent that provi
 - At least 16GB RAM recommended for running concurrent agents
 - ~64GB free disk space per VM
 
+## Installation
+
+1. Download the latest release from the [releases](https://github.com/johnbean393/Hivecrew/releases) page
+2. Double-click the downloaded `Hivecrew.dmg` file to mount the disk image
+3. Drag the `Hivecrew` app icon to your `Applications` folder
+4. Run the `Hivecrew` app
+
 ## Build from Source
 
 1. Clone the repository:
