@@ -14,42 +14,65 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 
 ## Features
 
-- **Fully Isolated Execution**: Each agent runs in its own macOS VM with controlled file access and configurable network restrictions. Your host system stays completely protected.
+### Task Management
+
+- **Natural Language Tasks**: Describe what you want done in plain language; agents handle the rest
+- **File Attachments**: Attach input files using @ mentions or drag-and-drop, and specify output directories for deliverables
+- **Batch Execution**: Run multiple copies of the same task (1x, 2x, 4x, 8x) across parallel agents
+- **Task Queue**: Queue tasks for later and monitor status (queued, running, completed, failed)
+
+### Scheduling
+
+- **One-Time & Recurring**: Schedule tasks for a specific time or set up daily, weekly, or monthly recurrence
+- **Automatic Notifications**: Get notified when scheduled tasks start running
+- **Manual Trigger**: Instantly run any scheduled task on demand
+
+### Agent Supervision
 
 ![Agent Environment View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png)
 
-- **Parallel Agents**: Run multiple agents concurrently in separate VMs, each with its own task and environment.
+- **Live Monitoring**: Watch agents work in real time with live screenshots and activity streams
+- **Session Traces**: Review detailed step-by-step traces with synchronized screenshots after completion
+- **Video Export**: Export session traces as video for documentation or review
 
-- **Real-Time Supervision**: Watch agents work with live screenshots and activity logs. Jump into any agent's environment to observe or review detailed session traces afterward.
+### Human-in-the-Loop
 
-- **Human-in-the-Loop**: Pause any agent, take control with your mouse and keyboard, add clarifying instructions, then hand control back seamlessly.
+- **Take Control**: Pause any agent, use your mouse and keyboard directly, then resume
+- **Answer Questions**: Respond to agent questions via text or multiple choice when they need guidance
+- **Add Instructions**: Inject clarifying instructions mid-task without restarting
+- **Approve Actions**: Review and approve/deny tool permission requests
 
-- **Multi-LLM Support**: Works with Anthropic, OpenAI, and any OpenAI-compatible local LLM provider. Easy provider switching in settings.
+### Skills System
 
-- **Agent Skills**: Browse and apply pre-built skill templates that give agents specialized capabilities for common tasks like web research, data entry, or document processing. Skills can be discovered and applied to customize agent behavior.
+- **Pre-Built Skills**: Browse and apply skills for common tasks (web research, document processing, webapp testing)
+- **Skill Discovery**: Skills are automatically matched to tasks based on your description
+- **Import Skills**: Add skills from GitHub repositories or local directories
+- **Extract Skills**: Create new skills from successful task completions
 
-- **File Handover**: Attach input files to tasks using @ mentions in the prompt bar and specify output directories for deliverables. Agents work with files through a secure shared folder system.
+### LLM Providers
 
-- **Credential Management**: Securely provide login credentials to agents for authenticated workflows. Credentials are stored safely and passed to agents only when needed.
+- **Multi-Provider**: Works with Anthropic, OpenAI, OpenRouter, and any OpenAI-compatible API
+- **Per-Task Selection**: Choose which provider and model to use for each task
+- **Local LLMs**: Connect to local LLM servers with custom base URLs
 
-- **Safety Controls**: Built-in timeouts, iteration limits, tool permission controls, and emergency stop switches keep agents under control.
+### Credentials & Security
 
-- **Native Performance**: Built entirely in Swift with Apple's Virtualization framework. Optimized for Apple Silicon (M1/M2/M3/M4/M5).
+- **Secure Storage**: Store login credentials safely in Keychain
+- **On-Demand Access**: Credentials are passed to agents only when needed via secure tokens
+- **CSV Import**: Bulk import credentials from CSV files
 
-## Architecture
+### Safety Controls
 
-Hivecrew is built on three modular Swift packages:
+- **Full Isolation**: Each agent runs in its own macOS VM—your host system stays protected
+- **Network Control**: Configure per-VM network access (internet, offline, or host-only)
+- **Timeouts & Limits**: Set task timeouts and iteration limits
+- **Emergency Stop**: Instantly halt any agent at any time
 
-- **HivecrewAgentProtocol**: Communication protocol between host and guest agents via virtio-vsock
-- **HivecrewLLM**: Multi-provider LLM client supporting OpenAI-compatible APIs with tool calling and tracing
-- **HivecrewShared**: Shared types and VM management protocols
+### API & Automation
 
-The app runs agents in macOS Tahoe VMs with a lightweight guest agent that provides automation tools including:
-- Screenshot capture and UI observation
-- File operations with controlled scope
-- App launching and native automation
-- Mouse/keyboard control for UI-only workflows
-- Shell command execution
+- **REST API**: Control Hivecrew programmatically—create tasks, manage schedules, upload files, and download results
+- **Python SDK**: Use the `hivecrew` package for easy integration with Python workflows
+- **Web Interface**: Access a built-in web UI for remote task management
 
 ## Requirements
 
@@ -162,25 +185,6 @@ Contributions are welcome! Areas where help would be particularly valuable:
 - UI/UX improvements
 - Testing and reliability
 - Documentation
-
-## Technical Details
-
-### Communication
-- Host ↔ VM Host Service: XPC with Codable messages
-- VM Host Service ↔ Guest Agent: virtio-vsock JSON-RPC
-- Shared files: VirtioFS mount for controlled file exchange
-
-### Persistence
-- SwiftData for task queue, sessions, VM registry
-- File bundles for VM images, templates, and session traces
-- Keychain for API keys
-
-### Safety Features
-- Per-VM isolated shared folders
-- Configurable network access (internet, offline, or host-only)
-- Tool permission controls
-- Timeout enforcement
-- Emergency stop controls
 
 ## License
 

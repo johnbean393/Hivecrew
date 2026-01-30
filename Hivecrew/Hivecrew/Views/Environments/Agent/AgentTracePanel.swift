@@ -274,6 +274,7 @@ struct AgentTracePanel: View {
                             .lineLimit(3)
                     }
                 }
+                .textSelection(.enabled)
             }
         }
         .padding()
