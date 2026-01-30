@@ -76,11 +76,36 @@ extension AgentRunner {
                     
                     // If the tool result contains an image, inject it into the conversation
                     // as a user message with the image so the model can see it
+                    // Non-screenshot images (from read_file) are downscaled to reduce payload size
                     if result.hasImage, let imageBase64 = result.imageBase64, let mimeType = result.imageMimeType {
+                        let isScreenshot = result.toolName == "take_screenshot"
+                        
+                        // Downscale non-screenshot images
+                        let (finalBase64, finalMimeType): (String, String)
+                        if isScreenshot {
+                            // Screenshots are kept at original resolution
+                            finalBase64 = imageBase64
+                            finalMimeType = mimeType
+                        } else if let downscaled = ImageDownscaler.downscale(
+                            base64Data: imageBase64,
+                            mimeType: mimeType,
+                            to: currentImageScaleLevel
+                        ) {
+                            finalBase64 = downscaled.data
+                            finalMimeType = downscaled.mimeType
+                            let originalSize = ImageDownscaler.estimateSize(base64Data: imageBase64)
+                            let newSize = ImageDownscaler.estimateSize(base64Data: downscaled.data)
+                            print("[AgentRunner] Downscaled image from \(originalSize / 1024)KB to \(newSize / 1024)KB (scale: \(currentImageScaleLevel))")
+                        } else {
+                            // Fallback to original if downscaling fails
+                            finalBase64 = imageBase64
+                            finalMimeType = mimeType
+                        }
+                        
                         conversationHistory.append(
                             LLMMessage.user(
                                 text: "Here is the image from the \(result.toolName) tool result:",
-                                images: [.imageBase64(data: imageBase64, mimeType: mimeType)]
+                                images: [.imageBase64(data: finalBase64, mimeType: finalMimeType)]
                             )
                         )
                     }
@@ -453,6 +478,54 @@ extension AgentRunner {
                     let textContent = message.textContent
                     conversationHistory[i] = .user("[Screenshot from earlier step - image removed to save memory]\n\(textContent)")
                 }
+            }
+        }
+    }
+    
+    /// Downscale all images in the conversation history to the specified scale level
+    /// Used when a 413 payload too large error is received
+    func downscaleConversationImages(to scaleLevel: ImageDownscaler.ScaleLevel) {
+        print("[AgentRunner] Downscaling all conversation images to \(scaleLevel)")
+        
+        for i in 0..<conversationHistory.count {
+            let message = conversationHistory[i]
+            
+            // Only process user messages with images
+            guard message.role == .user && message.hasImages else { continue }
+            
+            var newContent: [LLMMessageContent] = []
+            var wasModified = false
+            
+            for content in message.content {
+                switch content {
+                case .imageBase64(let data, let mimeType):
+                    // Downscale the image
+                    if let downscaled = ImageDownscaler.downscale(
+                        base64Data: data,
+                        mimeType: mimeType,
+                        to: scaleLevel
+                    ) {
+                        newContent.append(.imageBase64(data: downscaled.data, mimeType: downscaled.mimeType))
+                        wasModified = true
+                    } else {
+                        // Keep original if downscaling fails
+                        newContent.append(content)
+                    }
+                default:
+                    newContent.append(content)
+                }
+            }
+            
+            if wasModified {
+                // Create new message with downscaled images
+                conversationHistory[i] = LLMMessage(
+                    role: message.role,
+                    content: newContent,
+                    name: message.name,
+                    toolCalls: message.toolCalls,
+                    toolCallId: message.toolCallId,
+                    reasoning: message.reasoning
+                )
             }
         }
     }

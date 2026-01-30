@@ -60,6 +60,12 @@ extension OpenAICompatibleClient {
                 errorData.append(byte)
             }
             let errorBody = String(data: errorData, encoding: .utf8) ?? "No response body"
+            
+            // Check for payload too large (413) errors
+            if httpResponse.statusCode == 413 || errorBody.lowercased().contains("oversized payload") {
+                throw LLMError.payloadTooLarge(message: errorBody)
+            }
+            
             throw LLMError.unknown(message: "HTTP \(httpResponse.statusCode): \(errorBody)")
         }
         
@@ -261,6 +267,12 @@ extension OpenAICompatibleClient {
         
         guard httpResponse.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? "No response body"
+            
+            // Check for payload too large (413) errors
+            if httpResponse.statusCode == 413 || body.lowercased().contains("oversized payload") {
+                throw LLMError.payloadTooLarge(message: body)
+            }
+            
             throw LLMError.unknown(message: "HTTP \(httpResponse.statusCode): \(body)")
         }
         

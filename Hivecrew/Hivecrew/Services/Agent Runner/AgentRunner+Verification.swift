@@ -85,11 +85,14 @@ extension AgentRunner {
 extension AgentRunner {
     
     /// Call LLM with retry logic for transient failures and streaming reasoning support
+    /// Also handles payload too large (413) errors by downscaling images
     func callLLMWithRetry(
         messages: [LLMMessage],
         tools: [LLMToolDefinition]?
     ) async throws -> LLMResponse {
         var lastError: Error?
+        var payloadTooLargeRetries = 0
+        let maxPayloadRetries = 3
         
         for attempt in 1...maxLLMRetries {
             do {
@@ -106,14 +109,40 @@ extension AgentRunner {
                     }
                 }
                 
-                // Use streaming method for reasoning
-                return try await llmClient.chatWithReasoningStream(
-                    messages: messages,
+                // Use the conversation history (which may have been downscaled)
+                let response = try await llmClient.chatWithReasoningStream(
+                    messages: conversationHistory,
                     tools: tools,
                     onReasoningUpdate: reasoningCallback
                 )
+                
+                let hasText = !(response.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                let hasToolCalls = !(response.toolCalls?.isEmpty ?? true)
+                if !hasText && !hasToolCalls {
+                    throw LLMError.unknown(message: "Empty response from model")
+                }
+                
+                return response
             } catch {
                 lastError = error
+                
+                // Check for payload too large error
+                if isPayloadTooLargeError(error) && payloadTooLargeRetries < maxPayloadRetries {
+                    payloadTooLargeRetries += 1
+                    
+                    // Try to downscale images further
+                    if let nextLevel = currentImageScaleLevel.next {
+                        statePublisher.logInfo("Payload too large. Downscaling images to \(nextLevel) and retrying...")
+                        currentImageScaleLevel = nextLevel
+                        downscaleConversationImages(to: nextLevel)
+                        continue // Retry immediately without counting against normal retries
+                    } else {
+                        // Already at minimum scale, try removing older images
+                        statePublisher.logInfo("Payload too large at minimum scale. Removing older images...")
+                        aggressiveCompactConversationHistory()
+                        continue
+                    }
+                }
                 
                 // Check if error is retryable
                 if isRetryableError(error) && attempt < maxLLMRetries {
@@ -130,6 +159,42 @@ extension AgentRunner {
         throw lastError ?? AgentRunnerError.taskFailed("LLM call failed after \(maxLLMRetries) attempts")
     }
     
+    /// Check if an error indicates payload was too large
+    private func isPayloadTooLargeError(_ error: Error) -> Bool {
+        // Check for LLMError.payloadTooLarge
+        if let llmError = error as? LLMError, llmError.isPayloadTooLarge {
+            return true
+        }
+        
+        // Also check error message for 413 or "oversized payload" 
+        let errorString = error.localizedDescription.lowercased()
+        return errorString.contains("413") || 
+               errorString.contains("oversized payload") ||
+               errorString.contains("payload too large") ||
+               errorString.contains("request entity too large")
+    }
+    
+    /// Aggressively compact conversation history when at minimum image scale
+    /// Keeps only the most recent image
+    private func aggressiveCompactConversationHistory() {
+        var foundFirst = false
+        
+        // Iterate in reverse to keep only the most recent image
+        for i in stride(from: conversationHistory.count - 1, through: 0, by: -1) {
+            let message = conversationHistory[i]
+            
+            if message.role == .user && message.hasImages {
+                if foundFirst {
+                    // Remove all images except the first (most recent) one
+                    let textContent = message.textContent
+                    conversationHistory[i] = .user("[Image removed to reduce payload size]\n\(textContent)")
+                } else {
+                    foundFirst = true
+                }
+            }
+        }
+    }
+    
     /// Check if an error is retryable (transient)
     func isRetryableError(_ error: Error) -> Bool {
         let errorString = error.localizedDescription.lowercased()
@@ -142,6 +207,11 @@ extension AgentRunner {
         // Network errors
         if errorString.contains("network") || errorString.contains("timeout") ||
            errorString.contains("connection") || errorString.contains("temporarily unavailable") {
+            return true
+        }
+        
+        // Empty responses can occur from transient failures
+        if errorString.contains("empty response") || errorString.contains("no content") {
             return true
         }
         

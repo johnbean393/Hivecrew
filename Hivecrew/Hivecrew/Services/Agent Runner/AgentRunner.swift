@@ -92,6 +92,10 @@ final class AgentRunner {
     /// (false if all tools were host-side, true otherwise)
     var needsScreenshotUpdate: Bool = true
     
+    /// Current image scale level for non-screenshot images
+    /// Starts at medium (1024px max) and can be reduced on payload too large errors
+    var currentImageScaleLevel: ImageDownscaler.ScaleLevel = .medium
+    
     // MARK: - Initialization
     
     init(

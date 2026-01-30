@@ -115,11 +115,11 @@ public final class ToolSchemaBuilder: Sendable {
             // Input tools
             case .mouseMove:
                 return (
-                    "Move the mouse cursor to the specified screen coordinates without clicking. Useful for hovering over elements to reveal tooltips or dropdown menus.",
+                    "Move the mouse cursor to the specified screen coordinates without clicking. Useful for hovering over elements to reveal tooltips or dropdown menus. COORDINATE SYSTEM: Origin (0,0) is at the TOP-LEFT corner of the screen. X increases to the right, Y increases DOWNWARD (not upward). For example, a point near the top of the screen has a small Y value, while a point near the bottom has a large Y value.",
                     objectSchema(
                         properties: [
-                            "x": numberProperty("X coordinate on screen"),
-                            "y": numberProperty("Y coordinate on screen")
+                            "x": numberProperty("X coordinate on screen (0 = left edge, increases rightward)"),
+                            "y": numberProperty("Y coordinate on screen (0 = top edge, increases DOWNWARD)")
                         ],
                         required: ["x", "y"]
                     )
@@ -127,11 +127,11 @@ public final class ToolSchemaBuilder: Sendable {
                 
             case .mouseClick:
                 return (
-                    "Click the mouse at the specified screen coordinates.",
+                    "Click the mouse at the specified screen coordinates. COORDINATE SYSTEM: Origin (0,0) is at the TOP-LEFT corner of the screen. X increases to the right, Y increases DOWNWARD (not upward). For example, a point near the top of the screen has a small Y value, while a point near the bottom has a large Y value.",
                     objectSchema(
                         properties: [
-                            "x": numberProperty("X coordinate on screen"),
-                            "y": numberProperty("Y coordinate on screen"),
+                            "x": numberProperty("X coordinate on screen (0 = left edge, increases rightward)"),
+                            "y": numberProperty("Y coordinate on screen (0 = top edge, increases DOWNWARD)"),
                             "button": enumProperty("Mouse button to click", ["left", "right", "middle"]),
                             "clickType": enumProperty("Type of click", ["single", "double", "triple"])
                         ],
@@ -141,13 +141,13 @@ public final class ToolSchemaBuilder: Sendable {
                 
             case .mouseDrag:
                 return (
-                    "Drag the mouse from one position to another.",
+                    "Drag the mouse from one position to another. COORDINATE SYSTEM: Origin (0,0) is at the TOP-LEFT corner of the screen. X increases to the right, Y increases DOWNWARD (not upward).",
                     objectSchema(
                         properties: [
-                            "fromX": numberProperty("Starting X coordinate"),
-                            "fromY": numberProperty("Starting Y coordinate"),
-                            "toX": numberProperty("Ending X coordinate"),
-                            "toY": numberProperty("Ending Y coordinate")
+                            "fromX": numberProperty("Starting X coordinate (0 = left edge, increases rightward)"),
+                            "fromY": numberProperty("Starting Y coordinate (0 = top edge, increases DOWNWARD)"),
+                            "toX": numberProperty("Ending X coordinate (0 = left edge, increases rightward)"),
+                            "toY": numberProperty("Ending Y coordinate (0 = top edge, increases DOWNWARD)")
                         ],
                         required: ["fromX", "fromY", "toX", "toY"]
                     )
@@ -181,11 +181,11 @@ public final class ToolSchemaBuilder: Sendable {
                 
             case .scroll:
                 return (
-                    "Scroll at the specified screen position. Values are in lines (not pixels). Use values like 3-5 to scroll a few lines, or 10-20 for larger scrolls.",
+                    "Scroll at the specified screen position. Values are in lines (not pixels). Use values like 3-5 to scroll a few lines, or 10-20 for larger scrolls. COORDINATE SYSTEM: Origin (0,0) is at the TOP-LEFT corner of the screen. X increases to the right, Y increases DOWNWARD (not upward).",
                     objectSchema(
                         properties: [
-                            "x": numberProperty("X coordinate where to scroll"),
-                            "y": numberProperty("Y coordinate where to scroll"),
+                            "x": numberProperty("X coordinate where to scroll (0 = left edge, increases rightward)"),
+                            "y": numberProperty("Y coordinate where to scroll (0 = top edge, increases DOWNWARD)"),
                             "deltaX": numberProperty("Horizontal scroll amount in lines (positive = right, negative = left)"),
                             "deltaY": numberProperty("Vertical scroll amount in lines (positive = scroll down to see content below, negative = scroll up)")
                         ],

@@ -14,6 +14,7 @@
 		202F646D2F2D26DE00F6F359 /* ImageGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646B2F2D26DE00F6F359 /* ImageGenerationService.swift */; };
 		202F646E2F2D26DE00F6F359 /* ImageGenerationAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646A2F2D26DE00F6F359 /* ImageGenerationAvailability.swift */; };
 		202F64702F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */; };
+		202F64722F2D6BFD00F6F359 /* ImageDownscaler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -187,6 +188,7 @@
 		202F646A2F2D26DE00F6F359 /* ImageGenerationAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageGenerationAvailability.swift; sourceTree = "<group>"; };
 		202F646B2F2D26DE00F6F359 /* ImageGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageGenerationService.swift; sourceTree = "<group>"; };
 		202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+ImageGeneration.swift"; sourceTree = "<group>"; };
+		202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownscaler.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -416,6 +418,7 @@
 		204DF4432F157454004AB99B /* Agent Runner */ = {
 			isa = PBXGroup;
 			children = (
+				202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */,
 				3001A0042F15000000000004 /* AgentRunner.swift */,
 				204DF43F2F15744D004AB99B /* AgentRunner+Loop.swift */,
 				204DF4402F15744D004AB99B /* AgentRunner+Verification.swift */,
@@ -982,6 +985,7 @@
 				209C61A72F12ABD700062D0E /* VMRecord.swift in Sources */,
 				209EB6DC2F1E194800A7F13F /* ProviderEditSheet.swift in Sources */,
 				209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */,
+				202F64722F2D6BFD00F6F359 /* ImageDownscaler.swift in Sources */,
 				209EB6DA2F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift in Sources */,
 				209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */,
 				209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */,

@@ -45,6 +45,9 @@ public enum LLMError: Error, Sendable, LocalizedError {
     /// An unknown error occurred
     case unknown(message: String)
     
+    /// Payload too large (413 error) - images should be downscaled
+    case payloadTooLarge(message: String)
+    
     public var errorDescription: String? {
         switch self {
         case .apiError(let statusCode, let message):
@@ -74,6 +77,8 @@ public enum LLMError: Error, Sendable, LocalizedError {
             return "Request Cancelled"
         case .unknown(let message):
             return "Unknown Error: \(message)"
+        case .payloadTooLarge(let message):
+            return "Payload Too Large: \(message)"
         }
     }
     
@@ -85,6 +90,19 @@ public enum LLMError: Error, Sendable, LocalizedError {
         case .apiError(let statusCode, _):
             // 5xx errors are retryable
             return statusCode >= 500 && statusCode < 600
+        case .payloadTooLarge:
+            // Not directly retryable - requires image downscaling first
+            return false
+        default:
+            return false
+        }
+    }
+    
+    /// Whether this error indicates the payload was too large
+    public var isPayloadTooLarge: Bool {
+        switch self {
+        case .payloadTooLarge:
+            return true
         default:
             return false
         }

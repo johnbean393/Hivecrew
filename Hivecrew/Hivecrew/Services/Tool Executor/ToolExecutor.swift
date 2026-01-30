@@ -82,7 +82,28 @@ class ToolExecutor {
             }
             return true
         }
-        let normalized = String(String.UnicodeScalarView(filteredScalars)).lowercased()
+        
+        // Normalize to lowercase and replace separators/punctuation with underscores
+        var normalized = ""
+        var lastWasUnderscore = false
+        let allowed = CharacterSet.alphanumerics
+        for scalar in filteredScalars {
+            if allowed.contains(scalar) {
+                normalized.unicodeScalars.append(scalar)
+                lastWasUnderscore = false
+            } else if scalar.value == 95 { // underscore
+                if !lastWasUnderscore {
+                    normalized.append("_")
+                    lastWasUnderscore = true
+                }
+            } else {
+                if !lastWasUnderscore {
+                    normalized.append("_")
+                    lastWasUnderscore = true
+                }
+            }
+        }
+        normalized = normalized.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "_"))
         
         // Handle common alias variations
         switch normalized {
