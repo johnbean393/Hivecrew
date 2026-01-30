@@ -80,7 +80,57 @@ extension TaskService {
         var pendingSlotReleased = false  // Track if we've released the pending slot
         
         do {
-            // Create ephemeral VM from template
+            // Create LLM client early so we can start skill matching concurrently with VM boot
+            let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+            
+            // Start skill matching concurrently with VM boot
+            // This runs in parallel while the VM is being created and started
+            let skillMatchingTask = Task { () -> [Skill] in
+                var skillsToUse: [Skill] = []
+                let allSkills = skillManager.skills
+                
+                // First, add explicitly mentioned skills (user typed @skill-name)
+                if let mentionedNames = task.mentionedSkillNames, !mentionedNames.isEmpty {
+                    let mentionedSkills = allSkills.filter { mentionedNames.contains($0.name) }
+                    if !mentionedSkills.isEmpty {
+                        skillsToUse.append(contentsOf: mentionedSkills)
+                        print("TaskService: Using \(mentionedSkills.count) mentioned skill(s): \(mentionedSkills.map { $0.name }.joined(separator: ", "))")
+                    }
+                }
+                
+                // Then, auto-match additional skills from enabled skills (if automatic matching is enabled)
+                let automaticSkillMatching = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
+                
+                if automaticSkillMatching {
+                    let enabledSkills = skillManager.enabledSkills
+                    let alreadyIncluded = Set(skillsToUse.map { $0.name })
+                    let availableForMatching = enabledSkills.filter { !alreadyIncluded.contains($0.name) }
+                    
+                    if !availableForMatching.isEmpty {
+                        do {
+                            print("TaskService: Matching skills for task (concurrent with VM boot)...")
+                            let skillMatcher = SkillMatcher(llmClient: llmClient)
+                            let matchedSkills = try await skillMatcher.matchSkills(
+                                forTask: task.taskDescription,
+                                availableSkills: availableForMatching
+                            )
+                            if !matchedSkills.isEmpty {
+                                skillsToUse.append(contentsOf: matchedSkills)
+                                print("TaskService: Auto-matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
+                            } else {
+                                print("TaskService: No additional skills matched")
+                            }
+                        } catch {
+                            // Skill matching is non-fatal, continue with just mentioned skills
+                            print("TaskService: Skill matching failed (non-fatal): \(error.localizedDescription)")
+                        }
+                    }
+                }
+                
+                return skillsToUse
+            }
+            
+            // Create ephemeral VM from template (runs concurrently with skill matching)
             let vmName = generateVMName(for: task)
             print("TaskService: Creating ephemeral VM '\(vmName)' from template '\(templateId)'...")
             
@@ -157,48 +207,20 @@ extension TaskService {
             // Observe permission requests from this state publisher
             observePermissionRequests(for: task.id, from: statePublisher)
             
-            // Create LLM client
-            let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+            // Wait for skill matching to complete (should be done by now since VM boot takes longer)
+            let skillsToUse = await skillMatchingTask.value
             
-            // Get skills for this task (both explicitly mentioned and auto-matched)
-            var skillsToUse: [Skill] = []
-            let allSkills = skillManager.skills
-            
-            // First, add explicitly mentioned skills (user typed @skill-name)
-            if let mentionedNames = task.mentionedSkillNames, !mentionedNames.isEmpty {
-                let mentionedSkills = allSkills.filter { mentionedNames.contains($0.name) }
+            // Log matched skills through the state publisher
+            if !skillsToUse.isEmpty {
+                let mentionedNames = task.mentionedSkillNames ?? []
+                let mentionedSkills = skillsToUse.filter { mentionedNames.contains($0.name) }
+                let autoMatchedSkills = skillsToUse.filter { !mentionedNames.contains($0.name) }
+                
                 if !mentionedSkills.isEmpty {
-                    skillsToUse.append(contentsOf: mentionedSkills)
                     statePublisher.logInfo("Using \(mentionedSkills.count) mentioned skill(s): \(mentionedSkills.map { $0.name }.joined(separator: ", "))")
                 }
-            }
-            
-            // Then, auto-match additional skills from enabled skills (if automatic matching is enabled)
-            let automaticSkillMatching = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
-            
-            if automaticSkillMatching {
-                let enabledSkills = skillManager.enabledSkills
-                let alreadyIncluded = Set(skillsToUse.map { $0.name })
-                let availableForMatching = enabledSkills.filter { !alreadyIncluded.contains($0.name) }
-                
-                if !availableForMatching.isEmpty {
-                    do {
-                        statePublisher.logInfo("Matching additional skills for task...")
-                        let skillMatcher = SkillMatcher(llmClient: llmClient)
-                        let matchedSkills = try await skillMatcher.matchSkills(
-                            forTask: task.taskDescription,
-                            availableSkills: availableForMatching
-                        )
-                        if !matchedSkills.isEmpty {
-                            skillsToUse.append(contentsOf: matchedSkills)
-                            statePublisher.logInfo("Auto-matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
-                        } else {
-                            statePublisher.logInfo("No additional skills matched")
-                        }
-                    } catch {
-                        // Skill matching is non-fatal, continue with just mentioned skills
-                        statePublisher.logInfo("Skill matching failed (non-fatal): \(error.localizedDescription)")
-                    }
+                if !autoMatchedSkills.isEmpty {
+                    statePublisher.logInfo("Auto-matched \(autoMatchedSkills.count) skill(s): \(autoMatchedSkills.map { $0.name }.joined(separator: ", "))")
                 }
             }
             

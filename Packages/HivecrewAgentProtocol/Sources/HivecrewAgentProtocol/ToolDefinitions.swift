@@ -498,7 +498,9 @@ public struct GenerateImageParams: Codable, Sendable {
     public let prompt: String
     /// Optional paths to reference images for style or content guidance
     public let referenceImagePaths: [String]?
-    /// Aspect ratio for the generated image (e.g., "1:1", "16:9", "9:16")
+    /// Aspect ratio for the generated image.
+    /// Supported values: "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"
+    /// Defaults to "1:1" if not specified.
     public let aspectRatio: String?
     
     public init(prompt: String, referenceImagePaths: [String]? = nil, aspectRatio: String? = nil) {

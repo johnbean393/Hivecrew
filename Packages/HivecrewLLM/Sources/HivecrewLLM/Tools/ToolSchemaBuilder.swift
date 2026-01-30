@@ -382,8 +382,8 @@ public final class ToolSchemaBuilder: Sendable {
                                 itemType: ["type": "string"]
                             ),
                             "aspectRatio": enumProperty(
-                                "Aspect ratio for the generated image",
-                                ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]
+                                "Aspect ratio for the generated image. Defaults to 1:1 if not specified.",
+                                ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
                             )
                         ],
                         required: ["prompt"]

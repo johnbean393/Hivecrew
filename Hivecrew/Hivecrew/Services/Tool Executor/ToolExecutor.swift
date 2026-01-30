@@ -46,7 +46,11 @@ class ToolExecutor {
     
     func execute(toolCall: LLMToolCall) async -> ToolExecutionResult {
         let startTime = Date()
-        let toolName = toolCall.function.name
+        let rawToolName = toolCall.function.name
+        let toolName = canonicalToolName(rawToolName)
+        if rawToolName != toolName {
+            print("ToolExecutor: normalized tool name '\(rawToolName)' -> '\(toolName)'")
+        }
         
         do {
             let args = try toolCall.function.argumentsDictionary()
@@ -62,6 +66,36 @@ class ToolExecutor {
         } catch {
             let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
             return .failure(toolCallId: toolCall.id, toolName: toolName, error: error.localizedDescription, durationMs: durationMs)
+        }
+    }
+
+    // MARK: - Tool Name Normalization
+    
+    private func canonicalToolName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filteredScalars = trimmed.unicodeScalars.filter { scalar in
+            if CharacterSet.controlCharacters.contains(scalar) {
+                return false
+            }
+            if scalar.properties.generalCategory == .format {
+                return false // zero-width and other formatting chars
+            }
+            return true
+        }
+        let normalized = String(String.UnicodeScalarView(filteredScalars)).lowercased()
+        
+        // Handle common alias variations
+        switch normalized {
+        case "runshell":
+            return "run_shell"
+        case "createtodolist", "create_to_do_list":
+            return "create_todo_list"
+        case "addtodoitem", "add_to_do_item":
+            return "add_todo_item"
+        case "finishtodoitem", "finish_to_do_item":
+            return "finish_todo_item"
+        default:
+            return normalized
         }
     }
     
