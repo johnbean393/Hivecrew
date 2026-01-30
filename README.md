@@ -23,6 +23,8 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 
 ### Scheduling
 
+![Scheduling View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/scheduling.png)
+
 - **One-Time & Recurring**: Schedule tasks for a specific time or set up daily, weekly, or monthly recurrence
 - **Automatic Notifications**: Get notified when scheduled tasks start running
 - **Manual Trigger**: Instantly run any scheduled task on demand
@@ -35,7 +37,11 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 - **Session Traces**: Review detailed step-by-step traces with synchronized screenshots after completion
 - **Video Export**: Export session traces as video for documentation or review
 
+![Session Trace View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/session-trace.png)
+
 ### Human-in-the-Loop
+
+![Human-in-the-Loop](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/human-in-the-loop.png)
 
 - **Take Control**: Pause any agent, use your mouse and keyboard directly, then resume
 - **Answer Questions**: Respond to agent questions via text or multiple choice when they need guidance
@@ -44,12 +50,16 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 
 ### Skills System
 
+![Skills Browser](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/skills-browser.png)
+
 - **Pre-Built Skills**: Browse and apply skills for common tasks (web research, document processing, webapp testing)
 - **Skill Discovery**: Skills are automatically matched to tasks based on your description
 - **Import Skills**: Add skills from GitHub repositories or local directories
 - **Extract Skills**: Create new skills from successful task completions
 
 ### LLM Providers
+
+![Provider Settings](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/provider-settings.png)
 
 - **Multi-Provider**: Works with Anthropic, OpenAI, OpenRouter, and any OpenAI-compatible API
 - **Per-Task Selection**: Choose which provider and model to use for each task
