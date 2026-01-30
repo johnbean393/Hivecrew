@@ -16,6 +16,8 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 
 ### Task Management
 
+![Agent Environment View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png)
+
 - **Natural Language Tasks**: Describe what you want done in plain language; agents handle the rest
 - **File Attachments**: Attach input files using @ mentions or drag-and-drop, and specify output directories for deliverables
 - **Batch Execution**: Run multiple copies of the same task (1x, 2x, 4x, 8x) across parallel agents
@@ -31,13 +33,11 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 
 ### Agent Supervision
 
-![Agent Environment View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png)
+![Session Trace View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/session-trace.png)
 
 - **Live Monitoring**: Watch agents work in real time with live screenshots and activity streams
 - **Session Traces**: Review detailed step-by-step traces with synchronized screenshots after completion
 - **Video Export**: Export session traces as video for documentation or review
-
-![Session Trace View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/session-trace.png)
 
 ### Human-in-the-Loop
 
