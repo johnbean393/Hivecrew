@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HivecrewShared
 
 // MARK: - Update Checking
 
@@ -18,6 +19,24 @@ extension TemplateDownloadService {
     func checkForUpdatesFromManifest(force: Bool = false) async -> RemoteTemplate? {
         // Don't check too frequently unless forced
         if !force, let lastCheck = lastUpdateCheck, Date().timeIntervalSince(lastCheck) < 3600 {
+            if let update = availableUpdate {
+                let currentVersion = getCurrentInstalledVersion() ?? "0.0.0"
+                logUpdateCheckDiagnostics(
+                    reason: "cached",
+                    newestVersion: update.version,
+                    currentVersion: currentVersion,
+                    installedVersions: collectInstalledVersionCandidates(),
+                    storedVersion: lastKnownCompatibleVersion,
+                    availableUpdateVersion: availableUpdate?.version,
+                    lastCheck: lastUpdateCheck,
+                    force: force
+                )
+                if compareSemanticVersions(update.version, currentVersion) == .orderedDescending {
+                    return update
+                }
+                updateAvailable = false
+                availableUpdate = nil
+            }
             return availableUpdate
         }
         
@@ -47,7 +66,17 @@ extension TemplateDownloadService {
             }
             
             // Check if this is newer than what we have
-            let currentVersion = lastKnownCompatibleVersion ?? "0.0.0"
+            let currentVersion = getCurrentInstalledVersion() ?? "0.0.0"
+            logUpdateCheckDiagnostics(
+                reason: "manifest",
+                newestVersion: newest.version,
+                currentVersion: currentVersion,
+                installedVersions: collectInstalledVersionCandidates(),
+                storedVersion: lastKnownCompatibleVersion,
+                availableUpdateVersion: availableUpdate?.version,
+                lastCheck: lastUpdateCheck,
+                force: force
+            )
             if compareSemanticVersions(newest.version, currentVersion) == .orderedDescending {
                 updateAvailable = true
                 availableUpdate = remoteTemplate
@@ -124,5 +153,101 @@ extension TemplateDownloadService {
         }
         
         return .orderedSame
+    }
+    
+    /// Get the current installed version by inspecting installed templates,
+    /// falling back to stored UserDefaults if needed
+    private func getCurrentInstalledVersion() -> String? {
+        let versions = collectInstalledVersionCandidates()
+        
+        // Return the highest version found
+        let sorted = versions.sorted { v1, v2 in
+            compareSemanticVersions(v1, v2) == .orderedDescending
+        }
+        
+        if let highestVersion = sorted.first {
+            // Update UserDefaults so we don't need to scan again
+            lastKnownCompatibleVersion = highestVersion
+            return highestVersion
+        }
+        
+        return lastKnownCompatibleVersion
+    }
+    
+    private func collectInstalledVersionCandidates() -> [String] {
+        let templatesDir = AppPaths.templatesDirectory
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: templatesDir,
+            includingPropertiesForKeys: nil
+        ) else {
+            return []
+        }
+        
+        return contents.compactMap { url -> String? in
+            guard url.hasDirectoryPath else { return nil }
+            let configPath = url.appendingPathComponent("config.json")
+            let config: [String: Any]? = {
+                guard let data = try? Data(contentsOf: configPath),
+                      let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    return nil
+                }
+                return parsed
+            }()
+            
+            if let version = config?["version"] as? String,
+               let normalized = normalizeVersionString(version) {
+                return normalized
+            }
+            
+            if let configId = config?["id"] as? String,
+               let normalized = normalizeVersionString(configId) {
+                return normalized
+            }
+            
+            if let configName = config?["name"] as? String,
+               let normalized = normalizeVersionString(configName) {
+                return normalized
+            }
+            
+            return normalizeVersionString(url.lastPathComponent)
+        }
+    }
+    
+    /// Normalize a version string by extracting semantic version digits.
+    private func normalizeVersionString(_ rawValue: String) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Raw string: \d and \. are literal regex escapes (no double-escaping needed)
+        let pattern = #"(\d+\.\d+\.\d+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(
+                in: trimmed,
+                range: NSRange(trimmed.startIndex..., in: trimmed)
+              ),
+              let versionRange = Range(match.range(at: 1), in: trimmed) else {
+            return nil
+        }
+        return String(trimmed[versionRange])
+    }
+    
+    private func logUpdateCheckDiagnostics(
+        reason: String,
+        newestVersion: String?,
+        currentVersion: String,
+        installedVersions: [String],
+        storedVersion: String?,
+        availableUpdateVersion: String?,
+        lastCheck: Date?,
+        force: Bool
+    ) {
+        #if DEBUG
+        let installedList = installedVersions.isEmpty ? "none" : installedVersions.joined(separator: ", ")
+        print(
+            """
+            [TemplateUpdateCheck] reason=\(reason) force=\(force) lastCheck=\(lastCheck?.description ?? "nil")
+            [TemplateUpdateCheck] newest=\(newestVersion ?? "nil") current=\(currentVersion) stored=\(storedVersion ?? "nil")
+            [TemplateUpdateCheck] availableUpdate=\(availableUpdateVersion ?? "nil") installed=[\(installedList)]
+            """
+        )
+        #endif
     }
 }
