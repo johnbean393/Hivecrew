@@ -10,6 +10,7 @@
 		2019E33D2F13997E0041819D /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33C2F13997E0041819D /* OpenAI */; };
 		2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33F2F139C0000041819 /* HivecrewLLM */; };
 		2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2019E34F2F13A00000041819 /* LLMProviderRecord.swift */; };
+		202F64692F2BD82A00F6F359 /* PromptCopyCountButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -179,6 +180,7 @@
 
 /* Begin PBXFileReference section */
 		2019E34F2F13A00000041819 /* LLMProviderRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProviderRecord.swift; sourceTree = "<group>"; };
+		202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCopyCountButton.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -372,6 +374,7 @@
 		204DF42E2F1571AB004AB99B /* Prompt Bar */ = {
 			isa = PBXGroup;
 			children = (
+				202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */,
 				209EB6CE2F1E17F000A7F13F /* PromptTextView.swift */,
 				204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */,
 				204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */,
@@ -1014,6 +1017,7 @@
 				204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */,
 				204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */,
 				204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */,
+				202F64692F2BD82A00F6F359 /* PromptCopyCountButton.swift in Sources */,
 				20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */,
 				209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */,
 				209C61BC2F12ABD700062D0E /* ContentView.swift in Sources */,
@@ -1240,7 +1244,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1254,7 +1258,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1276,7 +1280,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1290,7 +1294,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

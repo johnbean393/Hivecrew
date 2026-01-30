@@ -118,6 +118,16 @@ struct TaskRowView: View {
                 // Actions (shown on hover)
                 if isHovered {
                     HStack(spacing: 8) {
+                        // Rerun button for inactive tasks
+                        if !task.status.isActive {
+                            Button(action: { Task { try? await taskService.rerunTask(task) } }) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .foregroundStyle(.blue)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Rerun task")
+                        }
+                        
                         // Show deliverables in Finder (for completed tasks with output files)
                         if !task.status.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
                             Button(action: { showDeliverablesInFinder() }) {
@@ -174,6 +184,15 @@ struct TaskRowView: View {
                 showingTrace = true
             } label: {
                 Label("View Trace", systemImage: "list.bullet.rectangle")
+            }
+            
+            // Rerun option for inactive tasks
+            if !task.status.isActive {
+                Button {
+                    Task { try? await taskService.rerunTask(task) }
+                } label: {
+                    Label("Rerun", systemImage: "arrow.counterclockwise")
+                }
             }
             
             // Show deliverables

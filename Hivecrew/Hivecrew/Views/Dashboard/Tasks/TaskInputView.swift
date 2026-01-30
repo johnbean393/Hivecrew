@@ -20,6 +20,7 @@ struct TaskInputView: View {
     @State private var attachments: [PromptAttachment] = []
     @State private var isSubmitting: Bool = false
     @State private var mentionedSkillNames: [String] = []
+    @State private var copyCount: TaskCopyCount = .one
     
     // Persisted selections
     @AppStorage("lastSelectedProviderId") private var selectedProviderId: String = ""
@@ -31,6 +32,7 @@ struct TaskInputView: View {
             attachments: $attachments,
             selectedProviderId: $selectedProviderId,
             selectedModelId: $selectedModelId,
+            copyCount: $copyCount,
             mentionedSkillNames: $mentionedSkillNames,
             onSubmit: {
                 await submitTask()
@@ -71,22 +73,29 @@ struct TaskInputView: View {
         let effectiveModelId = currentModelId.isEmpty ? "gpt-5.2" : currentModelId
         let effectiveProviderId = currentProviderId.isEmpty ? selectedProviderId : currentProviderId
         
-        print("TaskInputView: Submitting task with provider=\(effectiveProviderId), model=\(effectiveModelId)")
+        let taskCount = copyCount.rawValue
+        print("TaskInputView: Submitting \(taskCount) task(s) with provider=\(effectiveProviderId), model=\(effectiveModelId)")
         
         do {
             let filePaths = attachments.map { $0.url.path }
-            _ = try await taskService.createTask(
-                description: taskDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-                providerId: effectiveProviderId,
-                modelId: effectiveModelId,
-                attachedFilePaths: filePaths,
-                mentionedSkillNames: mentionedSkillNames
-            )
+            let trimmedDescription = taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Create the specified number of task copies
+            for _ in 0..<taskCount {
+                _ = try await taskService.createTask(
+                    description: trimmedDescription,
+                    providerId: effectiveProviderId,
+                    modelId: effectiveModelId,
+                    attachedFilePaths: filePaths,
+                    mentionedSkillNames: mentionedSkillNames
+                )
+            }
             
             // Clear input
             taskDescription = ""
             attachments = []
             mentionedSkillNames = []
+            copyCount = .one  // Reset to single copy after submission
         } catch {
             print("Failed to create task: \(error)")
         }

@@ -363,8 +363,11 @@ extension TaskService {
         
         print("TaskService: Task '\(task.title)' completed. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count)")
         
-        // Delete the ephemeral VM
-        await deleteEphemeralVM(vmId: vmId)
+        // Delete the ephemeral VM in background (so queue processing isn't blocked)
+        let vmIdToDelete = vmId
+        Task {
+            await deleteEphemeralVM(vmId: vmIdToDelete)
+        }
     }
     
     /// Handle task failure
@@ -402,9 +405,11 @@ extension TaskService {
         
         print("TaskService: Task '\(task.title)' failed. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count)")
         
-        // Clean up the VM if it was created
+        // Clean up the VM in background if it was created (so queue processing isn't blocked)
         if let createdVmId = vmId {
-            await deleteEphemeralVM(vmId: createdVmId)
+            Task {
+                await deleteEphemeralVM(vmId: createdVmId)
+            }
         }
     }
     
@@ -415,23 +420,39 @@ extension TaskService {
             await agent.cancel()
         }
         
+        // Check if this task was in the pending/startup phase (not yet in runningAgents)
+        // If so, we need to release the pending slot
+        let wasInProgress = tasksInProgress.contains(task.id)
+        let hadRunningAgent = runningAgents[task.id] != nil
+        
         task.status = .cancelled
         task.completedAt = Date()
         try? modelContext?.save()
         
         runningAgents.removeValue(forKey: task.id)
+        tasksInProgress.remove(task.id)
         cleanupTaskObservations(taskId: task.id)
         statePublishers[task.id]?.status = .cancelled
         
-        // Delete the ephemeral VM if one was assigned
-        if let vmId = task.assignedVMId {
-            await deleteEphemeralVM(vmId: vmId)
+        // If task was in progress but didn't have a running agent yet, it was still using a pending slot
+        if wasInProgress && !hadRunningAgent {
+            pendingVMCount = max(0, pendingVMCount - 1)
+            print("TaskService: Cancelled task '\(task.title)' was in pending state, released slot (pending: \(pendingVMCount))")
         }
+        
+        print("TaskService: Task '\(task.title)' cancelled. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count)")
         
         objectWillChange.send()
         
-        // Check if there are queued tasks waiting for a VM
+        // Process queued tasks immediately - slot is now free
         await processQueuedTasks()
+        
+        // Delete the ephemeral VM in the background (can be slow, shouldn't block queue processing)
+        if let vmId = task.assignedVMId {
+            Task {
+                await deleteEphemeralVM(vmId: vmId)
+            }
+        }
     }
     
     /// Pause a running task
@@ -556,15 +577,34 @@ extension TaskService {
     
     /// Process queued tasks when a VM becomes available
     func processQueuedTasks() async {
-        // Find queued tasks that aren't already being processed
-        let queuedTasks = tasks.filter { 
-            $0.status == .queued && !tasksInProgress.contains($0.id)
+        // Find queued tasks that aren't already being processed, sorted by creation time (oldest first)
+        let queuedTasks = tasks
+            .filter { $0.status == .queued && !tasksInProgress.contains($0.id) }
+            .sorted { $0.createdAt < $1.createdAt }
+        
+        guard !queuedTasks.isEmpty else { return }
+        
+        // Calculate available capacity
+        let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
+        let effectiveMax = maxConcurrent > 0 ? maxConcurrent : 2
+        let runningDeveloperVMs = countRunningDeveloperVMs()
+        let currentlyActive = runningAgents.count + pendingVMCount + runningDeveloperVMs
+        let availableSlots = max(0, effectiveMax - currentlyActive)
+        
+        guard availableSlots > 0 else {
+            print("TaskService: No available slots for queued tasks (running=\(runningAgents.count), pending=\(pendingVMCount), developerVMs=\(runningDeveloperVMs), max=\(effectiveMax))")
+            return
         }
-
-        // Try to start the oldest queued task
-        if let nextTask = queuedTasks.sorted(by: { $0.createdAt < $1.createdAt }).first {
-            print("TaskService: Processing queued task '\(nextTask.title)'")
-            await startTask(nextTask)
+        
+        // Start as many queued tasks as we have slots for
+        // Use Task { } to run them concurrently (startTask blocks until the entire task completes)
+        let tasksToStart = Array(queuedTasks.prefix(availableSlots))
+        print("TaskService: Processing \(tasksToStart.count) queued task(s) (available slots: \(availableSlots))")
+        
+        for task in tasksToStart {
+            Task {
+                await startTask(task)
+            }
         }
     }
 }

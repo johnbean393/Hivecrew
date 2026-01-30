@@ -43,6 +43,9 @@ struct PromptBar: View {
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
     
+    // Copy count selection state
+    @Binding var copyCount: TaskCopyCount
+    
     // Mentioned skill names (populated on submit)
     @Binding var mentionedSkillNames: [String]
     
@@ -189,13 +192,20 @@ struct PromptBar: View {
                 .focused($isFocused)
                 .padding(.vertical, 1)
                 
-                // Model picker
-                PromptModelButton(
-                    selectedProviderId: $selectedProviderId,
-                    selectedModelId: $selectedModelId,
-                    providers: Array(providers),
-                    isFocused: isFocused
-                )
+                // Model picker and copy count selector
+                HStack(spacing: 8) {
+                    PromptModelButton(
+                        selectedProviderId: $selectedProviderId,
+                        selectedModelId: $selectedModelId,
+                        providers: Array(providers),
+                        isFocused: isFocused
+                    )
+                    
+                    PromptCopyCountButton(
+                        copyCount: $copyCount,
+                        isFocused: isFocused
+                    )
+                }
             }
             .padding(.vertical, 7)
             .padding(.top, 1)
@@ -420,6 +430,7 @@ struct PromptBar: View {
         @State var attachments: [PromptAttachment] = []
         @State var providerId = ""
         @State var modelId = ""
+        @State var copyCount: TaskCopyCount = .one
         @State var isSubmitting = false
         @State var mentionedSkills: [String] = []
         
@@ -432,6 +443,7 @@ struct PromptBar: View {
                     attachments: $attachments,
                     selectedProviderId: $providerId,
                     selectedModelId: $modelId,
+                    copyCount: $copyCount,
                     mentionedSkillNames: $mentionedSkills,
                     onSubmit: {
                         isSubmitting = true

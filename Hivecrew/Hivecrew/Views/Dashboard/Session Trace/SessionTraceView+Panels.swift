@@ -303,6 +303,21 @@ extension SessionTraceView {
     var tracePanelFooter: some View {
         HStack(spacing: 16) {
             
+            // Rerun button for inactive tasks
+            if !task.status.isActive {
+                Button(action: { Task { try? await taskService.rerunTask(task) } }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.caption2)
+                        Text("Rerun")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+                .help("Create a new task with the same parameters")
+            }
+            
             // Show deliverables button
             if let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
                 Button(action: showDeliverablesInFinder) {
