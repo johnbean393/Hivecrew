@@ -86,7 +86,7 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 
 ## Requirements
 
-- macOS Tahoe (26.0) or later
+- macOS Sequoia (15.0) or later
 - Apple Silicon Mac (M1 or newer)
 - At least 16GB RAM recommended for running concurrent agents
 - ~64GB free disk space per VM
