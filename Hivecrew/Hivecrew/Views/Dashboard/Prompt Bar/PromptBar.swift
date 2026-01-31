@@ -77,6 +77,7 @@ struct PromptBar: View {
     private let attachFilesTip = AttachFilesTip()
     private let batchExecutionTip = BatchExecutionTip()
     private let skillsMentionTip = SkillsMentionTip()
+    private let planModeTip = PlanModeTip()
     
     // Visual configuration
     private let cornerRadius: CGFloat = 16
@@ -227,6 +228,7 @@ struct PromptBar: View {
                         isEnabled: $planFirstEnabled,
                         isFocused: isFocused
                     )
+                    .popoverTip(planModeTip, arrowEdge: .bottom)
                 }
             }
             .padding(.vertical, 7)

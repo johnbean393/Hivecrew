@@ -160,6 +160,28 @@ struct BatchExecutionTip: Tip {
     }
 }
 
+/// Tip: Plan mode for complex tasks
+struct PlanModeTip: Tip {
+    
+    var id: String { "planMode" }
+    
+    var title: Text {
+        Text("Plan Before Executing")
+    }
+    
+    var message: Text? {
+        Text("Switch to Plan mode for complex tasks. The agent will create a step-by-step plan you can review and approve before execution begins.")
+    }
+    
+    var image: Image? {
+        Image(systemName: "list.bullet.clipboard")
+    }
+    
+    var rules: [Rule] {
+        #Rule(TipEvents.taskCreated) { $0.donations.count >= 4 }
+    }
+}
+
 /// Tip 7: Output directory
 struct OutputDirectoryTip: Tip {
     
