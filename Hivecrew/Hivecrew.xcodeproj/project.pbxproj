@@ -15,6 +15,7 @@
 		202F646E2F2D26DE00F6F359 /* ImageGenerationAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646A2F2D26DE00F6F359 /* ImageGenerationAvailability.swift */; };
 		202F64702F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */; };
 		202F64722F2D6BFD00F6F359 /* ImageDownscaler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */; };
+		202F64742F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64732F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -189,6 +190,7 @@
 		202F646B2F2D26DE00F6F359 /* ImageGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageGenerationService.swift; sourceTree = "<group>"; };
 		202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+ImageGeneration.swift"; sourceTree = "<group>"; };
 		202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownscaler.swift; sourceTree = "<group>"; };
+		202F64732F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingOutputDirectoryStep.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -378,6 +380,7 @@
 		204DF4192F14D5E7004AB99B /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
+				202F64732F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift */,
 				209EB6D72F1E18A000A7F13F /* OnboardingTemplateSubviews.swift */,
 				204DF4142F14D5E7004AB99B /* OnboardingCompleteStep.swift */,
 				204DF4152F14D5E7004AB99B /* OnboardingProviderStep.swift */,
@@ -1029,6 +1032,7 @@
 				209EB6EA2F1E26D000A7F13F /* SkillExtractor.swift in Sources */,
 				209EB6EB2F1E26D000A7F13F /* SkillMatcher.swift in Sources */,
 				209EB6EC2F1E26D000A7F13F /* SkillManager.swift in Sources */,
+				202F64742F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift in Sources */,
 				209EB6ED2F1E26D000A7F13F /* SkillMatcherTypes.swift in Sources */,
 				204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */,
 				204DF45B2F162AF8004AB99B /* SearchResult.swift in Sources */,

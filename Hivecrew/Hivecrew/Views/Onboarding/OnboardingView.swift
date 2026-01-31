@@ -24,13 +24,15 @@ struct OnboardingView: View {
         case welcome = 0
         case provider = 1
         case template = 2
-        case complete = 3
+        case outputDirectory = 3
+        case complete = 4
         
         var title: String {
             switch self {
             case .welcome: return "Welcome"
             case .provider: return "LLM Provider"
             case .template: return "VM Template"
+            case .outputDirectory: return "Output"
             case .complete: return "Ready"
             }
         }
@@ -98,6 +100,9 @@ struct OnboardingView: View {
         case .template:
             OnboardingTemplateStep(isConfigured: $templateConfigured)
             
+        case .outputDirectory:
+            OnboardingOutputDirectoryStep()
+            
         case .complete:
             OnboardingCompleteStep()
         }
@@ -145,6 +150,8 @@ struct OnboardingView: View {
             return providerConfigured
         case .template:
             return templateConfigured
+        case .outputDirectory:
+            return true // Optional step - user can skip with default
         case .complete:
             return true
         }

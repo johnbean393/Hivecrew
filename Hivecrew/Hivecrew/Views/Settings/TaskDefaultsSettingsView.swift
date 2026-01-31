@@ -285,7 +285,7 @@ struct TaskDefaultsSettingsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Model:")
-                            TextField("Model ID", text: $imageGenerationModel)
+                            TextField("", text: $imageGenerationModel)
                                 .textFieldStyle(.roundedBorder)
                         }
                         Text(modelHelpText)

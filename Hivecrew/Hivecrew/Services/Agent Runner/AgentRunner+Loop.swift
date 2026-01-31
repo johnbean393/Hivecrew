@@ -234,6 +234,17 @@ extension AgentRunner {
     /// Take a screenshot and add it to the conversation
     /// - Parameter skipIfHostSide: If true and last tools were host-side, reuses previous screenshot
     func observe(skipIfHostSide: Bool = false) async throws -> ScreenshotResult {
+        // Check if we should skip screenshot first, before logging observation
+        if skipIfHostSide && stepCount > 1 {
+            // Optimization: If last tools were all host-side (didn't affect VM state),
+            // reuse the previous screenshot instead of capturing a new one
+            // This saves ~200-500ms per host tool execution
+            statePublisher.logInfo("Skipping screenshot (last tools were host-side)")
+            // Return a placeholder - we'll reuse the last image in conversation history
+            return ScreenshotResult(imageBase64: "", width: 0, height: 0)
+        }
+        
+        // We're actually taking a screenshot, so log the observation
         statePublisher.logObservation(screenshotPath: nil)
         
         // Use cached initial screenshot for step 1, fetch new screenshot for subsequent steps
@@ -241,13 +252,6 @@ extension AgentRunner {
         if stepCount == 1, let initial = initialScreenshot {
             screenshot = initial
             initialScreenshot = nil // Clear the cache after use
-        } else if skipIfHostSide {
-            // Optimization: If last tools were all host-side (didn't affect VM state),
-            // reuse the previous screenshot instead of capturing a new one
-            // This saves ~200-500ms per host tool execution
-            statePublisher.logInfo("Skipping screenshot (last tools were host-side)")
-            // Return a placeholder - we'll reuse the last image in conversation history
-            return ScreenshotResult(imageBase64: "", width: 0, height: 0)
         } else {
             screenshot = try await connection.screenshot()
         }

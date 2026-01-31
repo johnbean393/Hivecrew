@@ -569,7 +569,7 @@ struct ScheduleCreationSheet: View {
                         Text("Model")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("Model ID", text: $selectedModelId)
+                        TextField("", text: $selectedModelId)
                             .textFieldStyle(.roundedBorder)
                     }
                 }
