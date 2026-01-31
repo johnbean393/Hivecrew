@@ -104,8 +104,14 @@ final class TaskRecord {
     /// Error message (on failure)
     var errorMessage: String?
     
-    /// Paths to files attached to this task (copied to VM's shared folder)
-    var attachedFilePaths: [String]
+    /// Legacy: Paths to files attached to this task (copied to VM's shared folder)
+    /// Kept for backwards compatibility with older database versions
+    /// New tasks should use attachmentInfos instead
+    private var legacyAttachedFilePaths: [String]?
+    
+    /// JSON-encoded attachment info for files attached to this task
+    /// Stores both original and copied paths for each attachment
+    private var attachmentInfosData: Data?
     
     /// Paths to output files produced by this task (copied from VM's outbox)
     /// Optional to support migration from older database versions
@@ -140,6 +146,43 @@ final class TaskRecord {
         set { planFirstEnabledRaw = newValue }
     }
     
+    // MARK: - Attachment Properties
+    
+    /// Decoded attachment infos from stored data
+    /// Includes backwards compatibility: migrates legacy paths if needed
+    var attachmentInfos: [AttachmentInfo] {
+        get {
+            // First try to decode from new format
+            if let data = attachmentInfosData,
+               let infos = try? JSONDecoder().decode([AttachmentInfo].self, from: data) {
+                return infos
+            }
+            // Fallback: migrate from legacy paths
+            if let legacyPaths = legacyAttachedFilePaths {
+                return legacyPaths.map { AttachmentInfo(path: $0) }
+            }
+            return []
+        }
+        set {
+            attachmentInfosData = try? JSONEncoder().encode(newValue)
+            // Clear legacy data once we have new format
+            legacyAttachedFilePaths = nil
+        }
+    }
+    
+    /// Paths to files attached to this task
+    /// Computed from attachmentInfos for backwards compatibility
+    /// Returns effective paths (copied if available, original otherwise)
+    var attachedFilePaths: [String] {
+        get {
+            attachmentInfos.map { $0.effectivePath }
+        }
+        set {
+            // When setting paths directly (legacy behavior), create basic AttachmentInfos
+            attachmentInfos = newValue.map { AttachmentInfo(path: $0) }
+        }
+    }
+    
     init(
         id: String = UUID().uuidString,
         title: String,
@@ -155,6 +198,7 @@ final class TaskRecord {
         resultSummary: String? = nil,
         errorMessage: String? = nil,
         attachedFilePaths: [String] = [],
+        attachmentInfos: [AttachmentInfo]? = nil,
         outputFilePaths: [String]? = nil,
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
@@ -175,13 +219,25 @@ final class TaskRecord {
         self.modelId = modelId
         self.resultSummary = resultSummary
         self.errorMessage = errorMessage
-        self.attachedFilePaths = attachedFilePaths
         self.outputFilePaths = outputFilePaths
         self.outputDirectory = outputDirectory
         self.mentionedSkillNames = mentionedSkillNames
         self.planFirstEnabledRaw = planFirstEnabled
         self.planMarkdown = planMarkdown
         self.planSelectedSkillNames = planSelectedSkillNames
+        
+        // Use new attachment infos if provided, otherwise fall back to legacy paths
+        if let infos = attachmentInfos {
+            self.attachmentInfosData = try? JSONEncoder().encode(infos)
+            self.legacyAttachedFilePaths = nil
+        } else if !attachedFilePaths.isEmpty {
+            // Store as legacy paths for backwards compatibility
+            self.legacyAttachedFilePaths = attachedFilePaths
+            self.attachmentInfosData = nil
+        } else {
+            self.legacyAttachedFilePaths = nil
+            self.attachmentInfosData = nil
+        }
     }
     
     /// Computed status property

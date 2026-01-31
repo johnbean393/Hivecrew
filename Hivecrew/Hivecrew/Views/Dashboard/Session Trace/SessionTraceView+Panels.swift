@@ -494,7 +494,7 @@ extension SessionTraceView {
             
             // Rerun button for inactive tasks
             if !task.status.isActive {
-                Button(action: { Task { try? await taskService.rerunTask(task) } }) {
+                Button(action: handleRerun) {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.caption2)
@@ -505,6 +505,24 @@ extension SessionTraceView {
                 .buttonStyle(.plain)
                 .foregroundStyle(.blue)
                 .help("Create a new task with the same parameters")
+                .sheet(isPresented: $showingMissingAttachments) {
+                    if let validation = missingAttachmentsValidation {
+                        MissingAttachmentsSheet(
+                            task: task,
+                            missingAttachments: validation.missingInfos,
+                            validAttachments: validation.validInfos,
+                            onConfirm: { resolvedAttachments in
+                                showingMissingAttachments = false
+                                Task {
+                                    try? await taskService.rerunTask(task, withResolvedAttachments: resolvedAttachments)
+                                }
+                            },
+                            onCancel: {
+                                showingMissingAttachments = false
+                            }
+                        )
+                    }
+                }
             }
             
             // Show deliverables button
@@ -595,6 +613,28 @@ extension SessionTraceView {
                     alert.addButton(withTitle: "OK")
                     alert.runModal()
                 }
+            }
+        }
+    }
+    
+    /// Handle rerun button tap - checks for missing attachments first
+    func handleRerun() {
+        // Validate attachments before rerunning
+        let validation = taskService.validateRerunAttachments(task)
+        
+        if validation.allValid {
+            // All attachments are valid, proceed with rerun
+            Task {
+                try? await taskService.rerunTask(task)
+            }
+        } else if validation.hasAttachments {
+            // Some attachments are missing, show the sheet
+            missingAttachmentsValidation = validation
+            showingMissingAttachments = true
+        } else {
+            // No attachments at all, proceed with rerun
+            Task {
+                try? await taskService.rerunTask(task)
             }
         }
     }

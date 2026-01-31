@@ -195,6 +195,21 @@ extension TaskService {
             try FileManager.default.createDirectory(at: sessionPath, withIntermediateDirectories: true)
             
             task.sessionId = sessionId
+            
+            // Copy attachments to session directory (files < 250MB)
+            if !task.attachmentInfos.isEmpty {
+                do {
+                    let updatedInfos = try AttachmentManager.copyAttachmentsToSession(
+                        infos: task.attachmentInfos,
+                        sessionId: sessionId
+                    )
+                    task.attachmentInfos = updatedInfos
+                    print("TaskService: Copied \(updatedInfos.filter { $0.wasCopied }.count) attachment(s) to session directory")
+                } catch {
+                    print("TaskService: Failed to copy attachments to session (non-fatal): \(error)")
+                }
+            }
+            
             try? context.save()
             
             // Create session record
@@ -617,6 +632,9 @@ extension TaskService {
                 context.delete(sessionRecord)
             }
         }
+        
+        // Note: Copied attachments are stored in the session directory (Sessions/{sessionId}/Attachments/)
+        // They are automatically deleted when the session directory is removed above
         
         // Remove from local state
         tasks.removeAll { $0.id == task.id }

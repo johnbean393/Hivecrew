@@ -34,24 +34,46 @@ public class SkillMatcher {
         forTask task: String,
         availableSkills: [Skill]
     ) async throws -> [Skill] {
+        try await matchSkillsWithStreaming(
+            forTask: task,
+            availableSkills: availableSkills,
+            onReasoningUpdate: nil
+        )
+    }
+    
+    /// Match skills to a task with streaming reasoning updates
+    /// - Parameters:
+    ///   - task: The task description
+    ///   - availableSkills: List of available skills
+    ///   - onReasoningUpdate: Callback for streaming reasoning text
+    /// - Returns: Array of matched skills
+    public func matchSkillsWithStreaming(
+        forTask task: String,
+        availableSkills: [Skill],
+        onReasoningUpdate: ((String) -> Void)?
+    ) async throws -> [Skill] {
         // If no skills available, return empty
         guard !availableSkills.isEmpty else {
             return []
         }
         
-        // Step 1: Generate task steps
-        let taskSteps = try await generateTaskSteps(for: task)
+        // Step 1: Generate task steps with streaming
+        let taskSteps = try await generateTaskStepsWithStreaming(
+            for: task,
+            onReasoningUpdate: onReasoningUpdate
+        )
         
         // If no steps generated, return empty
         guard !taskSteps.steps.isEmpty else {
             return []
         }
         
-        // Step 2: Select relevant skills
-        let selectedSkills = try await selectSkills(
+        // Step 2: Select relevant skills with streaming
+        let selectedSkills = try await selectSkillsWithStreaming(
             forSteps: taskSteps,
             task: task,
-            availableSkills: availableSkills
+            availableSkills: availableSkills,
+            onReasoningUpdate: onReasoningUpdate
         )
         
         // Map selected skill names to actual skills
@@ -64,7 +86,10 @@ public class SkillMatcher {
     
     // MARK: - Step 1: Generate Task Steps
     
-    private func generateTaskSteps(for task: String) async throws -> TaskSteps {
+    private func generateTaskStepsWithStreaming(
+        for task: String,
+        onReasoningUpdate: ((String) -> Void)?
+    ) async throws -> TaskSteps {
         let prompt = """
         You are planning the steps needed to complete a task for a macOS automation agent.
         
@@ -95,7 +120,12 @@ public class SkillMatcher {
             .user(prompt)
         ]
         
-        let response = try await llmClient.chat(messages: messages, tools: nil)
+        let response = try await llmClient.chatWithStreaming(
+            messages: messages,
+            tools: nil,
+            onReasoningUpdate: onReasoningUpdate,
+            onContentUpdate: nil
+        )
         
         guard let text = response.text else {
             throw SkillError.matchingError("No response from LLM")
@@ -116,10 +146,11 @@ public class SkillMatcher {
     
     // MARK: - Step 2: Select Skills
     
-    private func selectSkills(
+    private func selectSkillsWithStreaming(
         forSteps taskSteps: TaskSteps,
         task: String,
-        availableSkills: [Skill]
+        availableSkills: [Skill],
+        onReasoningUpdate: ((String) -> Void)?
     ) async throws -> SelectedSkills {
         // Format steps for prompt
         let stepsText = taskSteps.steps.map { step in
@@ -175,7 +206,12 @@ public class SkillMatcher {
             .user(prompt)
         ]
         
-        let response = try await llmClient.chat(messages: messages, tools: nil)
+        let response = try await llmClient.chatWithStreaming(
+            messages: messages,
+            tools: nil,
+            onReasoningUpdate: onReasoningUpdate,
+            onContentUpdate: nil
+        )
         
         guard let text = response.text else {
             throw SkillError.matchingError("No response from LLM")
@@ -235,15 +271,16 @@ extension SkillMatcher {
             return ([], "No skills available")
         }
         
-        let taskSteps = try await generateTaskSteps(for: task)
+        let taskSteps = try await generateTaskStepsWithStreaming(for: task, onReasoningUpdate: nil)
         guard !taskSteps.steps.isEmpty else {
             return ([], "Could not determine task steps")
         }
         
-        let selectedSkills = try await selectSkills(
+        let selectedSkills = try await selectSkillsWithStreaming(
             forSteps: taskSteps,
             task: task,
-            availableSkills: availableSkills
+            availableSkills: availableSkills,
+            onReasoningUpdate: nil
         )
         
         let matchedSkills = selectedSkills.selectedSkillNames.compactMap { name in

@@ -8,6 +8,11 @@
 import Foundation
 import ApplicationServices
 import ScreenCaptureKit
+import Photos
+import Contacts
+import EventKit
+import CoreLocation
+import AVFoundation
 import HivecrewAgentProtocol
 
 /// The main daemon class that manages the agent lifecycle
@@ -126,6 +131,16 @@ final class AgentDaemon: @unchecked Sendable {
         // 3. THIRD: Trigger file access permissions for common user folders
         // Attempting to list directory contents will trigger permission prompts
         triggerFileAccessPermissions()
+        
+        // 4. Trigger additional app/data access permissions
+        triggerPhotosAccessPermission()
+        triggerContactsAccessPermission()
+        triggerCalendarAccessPermission()
+        triggerRemindersAccessPermission()
+        triggerFullDiskAccessCheck()
+        triggerAutomationPermission()
+        triggerCameraAndMicrophonePermissions()
+        triggerLocationPermission()
     }
     
     /// Trigger file access permission prompts for protected user folders
@@ -159,6 +174,335 @@ final class AgentDaemon: @unchecked Sendable {
                     logger.log("\(folderName) folder access: \(error.localizedDescription)")
                 }
             }
+        }
+    }
+    
+    /// Trigger Photos library access permission
+    /// Enables the agent to read photos and albums
+    private func triggerPhotosAccessPermission() {
+        logger.log("Requesting Photos library access...")
+        
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        switch status {
+        case .authorized, .limited:
+            logger.log("Photos access: already authorized")
+        case .notDetermined:
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { newStatus in
+                switch newStatus {
+                case .authorized:
+                    self.logger.log("Photos access: authorized")
+                case .limited:
+                    self.logger.log("Photos access: limited access granted")
+                case .denied, .restricted:
+                    self.logger.log("Photos access: denied or restricted")
+                case .notDetermined:
+                    self.logger.log("Photos access: still not determined")
+                @unknown default:
+                    self.logger.log("Photos access: unknown status")
+                }
+            }
+        case .denied, .restricted:
+            logger.log("Photos access: previously denied or restricted")
+        @unknown default:
+            logger.log("Photos access: unknown status")
+        }
+    }
+    
+    /// Trigger Contacts access permission
+    /// Enables the agent to read contact information
+    private func triggerContactsAccessPermission() {
+        logger.log("Requesting Contacts access...")
+        
+        let store = CNContactStore()
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        
+        switch status {
+        case .authorized:
+            logger.log("Contacts access: already authorized")
+        case .notDetermined:
+            store.requestAccess(for: .contacts) { granted, error in
+                if granted {
+                    self.logger.log("Contacts access: authorized")
+                } else if let error = error {
+                    self.logger.log("Contacts access: denied - \(error.localizedDescription)")
+                } else {
+                    self.logger.log("Contacts access: denied")
+                }
+            }
+        case .denied, .restricted:
+            logger.log("Contacts access: previously denied or restricted")
+        case .limited:
+            logger.log("Contacts access: limited access granted")
+        @unknown default:
+            logger.log("Contacts access: unknown status")
+        }
+    }
+    
+    /// Trigger Calendar access permission
+    /// Enables the agent to read and modify calendar events
+    private func triggerCalendarAccessPermission() {
+        logger.log("Requesting Calendar access...")
+        
+        let eventStore = EKEventStore()
+        
+        if #available(macOS 14.0, *) {
+            let status = EKEventStore.authorizationStatus(for: .event)
+            
+            switch status {
+            case .authorized, .fullAccess, .writeOnly:
+                logger.log("Calendar access: already authorized")
+            case .notDetermined:
+                eventStore.requestFullAccessToEvents { granted, error in
+                    if granted {
+                        self.logger.log("Calendar access: authorized")
+                    } else if let error = error {
+                        self.logger.log("Calendar access: denied - \(error.localizedDescription)")
+                    } else {
+                        self.logger.log("Calendar access: denied")
+                    }
+                }
+            case .denied, .restricted:
+                logger.log("Calendar access: previously denied or restricted")
+            @unknown default:
+                logger.log("Calendar access: unknown status")
+            }
+        } else {
+            // Pre-macOS 14 fallback
+            eventStore.requestAccess(to: .event) { granted, error in
+                if granted {
+                    self.logger.log("Calendar access: authorized")
+                } else if let error = error {
+                    self.logger.log("Calendar access: denied - \(error.localizedDescription)")
+                } else {
+                    self.logger.log("Calendar access: denied")
+                }
+            }
+        }
+    }
+    
+    /// Trigger Reminders access permission
+    /// Enables the agent to read and modify reminders
+    private func triggerRemindersAccessPermission() {
+        logger.log("Requesting Reminders access...")
+        
+        let eventStore = EKEventStore()
+        
+        if #available(macOS 14.0, *) {
+            let status = EKEventStore.authorizationStatus(for: .reminder)
+            
+            switch status {
+            case .authorized, .fullAccess, .writeOnly:
+                logger.log("Reminders access: already authorized")
+            case .notDetermined:
+                eventStore.requestFullAccessToReminders { granted, error in
+                    if granted {
+                        self.logger.log("Reminders access: authorized")
+                    } else if let error = error {
+                        self.logger.log("Reminders access: denied - \(error.localizedDescription)")
+                    } else {
+                        self.logger.log("Reminders access: denied")
+                    }
+                }
+            case .denied, .restricted:
+                logger.log("Reminders access: previously denied or restricted")
+            @unknown default:
+                logger.log("Reminders access: unknown status")
+            }
+        } else {
+            // Pre-macOS 14 fallback
+            eventStore.requestAccess(to: .reminder) { granted, error in
+                if granted {
+                    self.logger.log("Reminders access: authorized")
+                } else if let error = error {
+                    self.logger.log("Reminders access: denied - \(error.localizedDescription)")
+                } else {
+                    self.logger.log("Reminders access: denied")
+                }
+            }
+        }
+    }
+    
+    /// Check for Full Disk Access by testing protected directories
+    /// Full Disk Access must be granted manually in System Settings
+    private func triggerFullDiskAccessCheck() {
+        logger.log("Checking Full Disk Access...")
+        
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+        
+        // Directories that require Full Disk Access
+        let protectedDirectories = [
+            ("Library/Mail", "Mail data"),
+            ("Library/Messages", "Messages data"),
+            ("Library/Safari", "Safari data"),
+            ("Library/Cookies", "Cookies"),
+            ("Library/Application Support/MobileSync", "iOS backups")
+        ]
+        
+        var hasFullDiskAccess = true
+        
+        for (relativePath, description) in protectedDirectories {
+            let fullPath = (homeDirectory as NSString).appendingPathComponent(relativePath)
+            
+            do {
+                _ = try FileManager.default.contentsOfDirectory(atPath: fullPath)
+                logger.log("Full Disk Access (\(description)): accessible")
+            } catch let error as NSError {
+                if error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoPermissionError {
+                    hasFullDiskAccess = false
+                    logger.log("Full Disk Access (\(description)): not accessible - permission denied")
+                } else if error.code == NSFileNoSuchFileError {
+                    // Directory doesn't exist, not a permission issue
+                    logger.log("Full Disk Access (\(description)): directory doesn't exist")
+                } else {
+                    logger.log("Full Disk Access (\(description)): \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        if !hasFullDiskAccess {
+            logger.log("Full Disk Access: Not fully granted. Some protected directories are inaccessible.")
+            logger.log("To grant Full Disk Access: System Settings > Privacy & Security > Full Disk Access")
+        } else {
+            logger.log("Full Disk Access: All tested directories accessible")
+        }
+    }
+    
+    /// Trigger Automation permission by attempting to control System Events
+    /// This enables AppleScript/automation control of other apps
+    private func triggerAutomationPermission() {
+        logger.log("Checking Automation permissions...")
+        
+        // Try to get automation permission by running a simple AppleScript
+        // that targets System Events - this will trigger the permission prompt
+        let script = """
+        tell application "System Events"
+            return name of first process whose frontmost is true
+        end tell
+        """
+        
+        DispatchQueue.global(qos: .utility).async {
+            if let appleScript = NSAppleScript(source: script) {
+                var error: NSDictionary?
+                let result = appleScript.executeAndReturnError(&error)
+                
+                if let error = error {
+                    let errorNumber = error[NSAppleScript.errorNumber] as? Int ?? 0
+                    // Error -1743 is "not authorized to send Apple events"
+                    if errorNumber == -1743 {
+                        self.logger.log("Automation (System Events): permission prompt shown or denied")
+                    } else {
+                        self.logger.log("Automation (System Events): error \(errorNumber)")
+                    }
+                } else {
+                    self.logger.log("Automation (System Events): authorized - \(result.stringValue ?? "success")")
+                }
+            } else {
+                self.logger.log("Automation: failed to create AppleScript")
+            }
+        }
+        
+        // Also try Finder automation (commonly needed)
+        let finderScript = """
+        tell application "Finder"
+            return name of desktop
+        end tell
+        """
+        
+        DispatchQueue.global(qos: .utility).async {
+            if let appleScript = NSAppleScript(source: finderScript) {
+                var error: NSDictionary?
+                let result = appleScript.executeAndReturnError(&error)
+                
+                if let error = error {
+                    let errorNumber = error[NSAppleScript.errorNumber] as? Int ?? 0
+                    if errorNumber == -1743 {
+                        self.logger.log("Automation (Finder): permission prompt shown or denied")
+                    } else {
+                        self.logger.log("Automation (Finder): error \(errorNumber)")
+                    }
+                } else {
+                    self.logger.log("Automation (Finder): authorized - \(result.stringValue ?? "success")")
+                }
+            }
+        }
+    }
+    
+    /// Trigger Camera and Microphone access permissions
+    /// These are needed for audio/video capture capabilities
+    private func triggerCameraAndMicrophonePermissions() {
+        logger.log("Requesting Camera and Microphone access...")
+        
+        // Check and request Camera permission
+        let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        switch cameraStatus {
+        case .authorized:
+            logger.log("Camera access: already authorized")
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                if granted {
+                    self.logger.log("Camera access: authorized")
+                } else {
+                    self.logger.log("Camera access: denied")
+                }
+            }
+        case .denied, .restricted:
+            logger.log("Camera access: previously denied or restricted")
+        @unknown default:
+            logger.log("Camera access: unknown status")
+        }
+        
+        // Check and request Microphone permission
+        let microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        switch microphoneStatus {
+        case .authorized:
+            logger.log("Microphone access: already authorized")
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                if granted {
+                    self.logger.log("Microphone access: authorized")
+                } else {
+                    self.logger.log("Microphone access: denied")
+                }
+            }
+        case .denied, .restricted:
+            logger.log("Microphone access: previously denied or restricted")
+        @unknown default:
+            logger.log("Microphone access: unknown status")
+        }
+    }
+    
+    /// Trigger Location Services permission
+    /// Enables the agent to access location information
+    private func triggerLocationPermission() {
+        logger.log("Checking Location Services access...")
+        
+        // Note: CLLocationManager must be used from main thread for delegate callbacks
+        // We just check the authorization status here since requesting requires a delegate
+        let status = CLLocationManager.authorizationStatus()
+        
+        switch status {
+        case .authorizedAlways:
+            logger.log("Location access: authorized always")
+        case .authorized:
+            logger.log("Location access: authorized")
+        case .notDetermined:
+            // To actually request permission, we'd need to create a CLLocationManager
+            // and call requestWhenInUseAuthorization or requestAlwaysAuthorization
+            // This requires a delegate to be set up
+            logger.log("Location access: not determined (requires user action in System Settings)")
+            logger.log("To enable Location Services: System Settings > Privacy & Security > Location Services")
+        case .denied:
+            logger.log("Location access: denied")
+        case .restricted:
+            logger.log("Location access: restricted")
+        @unknown default:
+            logger.log("Location access: unknown status")
+        }
+        
+        // Check if location services are enabled system-wide
+        if !CLLocationManager.locationServicesEnabled() {
+            logger.log("Location Services: disabled system-wide")
         }
     }
     

@@ -133,6 +133,12 @@ public enum AppPaths {
         sessionDirectory(id: id).appendingPathComponent("plan_state.json")
     }
     
+    /// Returns the attachments directory for a specific session
+    /// Files under 250MB are copied here to persist them independently of the original location
+    public static func sessionAttachmentsDirectory(id: String) -> URL {
+        sessionDirectory(id: id).appendingPathComponent("Attachments", isDirectory: true)
+    }
+    
     // MARK: - Templates Storage
     
     /// Directory containing VM templates (golden images)

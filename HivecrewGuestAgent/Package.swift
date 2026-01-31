@@ -18,6 +18,11 @@ let package = Package(
             path: "Sources",
             linkerSettings: [
                 .linkedFramework("ApplicationServices"),
+                .linkedFramework("Photos"),
+                .linkedFramework("Contacts"),
+                .linkedFramework("EventKit"),
+                .linkedFramework("AVFoundation"),
+                .linkedFramework("CoreLocation"),
             ]
         )
     ]

@@ -16,6 +16,8 @@ struct TaskRowView: View {
     @State private var isHovered: Bool = false
     @State private var showingTrace: Bool = false
     @State private var showingPlanReview: Bool = false
+    @State private var showingMissingAttachments: Bool = false
+    @State private var missingAttachmentsValidation: RerunAttachmentValidation?
     
     // Tips
     private let showDeliverableTip = ShowDeliverableTip()
@@ -193,7 +195,7 @@ struct TaskRowView: View {
                         } else {
                             // Rerun button for inactive tasks
                             if !task.status.isActive {
-                                Button(action: { Task { try? await taskService.rerunTask(task) } }) {
+                                Button(action: { handleRerun() }) {
                                     Image(systemName: "arrow.counterclockwise")
                                         .foregroundStyle(.blue)
                                 }
@@ -253,6 +255,24 @@ struct TaskRowView: View {
         .sheet(isPresented: $showingPlanReview) {
             PlanReviewWindow(task: task, taskService: taskService)
         }
+        .sheet(isPresented: $showingMissingAttachments) {
+            if let validation = missingAttachmentsValidation {
+                MissingAttachmentsSheet(
+                    task: task,
+                    missingAttachments: validation.missingInfos,
+                    validAttachments: validation.validInfos,
+                    onConfirm: { resolvedAttachments in
+                        showingMissingAttachments = false
+                        Task {
+                            try? await taskService.rerunTask(task, withResolvedAttachments: resolvedAttachments)
+                        }
+                    },
+                    onCancel: {
+                        showingMissingAttachments = false
+                    }
+                )
+            }
+        }
         .contextMenu {
             // View trace option
             Button {
@@ -264,7 +284,7 @@ struct TaskRowView: View {
             // Rerun option for inactive tasks
             if !task.status.isActive {
                 Button {
-                    Task { try? await taskService.rerunTask(task) }
+                    handleRerun()
                 } label: {
                     Label("Rerun", systemImage: "arrow.counterclockwise")
                 }
@@ -322,6 +342,28 @@ struct TaskRowView: View {
             object: nil,
             userInfo: ["taskId": taskId]
         )
+    }
+    
+    /// Handle rerun button tap - checks for missing attachments first
+    private func handleRerun() {
+        // Validate attachments before rerunning
+        let validation = taskService.validateRerunAttachments(task)
+        
+        if validation.allValid {
+            // All attachments are valid, proceed with rerun
+            Task {
+                try? await taskService.rerunTask(task)
+            }
+        } else if validation.hasAttachments {
+            // Some attachments are missing, show the sheet
+            missingAttachmentsValidation = validation
+            showingMissingAttachments = true
+        } else {
+            // No attachments at all, proceed with rerun
+            Task {
+                try? await taskService.rerunTask(task)
+            }
+        }
     }
     
     private func showDeliverablesInFinder() {

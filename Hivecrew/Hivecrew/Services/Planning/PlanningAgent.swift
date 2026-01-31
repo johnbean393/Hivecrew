@@ -54,17 +54,13 @@ class PlanningAgent {
             let attachedFileMap = buildAttachedFileMap(from: attachedFiles)
             let fileList = PlanningPrompts.buildFileList(from: attachedFiles)
             
-            // Step 2: Match skills in parallel with plan generation start
-            statePublisher.setStatus("Analyzing task and matching skills...")
-            
-            // Start skill matching as a task but continue with plan generation
-            async let skillMatchTask = matchSkills(
+            // Step 2: Match skills with streaming reasoning
+            statePublisher.setStatus("Matching skills...")
+            let selectedSkills = try await matchSkills(
                 forTask: task.taskDescription,
-                availableSkills: availableSkills
+                availableSkills: availableSkills,
+                statePublisher: statePublisher
             )
-            
-            // Get skills result (this happens quickly)
-            let selectedSkills = try await skillMatchTask
             statePublisher.setSelectedSkills(selectedSkills.map(\.name))
             
             // Step 3: Generate the plan
@@ -113,10 +109,11 @@ class PlanningAgent {
     
     // MARK: - Private Methods
     
-    /// Match skills for the task
+    /// Match skills for the task with streaming reasoning updates
     private func matchSkills(
         forTask task: String,
-        availableSkills: [Skill]
+        availableSkills: [Skill],
+        statePublisher: PlanningStatePublisher
     ) async throws -> [Skill] {
         // Only match enabled skills
         let enabledSkills = availableSkills.filter { $0.isEnabled }
@@ -126,9 +123,14 @@ class PlanningAgent {
         }
         
         do {
-            return try await skillMatcher.matchSkills(
+            return try await skillMatcher.matchSkillsWithStreaming(
                 forTask: task,
-                availableSkills: enabledSkills
+                availableSkills: enabledSkills,
+                onReasoningUpdate: { [weak statePublisher] reasoning in
+                    Task { @MainActor in
+                        statePublisher?.setReasoningText(reasoning)
+                    }
+                }
             )
         } catch {
             // Skill matching failure shouldn't fail the whole plan

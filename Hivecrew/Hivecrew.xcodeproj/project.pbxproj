@@ -30,6 +30,8 @@
 		202F648F2F2DB9E300F6F359 /* PlanReviewWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F648D2F2DB9E300F6F359 /* PlanReviewWindow.swift */; };
 		202F64922F2DCC1C00F6F359 /* RichPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64912F2DCC1C00F6F359 /* RichPlanView.swift */; };
 		202F64932F2DCC1C00F6F359 /* MermaidDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64902F2DCC1C00F6F359 /* MermaidDiagramView.swift */; };
+		202F64952F2E755A00F6F359 /* AttachmentInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64942F2E755A00F6F359 /* AttachmentInfo.swift */; };
+		202F64972F2E756700F6F359 /* AttachmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64962F2E756700F6F359 /* AttachmentManager.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -219,6 +221,8 @@
 		202F648D2F2DB9E300F6F359 /* PlanReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanReviewWindow.swift; sourceTree = "<group>"; };
 		202F64902F2DCC1C00F6F359 /* MermaidDiagramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidDiagramView.swift; sourceTree = "<group>"; };
 		202F64912F2DCC1C00F6F359 /* RichPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichPlanView.swift; sourceTree = "<group>"; };
+		202F64942F2E755A00F6F359 /* AttachmentInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentInfo.swift; sourceTree = "<group>"; };
+		202F64962F2E756700F6F359 /* AttachmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentManager.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -539,6 +543,7 @@
 		209C61872F12ABD700062D0E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				202F64942F2E755A00F6F359 /* AttachmentInfo.swift */,
 				202F64892F2DB8A900F6F359 /* PlanTodoItem.swift */,
 				20B899442F1FAEB5003887A3 /* ScheduledTask.swift */,
 				3001A0032F15000000000003 /* AgentQuestion.swift */,
@@ -565,6 +570,7 @@
 				204DF4432F157454004AB99B /* Agent Runner */,
 				204DF43E2F15743E004AB99B /* Task Service */,
 				3001A0052F15000000000005 /* AgentPrompts.swift */,
+				202F64962F2E756700F6F359 /* AttachmentManager.swift */,
 				3001A0092F15000000000009 /* AgentStatePublisher.swift */,
 				20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */,
 				209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */,
@@ -1101,6 +1107,7 @@
 				2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */,
 				209EB6CB2F1E174200A7F13F /* ResumableDownloader.swift in Sources */,
 				209EB6CC2F1E174200A7F13F /* TemplateDownloadModels.swift in Sources */,
+				202F64972F2E756700F6F359 /* AttachmentManager.swift in Sources */,
 				20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */,
 				209EB6F42F1E2BD800A7F13F /* SkillsWindow.swift in Sources */,
 				20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */,
@@ -1126,6 +1133,7 @@
 				209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */,
 				209C61BC2F12ABD700062D0E /* ContentView.swift in Sources */,
 				204DF4452F157492004AB99B /* GuestAgentConnection+Tools.swift in Sources */,
+				202F64952F2E755A00F6F359 /* AttachmentInfo.swift in Sources */,
 				209C61BD2F12ABD700062D0E /* HivecrewApp.swift in Sources */,
 				202F648F2F2DB9E300F6F359 /* PlanReviewWindow.swift in Sources */,
 				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
@@ -1352,7 +1360,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1366,7 +1374,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1388,7 +1396,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1402,7 +1410,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

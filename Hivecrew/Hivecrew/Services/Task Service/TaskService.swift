@@ -85,14 +85,20 @@ class TaskService: ObservableObject {
     // MARK: - Task Creation
     
     /// Create a new task from user description
+    /// - Parameters:
+    ///   - attachedFilePaths: File paths to attach (metadata stored now, files copied when session starts)
+    ///   - attachmentInfos: Pre-processed attachment infos (for reruns)
     func createTask(
         description: String,
         providerId: String,
         modelId: String,
         attachedFilePaths: [String] = [],
+        attachmentInfos: [AttachmentInfo]? = nil,
         outputDirectory: String? = nil,
         mentionedSkillNames: [String] = [],
-        planFirstEnabled: Bool = false
+        planFirstEnabled: Bool = false,
+        planMarkdown: String? = nil,
+        planSelectedSkillNames: [String]? = nil
     ) async throws -> TaskRecord {
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
@@ -101,18 +107,36 @@ class TaskService: ObservableObject {
         // Use quick fallback title immediately for instant UI feedback
         let quickTitle = titleGenerator.generateQuickTitle(from: description)
         
-        // Create task record immediately
+        // Prepare attachment metadata (files are copied later when session starts)
+        let preparedInfos: [AttachmentInfo]?
+        if let existingInfos = attachmentInfos {
+            // Use pre-processed infos (from rerun)
+            preparedInfos = existingInfos
+        } else if !attachedFilePaths.isEmpty {
+            // Prepare metadata for new file paths (no copying yet)
+            preparedInfos = AttachmentManager.prepareAttachmentInfos(filePaths: attachedFilePaths)
+        } else {
+            preparedInfos = nil
+        }
+        
+        // Create task record with attachment metadata
         let task = TaskRecord(
             title: quickTitle,
             taskDescription: description,
             status: .queued,
             providerId: providerId,
             modelId: modelId,
-            attachedFilePaths: attachedFilePaths,
+            attachmentInfos: preparedInfos,
             outputDirectory: outputDirectory,
             mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames,
             planFirstEnabled: planFirstEnabled
         )
+        
+        // If reusing a plan from a previous task, set it directly
+        if let planMarkdown = planMarkdown {
+            task.planMarkdown = planMarkdown
+            task.planSelectedSkillNames = planSelectedSkillNames
+        }
         
         // Save to SwiftData
         context.insert(task)
@@ -135,23 +159,57 @@ class TaskService: ObservableObject {
         return task
     }
     
+    /// Validate attachments for a task rerun
+    /// - Parameter originalTask: The task to validate
+    /// - Returns: Validation result indicating which attachments are valid/missing
+    func validateRerunAttachments(_ originalTask: TaskRecord) -> RerunAttachmentValidation {
+        return AttachmentManager.validateAttachmentsForRerun(originalInfos: originalTask.attachmentInfos)
+    }
+    
     /// Create a new task with the same parameters as a previous task
     /// - Parameter originalTask: The task to rerun
     /// - Returns: The newly created task
+    /// - Note: Use `validateRerunAttachments` first to check for missing files
     func rerunTask(_ originalTask: TaskRecord) async throws -> TaskRecord {
-        // Filter to only attachments that still exist on disk
-        let validAttachments = originalTask.attachedFilePaths.filter {
-            FileManager.default.fileExists(atPath: $0)
-        }
+        // Prepare attachment infos for rerun (validates files exist, keeps references)
+        // Actual copying happens when the new session starts
+        let originalInfos = originalTask.attachmentInfos
+        let newInfos = AttachmentManager.prepareAttachmentsForRerun(originalInfos: originalInfos)
         
+        // If the original task had a plan, reuse it to skip the planning phase
+        // and start execution directly
         return try await createTask(
             description: originalTask.taskDescription,
             providerId: originalTask.providerId,
             modelId: originalTask.modelId,
-            attachedFilePaths: validAttachments,
+            attachmentInfos: newInfos.isEmpty ? nil : newInfos,
             outputDirectory: originalTask.outputDirectory,
             mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
-            planFirstEnabled: originalTask.planFirstEnabled
+            planFirstEnabled: originalTask.planFirstEnabled,
+            planMarkdown: originalTask.planMarkdown,
+            planSelectedSkillNames: originalTask.planSelectedSkillNames
+        )
+    }
+    
+    /// Create a new task with the same parameters as a previous task, using provided attachments
+    /// Used when user has resolved missing attachments
+    /// - Parameters:
+    ///   - originalTask: The task to rerun
+    ///   - resolvedAttachments: Resolved attachment infos (after user selected replacements)
+    /// - Returns: The newly created task
+    func rerunTask(_ originalTask: TaskRecord, withResolvedAttachments resolvedAttachments: [AttachmentInfo]) async throws -> TaskRecord {
+        // If the original task had a plan, reuse it to skip the planning phase
+        // and start execution directly
+        return try await createTask(
+            description: originalTask.taskDescription,
+            providerId: originalTask.providerId,
+            modelId: originalTask.modelId,
+            attachmentInfos: resolvedAttachments.isEmpty ? nil : resolvedAttachments,
+            outputDirectory: originalTask.outputDirectory,
+            mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
+            planFirstEnabled: originalTask.planFirstEnabled,
+            planMarkdown: originalTask.planMarkdown,
+            planSelectedSkillNames: originalTask.planSelectedSkillNames
         )
     }
     

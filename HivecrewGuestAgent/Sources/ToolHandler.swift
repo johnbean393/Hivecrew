@@ -177,7 +177,8 @@ final class ToolHandler {
         case .askTextQuestion, .askMultipleChoice, .requestUserIntervention,
              .getLoginCredentials,
              .webSearch, .readWebpageContent, .extractInfoFromWebpage, .getLocation,
-             .createTodoList, .addTodoItem, .finishTodoItem:
+             .createTodoList, .addTodoItem, .finishTodoItem,
+             .generateImage:
             throw AgentError(code: AgentError.toolExecutionFailed, message: "This tool runs on the host, not in the guest VM")
         }
     }
