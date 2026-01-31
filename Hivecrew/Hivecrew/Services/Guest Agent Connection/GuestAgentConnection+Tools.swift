@@ -107,12 +107,15 @@ extension GuestAgentConnection {
     /// Note: The command is automatically wrapped to include common tool paths (Homebrew, Cargo, etc.)
     /// since the GuestAgent runs zsh non-interactively without sourcing profile files.
     func runShell(command: String, timeout: Double? = nil) async throws -> ShellResult {
-        // Expand tilde to $HOME for paths. Tilde expansion only works in unquoted shell contexts,
-        // but paths passed as arguments to programs (e.g., node require()) don't get expanded.
-        // Using $HOME ensures the shell expands it even in quoted strings.
+        // Expand tilde and $HOME to the literal home path. Tilde expansion only works in unquoted 
+        // shell contexts, and $HOME variables don't work when passed to programs like Node.js require().
+        // The VM always runs as /Users/hivecrew/, so we use the literal path.
+        let vmHomePath = "/Users/hivecrew"
         let expandedCommand = command
-            .replacingOccurrences(of: "~/", with: "$HOME/")
-            .replacingOccurrences(of: "\"~\"", with: "\"$HOME\"")
+            .replacingOccurrences(of: "~/", with: "\(vmHomePath)/")
+            .replacingOccurrences(of: "\"~\"", with: "\"\(vmHomePath)\"")
+            .replacingOccurrences(of: "$HOME/", with: "\(vmHomePath)/")
+            .replacingOccurrences(of: "${HOME}/", with: "\(vmHomePath)/")
         
         // Prepend common tool paths to ensure Homebrew, Cargo, and other tools are available.
         // The GuestAgent runs /bin/zsh -c which doesn't source ~/.zshrc or ~/.zprofile,

@@ -32,6 +32,7 @@
 		202F64932F2DCC1C00F6F359 /* MermaidDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64902F2DCC1C00F6F359 /* MermaidDiagramView.swift */; };
 		202F64952F2E755A00F6F359 /* AttachmentInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64942F2E755A00F6F359 /* AttachmentInfo.swift */; };
 		202F64972F2E756700F6F359 /* AttachmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64962F2E756700F6F359 /* AttachmentManager.swift */; };
+		202F64992F2E84D500F6F359 /* MissingAttachmentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -223,6 +224,7 @@
 		202F64912F2DCC1C00F6F359 /* RichPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichPlanView.swift; sourceTree = "<group>"; };
 		202F64942F2E755A00F6F359 /* AttachmentInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentInfo.swift; sourceTree = "<group>"; };
 		202F64962F2E756700F6F359 /* AttachmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentManager.swift; sourceTree = "<group>"; };
+		202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingAttachmentsSheet.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -806,6 +808,7 @@
 		AAAA00062F1E200000000006 /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
+				202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */,
 				3001A00A2F1500000000000A /* TaskInputView.swift */,
 				3001A00B2F1500000000000B /* TaskListView.swift */,
 				3001A00C2F1500000000000C /* TaskRowView.swift */,
@@ -1097,6 +1100,7 @@
 				209EB6D82F1E18A000A7F13F /* OnboardingTemplateSubviews.swift in Sources */,
 				2049633F2F1822A7007DD5FD /* HivecrewAppDelegate.swift in Sources */,
 				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
+				202F64992F2E84D500F6F359 /* MissingAttachmentsSheet.swift in Sources */,
 				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
 				204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */,
 				202F647A2F2DA02F00F6F359 /* HivecrewTips.swift in Sources */,
