@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 
 /// Main content view with tab-based navigation
 struct ContentView: View {
@@ -17,6 +18,9 @@ struct ContentView: View {
     @State private var pendingQuestion: AgentQuestion?
     @State private var pendingPermissionTaskId: String?
     @State private var pendingPermission: PermissionRequest?
+    
+    // Tips
+    private let watchAgentsWorkTip = WatchAgentsWorkTip()
     
     enum AppTab: String, CaseIterable {
         case dashboard = "Dashboard"
@@ -43,6 +47,7 @@ struct ContentView: View {
                     Label(AppTab.environments.rawValue, systemImage: AppTab.environments.icon)
                 }
                 .tag(AppTab.environments)
+                .popoverTip(watchAgentsWorkTip, arrowEdge: .top)
         }
         .frame(minWidth: 900, minHeight: 600)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToTask)) { notification in
@@ -60,6 +65,8 @@ struct ContentView: View {
             // Show the first pending question
             if pendingQuestion == nil, let firstQuestion = newValue.first {
                 pendingQuestion = firstQuestion
+                // Track agent question for tips
+                TipStore.shared.donateAgentAskedQuestion()
             }
         }
         // Permission confirmation sheet

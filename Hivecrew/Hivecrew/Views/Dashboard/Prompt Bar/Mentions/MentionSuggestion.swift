@@ -8,6 +8,7 @@
 import AppKit
 import Combine
 import Foundation
+import TipKit
 import UniformTypeIdentifiers
 import HivecrewShared
 
@@ -181,6 +182,9 @@ final class MentionSuggestionsProvider: ObservableObject {
                 self.deliverableSuggestions = Array(deliverables)
                 self.isLoading = false
                 self.updateSuggestions()
+                
+                // Update tip state when deliverables are available
+                TipStore.shared.updateDeliverablesAvailable(!self.deliverableSuggestions.isEmpty)
             }
         }
     }

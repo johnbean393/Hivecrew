@@ -7,6 +7,7 @@
 
 import Combine
 import SwiftUI
+import TipKit
 import UniformTypeIdentifiers
 
 /// Credentials settings tab
@@ -23,6 +24,9 @@ struct CredentialsSettingsView: View {
     @State private var showingDeleteConfirmation = false
     @State private var credentialToDelete: StoredCredential?
     
+    // Tips
+    private let credentialsTip = CredentialsTip()
+    
     var body: some View {
         Form {
             credentialsSection
@@ -30,6 +34,9 @@ struct CredentialsSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            TipStore.shared.donateCredentialsSettingsOpened()
+        }
         .sheet(isPresented: $showingAddSheet) {
             AddCredentialSheet(credentialManager: credentialManager)
         }
@@ -97,6 +104,7 @@ struct CredentialsSettingsView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
+                .popoverTip(credentialsTip, arrowEdge: .bottom)
             }
         } footer: {
             Text("Credentials are stored securely in macOS Keychain. The agent uses UUID tokens to reference them - real passwords are never sent to the AI provider.")

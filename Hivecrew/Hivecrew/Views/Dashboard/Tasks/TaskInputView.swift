@@ -91,6 +91,10 @@ struct TaskInputView: View {
                 )
             }
             
+            // Track task creation for tips
+            TipStore.shared.donateTaskCreated()
+            TipStore.shared.firstTaskCreated()
+            
             // Clear input
             taskDescription = ""
             attachments = []

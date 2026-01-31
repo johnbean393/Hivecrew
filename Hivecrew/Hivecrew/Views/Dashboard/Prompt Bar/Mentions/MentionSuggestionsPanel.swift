@@ -8,6 +8,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import TipKit
 
 /// Controller for the floating mention suggestions panel
 @MainActor
@@ -179,6 +180,9 @@ struct MentionSuggestionsPanelContent: View {
     private let sectionHeaderHeight: CGFloat = 24
     private let cornerRadius: CGFloat = 10
     
+    // Tips
+    private let deliverablesMentionTip = DeliverablesMentionTip()
+    
     /// Separate suggestions by type
     private var attachments: [MentionSuggestion] {
         suggestions.filter { $0.type == .attachment }
@@ -222,6 +226,7 @@ struct MentionSuggestionsPanelContent: View {
             if !deliverables.isEmpty {
                 SectionHeader(title: "Recent Deliverables")
                     .frame(height: sectionHeaderHeight)
+                    .popoverTip(deliverablesMentionTip, arrowEdge: .trailing)
                 
                 ForEach(Array(deliverables.enumerated()), id: \.element.id) { index, suggestion in
                     let globalIndex = attachments.count + index

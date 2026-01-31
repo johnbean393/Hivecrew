@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 import UniformTypeIdentifiers
 import HivecrewShared
 
@@ -727,6 +728,10 @@ struct ScheduleCreationSheet: View {
                     scheduledDate: scheduleType == .oneTime ? effectiveScheduledDate : nil,
                     recurrenceRule: scheduleType == .recurring ? buildRecurrenceRule() : nil
                 )
+                
+                // Track schedule creation for tips
+                TipStore.shared.donateScheduleCreated()
+                TipStore.shared.scheduleCreated()
             }
             
             dismiss()

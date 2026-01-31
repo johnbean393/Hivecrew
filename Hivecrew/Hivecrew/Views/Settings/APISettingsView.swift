@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 import HivecrewAPI
 
 /// Settings view for the Hivecrew REST API server
@@ -26,6 +27,9 @@ struct APISettingsView: View {
     @State private var copyFeedback = false
     @State private var restartTask: Task<Void, Never>?
     
+    // Tips
+    private let apiIntegrationTip = APIIntegrationTip()
+    
     // MARK: - Body
     
     var body: some View {
@@ -40,6 +44,7 @@ struct APISettingsView: View {
                             APIServerManager.shared.stop()
                         }
                     }
+                    .popoverTip(apiIntegrationTip, arrowEdge: .trailing)
                 
                 HStack {
                     Text("Port")
@@ -223,6 +228,8 @@ struct APISettingsView: View {
             loadAPIKey()
             // Refresh server status to sync with actual state
             APIServerManager.shared.refreshStatus()
+            // Track API settings opened for tips
+            TipStore.shared.donateAPISettingsOpened()
         }
         .alert("Regenerate API Key?", isPresented: $showRegenerateConfirmation) {
             Button("Cancel", role: .cancel) { }

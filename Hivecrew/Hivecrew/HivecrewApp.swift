@@ -9,6 +9,7 @@ import Combine
 import Sparkle
 import SwiftUI
 import SwiftData
+import TipKit
 import HivecrewShared
 import HivecrewLLM
 import HivecrewAPI
@@ -153,6 +154,9 @@ struct HivecrewApp: App {
         // Request notification permissions for agent questions
         requestNotificationPermissions()
         
+        // Configure TipKit
+        TipStore.shared.configure()
+        
         // Configure and start API server if enabled
         APIServerManager.shared.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
         APIServerManager.shared.startIfEnabled()
@@ -163,6 +167,10 @@ struct HivecrewApp: App {
         } else if !hasPerformedStartupCheck {
             // Only do this once per app launch, not on window re-open
             hasPerformedStartupCheck = true
+            
+            // Update tip state for onboarding completion
+            TipStore.shared.onboardingCompleted()
+            
             // Check for queued tasks from previous session (after a brief delay to let data load)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 checkForQueuedTasks()

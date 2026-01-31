@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 
 /// LLM Providers settings tab
 struct ProvidersSettingsView: View {
@@ -21,6 +22,9 @@ struct ProvidersSettingsView: View {
     @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
     @AppStorage("workerModelId") private var workerModelId: String?
     
+    // Tips
+    private let configureProvidersTip = ConfigureProvidersTip()
+    
     var body: some View {
         Form {
             providersListSection
@@ -28,6 +32,12 @@ struct ProvidersSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            TipStore.shared.updateProviderCount(providers.count)
+        }
+        .onChange(of: providers.count) { _, newCount in
+            TipStore.shared.updateProviderCount(newCount)
+        }
         .sheet(isPresented: $showingAddSheet) {
             ProviderEditSheet(provider: nil)
         }
@@ -87,6 +97,7 @@ struct ProvidersSettingsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.blue)
                 .padding(.vertical, 4)
+                .popoverTip(configureProvidersTip, arrowEdge: .trailing)
             }
         }
     }

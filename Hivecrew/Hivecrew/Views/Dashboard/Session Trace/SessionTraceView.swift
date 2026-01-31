@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 import QuickLook
 import AppKit
 import HivecrewShared
@@ -30,6 +31,10 @@ struct SessionTraceView: View {
     @State var isExportingVideo: Bool = false
     @State var exportProgress: Double = 0
     @State var showingSkillExtraction: Bool = false
+    
+    // Tips (accessed from extension)
+    let extractSkillTip = ExtractSkillTip()
+    let videoExportTip = VideoExportTip()
     
     /// The last LLM text response (from session_end summary or llm_response with no tool calls)
     var lastLLMTextResponse: String? {
@@ -61,6 +66,12 @@ struct SessionTraceView: View {
         .frame(minWidth: 1000, minHeight: 600, maxHeight: 750)
         .onAppear {
             loadTrace()
+            // Track session trace view for tips
+            TipStore.shared.donateSessionTraceViewed()
+            // Update tip state if task was successful
+            if task.wasSuccessful == true {
+                TipStore.shared.successfulTaskCompleted()
+            }
         }
         .quickLookPreview($quickLookURL)
         .sheet(isPresented: $showingSkillExtraction) {

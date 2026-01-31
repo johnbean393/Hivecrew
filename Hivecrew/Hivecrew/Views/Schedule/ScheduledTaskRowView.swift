@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 import Combine
 
 /// Row view for a scheduled task
@@ -18,6 +19,9 @@ struct ScheduledTaskRowView: View {
     
     @State private var isHovered: Bool = false
     @State private var currentDate: Date = Date()
+    
+    // Tips
+    private let scheduleRunNowTip = ScheduleRunNowTip()
     
     // Timer that fires every second to update countdown
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -137,6 +141,7 @@ struct ScheduledTaskRowView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Run now")
+                            .popoverTip(scheduleRunNowTip, arrowEdge: .bottom)
                         }
                     }
                 }

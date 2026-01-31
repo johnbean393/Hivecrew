@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 import AppKit
 import HivecrewShared
 import MarkdownView
@@ -23,6 +24,10 @@ struct SkillsWindow: View {
     @State private var showingDeleteConfirmation = false
     @State private var skillToDelete: Skill?
     @State private var searchText = ""
+    
+    // Tips
+    private let automaticSkillMatchingTip = AutomaticSkillMatchingTip()
+    private let importSkillsTip = ImportSkillsTip()
     
     /// Filtered skills based on search text
     private var filteredSkills: [Skill] {
@@ -71,6 +76,9 @@ struct SkillsWindow: View {
             Task {
                 try? await skillManager.loadAllSkills()
             }
+            // Track skills window opened for tips
+            TipStore.shared.donateSkillsWindowOpened()
+            TipStore.shared.updateSkillsAvailable(!skillManager.skills.isEmpty)
         }
         .onChange(of: skillManager.skills) { _, newSkills in
             // Keep selectedSkill in sync with the updated skills list
@@ -93,6 +101,7 @@ struct SkillsWindow: View {
                     Image(systemName: "plus")
                 }
                 .help("Add Skill")
+                .popoverTip(importSkillsTip, arrowEdge: .bottom)
             }
         }
     }
@@ -225,6 +234,7 @@ struct SkillsWindow: View {
                                 set: { skillManager.setEnabled($0, for: skill.name) }
                             ))
                             .toggleStyle(.switch)
+                            .popoverTip(automaticSkillMatchingTip, arrowEdge: .leading)
                         }
                         
                         Divider()
@@ -363,6 +373,9 @@ struct SkillsWindow: View {
                     showingGitHubImport = false
                     githubURL = ""
                     isImporting = false
+                    // Track skill import for tips
+                    TipStore.shared.donateSkillImported()
+                    TipStore.shared.updateSkillsAvailable(true)
                 }
             } catch {
                 await MainActor.run {
@@ -388,6 +401,9 @@ struct SkillsWindow: View {
                     }
                     await MainActor.run {
                         selectedSkill = skill
+                        // Track skill import for tips
+                        TipStore.shared.donateSkillImported()
+                        TipStore.shared.updateSkillsAvailable(true)
                     }
                 } catch {
                     await MainActor.run {

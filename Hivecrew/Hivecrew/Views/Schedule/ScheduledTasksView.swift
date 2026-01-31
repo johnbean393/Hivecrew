@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 
 /// View displaying the list of scheduled tasks
 struct ScheduledTasksView: View {
@@ -17,6 +18,9 @@ struct ScheduledTasksView: View {
     @State private var showCreateSheet: Bool = false
     @State private var scheduleToEdit: ScheduledTask?
     @FocusState private var isSearching: Bool
+    
+    // Tips
+    private let scheduleRecurringTip = ScheduleRecurringTip()
     
     private var searchFieldColor: Color {
         isSearching ? .accentColor : .secondary
@@ -179,6 +183,7 @@ struct ScheduledTasksView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .padding(.top, 8)
+                .popoverTip(scheduleRecurringTip, arrowEdge: .bottom)
             }
         }
         .frame(maxWidth: .infinity)

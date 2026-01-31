@@ -8,6 +8,7 @@
 import Combine
 import SwiftUI
 import SwiftData
+import TipKit
 import HivecrewShared
 
 /// Represents an item in the environments sidebar (either a task or a developer VM)
@@ -33,6 +34,9 @@ struct AgentEnvironmentsView: View {
     
     @Binding var selectedTaskId: String?
     @State private var selectedItem: EnvironmentItem?
+    
+    // Tips
+    private let takeControlTip = TakeControlTip()
     
     /// Developer VM IDs stored in settings
     private var developerVMIds: Set<String> {
@@ -67,6 +71,18 @@ struct AgentEnvironmentsView: View {
             // Sync from external selection
             if let taskId = newValue {
                 selectedItem = .task(taskId)
+            }
+        }
+        .onAppear {
+            // Track environment viewed for tips when there are active tasks
+            if !activeTasksWithVMs.isEmpty {
+                TipStore.shared.donateEnvironmentViewed()
+            }
+        }
+        .onChange(of: activeTasksWithVMs) { oldValue, newValue in
+            // Track when a task becomes active
+            if oldValue.isEmpty && !newValue.isEmpty {
+                TipStore.shared.donateEnvironmentViewed()
             }
         }
     }
@@ -140,6 +156,7 @@ struct AgentEnvironmentsView: View {
                let vmId = task.assignedVMId,
                let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
                 VMDetailView(vm: vmInfo)
+                    .popoverTip(takeControlTip, arrowEdge: .bottom)
             } else {
                 emptyDetailView
             }

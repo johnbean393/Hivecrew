@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 import Combine
 
 /// Individual task row with status dot and title
@@ -14,6 +15,9 @@ struct TaskRowView: View {
     @EnvironmentObject var taskService: TaskService
     @State private var isHovered: Bool = false
     @State private var showingTrace: Bool = false
+    
+    // Tips
+    private let showDeliverableTip = ShowDeliverableTip()
     
     /// Whether the task is actively executing (not paused, waiting, or completed)
     var isActivelyRunning: Bool {
@@ -110,6 +114,25 @@ struct TaskRowView: View {
                                 .foregroundStyle(.tertiary)
                             ElapsedTimeView(startDate: startedAt)
                         }
+                        
+                        // Show deliverable count for completed tasks with outputs
+                        if !task.status.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Button(action: { showDeliverablesInFinder() }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "doc.fill")
+                                        .font(.caption2)
+                                    Text("\(outputPaths.count)")
+                                        .font(.caption)
+                                }
+                                .foregroundStyle(.blue)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Show deliverables in Finder")
+                            .popoverTip(showDeliverableTip, arrowEdge: .bottom)
+                        }
                     }
                 }
                 
@@ -126,16 +149,6 @@ struct TaskRowView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Rerun task")
-                        }
-                        
-                        // Show deliverables in Finder (for completed tasks with output files)
-                        if !task.status.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
-                            Button(action: { showDeliverablesInFinder() }) {
-                                Image(systemName: "folder")
-                                    .foregroundStyle(.blue)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Show deliverables in Finder")
                         }
                         
                         if task.status.isActive {

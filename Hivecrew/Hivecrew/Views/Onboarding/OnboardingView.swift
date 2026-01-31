@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 
 /// Main onboarding container that guides users through initial setup
 struct OnboardingView: View {
@@ -169,6 +170,8 @@ struct OnboardingView: View {
     
     private func completeOnboarding() {
         UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        // Update tip state for onboarding completion
+        TipStore.shared.onboardingCompleted()
         isPresented = false
     }
 }

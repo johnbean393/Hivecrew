@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 import AppKit
 import UniformTypeIdentifiers
 import HivecrewShared
@@ -102,6 +103,7 @@ extension SessionTraceView {
             .buttonStyle(.plain)
             .disabled(isExportingVideo || screenshotEvents.isEmpty)
             .help("Export as Video")
+            .popoverTip(videoExportTip, arrowEdge: .bottom)
             
             // Full screen button
             if let path = currentScreenshotPath {
@@ -346,6 +348,7 @@ extension SessionTraceView {
                 .buttonStyle(.plain)
                 .foregroundStyle(.purple)
                 .help("Create a reusable skill from this task")
+                .popoverTip(extractSkillTip, arrowEdge: .bottom)
             }
             
             Spacer()

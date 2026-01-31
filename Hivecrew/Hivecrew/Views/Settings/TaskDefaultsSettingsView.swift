@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 import UniformTypeIdentifiers
 
 /// Tasks settings tab - operating limits, output directory, and web tools
@@ -122,6 +123,8 @@ struct TaskDefaultsSettingsView: View {
     
     // MARK: - Output Section
     
+    private let outputDirectoryTip = OutputDirectoryTip()
+    
     private var outputSection: some View {
         Section("File Output") {
             VStack(alignment: .leading, spacing: 8) {
@@ -141,6 +144,7 @@ struct TaskDefaultsSettingsView: View {
                     Button("Choose...") {
                         showingFolderPicker = true
                     }
+                    .popoverTip(outputDirectoryTip, arrowEdge: .trailing)
 
                 }
                 .contextMenu {

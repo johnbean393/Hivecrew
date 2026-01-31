@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 import HivecrewShared
 
 /// Developer settings tab - enable developer mode and manually create/manage VMs
@@ -25,6 +26,9 @@ struct DeveloperSettingsView: View {
     @State private var vmToDelete: VMInfo?
     @State private var isStartingVM: String? // VM ID currently being started
     @State private var isStoppingVM: String? // VM ID currently being stopped
+    
+    // Tips
+    private let developerModeTip = DeveloperModeTip()
     
     /// Computed property to get developer VM IDs
     private var developerVMIds: Set<String> {
@@ -71,6 +75,9 @@ struct DeveloperSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            TipStore.shared.donateDeveloperSettingsOpened()
+        }
         .task {
             if developerModeEnabled {
                 await loadTemplates()
@@ -104,6 +111,7 @@ struct DeveloperSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Enable Developer Mode", isOn: $developerModeEnabled)
                     .toggleStyle(.switch)
+                    .popoverTip(developerModeTip, arrowEdge: .trailing)
                 
                 Text("Developer mode allows you to manually create and manage persistent VMs for testing and development. These VMs will not be used by agent tasks.")
                     .font(.caption)

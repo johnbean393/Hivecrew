@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import TipKit
 import Virtualization
 import Combine
 import HivecrewLLM
@@ -313,18 +314,34 @@ extension TaskService {
         switch result.terminationReason {
         case .completed:
             task.status = .completed
+            // Track task completion for tips
+            await MainActor.run {
+                TipStore.shared.donateTaskCompleted()
+                if result.success == true {
+                    TipStore.shared.successfulTaskCompleted()
+                }
+            }
         case .failed:
             task.status = .failed
             task.errorMessage = result.errorMessage
+            await MainActor.run {
+                TipStore.shared.donateTaskCompleted()
+            }
         case .cancelled:
             task.status = .cancelled
             task.errorMessage = result.errorMessage
         case .timedOut:
             task.status = .timedOut
             task.errorMessage = result.errorMessage
+            await MainActor.run {
+                TipStore.shared.donateTaskCompleted()
+            }
         case .maxIterations:
             task.status = .maxIterations
             task.errorMessage = result.errorMessage
+            await MainActor.run {
+                TipStore.shared.donateTaskCompleted()
+            }
         }
         
         // Move files from ~/Desktop/outbox to /Volumes/Shared/outbox
@@ -361,6 +378,13 @@ extension TaskService {
         // Copy outbox files to output directory BEFORE deleting the VM
         if result.terminationReason != .cancelled {
             task.outputFilePaths = copyOutboxFiles(vmId: vmId, customOutputDirectory: task.outputDirectory)
+            
+            // Donate deliverable received event if files were produced
+            if let paths = task.outputFilePaths, !paths.isEmpty {
+                await MainActor.run {
+                    TipStore.shared.donateDeliverableReceived()
+                }
+            }
         }
         
         // Update session record

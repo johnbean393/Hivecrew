@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 
 /// List of tasks with search functionality
 struct TaskListView: View {
@@ -16,6 +17,9 @@ struct TaskListView: View {
     
     @State private var searchText: String = ""
     @FocusState private var isSearching: Bool
+    
+    // Tips
+    private let reviewCompletedTasksTip = ReviewCompletedTasksTip()
     
     var searchFieldColor: Color {
         return self.isSearching ? .accentColor : .secondary
@@ -52,6 +56,7 @@ struct TaskListView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.never)
+                .popoverTip(reviewCompletedTasksTip, arrowEdge: .top)
             }
         }
         .padding(.horizontal, 40)

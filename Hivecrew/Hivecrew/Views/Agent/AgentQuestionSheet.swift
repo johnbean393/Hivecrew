@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TipKit
 
 /// Sheet for displaying and answering agent questions
 struct AgentQuestionSheet: View {
@@ -15,6 +16,9 @@ struct AgentQuestionSheet: View {
     
     @State private var textAnswer: String = ""
     @State private var selectedOptionIndex: Int?
+    
+    // Tips
+    private let agentQuestionsTip = AgentQuestionsTip()
     
     var body: some View {
         VStack(spacing: 24) {
@@ -49,6 +53,7 @@ struct AgentQuestionSheet: View {
             Text(question.isIntervention ? "Action Required" : "Agent Question")
                 .font(.headline)
         }
+        .popoverTip(agentQuestionsTip, arrowEdge: .bottom)
     }
     
     // MARK: - Answer Input

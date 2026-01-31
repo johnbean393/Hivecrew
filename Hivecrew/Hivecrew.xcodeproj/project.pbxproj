@@ -16,6 +16,10 @@
 		202F64702F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */; };
 		202F64722F2D6BFD00F6F359 /* ImageDownscaler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */; };
 		202F64742F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64732F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift */; };
+		202F647A2F2DA02F00F6F359 /* HivecrewTips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64752F2DA02F00F6F359 /* HivecrewTips.swift */; };
+		202F647B2F2DA02F00F6F359 /* TipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64782F2DA02F00F6F359 /* TipStore.swift */; };
+		202F647C2F2DA02F00F6F359 /* TipEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64772F2DA02F00F6F359 /* TipEvents.swift */; };
+		202F647D2F2DA02F00F6F359 /* HivecrewTipViewStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64762F2DA02F00F6F359 /* HivecrewTipViewStyle.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -191,6 +195,10 @@
 		202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+ImageGeneration.swift"; sourceTree = "<group>"; };
 		202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownscaler.swift; sourceTree = "<group>"; };
 		202F64732F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingOutputDirectoryStep.swift; sourceTree = "<group>"; };
+		202F64752F2DA02F00F6F359 /* HivecrewTips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewTips.swift; sourceTree = "<group>"; };
+		202F64762F2DA02F00F6F359 /* HivecrewTipViewStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewTipViewStyle.swift; sourceTree = "<group>"; };
+		202F64772F2DA02F00F6F359 /* TipEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipEvents.swift; sourceTree = "<group>"; };
+		202F64782F2DA02F00F6F359 /* TipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipStore.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -366,6 +374,17 @@
 				202F646B2F2D26DE00F6F359 /* ImageGenerationService.swift */,
 			);
 			path = "Image Generation";
+			sourceTree = "<group>";
+		};
+		202F64792F2DA02F00F6F359 /* Tips */ = {
+			isa = PBXGroup;
+			children = (
+				202F64752F2DA02F00F6F359 /* HivecrewTips.swift */,
+				202F64762F2DA02F00F6F359 /* HivecrewTipViewStyle.swift */,
+				202F64772F2DA02F00F6F359 /* TipEvents.swift */,
+				202F64782F2DA02F00F6F359 /* TipStore.swift */,
+			);
+			path = Tips;
 			sourceTree = "<group>";
 		};
 		2049633A2F17DDAC007DD5FD /* Updates */ = {
@@ -573,6 +592,7 @@
 				209C61A02F12ABD700062D0E /* Views */,
 				209C61872F12ABD700062D0E /* Models */,
 				209C61892F12ABD700062D0E /* Services */,
+				202F64792F2DA02F00F6F359 /* Tips */,
 				209C61A12F12ABD700062D0E /* Assets.xcassets */,
 				209C61A32F12ABD700062D0E /* Hivecrew.entitlements */,
 				209C61A52F12ABD700062D0E /* Info.plist */,
@@ -1022,6 +1042,10 @@
 				209C61BB2F12ABD700062D0E /* VMPlaceholderView.swift in Sources */,
 				209C61E62F12BA3F00062D0E /* AppVMRuntime.swift in Sources */,
 				204DF4592F162AF8004AB99B /* IPLocation.swift in Sources */,
+				202F647A2F2DA02F00F6F359 /* HivecrewTips.swift in Sources */,
+				202F647B2F2DA02F00F6F359 /* TipStore.swift in Sources */,
+				202F647C2F2DA02F00F6F359 /* TipEvents.swift in Sources */,
+				202F647D2F2DA02F00F6F359 /* HivecrewTipViewStyle.swift in Sources */,
 				2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */,
 				2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */,
 				209EB6CB2F1E174200A7F13F /* ResumableDownloader.swift in Sources */,

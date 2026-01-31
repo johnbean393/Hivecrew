@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 import UniformTypeIdentifiers
 
 /// Configuration for send key behavior
@@ -69,6 +70,11 @@ struct PromptBar: View {
     @State private var mentionQuery: MentionQuery?
     @State private var mentionScreenPosition: CGPoint?
     
+    // Tips
+    private let attachFilesTip = AttachFilesTip()
+    private let batchExecutionTip = BatchExecutionTip()
+    private let skillsMentionTip = SkillsMentionTip()
+    
     // Visual configuration
     private let cornerRadius: CGFloat = 16
     
@@ -126,6 +132,8 @@ struct PromptBar: View {
             mentionPanelController.resetSelection()
             if let query = newQuery {
                 mentionProvider.filter(query: query.query)
+                // Track @ mention for tips
+                TipStore.shared.donateAtMentionTyped()
             } else {
                 mentionPanelController.hide()
             }
@@ -162,10 +170,12 @@ struct PromptBar: View {
             PromptAttachmentButton { urls in
                 for url in urls {
                     await addAttachment(url)
+                    TipStore.shared.donateFileAttached()
                 }
             }
             .frame(width: 24)
             .padding(.trailing, 4)
+            .popoverTip(attachFilesTip, arrowEdge: .bottom)
             
             .padding(.leading, 8)
             // CENTER: Text field + model picker (leading aligned)
@@ -181,6 +191,7 @@ struct PromptBar: View {
                     onFileDrop: { url in
                         Task {
                             await addAttachment(url)
+                            TipStore.shared.donateFileAttached()
                         }
                     },
                     onMentionQuery: { query, screenPosition in
@@ -191,6 +202,7 @@ struct PromptBar: View {
                 )
                 .focused($isFocused)
                 .padding(.vertical, 1)
+                .popoverTip(skillsMentionTip, arrowEdge: .top)
                 
                 // Model picker and copy count selector
                 HStack(spacing: 8) {
@@ -205,6 +217,7 @@ struct PromptBar: View {
                         copyCount: $copyCount,
                         isFocused: isFocused
                     )
+                    .popoverTip(batchExecutionTip, arrowEdge: .bottom)
                 }
             }
             .padding(.vertical, 7)

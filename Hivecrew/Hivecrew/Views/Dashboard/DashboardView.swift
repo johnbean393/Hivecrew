@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import TipKit
 
 /// Tab selection for the task list section
 enum TaskListTab: String, CaseIterable {
@@ -21,6 +22,9 @@ struct DashboardView: View {
     @EnvironmentObject var schedulerService: SchedulerService
     
     @State private var selectedTab: TaskListTab = .tasks
+    
+    // Tips
+    private let createFirstTaskTip = CreateFirstTaskTip()
     
     var body: some View {
         VStack(spacing: 0) {
@@ -37,6 +41,7 @@ struct DashboardView: View {
                 
                 // Task input area
                 TaskInputView()
+                    .popoverTip(createFirstTaskTip, arrowEdge: .bottom)
             }
             
             Spacer()
@@ -47,6 +52,9 @@ struct DashboardView: View {
                 TaskListView(selectedTab: $selectedTab, schedulerService: schedulerService)
             } else {
                 ScheduledTasksView(selectedTab: $selectedTab, schedulerService: schedulerService)
+                    .onAppear {
+                        TipStore.shared.donateScheduledTabViewed()
+                    }
             }
             
             Spacer()
