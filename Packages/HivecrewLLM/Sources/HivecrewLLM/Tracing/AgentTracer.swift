@@ -329,20 +329,23 @@ extension AgentTracer {
     /// Parse a trace file and return all events
     public static func parseTraceFile(at path: URL) throws -> [TraceEvent] {
         let content = try String(contentsOf: path, encoding: .utf8)
-        let lines = content.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        let lines = content.components(separatedBy: .newlines)
         
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         
-        return try lines.map { line in
-            guard let data = line.data(using: .utf8) else {
-                throw LLMError.decodingError(underlying: NSError(
-                    domain: "AgentTracer",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 in trace line"]
-                ))
+        var events: [TraceEvent] = []
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else {
+                continue
             }
-            return try decoder.decode(TraceEvent.self, from: data)
+            // Skip malformed lines to keep parsing resilient to partial writes.
+            if let event = try? decoder.decode(TraceEvent.self, from: data) {
+                events.append(event)
+            }
         }
+        
+        return events
     }
 }

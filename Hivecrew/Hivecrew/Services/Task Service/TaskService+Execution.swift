@@ -384,8 +384,9 @@ extension TaskService {
         try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
         
         // Copy outbox files to output directory BEFORE deleting the VM
+        // Files are saved into a subfolder named after the task title + timestamp
         if result.terminationReason != .cancelled {
-            task.outputFilePaths = copyOutboxFiles(vmId: vmId, customOutputDirectory: task.outputDirectory)
+            task.outputFilePaths = copyOutboxFiles(vmId: vmId, taskTitle: task.title, customOutputDirectory: task.outputDirectory)
             
             // Donate deliverable received event if files were produced
             if let paths = task.outputFilePaths, !paths.isEmpty {

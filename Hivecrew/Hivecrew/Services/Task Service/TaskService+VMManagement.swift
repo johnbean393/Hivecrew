@@ -234,11 +234,13 @@ extension TaskService {
     }
     
     /// Copy files from VM's outbox to the configured output directory
+    /// Files are saved into a subfolder named after the task title + timestamp
     /// - Parameters:
     ///   - vmId: The VM identifier
+    ///   - taskTitle: The task title (used for subfolder naming)
     ///   - customOutputDirectory: Optional custom output directory path (overrides app settings)
     /// - Returns: Array of paths to copied files
-    func copyOutboxFiles(vmId: String, customOutputDirectory: String? = nil) -> [String] {
+    func copyOutboxFiles(vmId: String, taskTitle: String, customOutputDirectory: String? = nil) -> [String] {
         let fm = FileManager.default
         let outboxPath = AppPaths.vmOutboxDirectory(id: vmId)
         
@@ -258,21 +260,25 @@ extension TaskService {
             }
         }
         
-        // Determine output directory: custom > app setting > Downloads
-        let outputDirectory: URL
+        // Determine base output directory: custom > app setting > Downloads
+        let baseOutputDirectory: URL
         if let customDir = customOutputDirectory, !customDir.isEmpty {
             // Use custom output directory from task/API request
-            outputDirectory = URL(fileURLWithPath: customDir)
+            baseOutputDirectory = URL(fileURLWithPath: customDir)
         } else {
             // Fall back to app settings or Downloads
             let outputDirectoryPath = UserDefaults.standard.string(forKey: "outputDirectoryPath") ?? ""
             if outputDirectoryPath.isEmpty {
                 // Default to Downloads
-                outputDirectory = fm.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory())
+                baseOutputDirectory = fm.urls(for: .downloadsDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory())
             } else {
-                outputDirectory = URL(fileURLWithPath: outputDirectoryPath)
+                baseOutputDirectory = URL(fileURLWithPath: outputDirectoryPath)
             }
         }
+        
+        // Create subfolder name from task title + timestamp
+        let subfolderName = generateOutputSubfolderName(taskTitle: taskTitle)
+        let outputDirectory = baseOutputDirectory.appendingPathComponent(subfolderName)
         
         print("TaskService: copyOutboxFiles - outputDirectory: \(outputDirectory.path)")
         
@@ -328,6 +334,27 @@ extension TaskService {
         }
         
         return copiedPaths
+    }
+    
+    /// Generate a subfolder name for task output based on title and timestamp
+    /// - Parameter taskTitle: The task title
+    /// - Returns: Sanitized folder name in format "{title}-{timestamp}"
+    private func generateOutputSubfolderName(taskTitle: String) -> String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyyMMdd-HHmmss"
+        let timestamp = dateFormatter.string(from: Date())
+        
+        // Sanitize the title - remove special characters, limit length
+        let sanitizedTitle = taskTitle
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+            .prefix(50)
+        
+        // Handle empty title case
+        let titlePart = sanitizedTitle.isEmpty ? "task" : String(sanitizedTitle)
+        
+        return "\(titlePart)-\(timestamp)"
     }
 }
 
