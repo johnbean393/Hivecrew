@@ -64,6 +64,14 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated mac
 - **Multi-Provider**: Works with Anthropic, OpenAI, OpenRouter, and any OpenAI-compatible API
 - **Per-Task Selection**: Choose which provider and model to use for each task
 - **Local LLMs**: Connect to local LLM servers with custom base URLs
+- **Recommended Provider**: We suggest using [OpenRouter](https://openrouter.ai) for easy switching between different models with a single API key
+
+#### Recommended Models
+
+| Model | Best For | Notes |
+|-------|----------|-------|
+| **Kimi K2.5** | Most general tasks | Best balance between cost and performance |
+| **Claude Sonnet 4.5** | Screen interaction tasks | Only recommended for tasks requiring heavy clicking, pointing, and visual navigation (e.g., completing UI tests of a web app) |
 
 ### Credentials & Security
 
