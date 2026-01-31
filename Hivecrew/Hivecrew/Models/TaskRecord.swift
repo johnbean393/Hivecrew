@@ -19,6 +19,9 @@ enum TaskStatus: Int, Codable, CaseIterable {
     case paused = 6        // Yellow dot - agent is paused, awaiting user
     case timedOut = 7      // Orange dot - task exceeded time limit
     case maxIterations = 8 // Orange dot - task exceeded max iterations
+    case planning = 9      // Yellow dot - plan is being generated
+    case planReview = 10   // Blue dot - awaiting user review/edit of plan
+    case planFailed = 11   // Red dot - planning failed
     
     var displayName: String {
         switch self {
@@ -31,25 +34,29 @@ enum TaskStatus: Int, Codable, CaseIterable {
         case .paused: return "Paused"
         case .timedOut: return "Timed Out"
         case .maxIterations: return "Max Iterations"
+        case .planning: return "Generating Plan"
+        case .planReview: return "Review Plan"
+        case .planFailed: return "Planning Failed"
         }
     }
     
     var statusColor: String {
         switch self {
-        case .queued, .waitingForVM, .paused: return "yellow"
+        case .queued, .waitingForVM, .paused, .planning: return "yellow"
         case .running: return "green"
         case .completed: return "gray"
-        case .failed: return "red"
+        case .failed, .planFailed: return "red"
         case .cancelled: return "gray"
         case .timedOut, .maxIterations: return "orange"
+        case .planReview: return "blue"
         }
     }
     
     var isActive: Bool {
         switch self {
-        case .queued, .waitingForVM, .running, .paused:
+        case .queued, .waitingForVM, .running, .paused, .planning, .planReview:
             return true
-        case .completed, .failed, .cancelled, .timedOut, .maxIterations:
+        case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed:
             return false
         }
     }
@@ -116,6 +123,23 @@ final class TaskRecord {
     /// nil = not yet checked, true = verified success, false = verified failure
     var wasSuccessful: Bool?
     
+    // MARK: - Plan Mode Properties
+    
+    /// Whether plan mode was enabled for this task (optional for migration compatibility)
+    private var planFirstEnabledRaw: Bool?
+    
+    /// The generated/edited execution plan (Markdown with checkboxes)
+    var planMarkdown: String?
+    
+    /// Names of skills auto-selected during planning
+    var planSelectedSkillNames: [String]?
+    
+    /// Computed property for planFirstEnabled with default value
+    var planFirstEnabled: Bool {
+        get { planFirstEnabledRaw ?? false }
+        set { planFirstEnabledRaw = newValue }
+    }
+    
     init(
         id: String = UUID().uuidString,
         title: String,
@@ -133,7 +157,10 @@ final class TaskRecord {
         attachedFilePaths: [String] = [],
         outputFilePaths: [String]? = nil,
         outputDirectory: String? = nil,
-        mentionedSkillNames: [String]? = nil
+        mentionedSkillNames: [String]? = nil,
+        planFirstEnabled: Bool = false,
+        planMarkdown: String? = nil,
+        planSelectedSkillNames: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -152,6 +179,9 @@ final class TaskRecord {
         self.outputFilePaths = outputFilePaths
         self.outputDirectory = outputDirectory
         self.mentionedSkillNames = mentionedSkillNames
+        self.planFirstEnabledRaw = planFirstEnabled
+        self.planMarkdown = planMarkdown
+        self.planSelectedSkillNames = planSelectedSkillNames
     }
     
     /// Computed status property

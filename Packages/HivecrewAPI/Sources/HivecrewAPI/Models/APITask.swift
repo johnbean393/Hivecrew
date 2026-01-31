@@ -18,6 +18,9 @@ public enum APITaskStatus: String, Codable, Sendable {
     case cancelled = "cancelled"
     case timedOut = "timed_out"
     case maxIterations = "max_iterations"
+    case planning = "planning"
+    case planReview = "plan_review"
+    case planFailed = "plan_failed"
 }
 
 /// Task priority values

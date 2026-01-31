@@ -70,6 +70,9 @@ final class AgentRunner {
     /// Todo manager for tracking agent tasks
     let todoManager: TodoManager
     
+    /// Plan state for tracking plan progress (if task has a plan)
+    var planState: PlanState?
+    
     /// Task for timeout monitoring
     private var timeoutTask: Task<Void, Never>?
     
@@ -175,6 +178,20 @@ final class AgentRunner {
         } else {
             self.tools = schemaBuilder.buildCUATools(excluding: excludedTools)
         }
+        
+        // Set up todo callbacks to sync with plan state
+        // Note: Must be after self.tools is initialized since callbacks capture self
+        self.toolExecutor.onTodoItemFinished = { [weak self] index, itemText in
+            guard let self = self else { return }
+            // Sync with plan state using item text
+            self.completePlanItem(content: itemText)
+        }
+        
+        self.toolExecutor.onTodoItemAdded = { [weak self] itemText in
+            guard let self = self else { return }
+            // Sync with plan state
+            self.addPlanItem(content: itemText)
+        }
     }
     
     // MARK: - Public Methods
@@ -222,15 +239,21 @@ final class AgentRunner {
             statePublisher.logInfo("Matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
         }
         
-        // Initialize conversation with system prompt including screen dimensions, input files, and skills
+        // Initialize conversation with system prompt including screen dimensions, input files, skills, and plan
         let systemPrompt = AgentPrompts.systemPrompt(
             task: task.taskDescription,
             screenWidth: screenWidth,
             screenHeight: screenHeight,
             inputFiles: inputFileNames,
-            skills: matchedSkills
+            skills: matchedSkills,
+            plan: task.planMarkdown
         )
         conversationHistory = [.system(systemPrompt)]
+        
+        // Initialize plan state if task has a plan
+        if let planMarkdown = task.planMarkdown {
+            initializePlanState(from: planMarkdown)
+        }
         
         // Store initial screenshot for the first observation
         self.initialScreenshot = initialScreenshot
@@ -280,6 +303,86 @@ final class AgentRunner {
             }
         } catch {
             statePublisher.logError("Failed to save todo list to trace: \(error.localizedDescription)")
+        }
+        
+        // Also save plan state if it exists
+        await savePlanState()
+    }
+    
+    // MARK: - Plan State Management
+    
+    /// Initialize plan state from the task's plan markdown
+    /// Also populates the TodoManager so the agent can use finish_todo_item tool
+    private func initializePlanState(from planMarkdown: String) {
+        let items = PlanParser.parseTodos(from: planMarkdown)
+        planState = PlanState(items: items)
+        statePublisher.planProgress = planState
+        
+        // Also create a todo list from the plan items so the agent can use todo tools
+        if !items.isEmpty {
+            let itemTexts = items.map { $0.content }
+            _ = todoManager.createList(title: "Execution Plan", items: itemTexts)
+            statePublisher.logInfo("Plan loaded with \(items.count) todo item(s) - todo list created")
+        } else {
+            statePublisher.logInfo("Plan loaded (no todo items found)")
+        }
+    }
+    
+    /// Mark a plan item as completed
+    func completePlanItem(content: String) {
+        guard var state = planState else { return }
+        
+        if let index = state.items.firstIndex(where: { $0.content == content }) {
+            state.items[index].isCompleted = true
+            state.items[index].completedAt = Date()
+            planState = state
+            statePublisher.planProgress = state
+            
+            statePublisher.logInfo("Plan item completed: \(content.prefix(50))...")
+        }
+    }
+    
+    /// Add a new item to the plan during execution
+    func addPlanItem(content: String) {
+        guard var state = planState else { return }
+        
+        let item = state.addItem(content: content)
+        planState = state
+        statePublisher.planProgress = state
+        
+        statePublisher.logInfo("Plan item added: \(item.content.prefix(50))...")
+    }
+    
+    /// Record a deviation from the plan
+    func recordPlanDeviation(description: String, reasoning: String) {
+        guard var state = planState else { return }
+        
+        state.recordDeviation(description: description, reasoning: reasoning)
+        planState = state
+        statePublisher.planProgress = state
+        
+        statePublisher.logInfo("Plan deviation: \(description.prefix(50))...")
+    }
+    
+    /// Save plan state to the session directory
+    private func savePlanState() async {
+        guard let state = planState, let sessionId = task.sessionId else { return }
+        
+        do {
+            let planStatePath = AppPaths.sessionPlanStatePath(id: sessionId)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(state)
+            try data.write(to: planStatePath)
+            
+            // Also save the original plan markdown
+            if let planMarkdown = task.planMarkdown {
+                let planPath = AppPaths.sessionPlanPath(id: sessionId)
+                try planMarkdown.write(to: planPath, atomically: true, encoding: .utf8)
+            }
+        } catch {
+            statePublisher.logError("Failed to save plan state: \(error.localizedDescription)")
         }
     }
     

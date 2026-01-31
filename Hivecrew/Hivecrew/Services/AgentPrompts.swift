@@ -19,12 +19,14 @@ enum AgentPrompts {
     ///   - screenHeight: Screen height in pixels
     ///   - inputFiles: List of input file names
     ///   - skills: Optional array of skills to inject into the prompt
+    ///   - plan: Optional execution plan markdown to inject
     static func systemPrompt(
         task: String,
         screenWidth: Int = 1344,
         screenHeight: Int = 840,
         inputFiles: [String] = [],
-        skills: [Skill] = []
+        skills: [Skill] = [],
+        plan: String? = nil
     ) -> String {
         var filesSection = ""
         if !inputFiles.isEmpty {
@@ -42,6 +44,12 @@ enum AgentPrompts {
         var skillsSection = ""
         if !skills.isEmpty {
             skillsSection = buildSkillsSection(skills: skills)
+        }
+        
+        // Build plan section
+        var planSection = ""
+        if let plan = plan, !plan.isEmpty {
+            planSection = buildPlanSection(plan: plan)
         }
         
         return """
@@ -111,7 +119,7 @@ TIPS:
 
 TO FINISH:
 When the task is complete, stop calling tools and respond with a summary of what you accomplished. 
-\(skillsSection)
+\(skillsSection)\(planSection)
 """
     }
     
@@ -141,6 +149,43 @@ When the task is complete, stop calling tools and respond with a summary of what
         }
         
         return section
+    }
+    
+    /// Build the execution plan section for the system prompt
+    private static func buildPlanSection(plan: String) -> String {
+        // Extract todo items to show item numbers
+        let items = PlanParser.parseTodos(from: plan)
+        
+        var itemList = ""
+        if !items.isEmpty {
+            itemList = "\n\nYour todo list has been pre-populated with the following items:\n"
+            for (index, item) in items.enumerated() {
+                let number = index + 1
+                let status = item.isCompleted ? "[x]" : "[ ]"
+                itemList += "\(number). \(status) \(item.content)\n"
+            }
+        }
+        
+        return """
+        
+        ---
+        
+        EXECUTION PLAN:
+        The following execution plan was created for this task. Follow it as closely as possible, but you may deviate if necessary.
+        When you deviate from the plan, briefly explain why in your response.
+        
+        IMPORTANT - Tracking Progress:
+        A todo list has already been created from this plan. As you complete each step:
+        1. Call `finish_todo_item` with the item number (1-based index) to mark it complete
+        2. If you need to add steps not in the original plan, use `add_todo_item` to track them
+        3. Do NOT call `create_todo_list` - the list already exists
+        \(itemList)
+        PLAN DETAILS:
+        \(plan)
+        
+        ---
+        
+        """
     }
     
     /// Build a tree view representation of file paths

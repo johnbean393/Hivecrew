@@ -53,6 +53,9 @@ struct PromptBar: View {
     // Send key configuration
     @AppStorage("useCommandReturn") private var useCommandReturn: Bool = true
     
+    // Plan mode toggle
+    @Binding var planFirstEnabled: Bool
+    
     // Submit callback
     var onSubmit: () async -> Void
     
@@ -204,7 +207,7 @@ struct PromptBar: View {
                 .padding(.vertical, 1)
                 .popoverTip(skillsMentionTip, arrowEdge: .top)
                 
-                // Model picker and copy count selector
+                // Model picker, copy count selector, and plan toggle
                 HStack(spacing: 8) {
                     PromptModelButton(
                         selectedProviderId: $selectedProviderId,
@@ -218,6 +221,12 @@ struct PromptBar: View {
                         isFocused: isFocused
                     )
                     .popoverTip(batchExecutionTip, arrowEdge: .bottom)
+                    
+                    // Plan First toggle (rightmost)
+                    PlanFirstToggle(
+                        isEnabled: $planFirstEnabled,
+                        isFocused: isFocused
+                    )
                 }
             }
             .padding(.vertical, 7)
@@ -446,6 +455,7 @@ struct PromptBar: View {
         @State var copyCount: TaskCopyCount = .one
         @State var isSubmitting = false
         @State var mentionedSkills: [String] = []
+        @State var planFirst = false
         
         var body: some View {
             VStack {
@@ -458,6 +468,7 @@ struct PromptBar: View {
                     selectedModelId: $modelId,
                     copyCount: $copyCount,
                     mentionedSkillNames: $mentionedSkills,
+                    planFirstEnabled: $planFirst,
                     onSubmit: {
                         isSubmitting = true
                         try? await Task.sleep(for: .seconds(1))

@@ -31,6 +31,18 @@ struct SessionTraceView: View {
     @State var isExportingVideo: Bool = false
     @State var exportProgress: Double = 0
     @State var showingSkillExtraction: Bool = false
+    @State var selectedTab: TraceTab = .trace
+    @State var planState: PlanState? = nil
+    
+    enum TraceTab: String, CaseIterable {
+        case trace = "Trace"
+        case plan = "Plan"
+    }
+    
+    /// Whether the task has a plan
+    var hasPlan: Bool {
+        task.planFirstEnabled && (task.planMarkdown != nil || planState != nil)
+    }
     
     // Tips (accessed from extension)
     let extractSkillTip = ExtractSkillTip()
@@ -228,10 +240,30 @@ struct SessionTraceView: View {
                 currentScreenshotStep = firstScreenshot.step
             }
             
+            // Load plan state if available
+            loadPlanState(sessionId: sessionId)
+            
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+        }
+    }
+    
+    private func loadPlanState(sessionId: String) {
+        let planStatePath = AppPaths.sessionPlanStatePath(id: sessionId)
+        
+        guard FileManager.default.fileExists(atPath: planStatePath.path) else {
+            return
+        }
+        
+        do {
+            let data = try Data(contentsOf: planStatePath)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            planState = try decoder.decode(PlanState.self, from: data)
+        } catch {
+            print("Failed to load plan state: \(error)")
         }
     }
     

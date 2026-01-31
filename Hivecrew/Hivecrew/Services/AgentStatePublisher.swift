@@ -120,6 +120,9 @@ class AgentStatePublisher: ObservableObject {
     /// Whether the trace panel for this task is currently visible (user can answer inline)
     var isTracePanelVisible: Bool = false
     
+    /// Plan progress state (for tasks with execution plans)
+    @Published var planProgress: PlanState?
+    
     /// Task ID this publisher is tracking
     let taskId: String
     

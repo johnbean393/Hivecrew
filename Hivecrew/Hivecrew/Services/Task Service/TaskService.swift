@@ -28,6 +28,9 @@ class TaskService: ObservableObject {
     /// State publishers for active tasks by task ID
     @Published var statePublishers: [String: AgentStatePublisher] = [:]
     
+    /// Active planning state publishers keyed by task ID (for plan-first mode)
+    @Published var activePlanningPublishers: [String: PlanningStatePublisher] = [:]
+    
     /// Pending questions from agents
     @Published var pendingQuestions: [AgentQuestion] = []
     
@@ -88,7 +91,8 @@ class TaskService: ObservableObject {
         modelId: String,
         attachedFilePaths: [String] = [],
         outputDirectory: String? = nil,
-        mentionedSkillNames: [String] = []
+        mentionedSkillNames: [String] = [],
+        planFirstEnabled: Bool = false
     ) async throws -> TaskRecord {
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
@@ -106,7 +110,8 @@ class TaskService: ObservableObject {
             modelId: modelId,
             attachedFilePaths: attachedFilePaths,
             outputDirectory: outputDirectory,
-            mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames
+            mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames,
+            planFirstEnabled: planFirstEnabled
         )
         
         // Save to SwiftData
@@ -145,7 +150,8 @@ class TaskService: ObservableObject {
             modelId: originalTask.modelId,
             attachedFilePaths: validAttachments,
             outputDirectory: originalTask.outputDirectory,
-            mentionedSkillNames: originalTask.mentionedSkillNames ?? []
+            mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
+            planFirstEnabled: originalTask.planFirstEnabled
         )
     }
     

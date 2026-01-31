@@ -20,6 +20,12 @@ class ToolExecutor {
     var onAskQuestion: ((AgentQuestion) async -> String)?
     var onRequestPermission: ((String, String) async -> Bool)?
     
+    /// Callback when a todo item is finished (provides 1-based index and item text)
+    var onTodoItemFinished: ((Int, String) -> Void)?
+    
+    /// Callback when a todo item is added (provides item text)
+    var onTodoItemAdded: ((String) -> Void)?
+    
     let todoManager: TodoManager
     let taskProviderId: String
     let taskModelId: String
@@ -350,12 +356,27 @@ class ToolExecutor {
     private func executeAddTodoItem(args: [String: Any]) throws -> InternalToolResult {
         let itemText = args["item"] as? String ?? ""
         let index = try todoManager.addItem(itemText: itemText)
+        
+        // Notify callback for plan state sync
+        onTodoItemAdded?(itemText)
+        
         return .text("✓ Added item #\(index): \(itemText)")
     }
     
     private func executeFinishTodoItem(args: [String: Any]) throws -> InternalToolResult {
         let index = args["index"] as? Int ?? 0
+        
+        // Get the item text before finishing (for plan state sync)
+        var itemText = ""
+        if let list = todoManager.getList(), index >= 1 && index <= list.items.count {
+            itemText = list.items[index - 1].text
+        }
+        
         try todoManager.finishItem(index: index)
+        
+        // Notify callback for plan state sync
+        onTodoItemFinished?(index, itemText)
+        
         return .text("✓ Marked item #\(index) as completed")
     }
 }

@@ -25,6 +25,9 @@ extension APIServiceProviderBridge {
         case .cancelled: return .cancelled
         case .timedOut: return .timedOut
         case .maxIterations: return .maxIterations
+        case .planning: return .planning
+        case .planReview: return .planReview
+        case .planFailed: return .planFailed
         }
     }
     
@@ -39,6 +42,9 @@ extension APIServiceProviderBridge {
         case .cancelled: return .cancelled
         case .timedOut: return .timedOut
         case .maxIterations: return .maxIterations
+        case .planning: return .planning
+        case .planReview: return .planReview
+        case .planFailed: return .planFailed
         }
     }
 }

@@ -20,6 +20,16 @@
 		202F647B2F2DA02F00F6F359 /* TipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64782F2DA02F00F6F359 /* TipStore.swift */; };
 		202F647C2F2DA02F00F6F359 /* TipEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64772F2DA02F00F6F359 /* TipEvents.swift */; };
 		202F647D2F2DA02F00F6F359 /* HivecrewTipViewStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64762F2DA02F00F6F359 /* HivecrewTipViewStyle.swift */; };
+		202F64842F2DB88700F6F359 /* PlanningTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64812F2DB88700F6F359 /* PlanningTools.swift */; };
+		202F64852F2DB88700F6F359 /* PlanningStatePublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64802F2DB88700F6F359 /* PlanningStatePublisher.swift */; };
+		202F64862F2DB88700F6F359 /* PlanParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64822F2DB88700F6F359 /* PlanParser.swift */; };
+		202F64872F2DB88700F6F359 /* PlanningPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F647F2F2DB88700F6F359 /* PlanningPrompts.swift */; };
+		202F64882F2DB88700F6F359 /* PlanningAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F647E2F2DB88700F6F359 /* PlanningAgent.swift */; };
+		202F648A2F2DB8A900F6F359 /* PlanTodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64892F2DB8A900F6F359 /* PlanTodoItem.swift */; };
+		202F648C2F2DB8BD00F6F359 /* PlanFirstToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F648B2F2DB8BD00F6F359 /* PlanFirstToggle.swift */; };
+		202F648F2F2DB9E300F6F359 /* PlanReviewWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F648D2F2DB9E300F6F359 /* PlanReviewWindow.swift */; };
+		202F64922F2DCC1C00F6F359 /* RichPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64912F2DCC1C00F6F359 /* RichPlanView.swift */; };
+		202F64932F2DCC1C00F6F359 /* MermaidDiagramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64902F2DCC1C00F6F359 /* MermaidDiagramView.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -199,6 +209,16 @@
 		202F64762F2DA02F00F6F359 /* HivecrewTipViewStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewTipViewStyle.swift; sourceTree = "<group>"; };
 		202F64772F2DA02F00F6F359 /* TipEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipEvents.swift; sourceTree = "<group>"; };
 		202F64782F2DA02F00F6F359 /* TipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipStore.swift; sourceTree = "<group>"; };
+		202F647E2F2DB88700F6F359 /* PlanningAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningAgent.swift; sourceTree = "<group>"; };
+		202F647F2F2DB88700F6F359 /* PlanningPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningPrompts.swift; sourceTree = "<group>"; };
+		202F64802F2DB88700F6F359 /* PlanningStatePublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningStatePublisher.swift; sourceTree = "<group>"; };
+		202F64812F2DB88700F6F359 /* PlanningTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanningTools.swift; sourceTree = "<group>"; };
+		202F64822F2DB88700F6F359 /* PlanParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanParser.swift; sourceTree = "<group>"; };
+		202F64892F2DB8A900F6F359 /* PlanTodoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanTodoItem.swift; sourceTree = "<group>"; };
+		202F648B2F2DB8BD00F6F359 /* PlanFirstToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanFirstToggle.swift; sourceTree = "<group>"; };
+		202F648D2F2DB9E300F6F359 /* PlanReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanReviewWindow.swift; sourceTree = "<group>"; };
+		202F64902F2DCC1C00F6F359 /* MermaidDiagramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidDiagramView.swift; sourceTree = "<group>"; };
+		202F64912F2DCC1C00F6F359 /* RichPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichPlanView.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -387,6 +407,28 @@
 			path = Tips;
 			sourceTree = "<group>";
 		};
+		202F64832F2DB88700F6F359 /* Planning */ = {
+			isa = PBXGroup;
+			children = (
+				202F647E2F2DB88700F6F359 /* PlanningAgent.swift */,
+				202F647F2F2DB88700F6F359 /* PlanningPrompts.swift */,
+				202F64802F2DB88700F6F359 /* PlanningStatePublisher.swift */,
+				202F64812F2DB88700F6F359 /* PlanningTools.swift */,
+				202F64822F2DB88700F6F359 /* PlanParser.swift */,
+			);
+			path = Planning;
+			sourceTree = "<group>";
+		};
+		202F648E2F2DB9E300F6F359 /* Planning */ = {
+			isa = PBXGroup;
+			children = (
+				202F64902F2DCC1C00F6F359 /* MermaidDiagramView.swift */,
+				202F64912F2DCC1C00F6F359 /* RichPlanView.swift */,
+				202F648D2F2DB9E300F6F359 /* PlanReviewWindow.swift */,
+			);
+			path = Planning;
+			sourceTree = "<group>";
+		};
 		2049633A2F17DDAC007DD5FD /* Updates */ = {
 			isa = PBXGroup;
 			children = (
@@ -413,6 +455,7 @@
 		204DF42E2F1571AB004AB99B /* Prompt Bar */ = {
 			isa = PBXGroup;
 			children = (
+				202F648B2F2DB8BD00F6F359 /* PlanFirstToggle.swift */,
 				202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */,
 				209EB6CE2F1E17F000A7F13F /* PromptTextView.swift */,
 				204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */,
@@ -496,6 +539,7 @@
 		209C61872F12ABD700062D0E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				202F64892F2DB8A900F6F359 /* PlanTodoItem.swift */,
 				20B899442F1FAEB5003887A3 /* ScheduledTask.swift */,
 				3001A0032F15000000000003 /* AgentQuestion.swift */,
 				3001A0022F15000000000002 /* AgentSessionRecord.swift */,
@@ -509,6 +553,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				202F64832F2DB88700F6F359 /* Planning */,
 				202F646C2F2D26DE00F6F359 /* Image Generation */,
 				20B899472F1FAEC4003887A3 /* Scheduler */,
 				209EB6E92F1E26D000A7F13F /* Skills */,
@@ -569,6 +614,7 @@
 		209C61A02F12ABD700062D0E /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				202F648E2F2DB9E300F6F359 /* Planning */,
 				20B8994C2F1FAEE1003887A3 /* Schedule */,
 				204DF4192F14D5E7004AB99B /* Onboarding */,
 				20C413EB2F142C6B00C6E8A9 /* App */,
@@ -1019,6 +1065,11 @@
 				202F64702F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift in Sources */,
 				209EB6F22F1E284700A7F13F /* SkillExtractionSheet.swift in Sources */,
 				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
+				202F64842F2DB88700F6F359 /* PlanningTools.swift in Sources */,
+				202F64852F2DB88700F6F359 /* PlanningStatePublisher.swift in Sources */,
+				202F64862F2DB88700F6F359 /* PlanParser.swift in Sources */,
+				202F64872F2DB88700F6F359 /* PlanningPrompts.swift in Sources */,
+				202F64882F2DB88700F6F359 /* PlanningAgent.swift in Sources */,
 				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
 				209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */,
 				204DF4222F14DEEF004AB99B /* DeveloperSettingsView.swift in Sources */,
@@ -1058,6 +1109,8 @@
 				209EB6EC2F1E26D000A7F13F /* SkillManager.swift in Sources */,
 				202F64742F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift in Sources */,
 				209EB6ED2F1E26D000A7F13F /* SkillMatcherTypes.swift in Sources */,
+				202F64922F2DCC1C00F6F359 /* RichPlanView.swift in Sources */,
+				202F64932F2DCC1C00F6F359 /* MermaidDiagramView.swift in Sources */,
 				204DF45A2F162AF8004AB99B /* WebpageReader.swift in Sources */,
 				204DF45B2F162AF8004AB99B /* SearchResult.swift in Sources */,
 				204DF45C2F162AF8004AB99B /* WebpageExtractor.swift in Sources */,
@@ -1065,6 +1118,7 @@
 				209EB6D52F1E188400A7F13F /* CredentialRowView.swift in Sources */,
 				209EB6D62F1E188400A7F13F /* CredentialImportSheet.swift in Sources */,
 				204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */,
+				202F648C2F2DB8BD00F6F359 /* PlanFirstToggle.swift in Sources */,
 				204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */,
 				204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */,
 				202F64692F2BD82A00F6F359 /* PromptCopyCountButton.swift in Sources */,
@@ -1073,8 +1127,10 @@
 				209C61BC2F12ABD700062D0E /* ContentView.swift in Sources */,
 				204DF4452F157492004AB99B /* GuestAgentConnection+Tools.swift in Sources */,
 				209C61BD2F12ABD700062D0E /* HivecrewApp.swift in Sources */,
+				202F648F2F2DB9E300F6F359 /* PlanReviewWindow.swift in Sources */,
 				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
 				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
+				202F648A2F2DB8A900F6F359 /* PlanTodoItem.swift in Sources */,
 				209EB6C82F1DFEB200A7F13F /* MentionSuggestionsPanel.swift in Sources */,
 				3001B0032F15000000000003 /* AgentQuestion.swift in Sources */,
 				204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */,

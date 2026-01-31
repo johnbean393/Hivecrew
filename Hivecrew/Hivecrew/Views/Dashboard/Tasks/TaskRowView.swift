@@ -15,6 +15,7 @@ struct TaskRowView: View {
     @EnvironmentObject var taskService: TaskService
     @State private var isHovered: Bool = false
     @State private var showingTrace: Bool = false
+    @State private var showingPlanReview: Bool = false
     
     // Tips
     private let showDeliverableTip = ShowDeliverableTip()
@@ -26,7 +27,7 @@ struct TaskRowView: View {
     
     var statusColor: Color {
         switch task.status {
-            case .queued, .waitingForVM, .paused:
+            case .queued, .waitingForVM, .paused, .planning:
                 return .yellow
             case .running:
                 return .green
@@ -36,12 +37,14 @@ struct TaskRowView: View {
                     return success ? .green : .red
                 }
                 return .gray
-            case .failed:
+            case .failed, .planFailed:
                 return .red
             case .cancelled:
                 return .gray
             case .timedOut, .maxIterations:
                 return .orange
+            case .planReview:
+                return .blue
         }
     }
     
@@ -58,7 +61,18 @@ struct TaskRowView: View {
         Button(action: handleRowTap) {
             HStack(spacing: 12) {
                 // Status indicator
-                if let icon = completionIcon {
+                if task.status == .planning {
+                    // Spinner for planning state
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 14, height: 14)
+                } else if task.status == .planReview {
+                    // Blue clipboard icon for plan review
+                    Image(systemName: "list.bullet.clipboard.fill")
+                        .foregroundStyle(.blue)
+                        .font(.system(size: 14))
+                        .frame(width: 14, height: 14)
+                } else if let icon = completionIcon {
                     // Show checkmark or X for completed tasks
                     Image(systemName: icon)
                         .foregroundStyle(statusColor)
@@ -138,26 +152,71 @@ struct TaskRowView: View {
                 
                 Spacer()
                 
-                // Actions (shown on hover)
-                if isHovered {
+                // Actions (shown on hover or always for planReview)
+                if isHovered || task.status == .planReview {
                     HStack(spacing: 8) {
-                        // Rerun button for inactive tasks
-                        if !task.status.isActive {
-                            Button(action: { Task { try? await taskService.rerunTask(task) } }) {
-                                Image(systemName: "arrow.counterclockwise")
-                                    .foregroundStyle(.blue)
+                        // Plan Review actions
+                        if task.status == .planReview {
+                            Button {
+                                showingPlanReview = true
+                            } label: {
+                                Text("Review")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
                             }
-                            .buttonStyle(.plain)
-                            .help("Rerun task")
-                        }
-                        
-                        if task.status.isActive {
-                            Button(action: { Task { await taskService.cancelTask(task) } }) {
-                                Image(systemName: "xmark.circle")
-                                    .foregroundStyle(.orange)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                            .controlSize(.small)
+                            .help("Review and edit the execution plan")
+                            
+                            Button {
+                                Task { await taskService.executePlan(for: task) }
+                            } label: {
+                                Image(systemName: "play.fill")
+                                    .font(.caption)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.bordered)
+                            .tint(.green)
+                            .controlSize(.small)
+                            .help("Execute the plan now")
+                            
+                            Button {
+                                Task { await taskService.cancelPlanning(for: task) }
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                            .controlSize(.small)
                             .help("Cancel task")
+                        } else {
+                            // Rerun button for inactive tasks
+                            if !task.status.isActive {
+                                Button(action: { Task { try? await taskService.rerunTask(task) } }) {
+                                    Image(systemName: "arrow.counterclockwise")
+                                        .foregroundStyle(.blue)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Rerun task")
+                            }
+                            
+                            // Cancel button for planning state
+                            if task.status == .planning {
+                                Button(action: { Task { await taskService.cancelPlanning(for: task) } }) {
+                                    Image(systemName: "xmark.circle")
+                                        .foregroundStyle(.orange)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Cancel planning")
+                            } else if task.status.isActive {
+                                Button(action: { Task { await taskService.cancelTask(task) } }) {
+                                    Image(systemName: "xmark.circle")
+                                        .foregroundStyle(.orange)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Cancel task")
+                            }
                         }
                     }
                 }
@@ -190,6 +249,9 @@ struct TaskRowView: View {
         }
         .sheet(isPresented: $showingTrace) {
             SessionTraceView(task: task)
+        }
+        .sheet(isPresented: $showingPlanReview) {
+            PlanReviewWindow(task: task, taskService: taskService)
         }
         .contextMenu {
             // View trace option
@@ -241,7 +303,10 @@ struct TaskRowView: View {
     }
     
     private func handleRowTap() {
-        if isActivelyRunning {
+        if task.status == .planning || task.status == .planReview {
+            // Show plan review window (streaming during planning, editable during review)
+            showingPlanReview = true
+        } else if isActivelyRunning {
             // Navigate to task's environment if task is actively running
             navigateToTask(task.id)
         } else {

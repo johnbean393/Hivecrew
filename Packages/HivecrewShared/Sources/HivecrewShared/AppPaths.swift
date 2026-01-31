@@ -123,6 +123,16 @@ public enum AppPaths {
         sessionDirectory(id: id).appendingPathComponent("screenshots", isDirectory: true)
     }
     
+    /// Returns the plan file path for a specific session
+    public static func sessionPlanPath(id: String) -> URL {
+        sessionDirectory(id: id).appendingPathComponent("plan.md")
+    }
+    
+    /// Returns the plan state file path for a specific session
+    public static func sessionPlanStatePath(id: String) -> URL {
+        sessionDirectory(id: id).appendingPathComponent("plan_state.json")
+    }
+    
     // MARK: - Templates Storage
     
     /// Directory containing VM templates (golden images)

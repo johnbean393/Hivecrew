@@ -50,6 +50,14 @@ extension TaskService {
         // Mark this task as in-progress to prevent duplicate processing
         tasksInProgress.insert(task.id)
         
+        // MARK: - Plan First Mode
+        // If plan mode is enabled, generate a plan before VM execution
+        if task.planFirstEnabled && task.planMarkdown == nil {
+            await runPlanningPhase(task: task, context: context)
+            tasksInProgress.remove(task.id)
+            return // Planning phase complete, wait for user to execute
+        }
+        
         // Reserve a slot for this VM
         pendingVMCount += 1
         print("TaskService: Reserved VM slot for task '\(task.title)' (pending: \(pendingVMCount), running: \(runningAgents.count))")
@@ -652,5 +660,104 @@ extension TaskService {
                 await startTask(task)
             }
         }
+    }
+    
+    // MARK: - Plan First Mode
+    
+    /// Run the planning phase for a task
+    private func runPlanningPhase(task: TaskRecord, context: ModelContext) async {
+        print("TaskService: Starting planning phase for task '\(task.title)'")
+        
+        // Update status to planning
+        task.status = .planning
+        try? context.save()
+        objectWillChange.send()
+        
+        // Create planning state publisher
+        let planningPublisher = PlanningStatePublisher()
+        activePlanningPublishers[task.id] = planningPublisher
+        
+        do {
+            // Create LLM client
+            let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+            
+            // Create planning agent
+            let planningAgent = PlanningAgent(llmClient: llmClient)
+            
+            // Generate the plan
+            let attachedFiles = task.attachedFilePaths.map { URL(fileURLWithPath: $0) }
+            let (planMarkdown, selectedSkills) = try await planningAgent.generatePlan(
+                task: task,
+                attachedFiles: attachedFiles,
+                availableSkills: skillManager.enabledSkills,
+                statePublisher: planningPublisher
+            )
+            
+            // Store the plan and selected skills
+            task.planMarkdown = planMarkdown
+            task.planSelectedSkillNames = selectedSkills.map(\.name)
+            task.status = .planReview
+            try? context.save()
+            
+            // Clean up the planning publisher now that generation is complete
+            activePlanningPublishers.removeValue(forKey: task.id)
+            
+            print("TaskService: Plan generated for task '\(task.title)' (\(selectedSkills.count) skills selected)")
+            
+        } catch {
+            print("TaskService: Planning failed for task '\(task.title)': \(error)")
+            
+            task.status = .planFailed
+            task.errorMessage = "Planning failed: \(error.localizedDescription)"
+            try? context.save()
+            
+            planningPublisher.failGeneration(with: error)
+        }
+        
+        objectWillChange.send()
+    }
+    
+    /// Execute a task's plan (called when user confirms execution from plan review)
+    func executePlan(for task: TaskRecord) async {
+        guard task.status == .planReview, task.planMarkdown != nil else {
+            print("TaskService: Cannot execute plan - task is not in planReview state or has no plan")
+            return
+        }
+        
+        print("TaskService: Executing plan for task '\(task.title)'")
+        
+        // Clean up planning publisher
+        activePlanningPublishers.removeValue(forKey: task.id)
+        
+        // Reset to queued so it goes through normal execution
+        task.status = .queued
+        try? modelContext?.save()
+        objectWillChange.send()
+        
+        // Start the task (will now use the plan since planMarkdown is set)
+        await startTask(task)
+    }
+    
+    /// Cancel planning for a task
+    func cancelPlanning(for task: TaskRecord) async {
+        guard task.status == .planning || task.status == .planReview || task.status == .planFailed else {
+            return
+        }
+        
+        print("TaskService: Cancelling planning for task '\(task.title)'")
+        
+        // Cancel the planning publisher
+        if let publisher = activePlanningPublishers[task.id] {
+            publisher.cancelGeneration()
+        }
+        activePlanningPublishers.removeValue(forKey: task.id)
+        
+        // Mark task as cancelled
+        task.status = .cancelled
+        task.completedAt = Date()
+        task.errorMessage = "Planning cancelled by user"
+        try? modelContext?.save()
+        
+        objectWillChange.send()
     }
 }

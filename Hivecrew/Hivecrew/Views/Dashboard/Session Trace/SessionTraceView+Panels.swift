@@ -131,38 +131,26 @@ extension SessionTraceView {
             // Header
             tracePanelHeader
             
+            // Tab picker (only show if task has a plan)
+            if hasPlan {
+                Picker("Tab", selection: $selectedTab) {
+                    ForEach(TraceTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
+            
             Divider()
             
-            // Trace events with scroll position tracking
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                        HistoricalTraceEventRow(
-                            event: event,
-                            isCurrentScreenshot: event.screenshotPath == currentScreenshotPath
-                        )
-                        .id(event.id)
-                        .background(
-                            GeometryReader { geometry in
-                                Color.clear.preference(
-                                    key: VisibleEventPreferenceKey.self,
-                                    value: [EventVisibility(
-                                        id: event.id,
-                                        index: index,
-                                        minY: geometry.frame(in: .named("traceScroll")).minY,
-                                        maxY: geometry.frame(in: .named("traceScroll")).maxY
-                                    )]
-                                )
-                            }
-                        )
-                    }
-                    Spacer(minLength: 450)
-                }
-                .padding()
-            }
-            .coordinateSpace(name: "traceScroll")
-            .onPreferenceChange(VisibleEventPreferenceKey.self) { visibilities in
-                updateScreenshotForVisibleEvents(visibilities)
+            // Tab content
+            switch selectedTab {
+            case .trace:
+                traceEventsContent
+            case .plan:
+                planTabContent
             }
             
             Divider()
@@ -171,6 +159,205 @@ extension SessionTraceView {
             tracePanelFooter
         }
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+    
+    private var traceEventsContent: some View {
+        // Trace events with scroll position tracking
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+                    HistoricalTraceEventRow(
+                        event: event,
+                        isCurrentScreenshot: event.screenshotPath == currentScreenshotPath
+                    )
+                    .id(event.id)
+                    .background(
+                        GeometryReader { geometry in
+                            Color.clear.preference(
+                                key: VisibleEventPreferenceKey.self,
+                                value: [EventVisibility(
+                                    id: event.id,
+                                    index: index,
+                                    minY: geometry.frame(in: .named("traceScroll")).minY,
+                                    maxY: geometry.frame(in: .named("traceScroll")).maxY
+                                )]
+                            )
+                        }
+                    )
+                }
+                Spacer(minLength: 450)
+            }
+            .padding()
+        }
+        .coordinateSpace(name: "traceScroll")
+        .onPreferenceChange(VisibleEventPreferenceKey.self) { visibilities in
+            updateScreenshotForVisibleEvents(visibilities)
+        }
+    }
+    
+    private var planTabContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Completion stats
+                if let state = planState {
+                    planCompletionStats(state)
+                }
+                
+                // Plan items
+                if let state = planState {
+                    planItemsList(state)
+                } else if let planMarkdown = task.planMarkdown {
+                    // Parse from markdown if no state file
+                    let items = PlanParser.parseTodos(from: planMarkdown)
+                    planItemsList(PlanState(items: items))
+                }
+                
+                // Deviations
+                if let state = planState, !state.deviations.isEmpty {
+                    deviationsSection(state)
+                }
+            }
+            .padding()
+        }
+    }
+    
+    private func planCompletionStats(_ state: PlanState) -> some View {
+        GroupBox("Completion") {
+            HStack(spacing: 16) {
+                VStack {
+                    Text("\(state.completedCount)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.green)
+                    Text("Completed")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Divider()
+                    .frame(height: 30)
+                
+                VStack {
+                    Text("\(state.skippedCount)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.orange)
+                    Text("Skipped")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Divider()
+                    .frame(height: 30)
+                
+                VStack {
+                    Text("\(state.addedCount)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.blue)
+                    Text("Added")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                // Completion percentage
+                CircularProgressView(progress: state.completionPercentage)
+                    .frame(width: 50, height: 50)
+            }
+        }
+    }
+    
+    private func planItemsList(_ state: PlanState) -> some View {
+        GroupBox("Plan Items") {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(state.items) { item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: planItemIcon(for: item))
+                            .foregroundStyle(planItemColor(for: item))
+                            .font(.caption)
+                            .frame(width: 16)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.content)
+                                .font(.caption)
+                                .strikethrough(item.isCompleted)
+                                .foregroundStyle(item.isCompleted ? .secondary : .primary)
+                            
+                            if item.addedDuringExecution {
+                                Text("Added during execution")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                            
+                            if let completedAt = item.completedAt {
+                                Text("Completed at \(completedAt.formatted(date: .omitted, time: .shortened))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            
+                            if let reason = item.deviationReason {
+                                Text("Deviation: \(reason)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func deviationsSection(_ state: PlanState) -> some View {
+        GroupBox("Deviations") {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(state.deviations) { deviation in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "arrow.triangle.branch")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                            Text(deviation.description)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        
+                        Text(deviation.reasoning)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 20)
+                        
+                        Text(deviation.timestamp.formatted(date: .omitted, time: .shortened))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading, 20)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func planItemIcon(for item: PlanTodoItem) -> String {
+        if item.isCompleted {
+            return "checkmark.circle.fill"
+        } else if item.wasSkipped {
+            return "arrow.right.circle"
+        } else {
+            return "circle"
+        }
+    }
+    
+    private func planItemColor(for item: PlanTodoItem) -> Color {
+        if item.isCompleted {
+            return .green
+        } else if item.wasSkipped {
+            return .orange
+        } else {
+            return .secondary
+        }
     }
     
     func updateScreenshotForVisibleEvents(_ visibilities: [EventVisibility]) {
@@ -434,6 +621,33 @@ extension SessionTraceView {
         } else {
             // Select the files in Finder
             NSWorkspace.shared.activateFileViewerSelecting(existingURLs)
+        }
+    }
+}
+
+// MARK: - Circular Progress View
+
+/// Circular progress indicator showing completion percentage
+struct CircularProgressView: View {
+    let progress: Double
+    
+    var body: some View {
+        ZStack {
+            // Background circle
+            Circle()
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 4)
+            
+            // Progress arc
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(Color.green, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.3), value: progress)
+            
+            // Percentage text
+            Text("\(Int(progress * 100))%")
+                .font(.caption2)
+                .fontWeight(.medium)
         }
     }
 }

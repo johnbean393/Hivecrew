@@ -26,6 +26,9 @@ struct TaskInputView: View {
     @AppStorage("lastSelectedProviderId") private var selectedProviderId: String = ""
     @AppStorage("lastSelectedModelId") private var selectedModelId: String = ""
     
+    // Non-persisted - always defaults to Direct mode on launch
+    @State private var planFirstEnabled: Bool = false
+    
     var body: some View {
         PromptBar(
             text: $taskDescription,
@@ -34,6 +37,7 @@ struct TaskInputView: View {
             selectedModelId: $selectedModelId,
             copyCount: $copyCount,
             mentionedSkillNames: $mentionedSkillNames,
+            planFirstEnabled: $planFirstEnabled,
             onSubmit: {
                 await submitTask()
             },
@@ -87,7 +91,8 @@ struct TaskInputView: View {
                     providerId: effectiveProviderId,
                     modelId: effectiveModelId,
                     attachedFilePaths: filePaths,
-                    mentionedSkillNames: mentionedSkillNames
+                    mentionedSkillNames: mentionedSkillNames,
+                    planFirstEnabled: planFirstEnabled
                 )
             }
             

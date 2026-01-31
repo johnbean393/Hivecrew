@@ -11,12 +11,13 @@ import Foundation
 
 extension OpenAICompatibleClient {
     
-    /// Raw HTTP-based streaming chat method with reasoning callback
-    /// Streams reasoning tokens as they arrive from OpenRouter
+    /// Raw HTTP-based streaming chat method with reasoning and content callbacks
+    /// Streams tokens as they arrive
     public func chatRawStreaming(
         messages: [LLMMessage],
         tools: [LLMToolDefinition]?,
-        onReasoningUpdate: ReasoningStreamCallback?
+        onReasoningUpdate: ReasoningStreamCallback?,
+        onContentUpdate: ContentStreamCallback? = nil
     ) async throws -> LLMResponse {
         let endpoint = buildChatURL()
         var request = URLRequest(url: endpoint)
@@ -79,15 +80,20 @@ extension OpenAICompatibleClient {
         var toolCallDeltas: [String: (id: String, name: String, arguments: String)] = [:]
         var usage: LLMUsage? = nil
         
-        var lineBuffer = ""
+        var lineBuffer = Data()
         
         for try await byte in bytes {
-            let char = Character(UnicodeScalar(byte))
-            
-            if char == "\n" {
+            // Check for newline (0x0A)
+            if byte == 0x0A {
+                // Decode the line buffer as UTF-8
+                guard let lineString = String(data: lineBuffer, encoding: .utf8) else {
+                    lineBuffer.removeAll()
+                    continue
+                }
+                
                 // Process the line
-                let line = lineBuffer.trimmingCharacters(in: .whitespaces)
-                lineBuffer = ""
+                let line = lineString.trimmingCharacters(in: .whitespaces)
+                lineBuffer.removeAll()
                 
                 if line.isEmpty {
                     continue
@@ -134,6 +140,8 @@ extension OpenAICompatibleClient {
                                     // Content delta
                                     if let contentDelta = delta["content"] as? String {
                                         accumulatedContent += contentDelta
+                                        // Call callback with accumulated content
+                                        onContentUpdate?(accumulatedContent)
                                     }
                                     
                                     // Reasoning delta (OpenRouter streams reasoning in delta.reasoning)
@@ -173,7 +181,7 @@ extension OpenAICompatibleClient {
                     }
                 }
             } else {
-                lineBuffer.append(char)
+                lineBuffer.append(byte)
             }
         }
         
