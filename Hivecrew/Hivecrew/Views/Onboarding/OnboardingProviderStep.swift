@@ -68,8 +68,39 @@ struct OnboardingProviderStep: View {
                     Text("Base URL (optional)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    TextField("Leave empty for OpenAI default", text: $baseURL)
-                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        TextField("Leave empty for OpenAI default", text: $baseURL)
+                            .textFieldStyle(.roundedBorder)
+                        Menu {
+                            Button("OpenRouter") {
+                                baseURL = "https://api.openrouter.ai/v1"
+                            }
+                            Button("Moonshot AI") {
+                                baseURL = "https://api.moonshot.ai/v1"
+                            }
+                            Button("OpenAI") {
+                                baseURL = "https://api.openai.com/v1"
+                            }
+                            Button("Anthropic") {
+                                baseURL = "https://api.anthropic.com/v1"
+                            }
+                            Button("Google AI Studio") {
+                                baseURL = "https://generativelanguage.googleapis.com/v1beta"
+                            }
+                            Button("xAI") {
+                                baseURL = "https://api.xai.com/v1"
+                            }
+                            Button("LM Studio") {
+                                baseURL = "http://localhost:1234/v1"
+                            }
+                            Button("Ollama") {
+                                baseURL = "http://localhost:11434/v1"
+                            }
+                        } label: {
+                            Label("Select Provider", systemImage: "globe")
+                                .labelStyle(.iconOnly)
+                        }
+                    }
                     Text("For custom endpoints like Azure, Anthropic, or local LLMs")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

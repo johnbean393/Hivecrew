@@ -68,9 +68,40 @@ struct ProviderEditSheet: View {
                     TextField("Display Name", text: $displayName)
                         .textFieldStyle(.roundedBorder)
                     
-                    TextField("Base URL (optional)", text: $baseURL)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.URL)
+                    HStack {
+                        TextField("Base URL (optional)", text: $baseURL)
+                            .textFieldStyle(.roundedBorder)
+                            .textContentType(.URL)
+                        Menu {
+                            Button("OpenRouter") {
+                                baseURL = "https://api.openrouter.ai/v1"
+                            }
+                            Button("Moonshot AI") {
+                                baseURL = "https://api.moonshot.ai/v1"
+                            }
+                            Button("OpenAI") {
+                                baseURL = "https://api.openai.com/v1"
+                            }
+                            Button("Anthropic") {
+                                baseURL = "https://api.anthropic.com/v1"
+                            }
+                            Button("Google AI Studio") {
+                                baseURL = "https://generativelanguage.googleapis.com/v1beta"
+                            }
+                            Button("xAI") {
+                                baseURL = "https://api.xai.com/v1"
+                            }
+                            Button("LM Studio") {
+                                baseURL = "http://localhost:1234/v1"
+                            }
+                            Button("Ollama") {
+                                baseURL = "http://localhost:11434/v1"
+                            }
+                        } label: {
+                            Label("Select Provider", systemImage: "globe")
+                                .labelStyle(.iconOnly)
+                        }
+                    }
                     
                     Text("Leave empty to use the default OpenAI API endpoint. For other providers, enter the full API base URL.")
                         .font(.caption)
