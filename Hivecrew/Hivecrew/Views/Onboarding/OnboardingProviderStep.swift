@@ -15,17 +15,12 @@ struct OnboardingProviderStep: View {
     
     @Binding var isConfigured: Bool
     
-    @State private var displayName: String = "OpenAI"
+    @State private var displayName: String = "OpenRouter"
     @State private var baseURL: String = ""
     @State private var apiKey: String = ""
     @State private var isTesting = false
-    @State private var testResult: TestResult?
+    @State private var testResult: ConnectionTestResult?
     @State private var hasSaved = false
-    
-    enum TestResult {
-        case success
-        case failure(String)
-    }
     
     var body: some View {
         VStack(spacing: 24) {
@@ -69,37 +64,9 @@ struct OnboardingProviderStep: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     HStack {
-                        TextField("Leave empty for OpenAI default", text: $baseURL)
+                        TextField("Leave empty for OpenRouter default", text: $baseURL)
                             .textFieldStyle(.roundedBorder)
-                        Menu {
-                            Button("OpenRouter") {
-                                baseURL = "https://api.openrouter.ai/v1"
-                            }
-                            Button("Moonshot AI") {
-                                baseURL = "https://api.moonshot.ai/v1"
-                            }
-                            Button("OpenAI") {
-                                baseURL = "https://api.openai.com/v1"
-                            }
-                            Button("Anthropic") {
-                                baseURL = "https://api.anthropic.com/v1"
-                            }
-                            Button("Google AI Studio") {
-                                baseURL = "https://generativelanguage.googleapis.com/v1beta"
-                            }
-                            Button("xAI") {
-                                baseURL = "https://api.xai.com/v1"
-                            }
-                            Button("LM Studio") {
-                                baseURL = "http://localhost:1234/v1"
-                            }
-                            Button("Ollama") {
-                                baseURL = "http://localhost:11434/v1"
-                            }
-                        } label: {
-                            Label("Select Provider", systemImage: "globe")
-                                .labelStyle(.iconOnly)
-                        }
+                        ProviderURLPickerMenu(baseURL: $baseURL)
                     }
                     Text("For custom endpoints like Azure, Anthropic, or local LLMs")
                         .font(.caption2)
@@ -127,25 +94,7 @@ struct OnboardingProviderStep: View {
                 .disabled(apiKey.isEmpty || isTesting)
                 
                 if let result = testResult {
-                    switch result {
-                    case .success:
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text("Connected")
-                                .foregroundStyle(.green)
-                        }
-                        .font(.callout)
-                    case .failure(let message):
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.red)
-                            Text(message)
-                                .foregroundStyle(.red)
-                                .lineLimit(1)
-                        }
-                        .font(.callout)
-                    }
+                    ConnectionTestResultView(result: result, style: .compact)
                 }
                 
                 Spacer()
@@ -185,38 +134,13 @@ struct OnboardingProviderStep: View {
         testResult = nil
         
         Task {
-            do {
-                let apiURL: URL
-                if let customBase = baseURL.isEmpty ? nil : URL(string: baseURL) {
-                    apiURL = customBase.appendingPathComponent("models")
-                } else {
-                    apiURL = URL(string: "https://api.openai.com/v1/models")!
-                }
-                
-                var request = URLRequest(url: apiURL)
-                request.httpMethod = "GET"
-                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-                request.timeoutInterval = 15
-                
-                let (_, response) = try await URLSession.shared.data(for: request)
-                
-                await MainActor.run {
-                    if let httpResponse = response as? HTTPURLResponse {
-                        if httpResponse.statusCode == 200 {
-                            testResult = .success
-                        } else if httpResponse.statusCode == 401 {
-                            testResult = .failure("Invalid API key")
-                        } else {
-                            testResult = .failure("HTTP \(httpResponse.statusCode)")
-                        }
-                    }
-                    isTesting = false
-                }
-            } catch {
-                await MainActor.run {
-                    testResult = .failure(error.localizedDescription)
-                    isTesting = false
-                }
+            let result = await ProviderConnectionTester.test(
+                baseURL: baseURL,
+                apiKey: apiKey
+            )
+            await MainActor.run {
+                testResult = result
+                isTesting = false
             }
         }
     }

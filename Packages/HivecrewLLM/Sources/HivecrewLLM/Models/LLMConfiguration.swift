@@ -7,6 +7,16 @@
 
 import Foundation
 
+// MARK: - Default Provider Constants
+
+/// Default OpenRouter API base URL used when no custom URL is specified
+public let defaultLLMProviderBaseURL = URL(string: "https://openrouter.ai/api/v1")!
+
+/// Default OpenRouter API base URL as a string
+public let defaultLLMProviderBaseURLString = "https://openrouter.ai/api/v1"
+
+// MARK: - Configuration
+
 /// Configuration for connecting to an LLM provider
 public struct LLMConfiguration: Sendable, Codable, Equatable {
     /// Unique identifier for this configuration
@@ -16,7 +26,7 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
     public let displayName: String
     
     /// Custom base URL for the API endpoint
-    /// If nil, uses the default OpenAI API endpoint
+    /// If nil, uses the default OpenRouter API endpoint
     public let baseURL: URL?
     
     /// API key for authentication
@@ -74,9 +84,9 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
         return path.isEmpty ? nil : path
     }
     
-    /// Whether this configuration points to OpenRouter API
+    /// Whether this configuration points to OpenRouter API (true by default when no baseURL is set)
     public var isOpenRouter: Bool {
-        guard let host = baseURL?.host?.lowercased() else { return false }
+        guard let host = baseURL?.host?.lowercased() else { return true }
         return host.contains("openrouter.ai")
     }
 }

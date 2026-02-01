@@ -291,7 +291,7 @@ extension OpenAICompatibleClient {
         if let baseURL = configuration.baseURL {
             return baseURL.appendingPathComponent("chat/completions")
         } else {
-            return URL(string: "https://api.openai.com/v1/chat/completions")!
+            return defaultLLMProviderBaseURL.appendingPathComponent("chat/completions")
         }
     }
     

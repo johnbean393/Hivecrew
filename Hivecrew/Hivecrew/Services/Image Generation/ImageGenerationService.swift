@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HivecrewLLM
 
 // MARK: - Types
 
@@ -134,7 +135,7 @@ final class ImageGenerationService: Sendable {
         referenceImages: [(data: String, mimeType: String)]?,
         config: ImageGenerationConfiguration
     ) async throws -> (base64: String, description: String?) {
-        let baseURL = config.baseURL ?? URL(string: "https://openrouter.ai/api/v1")!
+        let baseURL = config.baseURL ?? defaultLLMProviderBaseURL
         let endpoint = baseURL.appendingPathComponent("chat/completions")
         
         var request = URLRequest(url: endpoint)

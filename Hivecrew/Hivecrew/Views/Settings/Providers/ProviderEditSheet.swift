@@ -25,12 +25,7 @@ struct ProviderEditSheet: View {
     @State private var timeoutInterval: Double = 120.0
     
     @State private var isTesting = false
-    @State private var testResult: TestResult?
-    
-    enum TestResult {
-        case success
-        case failure(String)
-    }
+    @State private var testResult: ConnectionTestResult?
     
     var isEditing: Bool {
         provider != nil
@@ -72,38 +67,10 @@ struct ProviderEditSheet: View {
                         TextField("Base URL (optional)", text: $baseURL)
                             .textFieldStyle(.roundedBorder)
                             .textContentType(.URL)
-                        Menu {
-                            Button("OpenRouter") {
-                                baseURL = "https://api.openrouter.ai/v1"
-                            }
-                            Button("Moonshot AI") {
-                                baseURL = "https://api.moonshot.ai/v1"
-                            }
-                            Button("OpenAI") {
-                                baseURL = "https://api.openai.com/v1"
-                            }
-                            Button("Anthropic") {
-                                baseURL = "https://api.anthropic.com/v1"
-                            }
-                            Button("Google AI Studio") {
-                                baseURL = "https://generativelanguage.googleapis.com/v1beta"
-                            }
-                            Button("xAI") {
-                                baseURL = "https://api.xai.com/v1"
-                            }
-                            Button("LM Studio") {
-                                baseURL = "http://localhost:1234/v1"
-                            }
-                            Button("Ollama") {
-                                baseURL = "http://localhost:11434/v1"
-                            }
-                        } label: {
-                            Label("Select Provider", systemImage: "globe")
-                                .labelStyle(.iconOnly)
-                        }
+                        ProviderURLPickerMenu(baseURL: $baseURL)
                     }
                     
-                    Text("Leave empty to use the default OpenAI API endpoint. For other providers, enter the full API base URL.")
+                    Text("Leave empty to use the default OpenRouter API endpoint. For other providers, enter the full API base URL.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -157,23 +124,7 @@ struct ProviderEditSheet: View {
                         Spacer()
                         
                         if let result = testResult {
-                            switch result {
-                            case .success:
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                    Text("Connection successful")
-                                        .foregroundStyle(.secondary)
-                                }
-                            case .failure(let message):
-                                HStack {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.red)
-                                    Text(message)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
-                            }
+                            ConnectionTestResultView(result: result, style: .detailed)
                         }
                     }
                 }
@@ -263,45 +214,15 @@ struct ProviderEditSheet: View {
         testResult = nil
         
         Task {
-            do {
-                // Build the API URL
-                let apiURL: URL
-                if let customBase = baseURL.isEmpty ? nil : URL(string: baseURL) {
-                    apiURL = customBase.appendingPathComponent("models")
-                } else {
-                    apiURL = URL(string: "https://api.openai.com/v1/models")!
-                }
-                
-                // Create a simple test request to the models endpoint
-                var request = URLRequest(url: apiURL)
-                request.httpMethod = "GET"
-                request.setValue("Bearer \(currentAPIKey)", forHTTPHeaderField: "Authorization")
-                if !organizationId.isEmpty {
-                    request.setValue(organizationId, forHTTPHeaderField: "OpenAI-Organization")
-                }
-                request.timeoutInterval = min(timeoutInterval, 30)
-                
-                let (_, response) = try await URLSession.shared.data(for: request)
-                
-                if let httpResponse = response as? HTTPURLResponse {
-                    await MainActor.run {
-                        if httpResponse.statusCode == 200 {
-                            testResult = .success
-                        } else if httpResponse.statusCode == 401 {
-                            testResult = .failure("Invalid API key")
-                        } else if httpResponse.statusCode == 403 {
-                            testResult = .failure("Access denied")
-                        } else {
-                            testResult = .failure("HTTP \(httpResponse.statusCode)")
-                        }
-                        isTesting = false
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    testResult = .failure(error.localizedDescription)
-                    isTesting = false
-                }
+            let result = await ProviderConnectionTester.test(
+                baseURL: baseURL,
+                apiKey: currentAPIKey,
+                organizationId: organizationId,
+                timeout: min(timeoutInterval, 30)
+            )
+            await MainActor.run {
+                testResult = result
+                isTesting = false
             }
         }
     }

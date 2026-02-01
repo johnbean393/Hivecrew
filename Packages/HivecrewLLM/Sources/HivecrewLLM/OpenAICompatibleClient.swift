@@ -41,13 +41,13 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
             openAIConfig = OpenAI.Configuration(
                 token: configuration.apiKey,
                 organizationIdentifier: configuration.organizationId,
-                host: baseURL.host ?? "api.openai.com",
+                host: baseURL.host ?? defaultLLMProviderBaseURL.host!,
                 port: baseURL.port ?? 443,
                 scheme: baseURL.scheme ?? "https",
                 timeoutInterval: configuration.timeoutInterval
             )
         } else {
-            // Default OpenAI configuration
+            // Default OpenRouter configuration
             openAIConfig = OpenAI.Configuration(
                 token: configuration.apiKey,
                 organizationIdentifier: configuration.organizationId,
@@ -214,7 +214,7 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         if let baseURL = configuration.baseURL {
             return baseURL.appendingPathComponent("models")
         } else {
-            return URL(string: "https://api.openai.com/v1/models")!
+            return defaultLLMProviderBaseURL.appendingPathComponent("models")
         }
     }
 }

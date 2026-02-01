@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import Security
+import HivecrewLLM
 
 /// SwiftData model for persisting LLM provider configurations
 /// Note: Models are fetched dynamically from the provider's /v1/models endpoint
@@ -20,7 +21,7 @@ final class LLMProviderRecord {
     /// Human-readable display name
     var displayName: String
     
-    /// Custom base URL for the API endpoint (nil = default OpenAI)
+    /// Custom base URL for the API endpoint (nil = default OpenRouter)
     var baseURL: String?
     
     /// Reference to the API key in Keychain
@@ -80,9 +81,9 @@ final class LLMProviderRecord {
         displayName
     }
     
-    /// The base URL for API calls (either custom or default OpenAI)
+    /// The base URL for API calls (either custom or default OpenRouter)
     var effectiveBaseURL: URL {
-        parsedBaseURL ?? URL(string: "https://api.openai.com/v1")!
+        parsedBaseURL ?? defaultLLMProviderBaseURL
     }
 }
 

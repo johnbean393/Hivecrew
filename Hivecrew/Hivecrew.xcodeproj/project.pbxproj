@@ -33,6 +33,7 @@
 		202F64952F2E755A00F6F359 /* AttachmentInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64942F2E755A00F6F359 /* AttachmentInfo.swift */; };
 		202F64972F2E756700F6F359 /* AttachmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64962F2E756700F6F359 /* AttachmentManager.swift */; };
 		202F64992F2E84D500F6F359 /* MissingAttachmentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */; };
+		202F64DD2F2FCA1400F6F359 /* ProviderUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64DC2F2FCA1400F6F359 /* ProviderUtilities.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -225,6 +226,7 @@
 		202F64942F2E755A00F6F359 /* AttachmentInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentInfo.swift; sourceTree = "<group>"; };
 		202F64962F2E756700F6F359 /* AttachmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentManager.swift; sourceTree = "<group>"; };
 		202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingAttachmentsSheet.swift; sourceTree = "<group>"; };
+		202F64DC2F2FCA1400F6F359 /* ProviderUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderUtilities.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -830,6 +832,7 @@
 		AAAA00082F1E200000000008 /* Providers */ = {
 			isa = PBXGroup;
 			children = (
+				202F64DC2F2FCA1400F6F359 /* ProviderUtilities.swift */,
 				209EB6DB2F1E194800A7F13F /* ProviderEditSheet.swift */,
 				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
 			);
@@ -1119,6 +1122,7 @@
 				209EB6EB2F1E26D000A7F13F /* SkillMatcher.swift in Sources */,
 				209EB6EC2F1E26D000A7F13F /* SkillManager.swift in Sources */,
 				202F64742F2D7C0400F6F359 /* OnboardingOutputDirectoryStep.swift in Sources */,
+				202F64DD2F2FCA1400F6F359 /* ProviderUtilities.swift in Sources */,
 				209EB6ED2F1E26D000A7F13F /* SkillMatcherTypes.swift in Sources */,
 				202F64922F2DCC1C00F6F359 /* RichPlanView.swift in Sources */,
 				202F64932F2DCC1C00F6F359 /* MermaidDiagramView.swift in Sources */,
