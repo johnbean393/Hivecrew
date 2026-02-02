@@ -206,22 +206,41 @@ class PlanningAgent {
                     statePublisher.setToolCall("Reading", details: filename)
                     statePublisher.setStatus("Reading \(filename ?? "file")...")
                     
-                    // Execute the tool
-                    let result = try await PlanningTools.executeToolCall(
-                        toolCall,
-                        attachedFiles: attachedFileMap
-                    )
+                    // Execute the tool with error handling
+                    let result: PlanningToolResult
+                    do {
+                        result = try await PlanningTools.executeToolCall(
+                            toolCall,
+                            attachedFiles: attachedFileMap
+                        )
+                    } catch {
+                        // Return error as text result instead of crashing
+                        result = PlanningToolResult.text("Error reading file: \(error.localizedDescription)")
+                    }
                     
                     // Mark file as read
                     if let filename = filename {
                         statePublisher.markFileRead(filename)
                     }
                     
-                    // Add tool result to messages
+                    // Add tool result text to messages
                     messages.append(.toolResult(
                         toolCallId: toolCall.id,
-                        content: result
+                        content: result.text
                     ))
+                    
+                    // If the result contains an image, inject it as a user message
+                    // so the model can see it (same pattern as AgentRunner+Loop.swift)
+                    if result.hasImage,
+                       let imageBase64 = result.imageBase64,
+                       let imageMimeType = result.imageMimeType {
+                        messages.append(
+                            LLMMessage.user(
+                                text: "Here is the image from the read_file tool result:",
+                                images: [.imageBase64(data: imageBase64, mimeType: imageMimeType)]
+                            )
+                        )
+                    }
                 }
                 
                 // Clear tool call status and update status

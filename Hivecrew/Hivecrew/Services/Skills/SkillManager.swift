@@ -174,6 +174,19 @@ public class SkillManager: ObservableObject {
         return skill
     }
     
+    // MARK: - Refreshing
+    
+    /// Refresh the skills list by reloading all skills from disk
+    /// Call this when new skills have been added externally
+    public func refreshSkills() async {
+        do {
+            try await loadAllSkills()
+        } catch {
+            print("SkillManager: Failed to refresh skills: \(error.localizedDescription)")
+            lastError = .fileSystemError("Failed to refresh skills: \(error.localizedDescription)")
+        }
+    }
+    
     // MARK: - Saving
     
     /// Save a skill to disk

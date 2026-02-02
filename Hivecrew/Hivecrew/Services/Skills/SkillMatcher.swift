@@ -2,7 +2,7 @@
 //  SkillMatcher.swift
 //  Hivecrew
 //
-//  Two-step LLM process to match skills to tasks
+//  LLM-based skill matching for tasks
 //
 
 import Combine
@@ -10,7 +10,7 @@ import Foundation
 import HivecrewShared
 import HivecrewLLM
 
-/// Service for matching skills to tasks using a two-step LLM process
+/// Service for matching skills to tasks using LLM
 public class SkillMatcher {
     
     // MARK: - Properties
@@ -25,7 +25,7 @@ public class SkillMatcher {
     
     // MARK: - Matching
     
-    /// Match skills to a task using two-step LLM process
+    /// Match skills to a task using LLM
     /// - Parameters:
     ///   - task: The task description
     ///   - availableSkills: List of available skills
@@ -57,20 +57,8 @@ public class SkillMatcher {
             return []
         }
         
-        // Step 1: Generate task steps with streaming
-        let taskSteps = try await generateTaskStepsWithStreaming(
-            for: task,
-            onReasoningUpdate: onReasoningUpdate
-        )
-        
-        // If no steps generated, return empty
-        guard !taskSteps.steps.isEmpty else {
-            return []
-        }
-        
-        // Step 2: Select relevant skills with streaming
+        // Select relevant skills with streaming
         let selectedSkills = try await selectSkillsWithStreaming(
-            forSteps: taskSteps,
             task: task,
             availableSkills: availableSkills,
             onReasoningUpdate: onReasoningUpdate
@@ -84,79 +72,13 @@ public class SkillMatcher {
         return matchedSkills
     }
     
-    // MARK: - Step 1: Generate Task Steps
-    
-    private func generateTaskStepsWithStreaming(
-        for task: String,
-        onReasoningUpdate: ((String) -> Void)?
-    ) async throws -> TaskSteps {
-        let prompt = """
-        You are planning the steps needed to complete a task for a macOS automation agent.
-        
-        TASK: \(task)
-        
-        Generate a list of high-level steps the agent should take. For each step, identify:
-        - A brief description
-        - The category of work (file-operation, web-research, ui-interaction, document-creation, data-processing, system-operation, communication, other)
-        - Tools likely needed (examples: open_app, keyboard_type, run_shell, read_file, mouse_click, web_search, etc.)
-        
-        Keep the list concise (3-7 steps typically).
-        
-        Respond with ONLY a valid JSON object matching this schema:
-        {
-            "steps": [
-                {
-                    "stepNumber": 1,
-                    "description": "What needs to be done",
-                    "category": "category-name",
-                    "toolsLikelyNeeded": ["tool1", "tool2"]
-                }
-            ]
-        }
-        """
-        
-        let messages: [LLMMessage] = [
-            .system("You are a task planning assistant. Always respond with valid JSON only, no additional text."),
-            .user(prompt)
-        ]
-        
-        let response = try await llmClient.chatWithStreaming(
-            messages: messages,
-            tools: nil,
-            onReasoningUpdate: onReasoningUpdate,
-            onContentUpdate: nil
-        )
-        
-        guard let text = response.text else {
-            throw SkillError.matchingError("No response from LLM")
-        }
-        
-        // Parse JSON response
-        guard let jsonData = extractJSON(from: text).data(using: .utf8) else {
-            throw SkillError.matchingError("Failed to extract JSON from response")
-        }
-        
-        do {
-            let taskSteps = try JSONDecoder().decode(TaskSteps.self, from: jsonData)
-            return taskSteps
-        } catch {
-            throw SkillError.matchingError("Failed to parse task steps: \(error.localizedDescription)")
-        }
-    }
-    
-    // MARK: - Step 2: Select Skills
+    // MARK: - Select Skills
     
     private func selectSkillsWithStreaming(
-        forSteps taskSteps: TaskSteps,
         task: String,
         availableSkills: [Skill],
         onReasoningUpdate: ((String) -> Void)?
     ) async throws -> SelectedSkills {
-        // Format steps for prompt
-        let stepsText = taskSteps.steps.map { step in
-            "\(step.stepNumber). \(step.description) [Category: \(step.category), Tools: \(step.toolsLikelyNeeded.joined(separator: ", "))]"
-        }.joined(separator: "\n")
-        
         // Format skills (name + description only)
         let skillsText = availableSkills.map { skill in
             "- \(skill.name): \(skill.description)"
@@ -165,10 +87,7 @@ public class SkillMatcher {
         let prompt = """
         You are selecting which skills are REQUIRED for a task. Veer on the side of strictness.
         
-        ORIGINAL TASK: \(task)
-        
-        TASK STEPS:
-        \(stepsText)
+        TASK: \(task)
         
         AVAILABLE SKILLS:
         \(skillsText)
@@ -183,7 +102,7 @@ public class SkillMatcher {
         
         Examples of when to select:
         - Task asks to "create a PowerPoint" → select pptx skill
-        - Task asks to "read a PDF, then write a Word document" → select docx skill  
+        - Task asks to "read a PDF, then write a Word document" → select docx skill (not pdf)  
         - Task asks to "extract text from a PDF" → select pdf skill
         - Task asks to "create a website" -> select a frontend-design skill
         
@@ -271,13 +190,7 @@ extension SkillMatcher {
             return ([], "No skills available")
         }
         
-        let taskSteps = try await generateTaskStepsWithStreaming(for: task, onReasoningUpdate: nil)
-        guard !taskSteps.steps.isEmpty else {
-            return ([], "Could not determine task steps")
-        }
-        
         let selectedSkills = try await selectSkillsWithStreaming(
-            forSteps: taskSteps,
             task: task,
             availableSkills: availableSkills,
             onReasoningUpdate: nil

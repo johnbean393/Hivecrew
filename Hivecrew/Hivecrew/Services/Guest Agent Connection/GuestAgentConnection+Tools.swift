@@ -117,11 +117,11 @@ extension GuestAgentConnection {
             .replacingOccurrences(of: "$HOME/", with: "\(vmHomePath)/")
             .replacingOccurrences(of: "${HOME}/", with: "\(vmHomePath)/")
         
-        // Prepend common tool paths to ensure Homebrew, Cargo, and other tools are available.
+        // Prepend common tool paths to ensure Homebrew, Cargo, Bun, and other tools are available.
         // The GuestAgent runs /bin/zsh -c which doesn't source ~/.zshrc or ~/.zprofile,
         // so tools installed via package managers won't be in PATH by default.
         let pathSetup = """
-            export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH" 2>/dev/null
+            export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH" 2>/dev/null
             """
         let wrappedCommand = "\(pathSetup); \(expandedCommand)"
         

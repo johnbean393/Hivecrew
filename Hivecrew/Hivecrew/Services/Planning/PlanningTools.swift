@@ -10,6 +10,33 @@ import AppKit
 import PDFKit
 import HivecrewLLM
 
+// MARK: - Tool Result Type
+
+/// Result from a planning tool execution, supporting both text and image content
+public struct PlanningToolResult {
+    /// Text content of the result
+    public let text: String
+    
+    /// Base64-encoded image data (optional)
+    public let imageBase64: String?
+    
+    /// MIME type of the image (optional)
+    public let imageMimeType: String?
+    
+    /// Whether this result contains an image
+    public var hasImage: Bool { imageBase64 != nil }
+    
+    /// Create a text-only result
+    public static func text(_ content: String) -> PlanningToolResult {
+        PlanningToolResult(text: content, imageBase64: nil, imageMimeType: nil)
+    }
+    
+    /// Create an image result with description
+    public static func image(description: String, base64: String, mimeType: String) -> PlanningToolResult {
+        PlanningToolResult(text: description, imageBase64: base64, imageMimeType: mimeType)
+    }
+}
+
 /// Tools available to the planning agent (host-side, no VM)
 public struct PlanningTools {
     
@@ -18,13 +45,22 @@ public struct PlanningTools {
     /// Tool definition for reading attached files
     public static let readFile = LLMToolDefinition.function(
         name: "read_file",
-        description: "Read the contents of an attached file to understand its content for planning. Use this to examine files provided by the user.",
+        description: """
+            Read attached files, directories, or webpages for planning.
+            - For text files (code, documents, etc.): Returns the file content
+            - For directories: Returns a tree of files and folders (then use "DirectoryName/FileName" to read files inside)
+            - For images (png, jpg, etc.): Loads the image into context for visual analysis
+            - For URLs (http/https): Fetches webpage content as markdown
+            
+            To read files inside a directory, use the format "DirectoryName/SubPath/FileName.ext".
+            Example: After reading "MyFolder" and seeing it contains "image.png", use "MyFolder/image.png" to read it.
+            """,
         parameters: [
             "type": "object",
             "properties": [
                 "filename": [
                     "type": "string",
-                    "description": "The filename to read from the attached files list"
+                    "description": "The filename, directory path (e.g., 'DirectoryName/FileName.png'), or URL to read"
                 ]
             ],
             "required": ["filename"]
@@ -40,16 +76,16 @@ public struct PlanningTools {
     /// - Parameters:
     ///   - toolCall: The tool call from the LLM
     ///   - attachedFiles: Map of filename to host file path
-    /// - Returns: The tool result as a string
+    /// - Returns: The tool result (text or image)
     public static func executeToolCall(
         _ toolCall: LLMToolCall,
         attachedFiles: [String: URL]
-    ) async throws -> String {
+    ) async throws -> PlanningToolResult {
         switch toolCall.function.name {
         case "read_file":
             return try await executeReadFile(toolCall, attachedFiles: attachedFiles)
         default:
-            return "Unknown tool: \(toolCall.function.name)"
+            return .text("Unknown tool: \(toolCall.function.name)")
         }
     }
     
@@ -57,55 +93,109 @@ public struct PlanningTools {
     private static func executeReadFile(
         _ toolCall: LLMToolCall,
         attachedFiles: [String: URL]
-    ) async throws -> String {
+    ) async throws -> PlanningToolResult {
         let args = try toolCall.function.argumentsDictionary()
         
         guard let filename = args["filename"] as? String else {
-            return "Error: Missing required parameter 'filename'"
+            return .text("Error: Missing required parameter 'filename'")
         }
         
-        // Find the file in attached files
-        guard let fileURL = attachedFiles[filename] else {
+        // Check if it's a URL (webpage)
+        if filename.lowercased().hasPrefix("http://") || filename.lowercased().hasPrefix("https://") {
+            return try await readWebpage(urlString: filename)
+        }
+        
+        // Resolve the file URL from the filename
+        guard let fileURL = resolveFileURL(filename: filename, attachedFiles: attachedFiles) else {
             let availableFiles = attachedFiles.keys.sorted().joined(separator: ", ")
-            return "Error: File '\(filename)' not found. Available files: \(availableFiles)"
+            return .text("Error: File '\(filename)' not found. Available files: \(availableFiles). For files inside directories, use the format 'DirectoryName/FileName'.")
+        }
+        
+        // Verify the file exists
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return .text("Error: File does not exist at resolved path: \(fileURL.path)")
+        }
+        
+        // Check if it's a directory
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            return try readDirectory(at: fileURL)
         }
         
         // Read the file content
         return try await readFileContent(at: fileURL)
     }
     
+    /// Resolve a filename to a file URL, supporting both direct attachments and paths within directories
+    private static func resolveFileURL(filename: String, attachedFiles: [String: URL]) -> URL? {
+        // First, try exact match
+        if let url = attachedFiles[filename] {
+            return url
+        }
+        
+        // Try to resolve as a subpath of an attached directory
+        // e.g., "NYU Template/Slide1.png" -> find "NYU Template" directory and append "Slide1.png"
+        let components = filename.split(separator: "/", maxSplits: 1).map(String.init)
+        if components.count == 2 {
+            let directoryName = components[0]
+            let subpath = components[1]
+            
+            if let directoryURL = attachedFiles[directoryName] {
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: directoryURL.path, isDirectory: &isDir), isDir.boolValue {
+                    return directoryURL.appendingPathComponent(subpath)
+                }
+            }
+        }
+        
+        // Try matching just the filename (for when user provides just the file name)
+        let justFilename = (filename as NSString).lastPathComponent
+        for (_, url) in attachedFiles {
+            if url.lastPathComponent == justFilename {
+                return url
+            }
+        }
+        
+        return nil
+    }
+    
     /// Read file content with support for various formats
-    private static func readFileContent(at url: URL) async throws -> String {
+    private static func readFileContent(at url: URL) async throws -> PlanningToolResult {
         let fileExtension = url.pathExtension.lowercased()
         
         switch fileExtension {
         // PDF
         case "pdf":
-            return try extractTextFromPDF(at: url)
+            return .text(try extractTextFromPDF(at: url))
             
         // Office documents
         case "docx":
-            return try extractTextFromOfficeDocument(at: url, type: .docx)
+            return .text(try extractTextFromOfficeDocument(at: url, type: .docx))
         case "xlsx":
-            return try extractTextFromOfficeDocument(at: url, type: .xlsx)
+            return .text(try extractTextFromOfficeDocument(at: url, type: .xlsx))
         case "pptx":
-            return try extractTextFromOfficeDocument(at: url, type: .pptx)
+            return .text(try extractTextFromOfficeDocument(at: url, type: .pptx))
             
         // RTF
         case "rtf":
-            return try extractTextFromRTF(at: url)
+            return .text(try extractTextFromRTF(at: url))
             
         // Plist
         case "plist":
-            return try extractTextFromPlist(at: url)
+            return .text(try extractTextFromPlist(at: url))
             
-        // Images - return description
+        // Images - load as base64 for visual analysis
         case "png", "jpg", "jpeg", "gif", "heic", "heif", "webp", "tiff", "bmp":
-            return try describeImage(at: url)
+            do {
+                return try readImage(at: url)
+            } catch {
+                // Fallback to description if image loading fails
+                return .text(describeImageFallback(at: url, error: error))
+            }
             
         // Plain text and code files
         default:
-            return try readTextFile(at: url)
+            return .text(try readTextFile(at: url))
         }
     }
     
@@ -194,12 +284,16 @@ public struct PlanningTools {
         return String(describing: plistObject)
     }
     
-    /// Describe an image file (basic metadata for planning)
-    private static func describeImage(at url: URL) throws -> String {
-        guard let image = NSImage(contentsOf: url) else {
+    /// Read an image file and return it as base64-encoded data for visual analysis
+    private static func readImage(at url: URL) throws -> PlanningToolResult {
+        // Read the image data
+        let imageData = try Data(contentsOf: url)
+        
+        guard let image = NSImage(data: imageData) else {
             throw PlanningToolError.fileReadFailed("Failed to load image")
         }
         
+        // Get image dimensions
         guard let bitmapRep = image.representations.first else {
             throw PlanningToolError.fileReadFailed("Failed to get image representation")
         }
@@ -208,18 +302,159 @@ public struct PlanningTools {
         let height = bitmapRep.pixelsHigh > 0 ? bitmapRep.pixelsHigh : Int(image.size.height)
         
         let filename = url.lastPathComponent
+        let fileSize = imageData.count
+        let fileSizeStr = ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)
+        
+        // Determine original MIME type
+        let originalMimeType = mimeTypeForExtension(url.pathExtension)
+        
+        // Convert to base64
+        let base64Data = imageData.base64EncodedString()
+        
+        // Use ImageDownscaler to compress/resize if needed (medium scale = max 1024px)
+        let (finalBase64, finalMimeType): (String, String)
+        if let downscaled = ImageDownscaler.downscale(
+            base64Data: base64Data,
+            mimeType: originalMimeType,
+            to: .medium
+        ) {
+            finalBase64 = downscaled.data
+            finalMimeType = downscaled.mimeType
+        } else {
+            // Fallback to original if downscaling fails
+            finalBase64 = base64Data
+            finalMimeType = originalMimeType
+        }
+        
+        // Build description text
+        let description = """
+            [Image: \(filename)]
+            Dimensions: \(width) x \(height) pixels
+            File size: \(fileSizeStr)
+            Format: \(url.pathExtension.uppercased())
+            """
+        
+        return .image(description: description, base64: finalBase64, mimeType: finalMimeType)
+    }
+    
+    /// Get MIME type for a file extension
+    private static func mimeTypeForExtension(_ ext: String) -> String {
+        switch ext.lowercased() {
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "webp": return "image/webp"
+        case "heic", "heif": return "image/heic"
+        case "tiff", "tif": return "image/tiff"
+        case "bmp": return "image/bmp"
+        default: return "image/jpeg"
+        }
+    }
+    
+    /// Fallback description when image loading fails
+    private static func describeImageFallback(at url: URL, error: Error) -> String {
+        let filename = url.lastPathComponent
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
         let fileSizeStr = ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)
         
         return """
-        [Image File]
-        Filename: \(filename)
-        Dimensions: \(width) x \(height) pixels
-        File size: \(fileSizeStr)
-        Format: \(url.pathExtension.uppercased())
+            [Image File - Could not load for visual analysis]
+            Filename: \(filename)
+            File size: \(fileSizeStr)
+            Format: \(url.pathExtension.uppercased())
+            Error: \(error.localizedDescription)
+            
+            Note: The image could not be loaded into context. The agent will have access to view this image during execution.
+            """
+    }
+    
+    // MARK: - Directory Reading
+    
+    /// Read a directory and return a tree structure
+    private static func readDirectory(at url: URL, maxDepth: Int = 3) throws -> PlanningToolResult {
+        let directoryName = url.lastPathComponent
+        let tree = try buildDirectoryTree(at: url, depth: 0, maxDepth: maxDepth, prefix: "")
+        let header = "Directory: \(directoryName)/\n"
+        let footer = "\n---\nTo read a file from this directory, use: \"\(directoryName)/<filename>\"\nExample: \"\(directoryName)/\(exampleFileName(in: url))\""
+        return .text(header + tree + footer)
+    }
+    
+    /// Get an example filename from a directory for the usage hint
+    private static func exampleFileName(in url: URL) -> String {
+        if let contents = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]),
+           let firstFile = contents.first(where: { 
+               var isDir: ObjCBool = false
+               FileManager.default.fileExists(atPath: $0.path, isDirectory: &isDir)
+               return !isDir.boolValue
+           }) {
+            return firstFile.lastPathComponent
+        }
+        return "<filename>"
+    }
+    
+    /// Recursively build a directory tree string
+    private static func buildDirectoryTree(
+        at url: URL,
+        depth: Int,
+        maxDepth: Int,
+        prefix: String
+    ) throws -> String {
+        guard depth < maxDepth else {
+            return prefix + "└── ...\n"
+        }
         
-        Note: Image content cannot be displayed in text. The agent will have access to view this image during execution.
-        """
+        let fileManager = FileManager.default
+        let contents = try fileManager.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+        
+        // Sort: directories first, then files, both alphabetically
+        let sorted = contents.sorted { a, b in
+            let aIsDir = (try? a.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            let bIsDir = (try? b.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            if aIsDir != bIsDir {
+                return aIsDir // Directories first
+            }
+            return a.lastPathComponent.lowercased() < b.lastPathComponent.lowercased()
+        }
+        
+        var result = ""
+        
+        for (index, item) in sorted.enumerated() {
+            let isLast = index == sorted.count - 1
+            let connector = isLast ? "└── " : "├── "
+            let childPrefix = isLast ? "    " : "│   "
+            
+            let isDirectory = (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            let name = item.lastPathComponent + (isDirectory ? "/" : "")
+            
+            result += prefix + connector + name + "\n"
+            
+            if isDirectory {
+                result += try buildDirectoryTree(
+                    at: item,
+                    depth: depth + 1,
+                    maxDepth: maxDepth,
+                    prefix: prefix + childPrefix
+                )
+            }
+        }
+        
+        return result
+    }
+    
+    // MARK: - Webpage Reading
+    
+    /// Read a webpage and return its content as markdown
+    private static func readWebpage(urlString: String) async throws -> PlanningToolResult {
+        guard let url = URL(string: urlString) else {
+            return .text("Error: Invalid URL '\(urlString)'")
+        }
+        
+        do {
+            let content = try await WebpageReader.readWebpage(url: url)
+            return .text(content)
+        } catch {
+            return .text("Error reading webpage: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Office Document Extraction
