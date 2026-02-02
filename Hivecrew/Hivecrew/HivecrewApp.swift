@@ -26,6 +26,7 @@ struct HivecrewApp: App {
             TaskRecord.self,
             AgentSessionRecord.self,
             ScheduledTask.self,
+            MCPServerRecord.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         
@@ -160,6 +161,9 @@ struct HivecrewApp: App {
         // Configure and start API server if enabled
         APIServerManager.shared.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
         APIServerManager.shared.startIfEnabled()
+        
+        // Configure MCP server manager
+        MCPServerManager.shared.configure(modelContext: sharedModelContainer.mainContext)
         
         // Check if onboarding is needed
         if !hasCompletedOnboarding {

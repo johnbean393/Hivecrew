@@ -80,7 +80,7 @@ class CredentialManager: ObservableObject {
     private let credentialsKey = "storedCredentials"
     
     /// Keychain service identifier
-    private let keychainService = "com.hivecrew.credentials"
+    private let keychainService = "com.pattonium.credentials"
     
     // MARK: - Initialization
     

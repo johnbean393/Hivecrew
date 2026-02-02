@@ -47,7 +47,7 @@ public actor HivecrewAPIServer {
         self.serviceProvider = serviceProvider
         self.fileStorage = fileStorage ?? TaskFileStorage()
         
-        var logger = Logger(label: "com.hivecrew.api")
+        var logger = Logger(label: "com.pattonium.api")
         logger.logLevel = .info
         self.logger = logger
     }

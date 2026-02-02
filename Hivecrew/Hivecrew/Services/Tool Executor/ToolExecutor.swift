@@ -257,6 +257,10 @@ class ToolExecutor {
             return try await executeGenerateImage(args: args)
             
         default:
+            // Check if this is an MCP tool
+            if isMCPTool(name) {
+                return try await executeMCPTool(name: name, args: args)
+            }
             throw ToolExecutorError.unknownTool(name)
         }
     }

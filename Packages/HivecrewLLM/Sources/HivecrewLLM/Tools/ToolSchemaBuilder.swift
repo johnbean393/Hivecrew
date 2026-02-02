@@ -35,6 +35,26 @@ public final class ToolSchemaBuilder: Sendable {
         methods.map { buildToolDefinition(for: $0) }
     }
     
+    /// Build CUA tools merged with additional tools (e.g., MCP tools)
+    /// - Parameter additionalTools: Additional tool definitions to include (e.g., from MCP servers)
+    /// - Returns: Combined array of built-in and additional tools
+    public func buildToolsWithAdditional(_ additionalTools: [LLMToolDefinition]) -> [LLMToolDefinition] {
+        var tools = buildCUATools()
+        tools.append(contentsOf: additionalTools)
+        return tools
+    }
+    
+    /// Build CUA tools merged with additional tools, excluding specific methods
+    /// - Parameters:
+    ///   - excluding: Built-in methods to exclude
+    ///   - additionalTools: Additional tool definitions to include
+    /// - Returns: Combined array of tools
+    public func buildToolsWithAdditional(_ additionalTools: [LLMToolDefinition], excluding: Set<AgentMethod>) -> [LLMToolDefinition] {
+        var tools = buildCUATools(excluding: excluding)
+        tools.append(contentsOf: additionalTools)
+        return tools
+    }
+    
     /// Build a single tool definition
     public func buildToolDefinition(for method: AgentMethod) -> LLMToolDefinition {
         let (description, parameters) = getSchemaInfo(for: method)

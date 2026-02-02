@@ -22,7 +22,7 @@ final class AgentLogger: @unchecked Sendable {
     private let logFileURL: URL
     private let fileHandle: FileHandle?
     private let dateFormatter: DateFormatter
-    private let queue = DispatchQueue(label: "com.hivecrew.agent.logger")
+    private let queue = DispatchQueue(label: "com.pattonium.agent.logger")
     
     private init() {
         // Create log directory

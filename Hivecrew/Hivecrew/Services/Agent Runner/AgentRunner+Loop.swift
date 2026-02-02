@@ -57,11 +57,22 @@ extension AgentRunner {
                 
                 // Check if any non-host-side tools were executed
                 // If all tools were host-side, we can skip the next screenshot
+                // MCP tools are always host-side (they don't affect VM state)
                 let anyGuestSideTools = toolCalls.contains { toolCall in
-                    if let method = AgentMethod(rawValue: toolCall.function.name) {
+                    let toolName = toolCall.function.name
+                    
+                    // MCP tools are always host-side
+                    if toolName.hasPrefix("mcp_") {
+                        return false
+                    }
+                    
+                    // Check built-in tools
+                    if let method = AgentMethod(rawValue: toolName) {
                         return !method.isHostSideTool
                     }
-                    return false // Unknown tools assumed to need screenshot
+                    
+                    // Unknown tools assumed to need screenshot
+                    return true
                 }
                 needsScreenshotUpdate = anyGuestSideTools
                 

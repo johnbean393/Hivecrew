@@ -8,6 +8,7 @@
 import Foundation
 import AppKit
 import Virtualization
+import OSLog
 import HivecrewLLM
 import HivecrewShared
 import HivecrewAgentProtocol
@@ -58,8 +59,8 @@ final class AgentRunner {
     /// Cached initial screenshot (used for first observation to avoid double-fetching)
     var initialScreenshot: ScreenshotResult?
     
-    /// Tools available to the agent
-    let tools: [LLMToolDefinition]
+    /// Tools available to the agent (includes both built-in and MCP tools)
+    var tools: [LLMToolDefinition]
     
     /// Input file names available in the inbox
     private let inputFileNames: [String]
@@ -202,6 +203,9 @@ final class AgentRunner {
         statePublisher.logInfo("Starting agent for task: \(task.title)")
         statePublisher.logInfo("Timeout: \(timeoutMinutes) min, Max iterations: \(maxSteps)")
         
+        // Connect to MCP servers and add their tools
+        await connectMCPServers()
+        
         // Start timeout timer
         timeoutTask = Task { [weak self] in
             do {
@@ -282,6 +286,9 @@ final class AgentRunner {
         
         // Save todo lists to session trace
         await saveTodoListsToTrace()
+        
+        // Disconnect from MCP servers
+        await disconnectMCPServers()
         
         return result
     }
@@ -384,6 +391,46 @@ final class AgentRunner {
         } catch {
             statePublisher.logError("Failed to save plan state: \(error.localizedDescription)")
         }
+    }
+    
+    // MARK: - MCP Integration
+    
+    /// Logger for MCP debugging
+    private static let mcpLogger = Logger(subsystem: "com.pattonium.Hivecrew", category: "MCP")
+    
+    /// Connect to MCP servers and add their tools to the available tools list
+    private func connectMCPServers() async {
+        Self.mcpLogger.info("Starting MCP connection process...")
+        
+        // Step 1: Get manager reference
+        Self.mcpLogger.info("Step 1 - Getting MCPServerManager.shared")
+        let mcpManager = MCPServerManager.shared
+        Self.mcpLogger.info("Step 1 - Got manager")
+        
+        // Step 2: Connect to servers
+        Self.mcpLogger.info("Step 2 - Calling connectAllEnabled()")
+        await mcpManager.connectAllEnabled()
+        Self.mcpLogger.info("Step 2 - connectAllEnabled() completed")
+        
+        // Step 3: Get tools
+        Self.mcpLogger.info("Step 3 - Calling getAllTools()")
+        let mcpTools = await mcpManager.getAllTools()
+        Self.mcpLogger.info("Step 3 - Got \(mcpTools.count) tools")
+        
+        // Step 4: Add tools
+        if !mcpTools.isEmpty {
+            statePublisher.logInfo("MCP: Added \(mcpTools.count) tool(s) from MCP servers")
+            tools.append(contentsOf: mcpTools)
+        }
+        
+        Self.mcpLogger.info("MCP connection process completed")
+    }
+    
+    /// Disconnect from all MCP servers
+    private func disconnectMCPServers() async {
+        Self.mcpLogger.info("Disconnecting from MCP servers...")
+        await MCPServerManager.shared.disconnectAll()
+        Self.mcpLogger.info("Disconnected from MCP servers")
     }
     
     /// Cancel the agent run

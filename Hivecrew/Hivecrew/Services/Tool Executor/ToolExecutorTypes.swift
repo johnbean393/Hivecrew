@@ -82,6 +82,7 @@ enum ToolExecutorError: Error, LocalizedError {
     case unknownTool(String)
     case missingParameter(String)
     case executionFailed(String)
+    case mcpError(String)
     
     var errorDescription: String? {
         switch self {
@@ -91,6 +92,8 @@ enum ToolExecutorError: Error, LocalizedError {
             return "Missing required parameter: \(param)"
         case .executionFailed(let reason):
             return "Tool execution failed: \(reason)"
+        case .mcpError(let reason):
+            return "MCP tool error: \(reason)"
         }
     }
 }

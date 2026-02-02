@@ -16,6 +16,7 @@ struct SettingsView: View {
         case providers = "Providers"
         case environment = "Environment"
         case tasks = "Tasks"
+        case mcp = "MCP"
         case credentials = "Credentials"
         case api = "API"
         case developer = "Developer"
@@ -27,6 +28,7 @@ struct SettingsView: View {
             case .providers: return "brain.head.profile"
             case .environment: return "desktopcomputer"
             case .tasks: return "checklist"
+            case .mcp: return "puzzlepiece.extension"
             case .credentials: return "key.fill"
             case .api: return "network"
             case .developer: return "hammer"
@@ -39,6 +41,7 @@ struct SettingsView: View {
             providersTab
             environmentTab
             tasksTab
+            mcpTab
             credentialsTab
             apiTab
             developerTab
@@ -64,6 +67,12 @@ struct SettingsView: View {
         TaskDefaultsSettingsView()
             .tabItem { Label(SettingsTab.tasks.rawValue, systemImage: SettingsTab.tasks.icon) }
             .tag(SettingsTab.tasks)
+    }
+    
+    private var mcpTab: some View {
+        MCPSettingsView()
+            .tabItem { Label(SettingsTab.mcp.rawValue, systemImage: SettingsTab.mcp.icon) }
+            .tag(SettingsTab.mcp)
     }
     
     private var credentialsTab: some View {

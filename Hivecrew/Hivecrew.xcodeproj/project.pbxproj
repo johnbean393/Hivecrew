@@ -34,6 +34,10 @@
 		202F64972F2E756700F6F359 /* AttachmentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64962F2E756700F6F359 /* AttachmentManager.swift */; };
 		202F64992F2E84D500F6F359 /* MissingAttachmentsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */; };
 		202F64DD2F2FCA1400F6F359 /* ProviderUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64DC2F2FCA1400F6F359 /* ProviderUtilities.swift */; };
+		202F64E12F2FE30400F6F359 /* MCPServerEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64DE2F2FE30400F6F359 /* MCPServerEditSheet.swift */; };
+		202F64E22F2FE30400F6F359 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64DF2F2FE30400F6F359 /* MCPSettingsView.swift */; };
+		202F64E52F2FE31500F6F359 /* MCPServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64E32F2FE31500F6F359 /* MCPServerManager.swift */; };
+		202F64E72F2FE35300F6F359 /* MCPServerRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -78,6 +82,8 @@
 		2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB72F1D19B0007E4475 /* APISettingsView.swift */; };
 		2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */; };
 		2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */; };
+		2053666C2F2FE3F70097E3FE /* HivecrewMCP in Frameworks */ = {isa = PBXBuildFile; productRef = 2053666B2F2FE3F70097E3FE /* HivecrewMCP */; };
+		2053666E2F2FE4760097E3FE /* ToolExecutor+MCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -227,6 +233,10 @@
 		202F64962F2E756700F6F359 /* AttachmentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentManager.swift; sourceTree = "<group>"; };
 		202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissingAttachmentsSheet.swift; sourceTree = "<group>"; };
 		202F64DC2F2FCA1400F6F359 /* ProviderUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderUtilities.swift; sourceTree = "<group>"; };
+		202F64DE2F2FE30400F6F359 /* MCPServerEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerEditSheet.swift; sourceTree = "<group>"; };
+		202F64DF2F2FE30400F6F359 /* MCPSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsView.swift; sourceTree = "<group>"; };
+		202F64E32F2FE31500F6F359 /* MCPServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerManager.swift; sourceTree = "<group>"; };
+		202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerRecord.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -268,6 +278,7 @@
 		2052ACB72F1D19B0007E4475 /* APISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsView.swift; sourceTree = "<group>"; };
 		2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerStatus.swift; sourceTree = "<group>"; };
 		2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerManager.swift; sourceTree = "<group>"; };
+		2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+MCP.swift"; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -358,6 +369,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2053666C2F2FE3F70097E3FE /* HivecrewMCP in Frameworks */,
 				20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */,
 				209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */,
 				2049633D2F17E553007DD5FD /* Sparkle in Frameworks */,
@@ -435,6 +447,23 @@
 				202F648D2F2DB9E300F6F359 /* PlanReviewWindow.swift */,
 			);
 			path = Planning;
+			sourceTree = "<group>";
+		};
+		202F64E02F2FE30400F6F359 /* MCP */ = {
+			isa = PBXGroup;
+			children = (
+				202F64DE2F2FE30400F6F359 /* MCPServerEditSheet.swift */,
+				202F64DF2F2FE30400F6F359 /* MCPSettingsView.swift */,
+			);
+			path = MCP;
+			sourceTree = "<group>";
+		};
+		202F64E42F2FE31500F6F359 /* MCP */ = {
+			isa = PBXGroup;
+			children = (
+				202F64E32F2FE31500F6F359 /* MCPServerManager.swift */,
+			);
+			path = MCP;
 			sourceTree = "<group>";
 		};
 		2049633A2F17DDAC007DD5FD /* Updates */ = {
@@ -522,6 +551,13 @@
 			path = "Web Tools";
 			sourceTree = "<group>";
 		};
+		2053666A2F2FE3F70097E3FE /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		209C5F8B2F12947F00062D0E = {
 			isa = PBXGroup;
 			children = (
@@ -529,6 +565,7 @@
 				209C61C12F12ABDA00062D0E /* HivecrewTests */,
 				209C61C52F12ABDC00062D0E /* HivecrewUITests */,
 				209C61CE2F12ABE300062D0E /* HivecrewVMService */,
+				2053666A2F2FE3F70097E3FE /* Frameworks */,
 				209C5F952F12947F00062D0E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -547,6 +584,7 @@
 		209C61872F12ABD700062D0E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */,
 				202F64942F2E755A00F6F359 /* AttachmentInfo.swift */,
 				202F64892F2DB8A900F6F359 /* PlanTodoItem.swift */,
 				20B899442F1FAEB5003887A3 /* ScheduledTask.swift */,
@@ -562,6 +600,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				202F64E42F2FE31500F6F359 /* MCP */,
 				202F64832F2DB88700F6F359 /* Planning */,
 				202F646C2F2D26DE00F6F359 /* Image Generation */,
 				20B899472F1FAEC4003887A3 /* Scheduler */,
@@ -601,6 +640,7 @@
 		209C61932F12ABD700062D0E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				202F64E02F2FE30400F6F359 /* MCP */,
 				AAAA00072F1E200000000007 /* Credentials */,
 				AAAA00082F1E200000000008 /* Providers */,
 				2052ACB72F1D19B0007E4475 /* APISettingsView.swift */,
@@ -789,6 +829,7 @@
 		AAAA00042F1E200000000004 /* Tool Executor */ = {
 			isa = PBXGroup;
 			children = (
+				2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */,
 				3001A0062F15000000000006 /* ToolExecutor.swift */,
 				209EB6E32F1E1A6300A7F13F /* ToolExecutor+WebTools.swift */,
 				202F646F2F2D26EC00F6F359 /* ToolExecutor+ImageGeneration.swift */,
@@ -890,6 +931,7 @@
 				204DF4502F16274B004AB99B /* GoogleSearch */,
 				2049633C2F17E553007DD5FD /* Sparkle */,
 				20A0FC092F1D1707000A066A /* HivecrewAPI */,
+				2053666B2F2FE3F70097E3FE /* HivecrewMCP */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -1067,8 +1109,10 @@
 				209EB6DC2F1E194800A7F13F /* ProviderEditSheet.swift in Sources */,
 				209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */,
 				202F64722F2D6BFD00F6F359 /* ImageDownscaler.swift in Sources */,
+				202F64E72F2FE35300F6F359 /* MCPServerRecord.swift in Sources */,
 				209EB6DA2F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift in Sources */,
 				209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */,
+				202F64E52F2FE31500F6F359 /* MCPServerManager.swift in Sources */,
 				209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */,
 				209EB6DE2F1E19B400A7F13F /* ToolExecutorTypes.swift in Sources */,
 				209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */,
@@ -1089,6 +1133,7 @@
 				204963412F182382007DD5FD /* CheckForUpdatesView.swift in Sources */,
 				209C61B12F12ABD700062D0E /* AgentEnvironmentsView.swift in Sources */,
 				209C61B52F12ABD700062D0E /* VMDetailView.swift in Sources */,
+				2053666E2F2FE4760097E3FE /* ToolExecutor+MCP.swift in Sources */,
 				204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */,
 				204DF4302F1571AB004AB99B /* PromptModelButton.swift in Sources */,
 				204DF4472F157508004AB99B /* GuestAgentTypes.swift in Sources */,
@@ -1154,6 +1199,8 @@
 				209EB6E12F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift in Sources */,
 				209EB6E22F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
+				202F64E12F2FE30400F6F359 /* MCPServerEditSheet.swift in Sources */,
+				202F64E22F2FE30400F6F359 /* MCPSettingsView.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
 				2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */,
 				204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */,
@@ -1703,6 +1750,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 204DF44F2F16274B004AB99B /* XCRemoteSwiftPackageReference "GoogleSearch" */;
 			productName = GoogleSearch;
+		};
+		2053666B2F2FE3F70097E3FE /* HivecrewMCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewMCP;
 		};
 		209C604A2F129A6400062D0E /* HivecrewShared */ = {
 			isa = XCSwiftPackageProductDependency;

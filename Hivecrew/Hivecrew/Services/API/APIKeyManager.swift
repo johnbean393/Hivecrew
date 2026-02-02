@@ -11,7 +11,7 @@ import Security
 /// Manages the Hivecrew REST API key
 enum APIKeyManager {
     
-    private static let keychainKey = "com.hivecrew.api-key"
+    private static let keychainKey = "com.pattonium.api-key"
     
     /// Generate a new API key
     /// Format: hc_ prefix + 32 random alphanumeric characters
@@ -25,7 +25,7 @@ enum APIKeyManager {
     static func retrieveAPIKey() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.hivecrew.api",
+            kSecAttrService as String: "com.pattonium.api",
             kSecAttrAccount as String: keychainKey,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
@@ -53,7 +53,7 @@ enum APIKeyManager {
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.hivecrew.api",
+            kSecAttrService as String: "com.pattonium.api",
             kSecAttrAccount as String: keychainKey,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
@@ -68,7 +68,7 @@ enum APIKeyManager {
     static func deleteAPIKey() -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.hivecrew.api",
+            kSecAttrService as String: "com.pattonium.api",
             kSecAttrAccount as String: keychainKey
         ]
         

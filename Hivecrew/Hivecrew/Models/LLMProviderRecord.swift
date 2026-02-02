@@ -117,7 +117,7 @@ extension LLMProviderRecord {
 
 /// Simple Keychain helper for storing API keys
 enum KeychainHelper {
-    private static let service = "com.hivecrew.llm-providers"
+    private static let service = "com.pattonium.llm-providers"
     
     /// Save a value to the Keychain
     static func save(key: String, value: String) -> Bool {

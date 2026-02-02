@@ -4,7 +4,7 @@
 <dict>
     <!-- Bundle Identification -->
     <key>CFBundleIdentifier</key>
-    <string>com.hivecrew.GuestAgent</string>
+    <string>com.pattonium.GuestAgent</string>
     <key>CFBundleName</key>
     <string>HivecrewGuestAgent</string>
     <key>CFBundleDisplayName</key>
