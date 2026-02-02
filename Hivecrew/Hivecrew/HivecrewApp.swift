@@ -162,8 +162,13 @@ struct HivecrewApp: App {
         APIServerManager.shared.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
         APIServerManager.shared.startIfEnabled()
         
-        // Configure MCP server manager
+        // Configure MCP server manager and connect to enabled servers
+        // Servers are connected once at app startup and shared across all agents
+        // Uses detached task with low priority to avoid blocking UI startup
         MCPServerManager.shared.configure(modelContext: sharedModelContainer.mainContext)
+        Task.detached(priority: .utility) {
+            await MCPServerManager.shared.connectAllEnabledWithTimeout()
+        }
         
         // Check if onboarding is needed
         if !hasCompletedOnboarding {

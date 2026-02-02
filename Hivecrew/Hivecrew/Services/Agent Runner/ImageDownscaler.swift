@@ -96,6 +96,30 @@ enum ImageDownscaler {
         return encodeAsJPEG(image: resizedImage, quality: 0.8)
     }
     
+    /// Convert an image to JPEG format without resizing
+    /// Used when the original format is not supported by image generation APIs (e.g., HEIC, WebP)
+    /// - Parameters:
+    ///   - base64Data: Base64-encoded image data
+    ///   - mimeType: MIME type of the image
+    /// - Returns: Tuple of (JPEG base64 data, mime type), or nil if conversion fails
+    static func convertToJPEG(
+        base64Data: String,
+        mimeType: String
+    ) -> (data: String, mimeType: String)? {
+        // Already JPEG, return as-is
+        if mimeType == "image/jpeg" {
+            return (base64Data, mimeType)
+        }
+        
+        guard let imageData = Data(base64Encoded: base64Data),
+              let image = NSImage(data: imageData) else {
+            print("[ImageDownscaler] Failed to decode image for JPEG conversion")
+            return nil
+        }
+        
+        return encodeAsJPEG(image: image, quality: 0.9)
+    }
+    
     /// Resize an NSImage to the specified size
     private static func resizeImage(_ image: NSImage, to newSize: NSSize) -> NSImage? {
         let newImage = NSImage(size: newSize)

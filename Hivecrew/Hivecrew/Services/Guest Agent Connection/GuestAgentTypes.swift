@@ -56,7 +56,7 @@ enum FileReadResult: Sendable {
     /// Text-based file content (plain text, PDF, docx, etc.)
     case text(content: String, fileType: String)
     
-    /// Image file with base64-encoded PNG data
+    /// Image file with base64-encoded image data
     case image(base64: String, mimeType: String, width: Int?, height: Int?)
     
     /// Get a text description of the result (for logging/display)

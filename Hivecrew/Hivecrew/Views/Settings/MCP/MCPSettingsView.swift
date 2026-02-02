@@ -76,6 +76,15 @@ struct MCPSettingsView: View {
                         onToggle: { enabled in
                             server.isEnabled = enabled
                             try? modelContext.save()
+                            
+                            // Auto-connect or disconnect based on toggle
+                            Task {
+                                if enabled {
+                                    await mcpManager.reconnect(serverId: server.id)
+                                } else {
+                                    await mcpManager.disconnect(from: server.id)
+                                }
+                            }
                         },
                         onConnect: {
                             Task {

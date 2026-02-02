@@ -326,9 +326,12 @@ final class ImageGenerationService: Sendable {
             throw ImageGenerationError.failedToSaveImage
         }
         
-        // Generate unique filename with timestamp (JPEG format)
+        // Detect image format from data
+        let fileExtension = detectImageFormat(data: imageData)
+        
+        // Generate unique filename with timestamp
         let timestamp = Int(Date().timeIntervalSince1970 * 1000)
-        let filename = "generated_\(timestamp).jpg"
+        let filename = "generated_\(timestamp).\(fileExtension)"
         let fileURL = outputDirectory.appendingPathComponent(filename)
         
         guard FileManager.default.createFile(atPath: fileURL.path, contents: imageData) else {
@@ -337,6 +340,33 @@ final class ImageGenerationService: Sendable {
         
         // Return the path as it appears inside the VM (for the agent)
         return "/Volumes/Shared/inbox/images/\(filename)"
+    }
+    
+    /// Detect image format from magic bytes
+    private func detectImageFormat(data: Data) -> String {
+        guard data.count >= 8 else {
+            return "png" // Default to PNG
+        }
+        
+        let bytes = [UInt8](data.prefix(8))
+        
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 {
+            return "png"
+        }
+        
+        // JPEG: FF D8 FF
+        if bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
+            return "jpg"
+        }
+        
+        // WebP: RIFF....WEBP
+        if bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 {
+            return "webp"
+        }
+        
+        // Default to PNG
+        return "png"
     }
     
     private func extractBase64FromDataURL(_ dataURL: String) -> String {

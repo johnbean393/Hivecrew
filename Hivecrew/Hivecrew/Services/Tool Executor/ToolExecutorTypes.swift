@@ -16,9 +16,9 @@ struct ToolExecutionResult: Sendable {
     let errorMessage: String?
     let durationMs: Int
     
-    /// For image results: base64-encoded PNG data to inject into model context
+    /// For image results: base64-encoded image data to inject into model context
     let imageBase64: String?
-    /// For image results: MIME type (always image/png after conversion)
+    /// For image results: MIME type (e.g., image/jpeg, image/png)
     let imageMimeType: String?
     
     /// Whether this result includes an image that should be injected into the conversation

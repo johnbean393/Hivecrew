@@ -28,12 +28,37 @@ extension ToolExecutor {
         let outputDirectory = AppPaths.vmInboxDirectory(id: vmId).appendingPathComponent("images", isDirectory: true)
         
         // Load reference images if provided
+        // First image is kept at full quality, subsequent images are downscaled to reduce payload size
         var referenceImages: [(data: String, mimeType: String)]?
         if let paths = referenceImagePaths, !paths.isEmpty {
             referenceImages = []
-            for path in paths {
+            for (index, path) in paths.enumerated() {
                 if let imageData = try? await loadReferenceImage(path: path) {
-                    referenceImages?.append(imageData)
+                    if index == 0 {
+                        // First image: keep at full quality, but ensure PNG/JPEG format
+                        if imageData.mimeType == "image/png" || imageData.mimeType == "image/jpeg" {
+                            referenceImages?.append(imageData)
+                        } else if let converted = ImageDownscaler.convertToJPEG(
+                            base64Data: imageData.data,
+                            mimeType: imageData.mimeType
+                        ) {
+                            referenceImages?.append(converted)
+                        } else {
+                            referenceImages?.append(imageData)
+                        }
+                    } else {
+                        // Subsequent images: downscale to ~4x smaller (512px max dimension)
+                        // downscale() also converts to JPEG
+                        if let downscaled = ImageDownscaler.downscale(
+                            base64Data: imageData.data,
+                            mimeType: imageData.mimeType,
+                            to: .small
+                        ) {
+                            referenceImages?.append(downscaled)
+                        } else {
+                            referenceImages?.append(imageData)
+                        }
+                    }
                 }
             }
         }

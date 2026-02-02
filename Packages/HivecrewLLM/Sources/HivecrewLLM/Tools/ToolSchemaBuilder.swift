@@ -393,12 +393,12 @@ public final class ToolSchemaBuilder: Sendable {
             // Image generation tool
             case .generateImage:
                 return (
-                    "Generate an image from a text prompt using AI. Optionally provide reference images for style or content guidance. The generated image will be saved to the images inbox folder and can be used in the task.",
+                    "Generate or edit an image using AI. Provide a text prompt describing the desired output. For image editing, provide reference images via referenceImagePaths - the FIRST image is the main image and is kept at full quality, while subsequent images are automatically compressed to 1/4 size (dimensions halved) to avoid payload size limits. You can provide up to 14 reference images. The generated image will be saved to the images inbox folder.",
                     objectSchema(
                         properties: [
-                            "prompt": stringProperty("Detailed description of the image to generate. Be specific about style, composition, colors, and subject matter."),
+                            "prompt": stringProperty("Detailed description of the image to generate or how to edit the reference image(s). Be specific about style, composition, colors, and subject matter."),
                             "referenceImagePaths": arrayProperty(
-                                "Optional paths to reference images for style or content guidance (relative to shared folder or absolute)",
+                                "Paths to reference images for editing or style guidance. The FIRST image is treated as the main image (full quality), subsequent images are compressed. Paths can be relative to shared folder or absolute.",
                                 itemType: ["type": "string"]
                             ),
                             "aspectRatio": enumProperty(

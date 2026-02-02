@@ -326,6 +326,8 @@ struct MCPServerEditSheet: View {
         let arguments = parseArguments(argumentsText)
         let environment = parseEnvironment(environmentText)
         
+        var serverIdToConnect: String?
+        
         switch mode {
         case .add:
             let server = MCPServerRecord(
@@ -340,7 +342,14 @@ struct MCPServerEditSheet: View {
             )
             modelContext.insert(server)
             
+            // Auto-connect new enabled servers
+            if isEnabled {
+                serverIdToConnect = server.id
+            }
+            
         case .edit(let server):
+            let wasEnabled = server.isEnabled
+            
             server.displayName = displayName
             server.transportType = transportType
             server.isEnabled = isEnabled
@@ -349,9 +358,26 @@ struct MCPServerEditSheet: View {
             server.workingDirectory = transportType == .stdio && !workingDirectory.isEmpty ? workingDirectory : nil
             server.environment = transportType == .stdio && !environment.isEmpty ? environment : [:]
             server.serverURL = transportType == .http ? serverURL : nil
+            
+            // Reconnect if configuration changed while enabled
+            if isEnabled {
+                serverIdToConnect = server.id
+            } else if wasEnabled && !isEnabled {
+                // Disconnect if disabled
+                Task {
+                    await MCPServerManager.shared.disconnect(from: server.id)
+                }
+            }
         }
         
         try? modelContext.save()
+        
+        // Connect after saving so the record is persisted
+        if let serverId = serverIdToConnect {
+            Task {
+                await MCPServerManager.shared.reconnect(serverId: serverId)
+            }
+        }
     }
     
     private func testConnection() {

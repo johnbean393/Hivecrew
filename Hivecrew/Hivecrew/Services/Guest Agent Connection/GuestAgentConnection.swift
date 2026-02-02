@@ -153,7 +153,7 @@ class GuestAgentConnection: ObservableObject {
         // Choose timeout based on method type
         let timeout: UInt64
         switch method {
-        case "screenshot":
+        case "screenshot", "read_file":
             timeout = screenshotTimeout
         case "keyboard_type":
             timeout = keyboardTypeTimeout
@@ -165,7 +165,7 @@ class GuestAgentConnection: ObservableObject {
         let timeoutSeconds = timeout / 1_000_000_000
         
         // Wait for response
-        return try await withCheckedThrowingContinuation { continuation in
+        let response = try await withCheckedThrowingContinuation { continuation in
             pendingRequests[requestId] = continuation
             
             // Set a timeout
@@ -177,6 +177,12 @@ class GuestAgentConnection: ObservableObject {
                 }
             }
         }
+        
+        if let error = response.error {
+            throw AgentConnectionError.agentError(code: error.code, message: error.message)
+        }
+        
+        return response
     }
     
     private func sendRequest(_ request: AgentRequest) throws {
@@ -271,9 +277,16 @@ class GuestAgentConnection: ObservableObject {
     
     private func handleData(_ data: Data) async {
         readBuffer.append(data)
+        let newlineByte = UInt8(ascii: "\n")
+        
+        // Optimization: only scan the buffer when the newly received chunk
+        // contains a newline. This avoids O(n^2) scanning for large messages.
+        if !data.contains(newlineByte) {
+            return
+        }
         
         // Process complete messages (newline-delimited)
-        while let newlineIndex = readBuffer.firstIndex(of: UInt8(ascii: "\n")) {
+        while let newlineIndex = readBuffer.firstIndex(of: newlineByte) {
             let messageData = readBuffer[..<newlineIndex]
             readBuffer = Data(readBuffer[(newlineIndex + 1)...])
             

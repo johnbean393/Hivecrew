@@ -107,6 +107,38 @@ final class MCPServerManager: ObservableObject {
         mcpLogger.info("connectAllEnabled: Completed")
     }
     
+    /// Connect to all enabled MCP servers with a timeout to prevent blocking app startup
+    /// This is the preferred method for app startup to ensure responsiveness
+    func connectAllEnabledWithTimeout(timeoutSeconds: Double = 30) async {
+        mcpLogger.info("connectAllEnabledWithTimeout: Starting with \(timeoutSeconds)s timeout")
+        
+        do {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                // Main connection task
+                group.addTask {
+                    await self.connectAllEnabled()
+                }
+                
+                // Timeout task
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+                    throw CancellationError()
+                }
+                
+                // Wait for first to complete (either connection finishes or timeout)
+                _ = try await group.next()
+                
+                // Cancel remaining tasks
+                group.cancelAll()
+            }
+            mcpLogger.info("connectAllEnabledWithTimeout: Completed successfully")
+        } catch is CancellationError {
+            mcpLogger.warning("connectAllEnabledWithTimeout: Timed out after \(timeoutSeconds)s - some servers may not be connected")
+        } catch {
+            mcpLogger.error("connectAllEnabledWithTimeout: Error - \(error.localizedDescription)")
+        }
+    }
+    
     /// Connect to a specific server using its config
     private func connectWithConfig(serverId: String, config: MCPServerConfig) async {
         mcpLogger.info("connectWithConfig: Creating connection for \(config.name)")

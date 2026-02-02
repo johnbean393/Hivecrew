@@ -307,7 +307,7 @@ extension AgentRunner {
             // New screenshot available
             userMessage = LLMMessage.user(
                 text: "Here is the current screen (step \(stepCount)). Analyze it and decide what to do next.",
-                images: [.imageBase64(data: observation.imageBase64, mimeType: "image/png")]
+                images: [.imageBase64(data: observation.imageBase64, mimeType: "image/jpeg")]
             )
         }
         

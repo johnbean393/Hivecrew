@@ -141,7 +141,7 @@ extension GuestAgentConnection {
     }
     
     /// Read a file's contents (supports multiple formats: text, PDF, RTF, Office docs, images)
-    /// For images, returns the base64-encoded PNG data that can be injected into the model context
+    /// For images, returns base64-encoded image data that can be injected into the model context
     func readFile(path: String) async throws -> FileReadResult {
         let response = try await call(method: "read_file", params: ["path": path])
         

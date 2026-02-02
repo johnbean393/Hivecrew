@@ -6,8 +6,9 @@
 //
 
 import Foundation
-import AppKit
 import PDFKit
+import ImageIO
+import UniformTypeIdentifiers
 import HivecrewAgentProtocol
 
 // MARK: - PDF Extraction
@@ -237,58 +238,86 @@ extension FileTool {
 
 extension FileTool {
     
-    /// Read an image file and return as base64-encoded PNG with metadata
-    /// All image formats are converted to PNG for consistent model input
+    /// Read an image file and return as base64-encoded data with metadata
+    /// Returns the original file data without conversion to preserve format and avoid processing overhead
     func readImageAsBase64(at path: String) throws -> [String: Any] {
         let url = URL(fileURLWithPath: path)
         
-        // Load the image using NSImage (handles all common formats including HEIC)
-        guard let image = NSImage(contentsOf: url) else {
-            throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to load image file")
-        }
+        // Read the raw file data directly (no conversion)
+        let imageData = try Data(contentsOf: url, options: .mappedIfSafe)
         
-        // Get image dimensions from the actual image representation
-        guard let bitmapRep = image.representations.first else {
-            throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to get image representation")
-        }
+        let metadata = imageMetadata(from: imageData)
         
-        let width = bitmapRep.pixelsWide > 0 ? bitmapRep.pixelsWide : Int(image.size.width)
-        let height = bitmapRep.pixelsHigh > 0 ? bitmapRep.pixelsHigh : Int(image.size.height)
+        let base64 = imageData.base64EncodedString()
         
-        // Convert to PNG data for consistent model input
-        guard let pngData = convertToPNG(image: image) else {
-            throw AgentError(code: AgentError.toolExecutionFailed, message: "Failed to convert image to PNG")
-        }
+        // Determine MIME type from image metadata or extension
+        let mimeType = metadata.mimeType ?? mimeTypeFromPath(url)
         
-        let base64 = pngData.base64EncodedString()
+        let width = metadata.width
+        let height = metadata.height
         
-        logger.log("Read image: \(width)x\(height), converted to PNG (\(pngData.count) bytes)")
+        logger.log("Read image: \(width ?? 0)x\(height ?? 0), \(imageData.count) bytes (original format)")
         
-        return [
+        var result: [String: Any] = [
             "contents": base64,
             "fileType": "image",
-            "mimeType": "image/png",  // Always PNG after conversion
-            "isBase64": true,
-            "width": width,
-            "height": height
+            "mimeType": mimeType,
+            "isBase64": true
         ]
-    }
-    
-    /// Convert an NSImage to PNG data
-    private func convertToPNG(image: NSImage) -> Data? {
-        // Get the best representation of the image
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            // Fallback: try to get tiff representation and convert
-            guard let tiffData = image.tiffRepresentation,
-                  let bitmapRep = NSBitmapImageRep(data: tiffData) else {
-                return nil
-            }
-            return bitmapRep.representation(using: .png, properties: [:])
+        
+        if let width {
+            result["width"] = width
+        }
+        if let height {
+            result["height"] = height
         }
         
-        // Create PNG data from CGImage
-        let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
-        return bitmapRep.representation(using: .png, properties: [:])
+        return result
+    }
+}
+
+// MARK: - Image Metadata
+
+extension FileTool {
+    private struct ImageMetadata {
+        let width: Int?
+        let height: Int?
+        let mimeType: String?
+    }
+    
+    private func imageMetadata(from data: Data) -> ImageMetadata {
+        let options: CFDictionary = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, options) else {
+            return ImageMetadata(width: nil, height: nil, mimeType: nil)
+        }
+        
+        var width: Int?
+        var height: Int?
+        if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] {
+            if let w = properties[kCGImagePropertyPixelWidth] as? NSNumber {
+                width = w.intValue
+            }
+            if let h = properties[kCGImagePropertyPixelHeight] as? NSNumber {
+                height = h.intValue
+            }
+        }
+        
+        var mimeType: String?
+        if let uti = CGImageSourceGetType(source) as String?,
+           let utType = UTType(uti),
+           let preferred = utType.preferredMIMEType {
+            mimeType = preferred
+        }
+        
+        return ImageMetadata(width: width, height: height, mimeType: mimeType)
+    }
+    
+    private func mimeTypeFromPath(_ url: URL) -> String {
+        if let utType = UTType(filenameExtension: url.pathExtension),
+           let preferred = utType.preferredMIMEType {
+            return preferred
+        }
+        return "image/*"
     }
 }
 

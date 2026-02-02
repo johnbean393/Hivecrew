@@ -24,6 +24,12 @@ final class VsockServer {
     private var acceptThread: Thread?
     private var readThread: Thread?
     
+    /// Concurrent queue for processing requests - allows multiple requests to be handled simultaneously
+    private let requestQueue = DispatchQueue(label: "com.hivecrew.vsock.requests", attributes: .concurrent)
+    
+    /// Serial queue for sending responses - ensures responses are written atomically
+    private let responseQueue = DispatchQueue(label: "com.hivecrew.vsock.responses")
+    
     // AF_VSOCK constants (from Linux/virtio headers)
     private let AF_VSOCK: Int32 = 40  // macOS uses 40 for AF_VSOCK
     private let VMADDR_CID_HOST: UInt32 = 2  // Host CID
@@ -166,8 +172,13 @@ final class VsockServer {
                 buffer = Data(buffer[(newlineIndex + 1)...])
                 
                 if let request = parseRequest(Data(messageData)) {
-                    let response = handler.handleRequest(request)
-                    sendResponse(response, to: socket)
+                    // Process request concurrently to avoid blocking the read loop
+                    // This allows multiple requests to be received and processed in parallel
+                    requestQueue.async { [weak self] in
+                        guard let self = self else { return }
+                        let response = self.handler.handleRequest(request)
+                        self.sendResponse(response, to: socket)
+                    }
                 }
             }
         }
@@ -189,17 +200,29 @@ final class VsockServer {
     }
     
     private func sendResponse(_ response: AgentResponse, to socket: Int32) {
-        do {
-            let encoder = JSONEncoder()
-            var data = try encoder.encode(response)
-            data.append(UInt8(ascii: "\n"))  // Newline delimiter
-            
-            data.withUnsafeBytes { buffer in
-                guard let ptr = buffer.baseAddress else { return }
-                _ = write(socket, ptr, buffer.count)
+        // Use serial queue to ensure responses are written atomically
+        // This prevents interleaving when multiple requests complete around the same time
+        responseQueue.sync {
+            do {
+                let encoder = JSONEncoder()
+                var data = try encoder.encode(response)
+                data.append(UInt8(ascii: "\n"))  // Newline delimiter
+                
+                data.withUnsafeBytes { buffer in
+                    guard let ptr = buffer.baseAddress else { return }
+                    var totalWritten = 0
+                    while totalWritten < buffer.count {
+                        let bytesWritten = write(socket, ptr.advanced(by: totalWritten), buffer.count - totalWritten)
+                        if bytesWritten < 0 {
+                            self.logger.error("Write error: \(String(cString: strerror(errno)))")
+                            break
+                        }
+                        totalWritten += bytesWritten
+                    }
+                }
+            } catch {
+                self.logger.error("Failed to encode response: \(error)")
             }
-        } catch {
-            logger.error("Failed to encode response: \(error)")
         }
     }
 }

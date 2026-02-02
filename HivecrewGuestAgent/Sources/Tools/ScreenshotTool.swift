@@ -15,7 +15,7 @@ import HivecrewAgentProtocol
 final class ScreenshotTool: @unchecked Sendable {
     private let logger = AgentLogger.shared
     
-    /// Capture a screenshot and return it as base64-encoded PNG
+    /// Capture a screenshot and return it as base64-encoded JPEG
     func execute() async throws -> [String: Any] {
         logger.log("Capturing screenshot...")
         
@@ -24,18 +24,18 @@ final class ScreenshotTool: @unchecked Sendable {
         let width = image.width
         let height = image.height
         
-        // Convert to PNG data
-        guard let pngData = createPNGData(from: image) else {
+        // Convert to JPEG data (smaller and faster than PNG)
+        guard let jpegData = createJPEGData(from: image) else {
             throw AgentError(
                 code: AgentError.toolExecutionFailed,
-                message: "Failed to encode screenshot as PNG"
+                message: "Failed to encode screenshot as JPEG"
             )
         }
         
         // Base64 encode
-        let base64String = pngData.base64EncodedString()
+        let base64String = jpegData.base64EncodedString()
         
-        logger.log("Screenshot captured: \(width)x\(height), \(pngData.count) bytes")
+        logger.log("Screenshot captured: \(width)x\(height), \(jpegData.count) bytes")
         
         return [
             "imageBase64": base64String,
@@ -119,19 +119,22 @@ final class ScreenshotTool: @unchecked Sendable {
         return image
     }
     
-    private func createPNGData(from image: CGImage) -> Data? {
+    private func createJPEGData(from image: CGImage, quality: CGFloat = 0.85) -> Data? {
         let mutableData = NSMutableData()
         
         guard let destination = CGImageDestinationCreateWithData(
             mutableData as CFMutableData,
-            "public.png" as CFString,
+            "public.jpeg" as CFString,
             1,
             nil
         ) else {
             return nil
         }
         
-        CGImageDestinationAddImage(destination, image, nil)
+        let options: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: quality
+        ]
+        CGImageDestinationAddImage(destination, image, options as CFDictionary)
         
         guard CGImageDestinationFinalize(destination) else {
             return nil
