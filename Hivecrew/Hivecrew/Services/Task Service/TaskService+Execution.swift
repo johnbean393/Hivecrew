@@ -27,6 +27,16 @@ extension TaskService {
             return
         }
         
+        // MARK: - Plan First Mode
+        // If plan mode is enabled and no plan exists yet, generate a plan BEFORE checking VM capacity.
+        // Planning does not require a VM, so it should proceed even when VMs are at capacity.
+        if task.planFirstEnabled && task.planMarkdown == nil {
+            tasksInProgress.insert(task.id)
+            await runPlanningPhase(task: task, context: context)
+            tasksInProgress.remove(task.id)
+            return // Planning phase complete, wait for user to execute
+        }
+        
         // Check if we can create a new VM (within concurrency limit)
         // Count running agents, pending VMs, AND running developer VMs
         let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
@@ -49,14 +59,6 @@ extension TaskService {
         
         // Mark this task as in-progress to prevent duplicate processing
         tasksInProgress.insert(task.id)
-        
-        // MARK: - Plan First Mode
-        // If plan mode is enabled, generate a plan before VM execution
-        if task.planFirstEnabled && task.planMarkdown == nil {
-            await runPlanningPhase(task: task, context: context)
-            tasksInProgress.remove(task.id)
-            return // Planning phase complete, wait for user to execute
-        }
         
         // Reserve a slot for this VM
         pendingVMCount += 1
