@@ -25,13 +25,14 @@ extension AgentRunner {
             // Make a simple LLM call (no tools) with retry logic
             let response = try await callLLMWithRetry(
                 messages: [.user(verificationPrompt)],
-                tools: nil
+                tools: nil,
+                updateConversationHistory: false
             )
             
             // Parse the JSON response
             guard let responseText = response.text else {
-                statePublisher.logInfo("No response from completion check, assuming success")
-                return (true, agentSummary)
+                statePublisher.logInfo("No response from completion check, treating as incomplete")
+                return (false, "Completion check returned no response.")
             }
             
             // Try to extract JSON from the response
@@ -40,14 +41,14 @@ extension AgentRunner {
             if let success = jsonResult.success {
                 return (success, jsonResult.summary ?? agentSummary)
             } else {
-                // Fallback: assume success if we can't parse
-                statePublisher.logInfo("Could not parse completion check response, assuming success")
-                return (true, agentSummary)
+                // Treat unparseable response as incomplete
+                statePublisher.logInfo("Could not parse completion check response, treating as incomplete")
+                return (false, "Completion check returned invalid JSON.")
             }
         } catch {
-            // On error, assume success (don't fail the task just because verification failed)
+            // On error, treat as incomplete rather than assuming success
             statePublisher.logError("Completion verification failed: \(error.localizedDescription)")
-            return (true, agentSummary)
+            return (false, "Completion check failed to run.")
         }
     }
     
@@ -68,7 +69,21 @@ extension AgentRunner {
         
         do {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                let success = json["success"] as? Bool
+                let success: Bool?
+                if let successValue = json["success"] as? Bool {
+                    success = successValue
+                } else if let successString = json["success"] as? String {
+                    let normalized = successString.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    if ["true", "yes"].contains(normalized) {
+                        success = true
+                    } else if ["false", "no"].contains(normalized) {
+                        success = false
+                    } else {
+                        success = nil
+                    }
+                } else {
+                    success = nil
+                }
                 let summary = json["summary"] as? String
                 return (success, summary)
             }
@@ -88,11 +103,14 @@ extension AgentRunner {
     /// Also handles payload too large (413) errors by downscaling images
     func callLLMWithRetry(
         messages: [LLMMessage],
-        tools: [LLMToolDefinition]?
+        tools: [LLMToolDefinition]?,
+        updateConversationHistory: Bool = true
     ) async throws -> LLMResponse {
         var lastError: Error?
         var payloadTooLargeRetries = 0
         let maxPayloadRetries = 3
+        var workingMessages = messages
+        var workingScaleLevel = currentImageScaleLevel
         
         for attempt in 1...maxLLMRetries {
             do {
@@ -109,9 +127,9 @@ extension AgentRunner {
                     }
                 }
                 
-                // Use the conversation history (which may have been downscaled)
+                // Use the provided messages (which may have been downscaled)
                 let response = try await llmClient.chatWithReasoningStream(
-                    messages: conversationHistory,
+                    messages: workingMessages,
                     tools: tools,
                     onReasoningUpdate: reasoningCallback
                 )
@@ -131,15 +149,22 @@ extension AgentRunner {
                     payloadTooLargeRetries += 1
                     
                     // Try to downscale images further
-                    if let nextLevel = currentImageScaleLevel.next {
+                    if let nextLevel = workingScaleLevel.next {
                         statePublisher.logInfo("Payload too large. Downscaling images to \(nextLevel) and retrying...")
-                        currentImageScaleLevel = nextLevel
-                        downscaleConversationImages(to: nextLevel)
+                        workingScaleLevel = nextLevel
+                        downscaleMessages(&workingMessages, to: nextLevel)
+                        if updateConversationHistory {
+                            currentImageScaleLevel = nextLevel
+                            downscaleConversationImages(to: nextLevel)
+                        }
                         continue // Retry immediately without counting against normal retries
                     } else {
                         // Already at minimum scale, try removing older images
                         statePublisher.logInfo("Payload too large at minimum scale. Removing older images...")
-                        aggressiveCompactConversationHistory()
+                        aggressiveCompactMessages(&workingMessages)
+                        if updateConversationHistory {
+                            aggressiveCompactConversationHistory()
+                        }
                         continue
                     }
                 }
@@ -191,6 +216,66 @@ extension AgentRunner {
                 } else {
                     foundFirst = true
                 }
+            }
+        }
+    }
+    
+    /// Aggressively compact any message array when at minimum image scale
+    /// Keeps only the most recent image
+    private func aggressiveCompactMessages(_ messages: inout [LLMMessage]) {
+        var foundFirst = false
+        
+        for i in stride(from: messages.count - 1, through: 0, by: -1) {
+            let message = messages[i]
+            
+            if message.role == .user && message.hasImages {
+                if foundFirst {
+                    let textContent = message.textContent
+                    messages[i] = .user("[Image removed to reduce payload size]\n\(textContent)")
+                } else {
+                    foundFirst = true
+                }
+            }
+        }
+    }
+    
+    /// Downscale images in any message array to the specified scale level
+    private func downscaleMessages(_ messages: inout [LLMMessage], to scaleLevel: ImageDownscaler.ScaleLevel) {
+        for i in 0..<messages.count {
+            let message = messages[i]
+            
+            guard message.role == .user && message.hasImages else { continue }
+            
+            var newContent: [LLMMessageContent] = []
+            var wasModified = false
+            
+            for content in message.content {
+                switch content {
+                case .imageBase64(let data, let mimeType):
+                    if let downscaled = ImageDownscaler.downscale(
+                        base64Data: data,
+                        mimeType: mimeType,
+                        to: scaleLevel
+                    ) {
+                        newContent.append(.imageBase64(data: downscaled.data, mimeType: downscaled.mimeType))
+                        wasModified = true
+                    } else {
+                        newContent.append(content)
+                    }
+                default:
+                    newContent.append(content)
+                }
+            }
+            
+            if wasModified {
+                messages[i] = LLMMessage(
+                    role: message.role,
+                    content: newContent,
+                    name: message.name,
+                    toolCalls: message.toolCalls,
+                    toolCallId: message.toolCallId,
+                    reasoning: message.reasoning
+                )
             }
         }
     }

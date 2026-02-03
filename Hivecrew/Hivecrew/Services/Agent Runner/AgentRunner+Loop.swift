@@ -331,7 +331,11 @@ extension AgentRunner {
         // Send to LLM with retry logic for transient failures
         let response: LLMResponse
         do {
-            response = try await callLLMWithRetry(messages: conversationHistory, tools: tools)
+            response = try await callLLMWithRetry(
+                messages: conversationHistory,
+                tools: tools,
+                updateConversationHistory: true
+            )
         } catch {
             // Log formatted error before rethrowing
             statePublisher.logError("LLM call failed: \(formatLLMError(error))")

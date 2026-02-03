@@ -204,6 +204,8 @@ private struct AgentPreviewCardContent: View {
     let previewScreenshotPath: String?
     
     @EnvironmentObject var taskService: TaskService
+    @State private var showingTrace: Bool = false
+    @State private var showingPlanReview: Bool = false
     
     private var hasPendingQuestion: Bool {
         statePublisher?.pendingQuestion != nil
@@ -284,49 +286,58 @@ private struct AgentPreviewCardContent: View {
     }
     
     var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: 8
-        ) {
-            headerRow
-            VStack {
-                Spacer(minLength: 0)
-                previewImage
-                Spacer(minLength: 0)
-            }
-            HStack(alignment: .center, spacing: 12) {
-                VStack(
-                    alignment: .leading,
-                    spacing: 8
-                ) {
-                    Text("Steps \(stepCount)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(activityDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        Button(action: handleCardTap) {
+            VStack(
+                alignment: .leading,
+                spacing: 8
+            ) {
+                headerRow
+                VStack {
+                    Spacer(minLength: 0)
+                    previewImage
+                    Spacer(minLength: 0)
                 }
-                .layoutPriority(1)
-                if let planState = planStateForDisplay {
-                    planProgressRow(planState)
-                        .frame(width: 120)
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(
+                        alignment: .leading,
+                        spacing: 8
+                    ) {
+                        Text("Steps \(stepCount)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(activityDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .layoutPriority(1)
+                    if let planState = planStateForDisplay {
+                        planProgressRow(planState)
+                            .frame(width: 120)
+                    }
+                    Spacer(minLength: 0)
+                    controlRow
                 }
-                Spacer(minLength: 0)
-                controlRow
             }
+            .padding(10)
+            .frame(width: cardWidth, height: cardHeight, alignment: .top)
+            .clipped()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.secondary.opacity(0.35), lineWidth: 1)
+            )
         }
-        .padding(10)
-        .frame(width: cardWidth, height: cardHeight, alignment: .top)
-        .clipped()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary.opacity(0.35), lineWidth: 1)
-        )
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showingTrace) {
+            SessionTraceView(task: task)
+        }
+        .sheet(isPresented: $showingPlanReview) {
+            PlanReviewWindow(task: task, taskService: taskService)
+        }
     }
     
     private var headerRow: some View {
@@ -426,6 +437,17 @@ private struct AgentPreviewCardContent: View {
                 .tint(.green)
                 .controlSize(.small)
                 .help("Resume agent")
+            } else if task.status == .planReview {
+                Button {
+                    Task { await taskService.executePlan(for: task) }
+                } label: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .imageScale(.large)
+                }
+                .buttonStyle(.borderless)
+                .tint(.green)
+                .controlSize(.small)
+                .help("Approve and execute plan")
             }
             
             Button {
@@ -439,6 +461,24 @@ private struct AgentPreviewCardContent: View {
             .controlSize(.small)
             .help(stopHelpText)
         }
+    }
+
+    private func handleCardTap() {
+        if task.status == .planning || task.status == .planReview {
+            showingPlanReview = true
+        } else if task.status == .running || task.status == .paused {
+            navigateToTask(task.id)
+        } else {
+            showingTrace = true
+        }
+    }
+
+    private func navigateToTask(_ taskId: String) {
+        NotificationCenter.default.post(
+            name: .navigateToTask,
+            object: nil,
+            userInfo: ["taskId": taskId]
+        )
     }
     
     private var stopHelpText: String {

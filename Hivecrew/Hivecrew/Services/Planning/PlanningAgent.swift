@@ -22,6 +22,15 @@ class PlanningAgent {
     /// Maximum number of tool call iterations
     private let maxToolIterations = 10
     
+    /// Maximum retries for LLM calls
+    private let maxLLMRetries = 3
+    
+    /// Maximum retries for invalid plan outputs
+    private let maxInvalidPlanRetries = 2
+    
+    /// Base delay for exponential backoff (in seconds)
+    private let baseRetryDelay: Double = 2.0
+    
     // MARK: - Initialization
     
     init(llmClient: any LLMClientProtocol) {
@@ -169,15 +178,20 @@ class PlanningAgent {
             .user(PlanningPrompts.generatePlanPrompt(task: task))
         ]
         
+        var invalidPlanAttempts = 0
+        var lastStreamedPlanText = ""
+        
         // Tool call loop
         var iteration = 0
         while iteration < maxToolIterations {
             iteration += 1
+            lastStreamedPlanText = ""
             
             // Call LLM with streaming for both reasoning and content
-            let response = try await llmClient.chatWithStreaming(
-                messages: messages,
+            let response = try await callLLMWithRetry(
+                messages: &messages,
                 tools: PlanningTools.allTools,
+                statePublisher: statePublisher,
                 onReasoningUpdate: { [weak statePublisher] reasoning in
                     Task { @MainActor in
                         statePublisher?.setReasoningText(reasoning)
@@ -185,6 +199,7 @@ class PlanningAgent {
                 },
                 onContentUpdate: { [weak statePublisher] content in
                     Task { @MainActor in
+                        lastStreamedPlanText = content
                         // Stream the plan content as it arrives
                         statePublisher?.setPlanText(content)
                     }
@@ -252,11 +267,40 @@ class PlanningAgent {
             }
             
             // No tool calls - we should have the plan
-            if let text = response.text, !text.isEmpty {
+            let rawText = response.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let candidateText = rawText.isEmpty ? lastStreamedPlanText : rawText
+            let cleaned = cleanPlanText(candidateText)
+            
+            if let validationError = validatePlanText(cleaned) {
+                invalidPlanAttempts += 1
+                if invalidPlanAttempts <= maxInvalidPlanRetries {
+                    statePublisher.setStatus("Plan output invalid. Retrying...")
+                    
+                    if let responseText = response.text, !responseText.isEmpty {
+                        messages.append(.assistant(responseText))
+                    }
+                    
+                    let retryPrompt = """
+                    The plan output was invalid: \(validationError)
+                    
+                    Please output the full plan again, following the required format:
+                    - Title heading (#)
+                    - Overview paragraph
+                    - Implementation sections
+                    - ## Tasks section with checkbox items (- [ ])
+                    """
+                    messages.append(.user(retryPrompt))
+                    continue
+                }
+                
+                throw PlanningError.invalidPlan(validationError)
+            }
+            
+            if !cleaned.isEmpty {
                 // Stream the plan text to the UI
-                statePublisher.setPlanText(text)
+                statePublisher.setPlanText(cleaned)
                 statePublisher.setStatus("Plan generated")
-                return cleanPlanText(text)
+                return cleaned
             }
             
             // No response - something went wrong
@@ -296,6 +340,170 @@ class PlanningAgent {
         }
         
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    /// Validate that the plan text is usable and complete enough
+    private func validatePlanText(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return "Plan output was empty."
+        }
+        
+        if PlanParser.extractTitle(from: trimmed) == nil {
+            return "Missing title heading (# Title)."
+        }
+        
+        let tasks = PlanParser.parseTodos(from: trimmed)
+        if tasks.isEmpty {
+            return "Missing Tasks checklist items (- [ ])."
+        }
+        
+        return nil
+    }
+    
+    /// Call LLM with retry logic and payload compaction
+    private func callLLMWithRetry(
+        messages: inout [LLMMessage],
+        tools: [LLMToolDefinition],
+        statePublisher: PlanningStatePublisher,
+        onReasoningUpdate: @escaping ReasoningStreamCallback,
+        onContentUpdate: @escaping ContentStreamCallback
+    ) async throws -> LLMResponse {
+        var lastError: Error?
+        var payloadCompactions = 0
+        
+        for attempt in 1...maxLLMRetries {
+            do {
+                if attempt > 1 {
+                    statePublisher.setStatus("Retrying plan generation (attempt \(attempt)/\(maxLLMRetries))...")
+                }
+                
+                let response = try await llmClient.chatWithStreaming(
+                    messages: messages,
+                    tools: tools,
+                    onReasoningUpdate: onReasoningUpdate,
+                    onContentUpdate: onContentUpdate
+                )
+                
+                return response
+            } catch {
+                lastError = error
+                
+                if isPayloadTooLargeError(error) && payloadCompactions < 2 {
+                    payloadCompactions += 1
+                    statePublisher.setStatus("Payload too large. Reducing context and retrying...")
+                    messages = compactMessagesForLargePayload(messages)
+                    continue
+                }
+                
+                if isRetryableError(error) && attempt < maxLLMRetries {
+                    let delay = baseRetryDelay * pow(2.0, Double(attempt - 1))
+                    statePublisher.setStatus("Plan generation failed. Retrying in \(Int(delay))s...")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+                
+                throw error
+            }
+        }
+        
+        throw lastError ?? PlanningError.noResponseGenerated
+    }
+    
+    /// Determine whether an error is retryable
+    private func isRetryableError(_ error: Error) -> Bool {
+        if let llmError = error as? LLMError {
+            return llmError.isRetryable
+        }
+        
+        let errorString = error.localizedDescription.lowercased()
+        if errorString.contains("rate limit") || errorString.contains("too many requests") {
+            return true
+        }
+        if errorString.contains("network") || errorString.contains("timeout") ||
+           errorString.contains("connection") || errorString.contains("temporarily unavailable") {
+            return true
+        }
+        if errorString.contains("500") || errorString.contains("502") ||
+           errorString.contains("503") || errorString.contains("504") {
+            return true
+        }
+        
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut, .networkConnectionLost, .notConnectedToInternet,
+                 .cannotConnectToHost, .cannotFindHost:
+                return true
+            default:
+                break
+            }
+        }
+        
+        return false
+    }
+    
+    /// Detect payload too large errors (413)
+    private func isPayloadTooLargeError(_ error: Error) -> Bool {
+        if let llmError = error as? LLMError, llmError.isPayloadTooLarge {
+            return true
+        }
+        
+        let errorString = error.localizedDescription.lowercased()
+        return errorString.contains("413") ||
+               errorString.contains("oversized payload") ||
+               errorString.contains("payload too large") ||
+               errorString.contains("request entity too large")
+    }
+    
+    /// Compact messages when payload is too large by trimming tool output and removing images
+    private func compactMessagesForLargePayload(_ messages: [LLMMessage]) -> [LLMMessage] {
+        let maxToolResultChars = 12000
+        var compacted: [LLMMessage] = []
+        
+        for message in messages {
+            var newContent: [LLMMessageContent] = []
+            var removedImage = false
+            
+            for part in message.content {
+                switch part {
+                case .imageBase64, .imageURL:
+                    removedImage = true
+                case .toolResult(let toolCallId, let content):
+                    if content.count > maxToolResultChars {
+                        let truncated = String(content.prefix(maxToolResultChars))
+                        let suffix = "\n\n[... truncated to reduce payload size ...]"
+                        newContent.append(.toolResult(toolCallId: toolCallId, content: truncated + suffix))
+                    } else {
+                        newContent.append(part)
+                    }
+                default:
+                    newContent.append(part)
+                }
+            }
+            
+            if removedImage {
+                if newContent.isEmpty {
+                    newContent = [.text("[Image removed to reduce payload size]")]
+                } else {
+                    newContent.append(.text("[Image removed to reduce payload size]"))
+                }
+            }
+            
+            if newContent.isEmpty {
+                compacted.append(message)
+            } else {
+                compacted.append(LLMMessage(
+                    role: message.role,
+                    content: newContent,
+                    name: message.name,
+                    toolCalls: message.toolCalls,
+                    toolCallId: message.toolCallId,
+                    reasoning: message.reasoning
+                ))
+            }
+        }
+        
+        return compacted
     }
 }
 

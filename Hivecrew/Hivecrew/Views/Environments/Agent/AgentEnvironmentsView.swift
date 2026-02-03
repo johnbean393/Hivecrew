@@ -74,6 +74,7 @@ struct AgentEnvironmentsView: View {
             }
         }
         .onAppear {
+            syncSelectionFromTaskIdIfNeeded()
             // Track environment viewed for tips when there are active tasks
             if !activeTasksWithVMs.isEmpty {
                 TipStore.shared.donateEnvironmentViewed()
@@ -189,6 +190,13 @@ struct AgentEnvironmentsView: View {
             Label("No Active Environments", systemImage: "desktopcomputer")
         } description: {
             Text("Running tasks and developer VMs will appear here")
+        }
+    }
+    
+    private func syncSelectionFromTaskIdIfNeeded() {
+        guard let taskId = selectedTaskId else { return }
+        if selectedItem != .task(taskId) {
+            selectedItem = .task(taskId)
         }
     }
 }
