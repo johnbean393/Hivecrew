@@ -27,6 +27,7 @@ struct PermissionRequest: Identifiable, Sendable, Equatable {
     let id = UUID()
     let toolName: String
     let details: String
+    let createdAt: Date = Date()
     
 }
 

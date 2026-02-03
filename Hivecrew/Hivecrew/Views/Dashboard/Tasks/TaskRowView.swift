@@ -228,6 +228,7 @@ struct TaskRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -319,7 +320,6 @@ struct TaskRowView: View {
                 }
             }
         }
-        .padding(2)
     }
     
     private func handleRowTap() {

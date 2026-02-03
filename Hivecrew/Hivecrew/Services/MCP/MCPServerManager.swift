@@ -107,8 +107,33 @@ final class MCPServerManager: ObservableObject {
         mcpLogger.info("connectAllEnabled: Completed")
     }
     
+    /// Connect to all enabled MCP servers if no active connections exist
+    /// Used to defer startup work until MCP tools are actually needed
+    func connectAllEnabledIfNeeded(timeoutSeconds: Double = 30) async {
+        if isConnecting {
+            mcpLogger.info("connectAllEnabledIfNeeded: Already connecting, skipping")
+            return
+        }
+        
+        let hasActiveConnection = serverStates.values.contains { state in
+            switch state {
+            case .connecting, .connected:
+                return true
+            case .disconnected, .error:
+                return false
+            }
+        }
+        
+        guard !hasActiveConnection else {
+            mcpLogger.info("connectAllEnabledIfNeeded: Active connection present, skipping")
+            return
+        }
+        
+        await connectAllEnabledWithTimeout(timeoutSeconds: timeoutSeconds)
+    }
+    
     /// Connect to all enabled MCP servers with a timeout to prevent blocking app startup
-    /// This is the preferred method for app startup to ensure responsiveness
+    /// This is preferred for background connection attempts
     func connectAllEnabledWithTimeout(timeoutSeconds: Double = 30) async {
         mcpLogger.info("connectAllEnabledWithTimeout: Starting with \(timeoutSeconds)s timeout")
         

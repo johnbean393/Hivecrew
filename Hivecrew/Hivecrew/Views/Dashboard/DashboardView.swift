@@ -43,9 +43,10 @@ struct DashboardView: View {
                 TaskInputView()
                     .popoverTip(createFirstTaskTip, arrowEdge: .bottom)
             }
-            
-            Spacer()
-                .frame(height: 32)
+            .padding(.bottom, 24)
+
+            AgentPreviewStripView()
+                .padding(.bottom, 20)
             
             // Bottom section: Task list or Scheduled tasks
             if selectedTab == .tasks {

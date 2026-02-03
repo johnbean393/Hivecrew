@@ -151,6 +151,7 @@ struct ScheduledTaskRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
@@ -203,7 +204,6 @@ struct ScheduledTaskRowView: View {
         .onReceive(timer) { _ in
             currentDate = Date()
         }
-        .padding(2)
     }
     
     // MARK: - Actions

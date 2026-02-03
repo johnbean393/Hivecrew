@@ -18,12 +18,14 @@ struct ScheduledTasksView: View {
     @State private var showCreateSheet: Bool = false
     @State private var scheduleToEdit: ScheduledTask?
     @FocusState private var isSearching: Bool
+
+    private let listRowHorizontalInset: CGFloat = 8
     
     // Tips
     private let scheduleRecurringTip = ScheduleRecurringTip()
     
     private var searchFieldColor: Color {
-        isSearching ? .accentColor : .secondary
+        isSearching ? .accentColor.opacity(0.8) : .secondary.opacity(0.4)
     }
     
     private var filteredSchedules: [ScheduledTask] {
@@ -38,10 +40,9 @@ struct ScheduledTasksView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             // Header with tabs, search and add button
             header
-                .padding(.horizontal, 11)
             
             // Schedule list
             if filteredSchedules.isEmpty {
@@ -54,7 +55,12 @@ struct ScheduledTasksView: View {
                             onEdit: { scheduleToEdit = schedule },
                             onRunNow: { runNow(schedule) }
                         )
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowInsets(EdgeInsets(
+                            top: 4,
+                            leading: -listRowHorizontalInset,
+                            bottom: 4,
+                            trailing: -listRowHorizontalInset
+                        ))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                     }
@@ -62,6 +68,7 @@ struct ScheduledTasksView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.never)
+                .contentMargins(.horizontal, 0)
             }
         }
         .padding(.horizontal, 40)
@@ -99,7 +106,7 @@ struct ScheduledTasksView: View {
             .background {
                 Capsule()
                     .stroke(
-                        searchFieldColor.opacity(0.4),
+                        searchFieldColor,
                         lineWidth: 1
                     )
             }

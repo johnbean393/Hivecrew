@@ -25,6 +25,9 @@ class ToolExecutor {
     
     /// Callback when a todo item is added (provides item text)
     var onTodoItemAdded: ((String) -> Void)?
+
+    /// Callback when the todo list is created or updated
+    var onTodoListUpdated: ((TodoList) -> Void)?
     
     let todoManager: TodoManager
     let taskProviderId: String
@@ -350,6 +353,7 @@ class ToolExecutor {
         let title = args["title"] as? String ?? "Untitled"
         let items = args["items"] as? [String]
         let list = todoManager.createList(title: title, items: items)
+        onTodoListUpdated?(list)
         var result = "✓ Created: \(list.title)\n"
         for (i, item) in list.items.enumerated() {
             result += "\(i+1). \(item.isCompleted ? "[✓]" : "[ ]") \(item.text)\n"
@@ -363,6 +367,9 @@ class ToolExecutor {
         
         // Notify callback for plan state sync
         onTodoItemAdded?(itemText)
+        if let list = todoManager.getList() {
+            onTodoListUpdated?(list)
+        }
         
         return .text("✓ Added item #\(index): \(itemText)")
     }
@@ -380,6 +387,9 @@ class ToolExecutor {
         
         // Notify callback for plan state sync
         onTodoItemFinished?(index, itemText)
+        if let list = todoManager.getList() {
+            onTodoListUpdated?(list)
+        }
         
         return .text("✓ Marked item #\(index) as completed")
     }

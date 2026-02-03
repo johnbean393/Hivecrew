@@ -91,6 +91,7 @@
 		209C61A72F12ABD700062D0E /* VMRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61862F12ABD700062D0E /* VMRecord.swift */; };
 		209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61882F12ABD700062D0E /* VMServiceClient.swift */; };
 		209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618A2F12ABD700062D0E /* DashboardView.swift */; };
+		20F1A7B12F40C9A800B1D2C3 /* AgentPreviewStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */; };
 		209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618B2F12ABD700062D0E /* StatCard.swift */; };
 		209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */; };
 		209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618F2F12ABD700062D0E /* SettingsView.swift */; };
@@ -286,6 +287,7 @@
 		209C61862F12ABD700062D0E /* VMRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMRecord.swift; sourceTree = "<group>"; };
 		209C61882F12ABD700062D0E /* VMServiceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMServiceClient.swift; sourceTree = "<group>"; };
 		209C618A2F12ABD700062D0E /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewStripView.swift; sourceTree = "<group>"; };
 		209C618B2F12ABD700062D0E /* StatCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCard.swift; sourceTree = "<group>"; };
 		209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersSettingsView.swift; sourceTree = "<group>"; };
 		209C618F2F12ABD700062D0E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -632,6 +634,7 @@
 				AAAA00062F1E200000000006 /* Tasks */,
 				204DF42E2F1571AB004AB99B /* Prompt Bar */,
 				209C618A2F12ABD700062D0E /* DashboardView.swift */,
+				20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */,
 				209C618B2F12ABD700062D0E /* StatCard.swift */,
 			);
 			path = Dashboard;
@@ -1112,6 +1115,7 @@
 				202F64E72F2FE35300F6F359 /* MCPServerRecord.swift in Sources */,
 				209EB6DA2F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift in Sources */,
 				209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */,
+				20F1A7B12F40C9A800B1D2C3 /* AgentPreviewStripView.swift in Sources */,
 				202F64E52F2FE31500F6F359 /* MCPServerManager.swift in Sources */,
 				209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */,
 				209EB6DE2F1E19B400A7F13F /* ToolExecutorTypes.swift in Sources */,

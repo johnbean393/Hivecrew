@@ -113,6 +113,7 @@ struct PromptBar: View {
         VStack(spacing: 0) {
             // Main input container
             mainInputContainer
+                .frame(minHeight: 65)
             // Attachment previews (shown above the input if there are attachments)
             if hasAttachments {
                 PromptAttachmentPreviewList(attachments: $attachments)

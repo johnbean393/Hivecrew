@@ -17,12 +17,14 @@ struct TaskListView: View {
     
     @State private var searchText: String = ""
     @FocusState private var isSearching: Bool
+
+    private let listRowHorizontalInset: CGFloat = 8
     
     // Tips
     private let reviewCompletedTasksTip = ReviewCompletedTasksTip()
     
     var searchFieldColor: Color {
-        return self.isSearching ? .accentColor : .secondary
+        return isSearching ? .accentColor.opacity(0.8) : .secondary.opacity(0.4)
     }
     
     var filteredTasks: [TaskRecord] {
@@ -37,10 +39,9 @@ struct TaskListView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             // Header with tabs and search
             header
-                .padding(.horizontal, 11)
             // Task list
             if filteredTasks.isEmpty {
                 emptyState
@@ -48,14 +49,21 @@ struct TaskListView: View {
                 List {
                     ForEach(filteredTasks, id: \.id) { task in
                         TaskRowView(task: task)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                            .listRowInsets(EdgeInsets(
+                                top: 4,
+                                leading: -listRowHorizontalInset,
+                                bottom: 4,
+                                trailing: -listRowHorizontalInset
+                            ))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
+                            .padding(.bottom, 6)
                     }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.never)
+                .contentMargins(.horizontal, 0)
                 .popoverTip(reviewCompletedTasksTip, arrowEdge: .top)
             }
         }
@@ -86,7 +94,7 @@ struct TaskListView: View {
             .background {
                 Capsule()
                     .stroke(
-                        searchFieldColor.opacity(0.4),
+                        searchFieldColor,
                         lineWidth: 1
                     )
             }

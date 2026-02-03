@@ -193,6 +193,11 @@ final class AgentRunner {
             // Sync with plan state
             self.addPlanItem(content: itemText)
         }
+        
+        self.toolExecutor.onTodoListUpdated = { [weak self] list in
+            guard let self = self else { return }
+            self.syncPlanProgressFromTodoList(list)
+        }
     }
     
     // MARK: - Public Methods
@@ -368,6 +373,27 @@ final class AgentRunner {
         statePublisher.logInfo("Plan deviation: \(description.prefix(50))...")
     }
     
+    /// Sync plan progress from todo list when no plan markdown exists
+    private func syncPlanProgressFromTodoList(_ list: TodoList) {
+        guard task.planMarkdown == nil else { return }
+        
+        let items = list.items.map { item in
+            PlanTodoItem(
+                id: item.id,
+                content: item.text,
+                isCompleted: item.isCompleted,
+                completedAt: item.completedAt,
+                wasSkipped: false,
+                deviationReason: nil,
+                addedDuringExecution: true
+            )
+        }
+        
+        let state = PlanState(items: items)
+        planState = state
+        statePublisher.planProgress = state
+    }
+    
     /// Save plan state to the session directory
     private func savePlanState() async {
         guard let state = planState, let sessionId = task.sessionId else { return }
@@ -395,10 +421,12 @@ final class AgentRunner {
     /// Logger for MCP debugging
     private static let mcpLogger = Logger(subsystem: "com.pattonium.Hivecrew", category: "MCP")
     
-    /// Add MCP tools from already-connected servers to the available tools list
-    /// MCP servers are connected once at app startup and shared across all agents
+    /// Add MCP tools from enabled servers to the available tools list
+    /// MCP servers are connected on-demand to avoid startup latency
     private func addMCPTools() async {
         Self.mcpLogger.info("Fetching MCP tools from connected servers...")
+        
+        await MCPServerManager.shared.connectAllEnabledIfNeeded()
         
         let mcpTools = await MCPServerManager.shared.getAllTools()
         
