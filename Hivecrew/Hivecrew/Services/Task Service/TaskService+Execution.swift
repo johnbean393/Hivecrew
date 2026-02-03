@@ -750,11 +750,6 @@ extension TaskService {
         // Clean up planning publisher
         activePlanningPublishers.removeValue(forKey: task.id)
         
-        // Reset to queued so it goes through normal execution
-        task.status = .queued
-        try? modelContext?.save()
-        objectWillChange.send()
-        
         // Start the task (will now use the plan since planMarkdown is set)
         await startTask(task)
     }
