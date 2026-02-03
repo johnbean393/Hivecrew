@@ -169,6 +169,14 @@ extension AgentRunner {
                     }
                 }
                 
+                // Retry explicitly on empty responses
+                if isEmptyResponseError(error) && attempt < maxLLMRetries {
+                    let delay = baseRetryDelay * pow(2.0, Double(attempt - 1))
+                    statePublisher.logInfo("LLM returned empty response (attempt \(attempt)/\(maxLLMRetries)). Retrying in \(Int(delay))s...")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+                
                 // Check if error is retryable
                 if isRetryableError(error) && attempt < maxLLMRetries {
                     let delay = baseRetryDelay * pow(2.0, Double(attempt - 1))
@@ -197,6 +205,26 @@ extension AgentRunner {
                errorString.contains("oversized payload") ||
                errorString.contains("payload too large") ||
                errorString.contains("request entity too large")
+    }
+    
+    /// Detect empty response errors from the model
+    private func isEmptyResponseError(_ error: Error) -> Bool {
+        if let llmError = error as? LLMError {
+            switch llmError {
+            case .noChoices:
+                return true
+            case .unknown(let message):
+                let normalized = message.lowercased()
+                return normalized.contains("empty response") || normalized.contains("no content")
+            default:
+                break
+            }
+        }
+        
+        let errorString = error.localizedDescription.lowercased()
+        return errorString.contains("empty response") ||
+               errorString.contains("no content") ||
+               errorString.contains("no response choices")
     }
     
     /// Aggressively compact conversation history when at minimum image scale
@@ -292,11 +320,6 @@ extension AgentRunner {
         // Network errors
         if errorString.contains("network") || errorString.contains("timeout") ||
            errorString.contains("connection") || errorString.contains("temporarily unavailable") {
-            return true
-        }
-        
-        // Empty responses can occur from transient failures
-        if errorString.contains("empty response") || errorString.contains("no content") {
             return true
         }
         
