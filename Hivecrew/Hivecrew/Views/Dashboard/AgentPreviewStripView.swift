@@ -18,6 +18,7 @@ struct AgentPreviewStripView: View {
     
     var body: some View {
         let items = sortedItems()
+        let itemIDs = items.map(\.id)
         
         if items.isEmpty {
             EmptyView()
@@ -45,11 +46,14 @@ struct AgentPreviewStripView: View {
                 }
                 .padding(.horizontal, 40)
                 .padding(.vertical, 8)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: itemIDs)
             }
             .scrollIndicators(.never)
             .frame(height: cardHeight + 32)
             .onReceive(refreshPublisher) { _ in
-                sortEpoch += 1
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    sortEpoch += 1
+                }
             }
         }
     }

@@ -42,9 +42,10 @@ extension TaskService {
         let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
         let effectiveMax = maxConcurrent > 0 ? maxConcurrent : 2
         let runningDeveloperVMs = countRunningDeveloperVMs()
-        let currentlyActive = runningAgents.count + pendingVMCount + runningDeveloperVMs
+        let pendingCount = syncPendingVMCount()
+        let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs
         
-        print("TaskService: Concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingVMCount), developerVMs=\(runningDeveloperVMs), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
+        print("TaskService: Concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
         
         if currentlyActive >= effectiveMax {
             // At capacity - keep task as queued, will be picked up when a slot opens
@@ -593,6 +594,12 @@ extension TaskService {
             print("TaskService: Cannot remove non-queued task '\(task.title)' from queue")
             return
         }
+
+        if task.status == .waitingForVM {
+            pendingVMCount = max(0, pendingVMCount - 1)
+            tasksInProgress.remove(task.id)
+            print("TaskService: Released pending slot for removed task '\(task.title)' (pending: \(pendingVMCount))")
+        }
         
         // Mark as cancelled
         task.status = .cancelled
@@ -663,11 +670,12 @@ extension TaskService {
         let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
         let effectiveMax = maxConcurrent > 0 ? maxConcurrent : 2
         let runningDeveloperVMs = countRunningDeveloperVMs()
-        let currentlyActive = runningAgents.count + pendingVMCount + runningDeveloperVMs
+        let pendingCount = syncPendingVMCount()
+        let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs
         let availableSlots = max(0, effectiveMax - currentlyActive)
         
         guard availableSlots > 0 else {
-            print("TaskService: No available slots for queued tasks (running=\(runningAgents.count), pending=\(pendingVMCount), developerVMs=\(runningDeveloperVMs), max=\(effectiveMax))")
+            print("TaskService: No available slots for queued tasks (running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), max=\(effectiveMax))")
             return
         }
         
@@ -681,6 +689,17 @@ extension TaskService {
                 await startTask(task)
             }
         }
+    }
+
+    /// Keep pendingVMCount aligned with task state to avoid stale capacity checks.
+    @discardableResult
+    private func syncPendingVMCount() -> Int {
+        let actualPending = tasks.filter { $0.status == .waitingForVM }.count
+        if pendingVMCount != actualPending {
+            print("TaskService: pendingVMCount out of sync (stored=\(pendingVMCount), actual=\(actualPending)). Resyncing.")
+            pendingVMCount = actualPending
+        }
+        return actualPending
     }
     
     // MARK: - Plan First Mode

@@ -137,7 +137,13 @@ extension AgentRunner {
                 let hasText = !(response.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
                 let hasToolCalls = !(response.toolCalls?.isEmpty ?? true)
                 if !hasText && !hasToolCalls {
-                    throw LLMError.unknown(message: "Empty response from model")
+                    // Log details about the empty response for debugging
+                    let responseId = response.id
+                    let finishReason = response.finishReason?.rawValue ?? "nil"
+                    let choiceCount = response.choices.count
+                    let reasoning = response.reasoning?.prefix(100) ?? "nil"
+                    print("[AgentRunner] Empty response detected - id: \(responseId), finishReason: \(finishReason), choices: \(choiceCount), reasoning: \(reasoning)")
+                    throw LLMError.unknown(message: "Empty response from model (id: \(responseId), finishReason: \(finishReason), choices: \(choiceCount))")
                 }
                 
                 return response

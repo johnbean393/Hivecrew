@@ -99,7 +99,14 @@ extension OpenAICompatibleClient {
                     continue
                 }
                 
-                // SSE format: "data: {...}" or "data: [DONE]"
+                // SSE format: "data: {...}" or "data: [DONE]" or "event: ..."
+                // Check for SSE error events first
+                if line.hasPrefix("event: error") || line.hasPrefix("event:error") {
+                    // Next data line will contain error details
+                    print("[HivecrewLLM] SSE error event received")
+                    continue
+                }
+                
                 if line.hasPrefix("data: ") {
                     let jsonString = String(line.dropFirst(6))
                     
@@ -107,8 +114,26 @@ extension OpenAICompatibleClient {
                         break
                     }
                     
+                    // Check for error responses in the data
                     if let jsonData = jsonString.data(using: .utf8),
                        let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] {
+                        
+                        // Check if this is an error response
+                        if let error = json["error"] as? [String: Any] {
+                            let errorMessage = error["message"] as? String ?? "Unknown error"
+                            let errorType = error["type"] as? String ?? "api_error"
+                            let rawPayload = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let maxPayloadLength = 2000
+                            let payloadPreview: String
+                            if rawPayload.count > maxPayloadLength {
+                                payloadPreview = String(rawPayload.prefix(maxPayloadLength)) + "...(truncated)"
+                            } else {
+                                payloadPreview = rawPayload
+                            }
+                            let payloadNote = payloadPreview.isEmpty ? "" : " | raw_payload: \(payloadPreview)"
+                            print("[HivecrewLLM] SSE stream error: \(errorType) - \(errorMessage)\(payloadNote)")
+                            throw LLMError.apiError(statusCode: 0, message: "\(errorType): \(errorMessage)\(payloadNote)")
+                        }
                         
                         // Extract response metadata
                         if let id = json["id"] as? String, !id.isEmpty {

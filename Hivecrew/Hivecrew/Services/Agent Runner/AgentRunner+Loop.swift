@@ -15,6 +15,9 @@ import HivecrewAgentProtocol
 extension AgentRunner {
     
     func runLoop() async throws -> AgentResult {
+        let maxConsecutiveLLMFailures = 3
+        var consecutiveLLMFailures = 0
+        
         while stepCount < maxSteps && !isCancelled && !isTimedOut {
             // Check if paused at the start of each iteration
             if isPaused {
@@ -34,10 +37,64 @@ extension AgentRunner {
             await tracer.nextStep()
             
             // 1. OBSERVE: Take a screenshot (skip if last tools were all host-side)
-            let observation = try await observe(skipIfHostSide: !needsScreenshotUpdate)
+            let observation: ScreenshotResult
+            do {
+                observation = try await observe(skipIfHostSide: !needsScreenshotUpdate)
+            } catch {
+                let errorMessage = error.localizedDescription
+                statePublisher.logError("Observation failed: \(errorMessage)")
+                try? await tracer.logError(
+                    type: "observation_failed",
+                    message: errorMessage,
+                    recoverable: true
+                )
+                
+                // Keep looping until timeout, cancellation, or max steps
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                continue
+            }
             
             // 2. DECIDE: Send observation to LLM
-            let (response, toolCalls) = try await decide(observation: observation)
+            let response: LLMResponse?
+            let toolCalls: [LLMToolCall]?
+            do {
+                (response, toolCalls) = try await decide(observation: observation)
+                consecutiveLLMFailures = 0
+            } catch {
+                consecutiveLLMFailures += 1
+                let errorMessage = formatLLMError(error)
+                statePublisher.logError("LLM call failed (\(consecutiveLLMFailures)/\(maxConsecutiveLLMFailures)): \(errorMessage)")
+                
+                if consecutiveLLMFailures >= maxConsecutiveLLMFailures {
+                    statePublisher.status = .failed
+                    statePublisher.logError("LLM failed \(consecutiveLLMFailures) times in a row. Ending session.")
+                    
+                    let tokenUsage = await tracer.getTokenUsage()
+                    try? await tracer.logError(
+                        type: "llm_consecutive_failures",
+                        message: "LLM call failed \(consecutiveLLMFailures) times in a row",
+                        recoverable: false
+                    )
+                    try? await tracer.logSessionEnd(
+                        status: "failed",
+                        summary: "LLM call failed \(consecutiveLLMFailures) times in a row"
+                    )
+                    
+                    return AgentResult(
+                        success: false,
+                        summary: nil,
+                        errorMessage: "LLM call failed \(consecutiveLLMFailures) times in a row",
+                        stepCount: stepCount,
+                        promptTokens: tokenUsage.prompt,
+                        completionTokens: tokenUsage.completion,
+                        terminationReason: .failed
+                    )
+                }
+                
+                // Keep looping until max failures, timeout, or cancellation
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                continue
+            }
             
             // Check for pause/cancel/timeout after LLM call
             if isCancelled || isTimedOut {
@@ -53,7 +110,26 @@ extension AgentRunner {
             
             // 3. EXECUTE: Run tool calls or complete if none
             if let toolCalls = toolCalls, !toolCalls.isEmpty {
-                let results = try await execute(toolCalls: toolCalls)
+                let results: [ToolExecutionResult]
+                do {
+                    results = try await execute(toolCalls: toolCalls)
+                } catch {
+                    let errorMessage = error.localizedDescription
+                    statePublisher.logError("Tool execution failed: \(errorMessage)")
+                    try? await tracer.logError(
+                        type: "tool_execution_failed",
+                        message: errorMessage,
+                        recoverable: true
+                    )
+                    results = toolCalls.map {
+                        ToolExecutionResult.failure(
+                            toolCallId: $0.id,
+                            toolName: $0.function.name,
+                            error: errorMessage,
+                            durationMs: 0
+                        )
+                    }
+                }
                 
                 // Check if any non-host-side tools were executed
                 // If all tools were host-side, we can skip the next screenshot
@@ -151,7 +227,7 @@ extension AgentRunner {
                     statePublisher.logInfo("Task verified as complete")
                     
                     let tokenUsage = await tracer.getTokenUsage()
-                    try await tracer.logSessionEnd(status: "completed", summary: finalSummary)
+                    try? await tracer.logSessionEnd(status: "completed", summary: finalSummary)
                     
                     return AgentResult(
                         success: true,
@@ -186,7 +262,7 @@ extension AgentRunner {
                     statePublisher.logInfo("Task verification failed after \(maxCompletionAttempts) attempts")
                     
                     let tokenUsage = await tracer.getTokenUsage()
-                    try await tracer.logSessionEnd(status: "failed", summary: finalSummary)
+                    try? await tracer.logSessionEnd(status: "failed", summary: finalSummary)
                     
                     return AgentResult(
                         success: false,
@@ -201,7 +277,7 @@ extension AgentRunner {
             }
             
             // Small delay between steps to avoid overwhelming the system
-            try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
         }
         
         // Determine termination reason
@@ -229,7 +305,7 @@ extension AgentRunner {
         statePublisher.logInfo(message)
         
         let tokenUsage = await tracer.getTokenUsage()
-        try await tracer.logSessionEnd(status: status, summary: message)
+        try? await tracer.logSessionEnd(status: status, summary: message)
         
         return AgentResult(
             success: false,
@@ -320,7 +396,7 @@ extension AgentRunner {
         
         // Log request
         statePublisher.logLLMRequest(messageCount: conversationHistory.count, toolCount: tools.count)
-        try await tracer.logLLMRequest(
+        try? await tracer.logLLMRequest(
             messageCount: conversationHistory.count,
             toolCount: tools.count,
             model: llmClient.configuration.model
@@ -338,7 +414,16 @@ extension AgentRunner {
             )
         } catch {
             // Log formatted error before rethrowing
-            statePublisher.logError("LLM call failed: \(formatLLMError(error))")
+            let errorMessage = formatLLMError(error)
+            statePublisher.logError("LLM call failed: \(errorMessage)")
+            
+            // Log error to tracer so it appears in the session trace
+            try? await tracer.logError(
+                type: "llm_call_failed",
+                message: errorMessage,
+                recoverable: true
+            )
+            
             throw error
         }
         
@@ -354,7 +439,8 @@ extension AgentRunner {
             totalTokens: response.usage?.totalTokens ?? 0,
             reasoning: response.reasoning
         )
-        try await tracer.logLLMResponse(response, latencyMs: latencyMs)
+        try? await tracer
+            .logLLMResponse(response, latencyMs: latencyMs)
         
         // Add assistant response to conversation (with tool calls if any)
         if let toolCalls = toolCalls, !toolCalls.isEmpty {
