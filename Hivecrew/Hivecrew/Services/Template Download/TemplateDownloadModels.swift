@@ -45,7 +45,16 @@ public struct RemoteTemplate: Identifiable, Sendable {
 
 /// Known remote templates available for download
 public enum KnownTemplates {
-    
+
+    /// The golden template hosted on Cloudflare R2
+    public static let goldenV0012 = RemoteTemplate(
+        id: "golden-v0.0.12",
+        name: "Hivecrew Golden Image",
+        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
+        version: "0.0.12",
+        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.12.tar.zst")!
+    )
+
     /// The golden template hosted on Cloudflare R2
     public static let goldenV0011 = RemoteTemplate(
         id: "golden-v0.0.11",
@@ -64,64 +73,15 @@ public enum KnownTemplates {
         url: URL(string: "https://templates.hivecrew.org/golden-v0.0.10.tar.zst")!
     )
     
-    /// The golden template hosted on Cloudflare R2
-    public static let goldenV009 = RemoteTemplate(
-        id: "golden-v0.0.9",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.9",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.9.tar.zst")!
-    )
-    
-    /// The golden template hosted on Cloudflare R2
-    public static let goldenV008 = RemoteTemplate(
-        id: "golden-v0.0.8",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.8",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.8.tar.zst")!
-    )
-    
-    /// The golden template hosted on Cloudflare R2
-    public static let goldenV007 = RemoteTemplate(
-        id: "golden-v0.0.7",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.7",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.7.tar.zst")!
-    )
-    
-    /// The golden template hosted on Cloudflare R2
-    public static let goldenV006 = RemoteTemplate(
-        id: "golden-v0.0.6",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.6",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.6.tar.zst")!
-    )
-    
-    /// Legacy v0.0.5 (kept for reference)
-    public static let goldenV005 = RemoteTemplate(
-        id: "golden-v0.0.5",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.5",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.5.tar.zst")!
-    )
-    
     /// All available templates for download
     public static let all: [RemoteTemplate] = [
+        goldenV0012,
         goldenV0011,
         goldenV0010,
-        goldenV009,
-        goldenV008,
-        goldenV007,
-        goldenV006,
-        goldenV005
     ]
 
     /// The default/recommended template
-    public static let `default` = goldenV0011
+    public static let `default` = goldenV0012
     
 }
 

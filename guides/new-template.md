@@ -3,14 +3,14 @@
 ## 1. Compress
 
 ```bash
-cd ~/Library/Application\ Support/Hivecrew/Templates; gtar --sparse -cvf - "golden-v0.0.11" | zstd -T0 -10 -o /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.11.tar.zst --progress
+cd ~/Library/Application\ Support/Hivecrew/Templates; gtar --sparse -cvf - "golden-v0.0.12" | zstd -T0 -10 -o /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.12.tar.zst --progress
 ```
 
 ## 2. Upload
 
 Try:
 ```bash
-rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.11.tar.zst cloudflare-r2:hivecrew-templates/ \
+rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.12.tar.zst cloudflare-r2:hivecrew-templates/ \
   --progress \
   --s3-chunk-size 200M \
   --s3-upload-concurrency 8 \
@@ -18,7 +18,7 @@ rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.11.t
 ```
 
 ```bash
-rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.11.tar.zst cloudflare-r2:hivecrew-templates/ --progress
+rclone copy /Users/bj/Desktop/Personal/Development/Images/macOS/golden-v0.0.12.tar.zst cloudflare-r2:hivecrew-templates/ --progress
 ```
 
 ## 3. Update Manifest
@@ -30,10 +30,10 @@ Edit `manifest.json` and add the new template at the top:
   "version": 1,
   "templates": [
     {
-      "id": "golden-v0.0.11",
+      "id": "golden-v0.0.12",
       "name": "Hivecrew Golden Image",
-      "version": "0.0.11",
-      "url": "https://templates.hivecrew.org/golden-v0.0.11.tar.zst",
+      "version": "0.0.12",
+      "url": "https://templates.hivecrew.org/golden-v0.0.12.tar.zst",
       "minimumAppVersion": "{MIN_APP_VERSION}"
     }
   ]
@@ -55,11 +55,11 @@ Only needed to change the **fallback default for new users** before they fetch t
 In `TemplateDownloadService.swift`:
 
 ```swift
-public static let goldenV0.0.11 = RemoteTemplate(
-    id: "golden-v0.0.11",
+public static let goldenV0.0.12 = RemoteTemplate(
+    id: "golden-v0.0.12",
     ...
 )
 
-public static let all: [RemoteTemplate] = [goldenV0.0.11, ...]
-public static let `default` = goldenV0.0.11
+public static let all: [RemoteTemplate] = [goldenV0.0.12, ...]
+public static let `default` = goldenV0.0.12
 ```

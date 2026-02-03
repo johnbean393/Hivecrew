@@ -166,21 +166,14 @@ public class TemplateDownloadService: ObservableObject {
         isDownloading = true
         isPaused = false
         
-        var startingBytes: Int64 = 0
-        if resume, let state = loadDownloadState(), state.templateId == template.id {
-            let partialURL = URL(fileURLWithPath: state.partialFilePath)
-            if fileManager.fileExists(atPath: partialURL.path) {
-                startingBytes = state.bytesDownloaded
-            }
-        }
-        
-        let expectedSize = template.sizeBytes ?? 0
-        progress = TemplateDownloadProgress(phase: .downloading, bytesDownloaded: startingBytes, totalBytes: expectedSize, estimatedTimeRemaining: nil)
-        
         defer { isDownloading = false }
         
+        let expectedSize = template.sizeBytes ?? 0
+        var failureTotalBytes = expectedSize
+        
         do {
-            let (archivePath, actualSize) = try await downloadArchive(from: template.url, templateId: template.id, resumeFrom: resume ? startingBytes : 0)
+            let (archivePath, actualSize) = try await resolveArchive(for: template, resume: resume)
+            failureTotalBytes = actualSize
             
             clearDownloadState()
             hasResumableDownload = false
@@ -213,7 +206,7 @@ public class TemplateDownloadService: ObservableObject {
             
         } catch {
             if case TemplateDownloadError.cancelled = error { }
-            progress = TemplateDownloadProgress(phase: .failed(error.localizedDescription), bytesDownloaded: 0, totalBytes: expectedSize, estimatedTimeRemaining: nil)
+            progress = TemplateDownloadProgress(phase: .failed(error.localizedDescription), bytesDownloaded: 0, totalBytes: failureTotalBytes, estimatedTimeRemaining: nil)
             throw error
         }
     }
@@ -256,6 +249,39 @@ public class TemplateDownloadService: ObservableObject {
     
     private func partialDownloadPath(for templateId: String) -> URL {
         downloadsDirectory.appendingPathComponent("\(templateId).tar.zst.partial")
+    }
+    
+    private func cachedArchiveInfo(for template: RemoteTemplate) -> (URL, Int64)? {
+        let archivePath = downloadsDirectory.appendingPathComponent("\(template.id).tar.zst")
+        guard fileManager.fileExists(atPath: archivePath.path) else { return nil }
+        guard let attrs = try? fileManager.attributesOfItem(atPath: archivePath.path),
+              let size = attrs[.size] as? Int64,
+              size > 0 else { return nil }
+        if let expectedSize = template.sizeBytes, expectedSize > 0, expectedSize != size {
+            try? fileManager.removeItem(at: archivePath)
+            return nil
+        }
+        return (archivePath, size)
+    }
+    
+    private func resolveArchive(for template: RemoteTemplate, resume: Bool) async throws -> (URL, Int64) {
+        if resume, let cached = cachedArchiveInfo(for: template) {
+            let partialPath = partialDownloadPath(for: template.id)
+            try? fileManager.removeItem(at: partialPath)
+            return cached
+        }
+        
+        var startingBytes: Int64 = 0
+        if resume, let state = loadDownloadState(), state.templateId == template.id {
+            let partialURL = URL(fileURLWithPath: state.partialFilePath)
+            if fileManager.fileExists(atPath: partialURL.path) {
+                startingBytes = state.bytesDownloaded
+            }
+        }
+        
+        let expectedSize = template.sizeBytes ?? 0
+        progress = TemplateDownloadProgress(phase: .downloading, bytesDownloaded: startingBytes, totalBytes: expectedSize, estimatedTimeRemaining: nil)
+        return try await downloadArchive(from: template.url, templateId: template.id, resumeFrom: resume ? startingBytes : 0)
     }
     
     private func downloadArchive(from url: URL, templateId: String, resumeFrom: Int64) async throws -> (URL, Int64) {

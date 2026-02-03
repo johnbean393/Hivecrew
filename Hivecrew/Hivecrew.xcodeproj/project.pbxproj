@@ -91,7 +91,6 @@
 		209C61A72F12ABD700062D0E /* VMRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61862F12ABD700062D0E /* VMRecord.swift */; };
 		209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C61882F12ABD700062D0E /* VMServiceClient.swift */; };
 		209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618A2F12ABD700062D0E /* DashboardView.swift */; };
-		20F1A7B12F40C9A800B1D2C3 /* AgentPreviewStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */; };
 		209C61AA2F12ABD700062D0E /* StatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618B2F12ABD700062D0E /* StatCard.swift */; };
 		209C61AB2F12ABD700062D0E /* ProvidersSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */; };
 		209C61AD2F12ABD700062D0E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C618F2F12ABD700062D0E /* SettingsView.swift */; };
@@ -152,6 +151,7 @@
 		20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */; };
 		20C413F62F14302F00C6E8A9 /* Hivecrew.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20C413F52F14302F00C6E8A9 /* Hivecrew.icon */; };
 		20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 20C413F82F143BAA00C6E8A9 /* MarkdownView */; };
+		20F1A7B12F40C9A800B1D2C3 /* AgentPreviewStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */; };
 		3001B0012F15000000000001 /* TaskRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0012F15000000000001 /* TaskRecord.swift */; };
 		3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0022F15000000000002 /* AgentSessionRecord.swift */; };
 		3001B0032F15000000000003 /* AgentQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0032F15000000000003 /* AgentQuestion.swift */; };
@@ -287,7 +287,6 @@
 		209C61862F12ABD700062D0E /* VMRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMRecord.swift; sourceTree = "<group>"; };
 		209C61882F12ABD700062D0E /* VMServiceClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMServiceClient.swift; sourceTree = "<group>"; };
 		209C618A2F12ABD700062D0E /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
-		20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewStripView.swift; sourceTree = "<group>"; };
 		209C618B2F12ABD700062D0E /* StatCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatCard.swift; sourceTree = "<group>"; };
 		209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProvidersSettingsView.swift; sourceTree = "<group>"; };
 		209C618F2F12ABD700062D0E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -348,6 +347,7 @@
 		20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedTasksStartupSheet.swift; sourceTree = "<group>"; };
 		20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminationConfirmationSheet.swift; sourceTree = "<group>"; };
 		20C413F52F14302F00C6E8A9 /* Hivecrew.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Hivecrew.icon; sourceTree = "<group>"; };
+		20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewStripView.swift; sourceTree = "<group>"; };
 		3001A0012F15000000000001 /* TaskRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRecord.swift; sourceTree = "<group>"; };
 		3001A0022F15000000000002 /* AgentSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionRecord.swift; sourceTree = "<group>"; };
 		3001A0032F15000000000003 /* AgentQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentQuestion.swift; sourceTree = "<group>"; };
@@ -1419,7 +1419,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1433,7 +1433,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1455,7 +1455,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1469,7 +1469,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
