@@ -39,8 +39,30 @@ struct TraceEventInfo: Identifiable {
     let responseText: String?
     /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
     let reasoning: String?
+    /// Subagent trace path (relative to session directory), if this is a subagent lifecycle event
+    let subagentTracePath: String?
+    let subagentId: String?
+    let subagentStatus: String?
+    let subagentPurpose: String?
+    let subagentDomain: String?
     
-    init(id: String, type: String, timestamp: String, step: Int, summary: String, rawJSON: String, screenshotPath: String? = nil, details: String? = nil, responseText: String? = nil, reasoning: String? = nil) {
+    init(
+        id: String,
+        type: String,
+        timestamp: String,
+        step: Int,
+        summary: String,
+        rawJSON: String,
+        screenshotPath: String? = nil,
+        details: String? = nil,
+        responseText: String? = nil,
+        reasoning: String? = nil,
+        subagentTracePath: String? = nil,
+        subagentId: String? = nil,
+        subagentStatus: String? = nil,
+        subagentPurpose: String? = nil,
+        subagentDomain: String? = nil
+    ) {
         self.id = id
         self.type = type
         self.timestamp = timestamp
@@ -51,6 +73,11 @@ struct TraceEventInfo: Identifiable {
         self.details = details
         self.responseText = responseText
         self.reasoning = reasoning
+        self.subagentTracePath = subagentTracePath
+        self.subagentId = subagentId
+        self.subagentStatus = subagentStatus
+        self.subagentPurpose = subagentPurpose
+        self.subagentDomain = subagentDomain
     }
 }
 
@@ -185,6 +212,9 @@ struct HistoricalTraceEventRow: View {
     }
     
     private var iconName: String {
+        if event.subagentTracePath != nil {
+            return "person.2.fill"
+        }
         switch event.type {
         case "session_start": return "play.circle.fill"
         case "session_end": return "stop.circle.fill"
@@ -194,11 +224,15 @@ struct HistoricalTraceEventRow: View {
         case "tool_call": return "hammer.fill"
         case "tool_result": return "checkmark.circle.fill"
         case "error": return "exclamationmark.triangle.fill"
+        case "custom": return "circle.hexagongrid.fill"
         default: return "circle.fill"
         }
     }
     
     private var iconColor: Color {
+        if event.subagentTracePath != nil {
+            return .indigo
+        }
         switch event.type {
         case "session_start": return .green
         case "session_end": return .blue
@@ -206,6 +240,7 @@ struct HistoricalTraceEventRow: View {
         case "llm_request", "llm_response": return .purple
         case "tool_call", "tool_result": return .orange
         case "error": return .red
+        case "custom": return .gray
         default: return .gray
         }
     }
@@ -240,6 +275,109 @@ struct HistoricalTraceEventRow: View {
             return event.rawJSON
         }
         return prettyString
+    }
+}
+
+// MARK: - Subagent Trace Event Row
+
+struct SubagentTraceEventRow: View {
+    let event: TraceEventInfo
+    let sessionDirectory: URL
+    let parseTraceEvents: (String) -> [TraceEventInfo]
+    
+    @State private var isExpanded: Bool = false
+    @State private var isLoading: Bool = false
+    @State private var nestedEvents: [TraceEventInfo] = []
+    @State private var errorMessage: String?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "person.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(.indigo)
+                    .frame(width: 16)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.summary)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(isExpanded ? nil : 2)
+                    
+                    if let details = event.details, !details.isEmpty {
+                        Text(details)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(isExpanded ? nil : 2)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isExpanded.toggle()
+                }
+                if isExpanded && nestedEvents.isEmpty && errorMessage == nil {
+                    loadNestedTrace()
+                }
+            }
+            
+            if isExpanded {
+                if isLoading {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Loading subagent trace...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.leading, 24)
+                } else if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 24)
+                } else if nestedEvents.isEmpty {
+                    Text("No subagent trace events found")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 24)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(nestedEvents) { nestedEvent in
+                            HistoricalTraceEventRow(
+                                event: nestedEvent,
+                                isCurrentScreenshot: false
+                            )
+                        }
+                    }
+                    .padding(.leading, 20)
+                }
+            }
+        }
+    }
+    
+    private func loadNestedTrace() {
+        guard let relativePath = event.subagentTracePath else { return }
+        isLoading = true
+        
+        let traceURL = sessionDirectory.appendingPathComponent(relativePath)
+        do {
+            let content = try String(contentsOf: traceURL, encoding: .utf8)
+            nestedEvents = parseTraceEvents(content)
+            isLoading = false
+        } catch {
+            errorMessage = "Failed to load subagent trace: \(error.localizedDescription)"
+            isLoading = false
+        }
     }
 }
 

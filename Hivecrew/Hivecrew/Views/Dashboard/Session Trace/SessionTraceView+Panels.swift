@@ -166,10 +166,20 @@ extension SessionTraceView {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                    HistoricalTraceEventRow(
-                        event: event,
-                        isCurrentScreenshot: event.screenshotPath == currentScreenshotPath
-                    )
+                    Group {
+                        if let sessionDirectory = sessionDirectory, event.subagentTracePath != nil {
+                            SubagentTraceEventRow(
+                                event: event,
+                                sessionDirectory: sessionDirectory,
+                                parseTraceEvents: parseTraceEvents(from:)
+                            )
+                        } else {
+                            HistoricalTraceEventRow(
+                                event: event,
+                                isCurrentScreenshot: event.screenshotPath == currentScreenshotPath
+                            )
+                        }
+                    }
                     .id(event.id)
                     .background(
                         GeometryReader { geometry in

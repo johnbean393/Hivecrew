@@ -730,7 +730,7 @@ public class SkillManager: ObservableObject {
         }
         
         // Refresh skills list
-        try? await loadAllSkills()
+        let _ = try? await loadAllSkills()
     }
     
     /// Ensure the skill-creator skill is available (for skill extraction)

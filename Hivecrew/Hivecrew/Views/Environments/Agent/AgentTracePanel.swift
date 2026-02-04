@@ -30,7 +30,7 @@ struct AgentTracePanel: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(statePublisher.activityLog) { entry in
-                            TraceEntryView(entry: entry)
+                            TraceEntryView(entry: entry, statePublisher: statePublisher)
                                 .id(entry.id)
                         }
                         
@@ -354,11 +354,20 @@ struct AgentTracePanel: View {
 /// Individual trace entry row - matches the design from SessionTraceView
 struct TraceEntryView: View {
     let entry: AgentActivityEntry
+    @ObservedObject var statePublisher: AgentStatePublisher
     
     @State private var isExpanded: Bool = false
     @State private var isReasoningExpanded: Bool = false
+    @State private var isSubagentExpanded: Bool = false
     
     var body: some View {
+        if entry.type == .subagent, let subagentId = entry.subagentId {
+            SubagentBoxView(
+                subagentId: subagentId,
+                statePublisher: statePublisher,
+                isExpanded: $isSubagentExpanded
+            )
+        } else {
         VStack(alignment: .leading, spacing: 6) {
             // Main row
             HStack(spacing: 8) {
@@ -479,6 +488,7 @@ struct TraceEntryView: View {
                 }
             }
         }
+        }
     }
     
     // MARK: - Styling
@@ -494,6 +504,7 @@ struct TraceEntryView: View {
         case .userAnswer: return "person.fill"
         case .error: return "exclamationmark.triangle.fill"
         case .info: return "info.circle.fill"
+        case .subagent: return "person.2.fill"
         }
     }
     
@@ -508,6 +519,7 @@ struct TraceEntryView: View {
         case .userAnswer: return .cyan
         case .error: return .red
         case .info: return .gray
+        case .subagent: return .indigo
         }
     }
     
@@ -515,6 +527,168 @@ struct TraceEntryView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         return formatter.string(from: entry.timestamp)
+    }
+}
+
+// MARK: - Subagent Box View
+
+struct SubagentBoxView: View {
+    let subagentId: String
+    @ObservedObject var statePublisher: AgentStatePublisher
+    @Binding var isExpanded: Bool
+    
+    private var subagent: SubagentBoxState? {
+        statePublisher.subagents.first(where: { $0.id == subagentId })
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: statusIcon)
+                        .foregroundStyle(statusColor)
+                        .font(.caption)
+                        .frame(width: 16)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(subagent?.goal ?? "Subagent")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .lineLimit(isExpanded ? nil : 2)
+                        
+                        Text(subagent?.currentAction ?? "Working…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            
+            if isExpanded {
+                SubagentExpandedProgressView(lines: subagent?.lines ?? [])
+                    .padding(.horizontal, 6)
+            }
+        }
+    }
+    
+    private var statusIcon: String {
+        switch subagent?.status {
+        case .running:
+            return "sparkles"
+        case .completed:
+            return "checkmark.circle.fill"
+        case .failed:
+            return "xmark.octagon.fill"
+        case .cancelled:
+            return "slash.circle.fill"
+        case .none:
+            return "sparkles"
+        }
+    }
+    
+    private var statusColor: Color {
+        switch subagent?.status {
+        case .running:
+            return .indigo
+        case .completed:
+            return .green
+        case .failed:
+            return .red
+        case .cancelled:
+            return .orange
+        case .none:
+            return .secondary
+        }
+    }
+}
+
+struct SubagentExpandedProgressView: View {
+    let lines: [SubagentProgressLine]
+    
+    private let maxHeight: CGFloat = 220
+    
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(lines) { line in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: iconName(for: line.type))
+                                    .foregroundStyle(iconColor(for: line.type))
+                                    .font(.caption2)
+                                    .frame(width: 14)
+                                
+                                Text(line.summary)
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                
+                                Spacer()
+                            }
+                            
+                            if let details = line.details, !details.isEmpty {
+                                Text(details)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    
+                    Color.clear
+                        .frame(height: 1)
+                        .id("bottom")
+                }
+                .padding(.vertical, 6)
+            }
+            .frame(maxHeight: maxHeight)
+            .onChange(of: lines.count) { _, _ in
+                withAnimation(.easeOut(duration: 0.1)) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
+        }
+    }
+    
+    private func iconName(for type: SubagentProgressLineType) -> String {
+        switch type {
+        case .info: return "info.circle.fill"
+        case .toolCall: return "hammer.fill"
+        case .toolResult: return "checkmark.circle.fill"
+        case .llmResponse: return "sparkles"
+        case .error: return "exclamationmark.triangle.fill"
+        }
+    }
+    
+    private func iconColor(for type: SubagentProgressLineType) -> Color {
+        switch type {
+        case .info: return .gray
+        case .toolCall: return .orange
+        case .toolResult: return .green
+        case .llmResponse: return .purple
+        case .error: return .red
+        }
     }
 }
 

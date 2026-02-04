@@ -409,6 +409,66 @@ public final class ToolSchemaBuilder: Sendable {
                         required: ["prompt"]
                     )
                 )
+                
+            // Subagent management tools
+            case .spawnSubagent:
+                return (
+                    "Spawn a background subagent to work asynchronously on a subtask. Use this for parallel research or long-running shell checks. For research: avoid listing models or facts from memory. Instruct the subagent to discover from sources and cite URLs. Use today's date for any 'latest' or 'current' requests; avoid hardcoding past dates unless explicitly required.",
+                    objectSchema(
+                        properties: [
+                            "goal": stringProperty("A clear, specific goal for the subagent to accomplish."),
+                            "domain": enumProperty("Where the subagent operates", ["host", "vm", "mixed"]),
+                            "toolAllowlist": arrayProperty(
+                                "Optional list of allowed tools for this subagent. If omitted, defaults are chosen based on domain.",
+                                itemType: ["type": "string"]
+                            ),
+                            "timeoutSeconds": numberProperty("Optional timeout in seconds for the subagent."),
+                            "modelOverride": stringProperty("Optional model ID to use instead of the default worker model."),
+                            "purpose": stringProperty("Optional short label for UI and trace display.")
+                        ],
+                        required: ["goal", "domain"]
+                    )
+                )
+                
+            case .getSubagentStatus:
+                return (
+                    "Get the current status of a subagent by ID.",
+                    objectSchema(
+                        properties: [
+                            "subagentId": stringProperty("The subagent ID to query.")
+                        ],
+                        required: ["subagentId"]
+                    )
+                )
+                
+            case .awaitSubagent:
+                return (
+                    "Wait for a subagent to finish and return its final summary.",
+                    objectSchema(
+                        properties: [
+                            "subagentId": stringProperty("The subagent ID to wait for."),
+                            "timeoutSeconds": numberProperty("Optional timeout in seconds.")
+                        ],
+                        required: ["subagentId"]
+                    )
+                )
+                
+            case .cancelSubagent:
+                return (
+                    "Cancel a running subagent.",
+                    objectSchema(
+                        properties: [
+                            "subagentId": stringProperty("The subagent ID to cancel.")
+                        ],
+                        required: ["subagentId"]
+                    )
+                )
+                
+            case .listSubagents:
+                return (
+                    "List all subagents associated with the current task.",
+                    emptyObjectSchema()
+                )
         }
     }
     

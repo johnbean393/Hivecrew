@@ -7,6 +7,9 @@ DerivedData/
 xcuserdata/
 *.xcuserstate
 
+# Cur
+.cursor/
+
 # macOS
 .DS_Store
 

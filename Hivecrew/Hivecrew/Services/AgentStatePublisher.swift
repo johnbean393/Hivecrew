@@ -41,6 +41,8 @@ struct AgentActivityEntry: Identifiable, Sendable {
     let screenshotPath: String?
     /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
     let reasoning: String?
+    /// Subagent ID for subagent UI entries (optional)
+    let subagentId: String?
     
     enum ActivityType: String, Sendable {
         case observation = "observation"
@@ -52,6 +54,7 @@ struct AgentActivityEntry: Identifiable, Sendable {
         case userAnswer = "user_answer"
         case error = "error"
         case info = "info"
+        case subagent = "subagent"
     }
     
     init(
@@ -61,7 +64,8 @@ struct AgentActivityEntry: Identifiable, Sendable {
         summary: String,
         details: String? = nil,
         screenshotPath: String? = nil,
-        reasoning: String? = nil
+        reasoning: String? = nil,
+        subagentId: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -70,7 +74,57 @@ struct AgentActivityEntry: Identifiable, Sendable {
         self.details = details
         self.screenshotPath = screenshotPath
         self.reasoning = reasoning
+        self.subagentId = subagentId
     }
+}
+
+// MARK: - Subagent Progress Models
+
+enum SubagentStatus: String, Sendable {
+    case running
+    case completed
+    case failed
+    case cancelled
+}
+
+enum SubagentProgressLineType: String, Sendable {
+    case info
+    case toolCall
+    case toolResult
+    case llmResponse
+    case error
+}
+
+struct SubagentProgressLine: Identifiable, Sendable, Equatable {
+    let id: String
+    let timestamp: Date
+    let type: SubagentProgressLineType
+    let summary: String
+    let details: String?
+    
+    init(
+        id: String = UUID().uuidString,
+        timestamp: Date = Date(),
+        type: SubagentProgressLineType,
+        summary: String,
+        details: String? = nil
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.type = type
+        self.summary = summary
+        self.details = details
+    }
+}
+
+struct SubagentBoxState: Identifiable, Sendable, Equatable {
+    let id: String
+    let goal: String
+    let purpose: String?
+    let domain: String
+    var status: SubagentStatus
+    var currentAction: String
+    var lines: [SubagentProgressLine]
 }
 
 /// Observable state for agent execution UI updates
@@ -123,6 +177,9 @@ class AgentStatePublisher: ObservableObject {
     
     /// Plan progress state (for tasks with execution plans)
     @Published var planProgress: PlanState?
+    
+    /// Real-time subagent progress states
+    @Published var subagents: [SubagentBoxState] = []
     
     /// Task ID this publisher is tracking
     let taskId: String
@@ -272,7 +329,6 @@ class AgentStatePublisher: ObservableObject {
     
     /// Log an observation (screenshot)
     func logObservation(screenshotPath: String?) {
-        currentStep += 1
         addActivity(AgentActivityEntry(
             type: .observation,
             summary: "Captured screenshot",
@@ -340,6 +396,11 @@ class AgentStatePublisher: ObservableObject {
     
     /// Log a tool call starting
     func logToolCallStart(toolName: String) {
+        if toolName == "spawn_subagent" {
+            // Subagent spawning has a dedicated UI box.
+            currentToolCall = nil
+            return
+        }
         currentToolCall = toolName
         addActivity(AgentActivityEntry(
             type: .toolCall,
@@ -349,6 +410,11 @@ class AgentStatePublisher: ObservableObject {
     
     /// Log a tool call result
     func logToolCallResult(toolName: String, success: Bool, result: String, durationMs: Int) {
+        if toolName == "spawn_subagent" {
+            // Subagent spawning has a dedicated UI box.
+            currentToolCall = nil
+            return
+        }
         currentToolCall = nil
         addActivity(AgentActivityEntry(
             type: .toolResult,
@@ -371,6 +437,81 @@ class AgentStatePublisher: ObservableObject {
             type: .info,
             summary: message
         ))
+    }
+    
+    // MARK: - Subagent UI Updates
+    
+    func subagentStarted(
+        id: String,
+        goal: String,
+        purpose: String?,
+        domain: String
+    ) {
+        // Add activity entry (renders as a box in the trace)
+        addActivity(AgentActivityEntry(
+            type: .subagent,
+            summary: "Subagent: \(purpose ?? id)",
+            subagentId: id
+        ))
+        
+        if let index = subagents.firstIndex(where: { $0.id == id }) {
+            subagents[index] = SubagentBoxState(
+                id: id,
+                goal: goal,
+                purpose: purpose,
+                domain: domain,
+                status: .running,
+                currentAction: "Starting…",
+                lines: subagents[index].lines
+            )
+        } else {
+            subagents.append(SubagentBoxState(
+                id: id,
+                goal: goal,
+                purpose: purpose,
+                domain: domain,
+                status: .running,
+                currentAction: "Starting…",
+                lines: []
+            ))
+        }
+    }
+    
+    func subagentSetAction(id: String, action: String) {
+        guard let index = subagents.firstIndex(where: { $0.id == id }) else { return }
+        subagents[index].currentAction = action
+    }
+    
+    func subagentAppendLine(id: String, type: SubagentProgressLineType, summary: String, details: String? = nil) {
+        guard let index = subagents.firstIndex(where: { $0.id == id }) else { return }
+        subagents[index].lines.append(SubagentProgressLine(type: type, summary: summary, details: details))
+        // Cap to avoid unbounded growth
+        if subagents[index].lines.count > 200 {
+            subagents[index].lines.removeFirst(subagents[index].lines.count - 200)
+        }
+    }
+    
+    func subagentFinished(id: String, status: SubagentStatus, summary: String?) {
+        guard let index = subagents.firstIndex(where: { $0.id == id }) else { return }
+        subagents[index].status = status
+        switch status {
+        case .completed:
+            subagents[index].currentAction = "Completed"
+        case .failed:
+            subagents[index].currentAction = "Failed"
+        case .cancelled:
+            subagents[index].currentAction = "Cancelled"
+        case .running:
+            break
+        }
+        if let summary, !summary.isEmpty {
+            subagentAppendLine(
+                id: id,
+                type: .info,
+                summary: "Final summary",
+                details: summary
+            )
+        }
     }
     
 }

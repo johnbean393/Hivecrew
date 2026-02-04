@@ -110,6 +110,7 @@ struct ActivityEntryRow: View {
         case .userAnswer: return "person.circle"
         case .error: return "exclamationmark.triangle"
         case .info: return "info.circle"
+        case .subagent: return "person.2.fill"
         }
     }
     
@@ -124,6 +125,7 @@ struct ActivityEntryRow: View {
         case .userAnswer: return .cyan
         case .error: return .red
         case .info: return .gray
+        case .subagent: return .indigo
         }
     }
     

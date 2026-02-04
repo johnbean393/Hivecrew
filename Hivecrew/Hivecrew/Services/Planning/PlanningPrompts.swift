@@ -96,6 +96,7 @@ public enum PlanningPrompts {
         2. **Create a Rich Plan**: Generate a structured plan following the format below
         3. **Be Specific**: Include concrete details about what to do and how
         4. **Consider Edge Cases**: Think about what could go wrong and how to handle it
+        5. **Use Subagents When Helpful**: The execution agent can spawn subagents for parallel research or long-running checks. If useful, note where a subagent should be used.
         
         ## File Paths
         - Input files are located at: `~/Desktop/inbox/{filename}`

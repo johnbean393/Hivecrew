@@ -19,6 +19,9 @@ extension AgentRunner {
         var consecutiveLLMFailures = 0
         
         while stepCount < maxSteps && !isCancelled && !isTimedOut {
+            // Inject any completed subagent results before observe
+            await injectSubagentResults()
+            
             // Check if paused at the start of each iteration
             if isPaused {
                 let instructions = await waitIfPaused()
@@ -35,6 +38,7 @@ extension AgentRunner {
             }
             stepCount += 1
             await tracer.nextStep()
+            statePublisher.currentStep = stepCount
             
             // 1. OBSERVE: Take a screenshot (skip if last tools were all host-side)
             let observation: ScreenshotResult
@@ -198,6 +202,9 @@ extension AgentRunner {
                     }
                 }
                 
+                // Inject any completed subagent results after tool execution
+                await injectSubagentResults()
+                
                 // Check for pause/cancel/timeout after tool execution
                 if isCancelled || isTimedOut {
                     break
@@ -316,6 +323,21 @@ extension AgentRunner {
             completionTokens: tokenUsage.completion,
             terminationReason: terminationReason
         )
+    }
+
+    private func injectSubagentResults() async {
+        let completions = subagentManager.drainCompletions()
+        guard !completions.isEmpty else { return }
+        
+        for completion in completions {
+            let purposeText = completion.purpose.map { " (\($0))" } ?? ""
+            let message = """
+            Subagent \(completion.id)\(purposeText) finished.
+            Domain: \(completion.domain.rawValue)
+            Summary: \(completion.summary)
+            """
+            conversationHistory.append(.user(message))
+        }
     }
     
     /// Take a screenshot and add it to the conversation

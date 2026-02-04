@@ -52,10 +52,14 @@ enum AgentPrompts {
             planSection = buildPlanSection(plan: plan)
         }
         
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: Date())
+        
         return """
 You are Hivecrew, an AI agent running inside a macOS virtual machine. Your goal is to complete the following task:
 
-Today's date: \(Date().formatted(date: .abbreviated, time: .omitted))
+Today's date: \(dateString)
 
 TASK: \(task)
 \(filesSection)
@@ -116,6 +120,7 @@ TIPS:
 - Wait briefly after actions that cause animations or page loads.
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
 - Use LibreOffice for creating documents
+- When spawning subagents for research, do NOT include factual lists or claims from your outdated knowledge base. Instruct the subagent to discover the latest info from sources and cite URLs. Include today's date (YYYY-MM-DD) if the request is time-sensitive.
 
 TO FINISH:
 When the task is complete, stop calling tools and respond with a summary of what you accomplished. 

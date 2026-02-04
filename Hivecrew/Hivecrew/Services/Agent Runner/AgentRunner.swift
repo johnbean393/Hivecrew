@@ -46,6 +46,9 @@ final class AgentRunner {
     let tracer: AgentTracer
     let toolExecutor: ToolExecutor
     let statePublisher: AgentStatePublisher
+    let subagentManager: SubagentManager
+    let sessionPath: URL
+    let vmToolScheduler: VMToolScheduler
     
     var conversationHistory: [LLMMessage] = []
     var stepCount: Int = 0
@@ -120,11 +123,13 @@ final class AgentRunner {
         self.llmClient = llmClient
         self.connection = connection
         self.statePublisher = statePublisher
+        self.sessionPath = sessionPath
         self.inputFileNames = inputFileNames
         self.matchedSkills = matchedSkills
         self.maxSteps = maxSteps
         self.timeoutMinutes = timeoutMinutes
         self.todoManager = TodoManager()
+        self.vmToolScheduler = VMToolScheduler()
         
         // Create screenshots directory
         self.screenshotsPath = sessionPath.appendingPathComponent("screenshots")
@@ -144,6 +149,33 @@ final class AgentRunner {
             vmId: vmId
         )
         self.toolExecutor.taskId = task.id
+        
+        let subagentToolExecutor = SubagentToolExecutor(
+            connection: connection,
+            vmScheduler: vmToolScheduler,
+            taskProviderId: task.providerId,
+            taskModelId: task.modelId,
+            taskService: taskService
+        )
+        self.subagentManager = SubagentManager(
+            taskId: task.id,
+            vmId: vmId,
+            sessionPath: sessionPath,
+            rootTracer: tracer,
+            statePublisher: statePublisher,
+            toolExecutor: subagentToolExecutor,
+            vmScheduler: vmToolScheduler,
+            llmClientFactory: { modelOverride in
+                if let override = modelOverride, !override.isEmpty {
+                    return try await taskService.createLLMClient(providerId: task.providerId, modelId: override)
+                }
+                return try await taskService.createWorkerLLMClient(
+                    fallbackProviderId: task.providerId,
+                    fallbackModelId: task.modelId
+                )
+            }
+        )
+        self.toolExecutor.subagentManager = self.subagentManager
         
         // Set up question callback to use statePublisher
         self.toolExecutor.onAskQuestion = { [weak statePublisher] question in
@@ -291,6 +323,11 @@ final class AgentRunner {
         
         // Save todo lists to session trace
         await saveTodoListsToTrace()
+        
+        // Cancel any lingering subagents
+        Task { [subagentManager] in
+            await subagentManager.cancelAll()
+        }
         
         return result
     }
@@ -444,6 +481,9 @@ final class AgentRunner {
         // Resume if paused so it can exit cleanly
         pauseContinuation?.resume(returning: nil)
         pauseContinuation = nil
+        Task { [subagentManager] in
+            await subagentManager.cancelAll()
+        }
     }
     
     /// Pause the agent run
@@ -451,6 +491,9 @@ final class AgentRunner {
         isPaused = true
         statePublisher.status = .paused
         statePublisher.logInfo("Agent paused by user")
+        Task { [subagentManager] in
+            await subagentManager.setPaused(true)
+        }
     }
     
     /// Resume the agent run with optional instructions
@@ -467,6 +510,9 @@ final class AgentRunner {
         // Resume the continuation
         pauseContinuation?.resume(returning: instructions)
         pauseContinuation = nil
+        Task { [subagentManager] in
+            await subagentManager.setPaused(false)
+        }
     }
     
     // MARK: - Private Methods

@@ -34,6 +34,7 @@ class ToolExecutor {
     let taskModelId: String
     weak var taskService: (any CreateWorkerClientProtocol)?
     let modelContext: ModelContext?
+    weak var subagentManager: SubagentManager?
     
     init(
         connection: GuestAgentConnection,
@@ -118,6 +119,16 @@ class ToolExecutor {
         switch normalized {
         case "runshell":
             return "run_shell"
+        case "spawnsubagent", "spawn_sub_agent":
+            return "spawn_subagent"
+        case "getsubagentstatus", "get_sub_agent_status":
+            return "get_subagent_status"
+        case "awaitsubagent", "await_sub_agent":
+            return "await_subagent"
+        case "cancelsubagent", "cancel_sub_agent":
+            return "cancel_subagent"
+        case "listsubagents", "list_sub_agents":
+            return "list_subagents"
         case "createtodolist", "create_to_do_list":
             return "create_todo_list"
         case "addtodoitem", "add_to_do_item":
@@ -259,6 +270,21 @@ class ToolExecutor {
         case "generate_image":
             return try await executeGenerateImage(args: args)
             
+        case "spawn_subagent":
+            return await executeSpawnSubagent(args: args)
+            
+        case "get_subagent_status":
+            return await executeGetSubagentStatus(args: args)
+            
+        case "await_subagent":
+            return await executeAwaitSubagent(args: args)
+            
+        case "cancel_subagent":
+            return await executeCancelSubagent(args: args)
+            
+        case "list_subagents":
+            return await executeListSubagents()
+            
         default:
             // Check if this is an MCP tool
             if isMCPTool(name) {
@@ -392,5 +418,127 @@ class ToolExecutor {
         }
         
         return .text("✓ Marked item #\(index) as completed")
+    }
+    
+    // MARK: - Subagent Tools
+    
+    private func executeSpawnSubagent(args: [String: Any]) async -> InternalToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        
+        let goal = args["goal"] as? String ?? ""
+        let purpose = args["purpose"] as? String
+        let domainRaw = args["domain"] as? String ?? "host"
+        var domain = SubagentDomain(rawValue: domainRaw) ?? .host
+        let researchGoal = isResearchGoal(goal)
+        if researchGoal && domain == .vm {
+            // Research should run with host tools (web_search, read_webpage_content).
+            domain = .host
+        }
+        
+        let toolAllowlist = (args["toolAllowlist"] as? [String]) ?? (args["tool_allowlist"] as? [String])
+        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
+        let modelOverride = args["modelOverride"] as? String ?? args["model_override"] as? String
+        
+        let info = await manager.spawn(
+            goal: goal,
+            domain: domain,
+            toolAllowlist: toolAllowlist,
+            timeoutSeconds: timeoutSeconds,
+            modelOverride: modelOverride,
+            purpose: purpose
+        )
+        
+        var output = "Subagent spawned: \(info.id)"
+        if let purpose = info.purpose, !purpose.isEmpty {
+            output += "\nPurpose: \(purpose)"
+        }
+        output += "\nDomain: \(info.domain.rawValue)"
+        if researchGoal && domainRaw != domain.rawValue {
+            output += "\nNote: Domain adjusted to \(info.domain.rawValue) for research."
+        }
+        output += "\nStatus: \(info.status.rawValue)"
+        return .text(output)
+    }
+    
+    private func executeGetSubagentStatus(args: [String: Any]) async -> InternalToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let id = args["subagentId"] as? String ?? ""
+        guard let info = manager.getStatus(subagentId: id) else {
+            return .text("Subagent not found: \(id)")
+        }
+        return .text(formatSubagentInfo(info))
+    }
+    
+    private func executeAwaitSubagent(args: [String: Any]) async -> InternalToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let id = args["subagentId"] as? String ?? ""
+        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
+        guard let info = await manager.awaitResult(subagentId: id, timeoutSeconds: timeoutSeconds) else {
+            return .text("Subagent not found: \(id)")
+        }
+        return .text(formatSubagentInfo(info))
+    }
+    
+    private func executeCancelSubagent(args: [String: Any]) async -> InternalToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let id = args["subagentId"] as? String ?? ""
+        let cancelled = await manager.cancel(subagentId: id)
+        return .text(cancelled ? "Cancelled subagent \(id)" : "Subagent not found: \(id)")
+    }
+    
+    private func executeListSubagents() async -> InternalToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let infos = manager.list()
+        if infos.isEmpty {
+            return .text("No subagents")
+        }
+        let lines = infos.map { formatSubagentInfo($0) }
+        return .text(lines.joined(separator: "\n\n"))
+    }
+    
+    private func formatSubagentInfo(_ info: SubagentManager.Info) -> String {
+        var lines: [String] = []
+        lines.append("ID: \(info.id)")
+        if let purpose = info.purpose, !purpose.isEmpty {
+            lines.append("Purpose: \(purpose)")
+        }
+        lines.append("Domain: \(info.domain.rawValue)")
+        lines.append("Status: \(info.status.rawValue)")
+        if let summary = info.summary, !summary.isEmpty {
+            lines.append("Summary: \(summary)")
+        }
+        if let error = info.errorMessage, !error.isEmpty {
+            lines.append("Error: \(error)")
+        }
+        return lines.joined(separator: "\n")
+    }
+    
+    private func parseDoubleOptional(_ value: Any?) -> Double? {
+        if let v = value as? Double { return v }
+        if let v = value as? Int { return Double(v) }
+        if let v = value as? String, let d = Double(v) { return d }
+        return nil
+    }
+    
+    private func isResearchGoal(_ goal: String) -> Bool {
+        let lowered = goal.lowercased()
+        return lowered.contains("research") ||
+        lowered.contains("latest") ||
+        lowered.contains("compare") ||
+        lowered.contains("benchmark") ||
+        lowered.contains("pricing") ||
+        lowered.contains("release date") ||
+        lowered.contains("llm") ||
+        lowered.contains("model")
     }
 }

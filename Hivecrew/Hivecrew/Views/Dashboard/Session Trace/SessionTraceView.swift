@@ -46,6 +46,11 @@ struct SessionTraceView: View {
         task.planFirstEnabled && (task.planMarkdown != nil || planState != nil)
     }
     
+    var sessionDirectory: URL? {
+        guard let sessionId = task.sessionId else { return nil }
+        return AppPaths.sessionDirectory(id: sessionId)
+    }
+    
     // Tips (accessed from extension)
     let extractSkillTip = ExtractSkillTip()
     let videoExportTip = VideoExportTip()
@@ -233,7 +238,7 @@ struct SessionTraceView: View {
         
         do {
             traceContent = try String(contentsOf: traceFile, encoding: .utf8)
-            events = parseTraceEvents()
+            events = parseTraceEvents(from: traceContent)
             screenshotEvents = events.filter { $0.screenshotPath != nil }
             
             // Initialize with first screenshot
@@ -271,8 +276,8 @@ struct SessionTraceView: View {
     
     // MARK: - Parse Trace
     
-    private func parseTraceEvents() -> [TraceEventInfo] {
-        let lines = traceContent.components(separatedBy: "\n").filter { !$0.isEmpty }
+    func parseTraceEvents(from content: String) -> [TraceEventInfo] {
+        let lines = content.components(separatedBy: "\n").filter { !$0.isEmpty }
         
         return lines.compactMap { line -> TraceEventInfo? in
             guard let data = line.data(using: .utf8),
@@ -291,6 +296,11 @@ struct SessionTraceView: View {
             var screenshotPath: String? = nil
             var responseText: String? = nil
             var reasoning: String? = nil
+            var subagentTracePath: String? = nil
+            var subagentId: String? = nil
+            var subagentStatus: String? = nil
+            var subagentPurpose: String? = nil
+            var subagentDomain: String? = nil
             if let eventData = json["data"] as? [String: Any] {
                 let extracted = extractEventDetails(from: eventData, type: type)
                 summary = extracted.summary
@@ -298,6 +308,11 @@ struct SessionTraceView: View {
                 screenshotPath = extracted.screenshotPath
                 responseText = extracted.responseText
                 reasoning = extracted.reasoning
+                subagentTracePath = extracted.subagentTracePath
+                subagentId = extracted.subagentId
+                subagentStatus = extracted.subagentStatus
+                subagentPurpose = extracted.subagentPurpose
+                subagentDomain = extracted.subagentDomain
             }
             
             return TraceEventInfo(
@@ -310,17 +325,38 @@ struct SessionTraceView: View {
                 screenshotPath: screenshotPath,
                 details: details,
                 responseText: responseText,
-                reasoning: reasoning
+                reasoning: reasoning,
+                subagentTracePath: subagentTracePath,
+                subagentId: subagentId,
+                subagentStatus: subagentStatus,
+                subagentPurpose: subagentPurpose,
+                subagentDomain: subagentDomain
             )
         }
     }
     
-    private func extractEventDetails(from data: [String: Any], type: String) -> (summary: String, details: String?, screenshotPath: String?, responseText: String?, reasoning: String?) {
+    private func extractEventDetails(from data: [String: Any], type: String) -> (
+        summary: String,
+        details: String?,
+        screenshotPath: String?,
+        responseText: String?,
+        reasoning: String?,
+        subagentTracePath: String?,
+        subagentId: String?,
+        subagentStatus: String?,
+        subagentPurpose: String?,
+        subagentDomain: String?
+    ) {
         var summary = ""
         var details: String? = nil
         var screenshotPath: String? = nil
         var responseText: String? = nil
         var reasoning: String? = nil
+        var subagentTracePath: String? = nil
+        var subagentId: String? = nil
+        var subagentStatus: String? = nil
+        var subagentPurpose: String? = nil
+        var subagentDomain: String? = nil
         
         switch type {
         case "session_start":
@@ -411,11 +447,57 @@ struct SessionTraceView: View {
                 summary = "Error occurred"
                 details = inner["message"] as? String
             }
+        case "custom":
+            if let custom = data["custom"] as? [String: Any] {
+                let inner = (custom["_0"] as? [String: Any]) ?? custom
+                if let eventType = inner["event_type"] as? String, eventType.hasPrefix("subagent_") {
+                    subagentId = inner["subagent_id"] as? String
+                    subagentTracePath = inner["trace_path"] as? String
+                    subagentStatus = inner["status"] as? String
+                    subagentPurpose = inner["purpose"] as? String
+                    subagentDomain = inner["domain"] as? String
+                    
+                    let purposeText = subagentPurpose.map { " \($0)" } ?? ""
+                    switch eventType {
+                    case "subagent_started":
+                        summary = "Subagent started:\(purposeText)"
+                    case "subagent_completed":
+                        summary = "Subagent completed:\(purposeText)"
+                    case "subagent_failed":
+                        summary = "Subagent failed:\(purposeText)"
+                    case "subagent_cancelled":
+                        summary = "Subagent cancelled:\(purposeText)"
+                    default:
+                        summary = "Subagent event:\(purposeText)"
+                    }
+                    
+                    var detailParts: [String] = []
+                    if let domain = subagentDomain { detailParts.append("Domain: \(domain)") }
+                    if let status = subagentStatus { detailParts.append("Status: \(status)") }
+                    if let allowlist = inner["tool_allowlist"] as? String { detailParts.append("Tools: \(allowlist)") }
+                    if let duration = inner["duration_ms"] as? String { detailParts.append("Duration: \(duration)ms") }
+                    if let errorMessage = inner["error"] as? String { detailParts.append("Error: \(errorMessage)") }
+                    details = detailParts.isEmpty ? nil : detailParts.joined(separator: " • ")
+                } else {
+                    summary = "Custom event"
+                }
+            }
         default:
             summary = type.replacingOccurrences(of: "_", with: " ").capitalized
         }
         
-        return (summary, details, screenshotPath, responseText, reasoning)
+        return (
+            summary,
+            details,
+            screenshotPath,
+            responseText,
+            reasoning,
+            subagentTracePath,
+            subagentId,
+            subagentStatus,
+            subagentPurpose,
+            subagentDomain
+        )
     }
 }
 

@@ -84,6 +84,10 @@
 		2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */; };
 		2053666C2F2FE3F70097E3FE /* HivecrewMCP in Frameworks */ = {isa = PBXBuildFile; productRef = 2053666B2F2FE3F70097E3FE /* HivecrewMCP */; };
 		2053666E2F2FE4760097E3FE /* ToolExecutor+MCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */; };
+		30A1F0A12F61000100000001 /* SubagentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B12F61000100000001 /* SubagentManager.swift */; };
+		30A1F0A22F61000100000002 /* SubagentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B22F61000100000002 /* SubagentRunner.swift */; };
+		30A1F0A32F61000100000003 /* SubagentToolExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B32F61000100000003 /* SubagentToolExecutor.swift */; };
+		30A1F0A42F61000100000004 /* VMToolScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B42F61000100000004 /* VMToolScheduler.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -280,6 +284,10 @@
 		2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerStatus.swift; sourceTree = "<group>"; };
 		2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerManager.swift; sourceTree = "<group>"; };
 		2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+MCP.swift"; sourceTree = "<group>"; };
+		30A1F0B12F61000100000001 /* SubagentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentManager.swift; sourceTree = "<group>"; };
+		30A1F0B22F61000100000002 /* SubagentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentRunner.swift; sourceTree = "<group>"; };
+		30A1F0B32F61000100000003 /* SubagentToolExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentToolExecutor.swift; sourceTree = "<group>"; };
+		30A1F0B42F61000100000004 /* VMToolScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMToolScheduler.swift; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -610,6 +618,7 @@
 				AAAA00022F1E200000000002 /* API */,
 				AAAA00032F1E200000000003 /* Template Download */,
 				AAAA00042F1E200000000004 /* Tool Executor */,
+				30A1F0C12F61000100000001 /* Subagents */,
 				204DF4582F162AF8004AB99B /* Web Tools */,
 				204DF4482F15771A004AB99B /* Guest Agent Connection */,
 				204DF4432F157454004AB99B /* Agent Runner */,
@@ -839,6 +848,17 @@
 				209EB6DD2F1E19B400A7F13F /* ToolExecutorTypes.swift */,
 			);
 			path = "Tool Executor";
+			sourceTree = "<group>";
+		};
+		30A1F0C12F61000100000001 /* Subagents */ = {
+			isa = PBXGroup;
+			children = (
+				30A1F0B12F61000100000001 /* SubagentManager.swift */,
+				30A1F0B22F61000100000002 /* SubagentRunner.swift */,
+				30A1F0B32F61000100000003 /* SubagentToolExecutor.swift */,
+				30A1F0B42F61000100000004 /* VMToolScheduler.swift */,
+			);
+			path = Subagents;
 			sourceTree = "<group>";
 		};
 		AAAA00052F1E200000000005 /* Session Trace */ = {
@@ -1138,6 +1158,10 @@
 				209C61B12F12ABD700062D0E /* AgentEnvironmentsView.swift in Sources */,
 				209C61B52F12ABD700062D0E /* VMDetailView.swift in Sources */,
 				2053666E2F2FE4760097E3FE /* ToolExecutor+MCP.swift in Sources */,
+				30A1F0A12F61000100000001 /* SubagentManager.swift in Sources */,
+				30A1F0A22F61000100000002 /* SubagentRunner.swift in Sources */,
+				30A1F0A32F61000100000003 /* SubagentToolExecutor.swift in Sources */,
+				30A1F0A42F61000100000004 /* VMToolScheduler.swift in Sources */,
 				204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */,
 				204DF4302F1571AB004AB99B /* PromptModelButton.swift in Sources */,
 				204DF4472F157508004AB99B /* GuestAgentTypes.swift in Sources */,
