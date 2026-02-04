@@ -10,6 +10,12 @@ A macOS app that runs parallel AI computer use agents in local VMs
 
 Hivecrew is a native macOS app that runs AI computer use agents in dedicated virtual machines. Dispatch tasks from a central dashboard, watch agents work autonomously, and step in to guide them whenever needed—all while keeping your host system completely isolated and safe.
 
+<p align="center">
+  <a href="https://github.com/johnbean393/Hivecrew/releases/latest">
+    <img src="https://img.shields.io/badge/Download_DMG-Latest_Release-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG">
+  </a>
+</p>
+
 **Our Mission**: Make AI agents practical for real work by ensuring they are:
 - **Parallel**: Run multiple agents simultaneously
 - **Auditable**: Track every action agents take
