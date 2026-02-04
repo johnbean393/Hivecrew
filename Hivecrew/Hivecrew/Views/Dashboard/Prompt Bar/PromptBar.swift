@@ -110,20 +110,21 @@ struct PromptBar: View {
     }
     
     /// Calculates the minimum height for the input container based on number of lines
-    /// 65 per line up to 4 lines, then fixed at 220
     private var inputMinHeight: CGFloat {
         let lineCount = max(1, text.components(separatedBy: .newlines).count)
+        let lineHeight = NSFont.systemFont(
+            ofSize: NSFont.systemFontSize
+        ).capHeight
         if lineCount >= 4 {
-            return 220
+            return lineHeight * 4
         }
-        return CGFloat(lineCount) * 65
+        return CGFloat(lineCount) * lineHeight
     }
     
     var body: some View {
         VStack(spacing: 0) {
             // Main input container
             mainInputContainer
-                .frame(minHeight: inputMinHeight)
             // Attachment previews (shown above the input if there are attachments)
             if hasAttachments {
                 PromptAttachmentPreviewList(attachments: $attachments)
@@ -216,6 +217,7 @@ struct PromptBar: View {
                     },
                     mentionInsertionController: mentionInsertionController
                 )
+                .frame(minHeight: inputMinHeight)
                 .focused($isFocused)
                 .padding(.vertical, 1)
                 .popoverTip(skillsMentionTip, arrowEdge: .top)
