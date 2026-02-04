@@ -481,8 +481,8 @@ class ToolExecutor {
         if ids.isEmpty {
             return .text("Error: subagentIds is required")
         }
-        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
-        let deadline = timeoutSeconds.map { Date().addingTimeInterval($0) }
+        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"]) ?? 600
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
         
         var notFound: Set<String> = []
         var pending: [String] = []
@@ -499,15 +499,11 @@ class ToolExecutor {
             await withTaskGroup(of: (String, SubagentManager.Info?).self) { group in
                 for id in pending {
                     group.addTask { [manager] in
-                        if let deadline = deadline {
-                            let remaining = deadline.timeIntervalSinceNow
-                            if remaining <= 0 {
-                                return (id, nil)
-                            }
-                            let info = await manager.awaitResult(subagentId: id, timeoutSeconds: remaining)
-                            return (id, info)
+                        let remaining = deadline.timeIntervalSinceNow
+                        if remaining <= 0 {
+                            return (id, nil)
                         }
-                        let info = await manager.awaitResult(subagentId: id, timeoutSeconds: nil)
+                        let info = await manager.awaitResult(subagentId: id, timeoutSeconds: remaining)
                         return (id, info)
                     }
                 }
