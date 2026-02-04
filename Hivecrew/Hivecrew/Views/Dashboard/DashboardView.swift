@@ -44,6 +44,7 @@ struct DashboardView: View {
                     .popoverTip(createFirstTaskTip, arrowEdge: .bottom)
             }
             .padding(.bottom, 24)
+            .layoutPriority(1) // Prevent compression when agent preview is shown
 
             AgentPreviewStripView()
                 .padding(.bottom, 20)

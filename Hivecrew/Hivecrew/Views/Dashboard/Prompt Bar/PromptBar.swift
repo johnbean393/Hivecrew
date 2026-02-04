@@ -112,13 +112,11 @@ struct PromptBar: View {
     /// Calculates the minimum height for the input container based on number of lines
     private var inputMinHeight: CGFloat {
         let lineCount = max(1, text.components(separatedBy: .newlines).count)
-        let lineHeight = NSFont.systemFont(
-            ofSize: NSFont.systemFontSize
-        ).capHeight
-        if lineCount >= 4 {
-            return lineHeight * 4
-        }
-        return CGFloat(lineCount) * lineHeight
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        // Use proper line height: ascender + descender + leading
+        let lineHeight = font.ascender - font.descender + font.leading
+        let effectiveLineCount = min(lineCount, 4)
+        return CGFloat(effectiveLineCount) * lineHeight
     }
     
     var body: some View {
@@ -247,6 +245,7 @@ struct PromptBar: View {
             }
             .padding(.vertical, 7)
             .padding(.top, 1)
+            .layoutPriority(1) // Ensure text field gets space priority
             
             Spacer(minLength: 8)
             
