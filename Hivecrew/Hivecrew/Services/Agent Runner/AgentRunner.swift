@@ -169,9 +169,9 @@ final class AgentRunner {
                 if let override = modelOverride, !override.isEmpty {
                     return try await taskService.createLLMClient(providerId: task.providerId, modelId: override)
                 }
-                return try await taskService.createWorkerLLMClient(
-                    fallbackProviderId: task.providerId,
-                    fallbackModelId: task.modelId
+                return try await taskService.createLLMClient(
+                    providerId: task.providerId,
+                    modelId: task.modelId
                 )
             }
         )

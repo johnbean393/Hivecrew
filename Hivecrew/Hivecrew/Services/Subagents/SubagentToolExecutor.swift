@@ -123,7 +123,13 @@ final class SubagentToolExecutor {
         var results: [SearchResult] = []
         var fallbackNotes: [String] = []
         
-        func performSearch(engine: String, site: String?) async throws -> [SearchResult] {
+        let simplifiedQuery = simplifyQuery(query)
+        var queryVariants = [query]
+        if !simplifiedQuery.isEmpty, simplifiedQuery != query {
+            queryVariants.append(simplifiedQuery)
+        }
+        
+        func performSearch(engine: String, query: String, site: String?) async throws -> [SearchResult] {
             if engine == "duckduckgo" {
                 return try await DuckDuckGoSearch.search(
                     query: query,
@@ -149,28 +155,37 @@ final class SubagentToolExecutor {
             }
         }
         
-        do {
-            results = try await performSearch(engine: searchEngine, site: site)
-        } catch {
-            fallbackNotes.append("Primary search (\(searchEngine)) failed: \(error.localizedDescription)")
-        }
-        
-        if results.isEmpty {
+        for variant in queryVariants {
             do {
-                usedEngine = fallbackEngine
-                results = try await performSearch(engine: fallbackEngine, site: site)
-                fallbackNotes.append("Retried with \(fallbackEngine).")
+                results = try await performSearch(engine: searchEngine, query: variant, site: site)
             } catch {
-                fallbackNotes.append("Fallback search (\(fallbackEngine)) failed: \(error.localizedDescription)")
+                fallbackNotes.append("Primary search (\(searchEngine)) failed: \(error.localizedDescription)")
             }
-        }
-        
-        if results.isEmpty, site != nil {
-            do {
-                results = try await performSearch(engine: usedEngine, site: nil)
-                fallbackNotes.append("No results with site filter; broadened search.")
-            } catch {
-                fallbackNotes.append("Broadened search failed: \(error.localizedDescription)")
+            
+            if results.isEmpty {
+                do {
+                    usedEngine = fallbackEngine
+                    results = try await performSearch(engine: fallbackEngine, query: variant, site: site)
+                    fallbackNotes.append("Retried with \(fallbackEngine).")
+                } catch {
+                    fallbackNotes.append("Fallback search (\(fallbackEngine)) failed: \(error.localizedDescription)")
+                }
+            }
+            
+            if results.isEmpty, site != nil {
+                do {
+                    results = try await performSearch(engine: usedEngine, query: variant, site: nil)
+                    fallbackNotes.append("No results with site filter; broadened search.")
+                } catch {
+                    fallbackNotes.append("Broadened search failed: \(error.localizedDescription)")
+                }
+            }
+            
+            if !results.isEmpty {
+                if variant != query {
+                    fallbackNotes.append("Used simplified query: \"\(variant)\".")
+                }
+                break
             }
         }
         
@@ -184,6 +199,23 @@ final class SubagentToolExecutor {
             output += "Notes:\n" + fallbackNotes.joined(separator: "\n")
         }
         return .text(output)
+    }
+    
+    private func simplifyQuery(_ query: String) -> String {
+        var simplified = query
+        let patterns = [
+            "\\b(19|20)\\d{2}\\b",
+            "\\b(as of|latest|current|recent)\\b",
+            "\\b(release date|pricing|benchmark|benchmarks)\\b"
+        ]
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let range = NSRange(simplified.startIndex..., in: simplified)
+                simplified = regex.stringByReplacingMatches(in: simplified, options: [], range: range, withTemplate: "")
+            }
+        }
+        simplified = simplified.replacingOccurrences(of: "  ", with: " ")
+        return simplified.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     private func executeReadWebpageContent(args: [String: Any]) async throws -> ToolResult {

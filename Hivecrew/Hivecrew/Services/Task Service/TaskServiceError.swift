@@ -18,6 +18,7 @@ enum TaskServiceError: Error, LocalizedError {
     case connectionTimeout(String)
     case providerNotFound(String)
     case noAPIKey(String)
+    case missingLLMClient
     
     var errorDescription: String? {
         switch self {
@@ -35,6 +36,8 @@ enum TaskServiceError: Error, LocalizedError {
             return "LLM provider not found: \(id)"
         case .noAPIKey(let provider):
             return "No API key configured for \(provider)"
+        case .missingLLMClient:
+            return "LLM client was unavailable during task startup"
         }
     }
 }

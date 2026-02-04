@@ -91,6 +91,8 @@ extension TaskService {
         var vmId: String?
         var connection: GuestAgentConnection?
         var skillMatchingTask: Task<[Skill], Never>?
+        var llmClientTask: Task<any LLMClientProtocol, Error>?
+        var vmCreationTask: Task<String?, Error>?
         
         func abortIfInactive(stage: String) async -> Bool {
             guard task.status.isActive else {
@@ -105,6 +107,8 @@ extension TaskService {
                 cleanupTaskObservations(taskId: task.id)
                 connection?.disconnect()
                 skillMatchingTask?.cancel()
+                llmClientTask?.cancel()
+                vmCreationTask?.cancel()
                 
                 if let createdVmId = vmId {
                     await deleteEphemeralVM(vmId: createdVmId)
@@ -116,9 +120,17 @@ extension TaskService {
         }
         
         do {
-            // Create LLM client early so we can start skill matching concurrently with VM boot
-            let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
-            if await abortIfInactive(stage: "LLM client creation") { return }
+            // Start VM creation immediately, while LLM client creation + skill matching run in parallel
+            let vmName = generateVMName(for: task)
+            print("TaskService: Creating ephemeral VM '\(vmName)' from template '\(templateId)'...")
+            
+            vmCreationTask = Task {
+                try await vmServiceClient.createVMFromTemplate(templateId: templateId, name: vmName)
+            }
+            
+            llmClientTask = Task {
+                try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+            }
             
             // Start skill matching concurrently with VM boot
             // This runs in parallel while the VM is being created and started
@@ -145,6 +157,10 @@ extension TaskService {
                     
                     if !availableForMatching.isEmpty {
                         do {
+                            guard let llmClient = try await llmClientTask?.value else {
+                                print("TaskService: Skill matching skipped (LLM client unavailable)")
+                                return skillsToUse
+                            }
                             print("TaskService: Matching skills for task (concurrent with VM boot)...")
                             let skillMatcher = SkillMatcher(llmClient: llmClient)
                             let matchedSkills = try await skillMatcher.matchSkills(
@@ -167,11 +183,11 @@ extension TaskService {
                 return skillsToUse
             }
             
-            // Create ephemeral VM from template (runs concurrently with skill matching)
-            let vmName = generateVMName(for: task)
-            print("TaskService: Creating ephemeral VM '\(vmName)' from template '\(templateId)'...")
-            
-            vmId = try await vmServiceClient.createVMFromTemplate(templateId: templateId, name: vmName)
+            // Await VM creation (already running in parallel with skill matching + LLM client creation)
+            guard let vmCreationTask = vmCreationTask else {
+                throw TaskServiceError.vmCreationFailed("VM creation task missing")
+            }
+            vmId = try await vmCreationTask.value
             print("TaskService: VM created successfully with ID: \(vmId ?? "nil")")
             if await abortIfInactive(stage: "VM creation") { return }
             
@@ -264,6 +280,13 @@ extension TaskService {
             
             // Observe permission requests from this state publisher
             observePermissionRequests(for: task.id, from: statePublisher)
+            
+            // LLM client should be ready by now (created in parallel with VM boot)
+            guard let llmClientTask = llmClientTask else {
+                throw TaskServiceError.missingLLMClient
+            }
+            let llmClient = try await llmClientTask.value
+            if await abortIfInactive(stage: "LLM client creation") { return }
             
             // Wait for skill matching to complete (should be done by now since VM boot takes longer)
             let skillsToUse = await (skillMatchingTask?.value ?? [])
