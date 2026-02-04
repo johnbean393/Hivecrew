@@ -18,7 +18,7 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated vir
 
 <p align="center">
   <a href="https://youtu.be/l4D6Jj5ukHA">
-    <img src="https://img.youtube.com/vi/l4D6Jj5ukHA/maxresdefault.jpg" alt="Watch the demo" width="700">
+    <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/dashboard-screenshot.png" alt="Watch the demo" width="700">
   </a>
   <br>
   <em>Click to watch the demo video</em>
