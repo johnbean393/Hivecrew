@@ -117,12 +117,30 @@ class AppVMRuntime: ObservableObject {
     func getVM(id vmId: String) -> VZVirtualMachine? {
         return runningVMs[vmId]
     }
+
+    /// IDs for VMs that are actively running or paused
+    func activeVMIds() -> [String] {
+        runningVMs.compactMap { id, vm in
+            isVMActive(vm) ? id : nil
+        }
+    }
     
     /// Called when a VM stops (either from guest shutdown or error)
     private func handleVMStopped(id vmId: String) {
         runningVMs.removeValue(forKey: vmId)
         vmDelegates.removeValue(forKey: vmId)
         print("AppVMRuntime: VM \(vmId) removed from running VMs (guest stopped)")
+    }
+
+    private func isVMActive(_ vm: VZVirtualMachine) -> Bool {
+        switch vm.state {
+        case .running, .paused:
+            return true
+        case .stopped, .error:
+            return false
+        @unknown default:
+            return false
+        }
     }
     
     // MARK: - Configuration Loading

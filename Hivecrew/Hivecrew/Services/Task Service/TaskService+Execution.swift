@@ -89,15 +89,40 @@ extension TaskService {
         }
         
         var vmId: String?
-        var pendingSlotReleased = false  // Track if we've released the pending slot
+        var connection: GuestAgentConnection?
+        var skillMatchingTask: Task<[Skill], Never>?
+        
+        func abortIfInactive(stage: String) async -> Bool {
+            guard task.status.isActive else {
+                print("TaskService: Task '\(task.title)' became inactive during \(stage). Aborting start flow.")
+                
+                if tasksInProgress.contains(task.id) && runningAgents[task.id] == nil {
+                    pendingVMCount = max(0, pendingVMCount - 1)
+                    print("TaskService: Released pending slot after cancellation (pending: \(pendingVMCount))")
+                }
+                
+                tasksInProgress.remove(task.id)
+                cleanupTaskObservations(taskId: task.id)
+                connection?.disconnect()
+                skillMatchingTask?.cancel()
+                
+                if let createdVmId = vmId {
+                    await deleteEphemeralVM(vmId: createdVmId)
+                }
+                return true
+            }
+            
+            return false
+        }
         
         do {
             // Create LLM client early so we can start skill matching concurrently with VM boot
             let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+            if await abortIfInactive(stage: "LLM client creation") { return }
             
             // Start skill matching concurrently with VM boot
             // This runs in parallel while the VM is being created and started
-            let skillMatchingTask = Task { () -> [Skill] in
+            skillMatchingTask = Task { () -> [Skill] in
                 var skillsToUse: [Skill] = []
                 let allSkills = skillManager.skills
                 
@@ -148,6 +173,7 @@ extension TaskService {
             
             vmId = try await vmServiceClient.createVMFromTemplate(templateId: templateId, name: vmName)
             print("TaskService: VM created successfully with ID: \(vmId ?? "nil")")
+            if await abortIfInactive(stage: "VM creation") { return }
             
             // Store the VM ID on the task immediately
             task.assignedVMId = vmId
@@ -158,12 +184,16 @@ extension TaskService {
             
             // Start the VM
             try await vmRuntime.startVM(id: vmId!)
+            if await abortIfInactive(stage: "VM start") { return }
             
             // Wait for VM to be ready
             let vm = try await waitForVMReady(vmId: vmId!)
+            if await abortIfInactive(stage: "VM readiness") { return }
             
             // Connect to GuestAgent
-            let connection = try await connectToGuestAgent(vm: vm, vmId: vmId!)
+            connection = try await connectToGuestAgent(vm: vm, vmId: vmId!)
+            guard let connection = connection else { return }
+            if await abortIfInactive(stage: "GuestAgent connection") { return }
             
             // Prepare shared folder (inbox/outbox/workspace) on the HOST
             let inputFileNames = try prepareSharedFolder(vmId: vmId!, attachedFilePaths: task.attachedFilePaths)
@@ -185,6 +215,7 @@ extension TaskService {
             } catch {
                 print("TaskService: Failed to setup guest inbox/outbox (non-fatal): \(error)")
             }
+            if await abortIfInactive(stage: "guest setup") { return }
             
             // Update task status to running
             task.status = .running
@@ -235,7 +266,8 @@ extension TaskService {
             observePermissionRequests(for: task.id, from: statePublisher)
             
             // Wait for skill matching to complete (should be done by now since VM boot takes longer)
-            let skillsToUse = await skillMatchingTask.value
+            let skillsToUse = await (skillMatchingTask?.value ?? [])
+            if await abortIfInactive(stage: "skill matching") { return }
             
             // Log matched skills through the state publisher
             if !skillsToUse.isEmpty {
@@ -284,6 +316,7 @@ extension TaskService {
             let maxIterations = UserDefaults.standard.integer(forKey: "defaultMaxIterations")
             
             // Create and run agent
+            if await abortIfInactive(stage: "agent startup") { return }
             let agent = try AgentRunner(
                 task: task,
                 vmId: vmId!,
@@ -301,7 +334,6 @@ extension TaskService {
             
             // VM is now running and tracked in runningAgents, release the pending slot
             pendingVMCount = max(0, pendingVMCount - 1)
-            pendingSlotReleased = true
             print("TaskService: VM started, released pending slot (pending: \(pendingVMCount), running: \(runningAgents.count))")
             
             // Run the agent
@@ -312,7 +344,7 @@ extension TaskService {
             
         } catch {
             // Handle failure
-            await handleTaskFailure(task: task, error: error, vmId: vmId, pendingSlotReleased: pendingSlotReleased, context: context)
+            await handleTaskFailure(task: task, error: error, vmId: vmId, context: context)
         }
         
         objectWillChange.send()
@@ -448,14 +480,13 @@ extension TaskService {
         task: TaskRecord,
         error: Error,
         vmId: String?,
-        pendingSlotReleased: Bool,
         context: ModelContext
     ) async {
         print("TaskService: Task '\(task.title)' failed with error: \(error)")
         print("TaskService: Error type: \(type(of: error)), localizedDescription: \(error.localizedDescription)")
         
         // Release the pending VM slot only if not already released
-        if !pendingSlotReleased {
+        if tasksInProgress.contains(task.id) && runningAgents[task.id] == nil {
             pendingVMCount = max(0, pendingVMCount - 1)
             print("TaskService: VM creation failed, released pending slot (pending: \(pendingVMCount))")
         } else {

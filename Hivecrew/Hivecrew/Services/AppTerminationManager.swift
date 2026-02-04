@@ -22,6 +22,9 @@ class AppTerminationManager: ObservableObject {
     /// Active work details for the confirmation dialog
     @Published private(set) var activeWorkDetails = ActiveWorkDetails()
     
+    /// Whether AppKit is waiting for a termination reply
+    private var terminationReplyPending = false
+    
     // MARK: - Dependencies
     
     private weak var taskService: TaskService?
@@ -45,6 +48,7 @@ class AppTerminationManager: ObservableObject {
         
         if details.hasActiveWork {
             activeWorkDetails = details
+            terminationReplyPending = true
             showTerminationConfirmation = true
             return false
         }
@@ -54,6 +58,8 @@ class AppTerminationManager: ObservableObject {
     
     /// Called when user confirms termination in the sheet
     func confirmTermination() async {
+        terminationReplyPending = false
+        showTerminationConfirmation = false
         await performGracefulShutdown()
         
         // Terminate the app
@@ -63,7 +69,15 @@ class AppTerminationManager: ObservableObject {
     /// Called when user cancels termination
     func cancelTermination() {
         showTerminationConfirmation = false
+        guard terminationReplyPending else { return }
+        terminationReplyPending = false
         NSApplication.shared.reply(toApplicationShouldTerminate: false)
+    }
+    
+    /// Called when the confirmation sheet is dismissed without an explicit choice
+    func handleTerminationSheetDismissed() {
+        guard terminationReplyPending else { return }
+        cancelTermination()
     }
     
     // MARK: - Work Detection
@@ -82,9 +96,16 @@ class AppTerminationManager: ObservableObject {
         let queuedTasks = taskService.tasks.filter { $0.status == .queued || $0.status == .waitingForVM }
         let queuedTaskCount = queuedTasks.count
         
-        // Count VMs that are running
-        let runningVMs = vmRuntime.runningVMs
-        let totalRunningVMCount = runningVMs.count
+        // Count VMs that are running (only those tied to active tasks or developer VMs)
+        let activeVMIds = Set(vmRuntime.activeVMIds())
+        let taskVMIds = Set(
+            taskService.tasks.compactMap { task in
+                task.status.isActive ? task.assignedVMId : nil
+            }
+        )
+        let developerVMIds = runningDeveloperVMIds()
+        let relevantVMIds = activeVMIds.intersection(taskVMIds).union(developerVMIds)
+        let totalRunningVMCount = relevantVMIds.count
         
         return ActiveWorkDetails(
             runningAgentCount: runningAgentCount,
@@ -93,6 +114,17 @@ class AppTerminationManager: ObservableObject {
             runningTaskTitles: runningTasks.map { $0.title },
             queuedTaskTitles: queuedTasks.map { $0.title }
         )
+    }
+
+    private func runningDeveloperVMIds() -> Set<String> {
+        guard let data = UserDefaults.standard.data(forKey: "developerVMIds"),
+              let developerVMIds = try? JSONDecoder().decode(Set<String>.self, from: data),
+              !developerVMIds.isEmpty else {
+            return []
+        }
+        
+        let activeVMIds = Set(vmRuntime.activeVMIds())
+        return activeVMIds.intersection(developerVMIds)
     }
     
     // MARK: - Graceful Shutdown
@@ -131,7 +163,7 @@ class AppTerminationManager: ObservableObject {
         
         // 2. Stop all running VMs
         // VMs for paused tasks will be stopped (to save state) but NOT deleted
-        let runningVMIds = Array(vmRuntime.runningVMs.keys)
+        let runningVMIds = vmRuntime.activeVMIds()
         for vmId in runningVMIds {
             print("AppTerminationManager: Stopping VM \(vmId)")
             do {

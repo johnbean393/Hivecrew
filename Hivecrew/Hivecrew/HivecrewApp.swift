@@ -74,9 +74,13 @@ struct HivecrewApp: App {
                 }
                 // Termination confirmation sheet
                 .sheet(
-                    isPresented: $terminationManager.showTerminationConfirmation
+                    isPresented: $terminationManager.showTerminationConfirmation,
+                    onDismiss: {
+                        terminationManager.handleTerminationSheetDismissed()
+                    }
                 ) {
                     TerminationConfirmationSheet(terminationManager: terminationManager)
+                        .interactiveDismissDisabled()
                 }
                 // Onboarding sheet
                 .sheet(
