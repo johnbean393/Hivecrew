@@ -34,6 +34,7 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated vir
 
 - [Features](#features)
   - [Task Management](#task-management)
+  - [Subagent System](#subagent-system)
   - [LLM Providers](#llm-providers)
   - [Safety Controls](#safety-controls)
   - [Agent Supervision](#agent-supervision)
@@ -63,6 +64,13 @@ Hivecrew is a native macOS app that runs AI computer use agents in dedicated vir
 - **File Attachments**: Attach input files using @ mentions or drag-and-drop, and specify output directories for deliverables
 - **Batch Execution**: Run multiple copies of the same task (1x, 2x, 4x, 8x) across parallel agents
 - **Task Queue**: Queue tasks for later and monitor status (queued, running, completed, failed)
+
+### Subagent System
+
+- **Parallel Research and Execution**: Spawn focused subagents for research, data gathering, and verification while the main agent continues the task
+- **Specialized Workflows**: Delegate subtasks like competitor scans, documentation lookups, or multi-source comparisons to targeted subagents
+- **Faster Convergence**: Combine results from multiple subagents to reduce back-and-forth and reach decisions sooner
+- **Agent Swarms**: Leverage's Kimi-K2.5's training for agent swarms
 
 ### LLM Providers
 
