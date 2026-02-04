@@ -34,7 +34,8 @@ extension ToolExecutor {
         let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "google"
         
         let results: [SearchResult]
-        if searchEngine == "duckduckgo" {
+        switch searchEngine {
+        case "duckduckgo":
             results = try await DuckDuckGoSearch.search(
                 query: query,
                 site: site,
@@ -42,7 +43,31 @@ extension ToolExecutor {
                 startDate: startDate,
                 endDate: endDate
             )
-        } else {
+        case "searchapi":
+            guard let apiKey = SearchProviderKeychain.retrieveSearchAPIKey(), !apiKey.isEmpty else {
+                return .text("Error: SearchAPI key not configured. Add it in Settings → Task Defaults → Web Search.")
+            }
+            results = try await SearchAPIClient.search(
+                query: query,
+                site: site,
+                resultCount: resultCount,
+                startDate: startDate,
+                endDate: endDate,
+                apiKey: apiKey
+            )
+        case "serpapi":
+            guard let apiKey = SearchProviderKeychain.retrieveSerpAPIKey(), !apiKey.isEmpty else {
+                return .text("Error: SerpAPI key not configured. Add it in Settings → Task Defaults → Web Search.")
+            }
+            results = try await SerpAPIClient.search(
+                query: query,
+                site: site,
+                resultCount: resultCount,
+                startDate: startDate,
+                endDate: endDate,
+                apiKey: apiKey
+            )
+        default:
             let googleResults = try await GoogleSearch.search(
                 query: query,
                 site: site,

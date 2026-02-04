@@ -123,8 +123,8 @@ class ToolExecutor {
             return "spawn_subagent"
         case "getsubagentstatus", "get_sub_agent_status":
             return "get_subagent_status"
-        case "awaitsubagent", "await_sub_agent":
-            return "await_subagent"
+        case "awaitsubagent", "await_subagent", "await_sub_agent", "awaitsubagents", "await_sub_agents":
+            return "await_subagents"
         case "cancelsubagent", "cancel_sub_agent":
             return "cancel_subagent"
         case "listsubagents", "list_sub_agents":
@@ -276,8 +276,8 @@ class ToolExecutor {
         case "get_subagent_status":
             return await executeGetSubagentStatus(args: args)
             
-        case "await_subagent":
-            return await executeAwaitSubagent(args: args)
+        case "await_subagents", "await_subagent":
+            return await executeAwaitSubagents(args: args)
             
         case "cancel_subagent":
             return await executeCancelSubagent(args: args)
@@ -473,16 +473,67 @@ class ToolExecutor {
         return .text(formatSubagentInfo(info))
     }
     
-    private func executeAwaitSubagent(args: [String: Any]) async -> InternalToolResult {
+    private func executeAwaitSubagents(args: [String: Any]) async -> InternalToolResult {
         guard let manager = subagentManager else {
             return .text("Error: Subagent manager not available")
         }
-        let id = args["subagentId"] as? String ?? ""
-        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
-        guard let info = await manager.awaitResult(subagentId: id, timeoutSeconds: timeoutSeconds) else {
-            return .text("Subagent not found: \(id)")
+        let ids = parseSubagentIds(args)
+        if ids.isEmpty {
+            return .text("Error: subagentIds is required")
         }
-        return .text(formatSubagentInfo(info))
+        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
+        let deadline = timeoutSeconds.map { Date().addingTimeInterval($0) }
+        
+        var notFound: Set<String> = []
+        var pending: [String] = []
+        for id in ids {
+            if manager.getStatus(subagentId: id) == nil {
+                notFound.insert(id)
+            } else {
+                pending.append(id)
+            }
+        }
+        
+        var resultsById: [String: SubagentManager.Info] = [:]
+        if !pending.isEmpty {
+            await withTaskGroup(of: (String, SubagentManager.Info?).self) { group in
+                for id in pending {
+                    group.addTask { [manager] in
+                        if let deadline = deadline {
+                            let remaining = deadline.timeIntervalSinceNow
+                            if remaining <= 0 {
+                                return (id, nil)
+                            }
+                            let info = await manager.awaitResult(subagentId: id, timeoutSeconds: remaining)
+                            return (id, info)
+                        }
+                        let info = await manager.awaitResult(subagentId: id, timeoutSeconds: nil)
+                        return (id, info)
+                    }
+                }
+                
+                for await (id, info) in group {
+                    if let info {
+                        resultsById[id] = info
+                    }
+                }
+            }
+        }
+        
+        var outputBlocks: [String] = []
+        for id in ids {
+            if notFound.contains(id) {
+                outputBlocks.append("Subagent not found: \(id)")
+                continue
+            }
+            if let info = resultsById[id] {
+                outputBlocks.append(formatSubagentInfo(info))
+                continue
+            }
+            outputBlocks.append("Timed out waiting for subagent \(id)")
+        }
+        
+        return .text(outputBlocks.joined(separator: "\n\n"))
     }
     
     private func executeCancelSubagent(args: [String: Any]) async -> InternalToolResult {
@@ -521,6 +572,28 @@ class ToolExecutor {
             lines.append("Error: \(error)")
         }
         return lines.joined(separator: "\n")
+    }
+    
+    private func parseSubagentIds(_ args: [String: Any]) -> [String] {
+        if let ids = args["subagentIds"] as? [String] {
+            return ids.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+        if let ids = args["subagent_ids"] as? [String] {
+            return ids.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+        if let id = args["subagentId"] as? String {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? [] : [trimmed]
+        }
+        if let id = args["subagent_id"] as? String {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? [] : [trimmed]
+        }
+        if let idsString = args["subagentIds"] as? String {
+            let parts = idsString.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            return parts.filter { !$0.isEmpty }
+        }
+        return []
     }
     
     private func parseDoubleOptional(_ value: Any?) -> Double? {

@@ -24,6 +24,10 @@ struct TaskDefaultsSettingsView: View {
     // Web tools
     @AppStorage("searchEngine") private var searchEngine: String = "google"
     @AppStorage("defaultResultCount") private var defaultResultCount: Int = 10
+    @State private var searchAPIKey: String = ""
+    @State private var serpAPIKey: String = ""
+    @State private var showSearchAPIKey = false
+    @State private var showSerpAPIKey = false
     
     // Skills
     @AppStorage("automaticSkillMatching") private var automaticSkillMatching = true
@@ -66,6 +70,15 @@ struct TaskDefaultsSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear {
+            loadSearchProviderKeys()
+        }
+        .onChange(of: searchAPIKey) { _, newValue in
+            updateSearchAPIKey(newValue)
+        }
+        .onChange(of: serpAPIKey) { _, newValue in
+            updateSerpAPIKey(newValue)
+        }
         .fileImporter(
             isPresented: $showingFolderPicker,
             allowedContentTypes: [.folder],
@@ -183,37 +196,87 @@ struct TaskDefaultsSettingsView: View {
     
     private var webToolsSection: some View {
         Section("Web Search") {
-            Picker("Search Provider", selection: $searchEngine) {
-                Label {
-                    Text("Google")
-                } icon: {
-                    Image(systemName: "magnifyingglass")
+            VStack(alignment: .leading, spacing: 12) {
+                // Provider picker - use menu style for compactness
+                Picker("Search Provider", selection: $searchEngine) {
+                    Text("Google (free, scraping)").tag("google")
+                    Text("DuckDuckGo (free, scraping)").tag("duckduckgo")
+                    Divider()
+                    Text("SearchAPI (paid)").tag("searchapi")
+                    Text("SerpAPI (paid)").tag("serpapi")
                 }
-                .tag("google")
+                .pickerStyle(.menu)
                 
-                Label {
-                    Text("DuckDuckGo")
-                } icon: {
-                    Image(systemName: "shield")
+                // Show API key field only for paid providers
+                if searchEngine == "searchapi" {
+                    apiKeyField(
+                        label: "SearchAPI Key",
+                        key: $searchAPIKey,
+                        showKey: $showSearchAPIKey,
+                        hasKey: hasSearchAPIKey
+                    )
                 }
-                .tag("duckduckgo")
+                
+                if searchEngine == "serpapi" {
+                    apiKeyField(
+                        label: "SerpAPI Key",
+                        key: $serpAPIKey,
+                        showKey: $showSerpAPIKey,
+                        hasKey: hasSerpAPIKey
+                    )
+                }
+                
+                Divider()
+                
+                HStack {
+                    Text("Default Result Count")
+                    Spacer()
+                    TextField("", value: $defaultResultCount, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                        .multilineTextAlignment(.trailing)
+                    Text("results")
+                        .foregroundStyle(.secondary)
+                }
             }
-            .pickerStyle(.inline)
             
-            HStack {
-                Text("Default Result Count")
-                Spacer()
-                TextField("", value: $defaultResultCount, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 60)
-                    .multilineTextAlignment(.trailing)
-                Text("results")
-                    .foregroundStyle(.secondary)
-            }
-            
-            Text("Configure the search engine and default result count for the web_search tool.")
+            Text("Google and DuckDuckGo use web scraping (may be rate-limited). SearchAPI and SerpAPI are paid services with higher reliability.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+    
+    @ViewBuilder
+    private func apiKeyField(label: String, key: Binding<String>, showKey: Binding<Bool>, hasKey: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(label)
+                if hasKey {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                } else {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                }
+                Spacer()
+            }
+            HStack(spacing: 8) {
+                if showKey.wrappedValue {
+                    TextField("", text: key)
+                        .textFieldStyle(.roundedBorder)
+                } else {
+                    SecureField("", text: key)
+                        .textFieldStyle(.roundedBorder)
+                }
+                Button {
+                    showKey.wrappedValue.toggle()
+                } label: {
+                    Image(systemName: showKey.wrappedValue ? "eye.slash" : "eye")
+                }
+                .buttonStyle(.borderless)
+            }
         }
     }
     
@@ -380,6 +443,14 @@ struct TaskDefaultsSettingsView: View {
             return hasGeminiProvider
         }
     }
+
+    private var hasSearchAPIKey: Bool {
+        !searchAPIKey.isEmpty
+    }
+    
+    private var hasSerpAPIKey: Bool {
+        !serpAPIKey.isEmpty
+    }
     
     private var displayPath: String {
         if outputDirectoryPath.isEmpty {
@@ -391,6 +462,27 @@ struct TaskDefaultsSettingsView: View {
     /// Function to show the output directory in Finder
     private func showInFinder() {
         NSWorkspace.shared.open(effectiveOutputDirectory)
+    }
+    
+    private func loadSearchProviderKeys() {
+        searchAPIKey = SearchProviderKeychain.retrieveSearchAPIKey() ?? ""
+        serpAPIKey = SearchProviderKeychain.retrieveSerpAPIKey() ?? ""
+    }
+    
+    private func updateSearchAPIKey(_ key: String) {
+        if key.isEmpty {
+            SearchProviderKeychain.deleteSearchAPIKey()
+        } else {
+            SearchProviderKeychain.storeSearchAPIKey(key)
+        }
+    }
+    
+    private func updateSerpAPIKey(_ key: String) {
+        if key.isEmpty {
+            SearchProviderKeychain.deleteSerpAPIKey()
+        } else {
+            SearchProviderKeychain.storeSerpAPIKey(key)
+        }
     }
 }
 

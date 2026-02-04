@@ -60,7 +60,7 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     // Host-side subagent management tools
     case spawnSubagent = "spawn_subagent"
     case getSubagentStatus = "get_subagent_status"
-    case awaitSubagent = "await_subagent"
+    case awaitSubagents = "await_subagents"
     case cancelSubagent = "cancel_subagent"
     case listSubagents = "list_subagents"
     
@@ -72,7 +72,7 @@ public enum AgentMethod: String, CaseIterable, Sendable {
              .getLocation, .createTodoList, .addTodoItem, .finishTodoItem,
              .askTextQuestion, .askMultipleChoice, .requestUserIntervention,
              .getLoginCredentials, .generateImage,
-             .spawnSubagent, .getSubagentStatus, .awaitSubagent, .cancelSubagent, .listSubagents:
+             .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents:
             return true
         default:
             return false

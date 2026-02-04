@@ -118,7 +118,7 @@ final class SubagentToolExecutor {
         }
         
         let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "google"
-        let fallbackEngine = searchEngine == "duckduckgo" ? "google" : "duckduckgo"
+        let fallbackEngines = fallbackSearchEngines(for: searchEngine)
         var usedEngine = searchEngine
         var results: [SearchResult] = []
         var fallbackNotes: [String] = []
@@ -130,7 +130,8 @@ final class SubagentToolExecutor {
         }
         
         func performSearch(engine: String, query: String, site: String?) async throws -> [SearchResult] {
-            if engine == "duckduckgo" {
+            switch engine {
+            case "duckduckgo":
                 return try await DuckDuckGoSearch.search(
                     query: query,
                     site: site,
@@ -138,46 +139,78 @@ final class SubagentToolExecutor {
                     startDate: startDate,
                     endDate: endDate
                 )
-            }
-            let googleResults = try await GoogleSearch.search(
-                query: query,
-                site: site,
-                resultCount: resultCount,
-                startDate: startDate,
-                endDate: endDate
-            )
-            return googleResults.map { googleResult in
-                SearchResult(
-                    url: googleResult.source,
-                    title: "Search Result",
-                    snippet: googleResult.text
+            case "searchapi":
+                guard let apiKey = SearchProviderKeychain.retrieveSearchAPIKey(), !apiKey.isEmpty else {
+                    throw SearchProviderError.missingAPIKey("SearchAPI")
+                }
+                return try await SearchAPIClient.search(
+                    query: query,
+                    site: site,
+                    resultCount: resultCount,
+                    startDate: startDate,
+                    endDate: endDate,
+                    apiKey: apiKey
                 )
+            case "serpapi":
+                guard let apiKey = SearchProviderKeychain.retrieveSerpAPIKey(), !apiKey.isEmpty else {
+                    throw SearchProviderError.missingAPIKey("SerpAPI")
+                }
+                return try await SerpAPIClient.search(
+                    query: query,
+                    site: site,
+                    resultCount: resultCount,
+                    startDate: startDate,
+                    endDate: endDate,
+                    apiKey: apiKey
+                )
+            default:
+                let googleResults = try await GoogleSearch.search(
+                    query: query,
+                    site: site,
+                    resultCount: resultCount,
+                    startDate: startDate,
+                    endDate: endDate
+                )
+                return googleResults.map { googleResult in
+                    SearchResult(
+                        url: googleResult.source,
+                        title: "Search Result",
+                        snippet: googleResult.text
+                    )
+                }
             }
         }
         
         for variant in queryVariants {
-            do {
-                results = try await performSearch(engine: searchEngine, query: variant, site: site)
-            } catch {
-                fallbackNotes.append("Primary search (\(searchEngine)) failed: \(error.localizedDescription)")
-            }
-            
-            if results.isEmpty {
+            for engine in [searchEngine] + fallbackEngines {
                 do {
-                    usedEngine = fallbackEngine
-                    results = try await performSearch(engine: fallbackEngine, query: variant, site: site)
-                    fallbackNotes.append("Retried with \(fallbackEngine).")
+                    results = try await performSearch(engine: engine, query: variant, site: site)
+                    if !results.isEmpty {
+                        usedEngine = engine
+                        if engine != searchEngine {
+                            fallbackNotes.append("Retried with \(engine).")
+                        }
+                        break
+                    }
                 } catch {
-                    fallbackNotes.append("Fallback search (\(fallbackEngine)) failed: \(error.localizedDescription)")
+                    fallbackNotes.append("Search (\(engine)) failed: \(error.localizedDescription)")
                 }
             }
             
             if results.isEmpty, site != nil {
-                do {
-                    results = try await performSearch(engine: usedEngine, query: variant, site: nil)
-                    fallbackNotes.append("No results with site filter; broadened search.")
-                } catch {
-                    fallbackNotes.append("Broadened search failed: \(error.localizedDescription)")
+                for engine in [usedEngine] + fallbackEngines {
+                    do {
+                        results = try await performSearch(engine: engine, query: variant, site: nil)
+                        if !results.isEmpty {
+                            if engine != usedEngine {
+                                fallbackNotes.append("Broadened search used \(engine).")
+                            }
+                            fallbackNotes.append("No results with site filter; broadened search.")
+                            break
+                        }
+                    } catch {
+                        fallbackNotes.append("Broadened search (\(engine)) failed: \(error.localizedDescription)")
+                    }
                 }
             }
             
@@ -216,6 +249,17 @@ final class SubagentToolExecutor {
         }
         simplified = simplified.replacingOccurrences(of: "  ", with: " ")
         return simplified.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func fallbackSearchEngines(for primary: String) -> [String] {
+        switch primary {
+        case "duckduckgo":
+            return ["google"]
+        case "searchapi", "serpapi":
+            return ["google", "duckduckgo"]
+        default:
+            return ["duckduckgo"]
+        }
     }
     
     private func executeReadWebpageContent(args: [String: Any]) async throws -> ToolResult {
@@ -302,6 +346,17 @@ enum SubagentToolError: Error, LocalizedError {
         switch self {
         case .unknownTool(let name):
             return "Unknown tool: \(name)"
+        }
+    }
+}
+
+enum SearchProviderError: Error, LocalizedError {
+    case missingAPIKey(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .missingAPIKey(let provider):
+            return "\(provider) API key not configured."
         }
     }
 }

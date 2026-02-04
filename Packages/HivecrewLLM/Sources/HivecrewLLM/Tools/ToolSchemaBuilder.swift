@@ -441,15 +441,15 @@ public final class ToolSchemaBuilder: Sendable {
                     )
                 )
                 
-            case .awaitSubagent:
+            case .awaitSubagents:
                 return (
-                    "Wait for a subagent to finish and return its final summary.",
+                    "Wait for multiple subagents to finish and return their final summaries.",
                     objectSchema(
                         properties: [
-                            "subagentId": stringProperty("The subagent ID to wait for."),
+                            "subagentIds": arrayProperty("The subagent IDs to wait for.", itemType: ["type": "string"]),
                             "timeoutSeconds": numberProperty("Optional timeout in seconds.")
                         ],
-                        required: ["subagentId"]
+                        required: ["subagentIds"]
                     )
                 )
                 
