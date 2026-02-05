@@ -340,35 +340,12 @@ final class SubagentManager {
         domain: SubagentDomain,
         requested: [String]?
     ) -> [String] {
-        let base = Set(defaultAllowlist(for: domain))
-        var allowlist = Set(requested ?? [])
-        if allowlist.isEmpty {
-            allowlist = base
-        } else {
-            allowlist.formUnion(base)
-        }
-        
-        let hostAllowed = Set(["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "create_todo_list", "add_todo_item", "finish_todo_item", "generate_image", "wait"])
-        let vmAllowed = Set(["run_shell", "read_file", "move_file", "wait"])
-        let mixedAllowed = hostAllowed.union(vmAllowed)
-        
-        let isResearch = isResearchGoal(goal)
-        let needsFileIO = requiresFileIO(goal)
-        if isResearch && domain != .vm && !needsFileIO {
-            allowlist.remove("run_shell")
-            allowlist.remove("read_file")
-        }
-        
-        switch domain {
-        case .host:
-            allowlist = allowlist.filter { hostAllowed.contains($0) || $0.hasPrefix("mcp_") }
-        case .vm:
-            allowlist = allowlist.filter { vmAllowed.contains($0) }
-        case .mixed:
-            allowlist = allowlist.filter { mixedAllowed.contains($0) || $0.hasPrefix("mcp_") }
-        }
-        
-        return Array(allowlist)
+        // Subagents always get all built-in tools plus all MCP tools.
+        // This avoids mismatches where a subagent's goal requires a tool (file ops, images, etc.)
+        // that wasn't included in an allowlist for its domain.
+        var allowlist = Set(AgentMethod.allCases.map(\.rawValue))
+        allowlist.insert("mcp_*")
+        return Array(allowlist).sorted()
     }
     
     private func isResearchGoal(_ goal: String) -> Bool {

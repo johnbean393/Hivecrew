@@ -748,7 +748,10 @@ extension TaskService {
     /// Keep pendingVMCount aligned with task state to avoid stale capacity checks.
     @discardableResult
     private func syncPendingVMCount() -> Int {
-        let actualPending = tasks.filter { $0.status == .waitingForVM }.count
+        let actualPending = tasks.filter { task in
+            guard task.status == .waitingForVM else { return false }
+            return runningAgents[task.id] == nil
+        }.count
         if pendingVMCount != actualPending {
             print("TaskService: pendingVMCount out of sync (stored=\(pendingVMCount), actual=\(actualPending)). Resyncing.")
             pendingVMCount = actualPending

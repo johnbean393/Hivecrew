@@ -24,11 +24,15 @@ struct TaskRowView: View {
     
     /// Whether the task is actively executing (not paused, waiting, or completed)
     var isActivelyRunning: Bool {
-        task.status == .running
+        effectiveStatus == .running
+    }
+
+    private var effectiveStatus: TaskStatus {
+        taskService.effectiveStatus(for: task)
     }
     
     var statusColor: Color {
-        switch task.status {
+        switch effectiveStatus {
             case .queued, .waitingForVM, .paused, .planning:
                 return .yellow
             case .running:
@@ -52,7 +56,7 @@ struct TaskRowView: View {
     
     /// Icon for completed task based on wasSuccessful
     var completionIcon: String? {
-        guard task.status == .completed else { return nil }
+        guard effectiveStatus == .completed else { return nil }
         if let success = task.wasSuccessful {
             return success ? "checkmark.circle.fill" : "xmark.circle.fill"
         }
@@ -63,12 +67,12 @@ struct TaskRowView: View {
         Button(action: handleRowTap) {
             HStack(spacing: 12) {
                 // Status indicator
-                if task.status == .planning {
+                if effectiveStatus == .planning {
                     // Spinner for planning state
                     ProgressView()
                         .scaleEffect(0.6)
                         .frame(width: 14, height: 14)
-                } else if task.status == .planReview {
+                } else if effectiveStatus == .planReview {
                     // Blue clipboard icon for plan review
                     Image(systemName: "list.bullet.clipboard.fill")
                         .foregroundStyle(.blue)
@@ -103,18 +107,18 @@ struct TaskRowView: View {
                     // Status text
                     HStack(spacing: 8) {
                         // Show verified status for completed tasks
-                        if task.status == .completed, let success = task.wasSuccessful {
+                        if effectiveStatus == .completed, let success = task.wasSuccessful {
                             Text(success ? "Verified Complete" : "Incomplete")
                                 .font(.caption)
                                 .foregroundStyle(success ? .green : .red)
                         } else {
-                            Text(task.status.displayName)
+                            Text(effectiveStatus.displayName)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         
                         // Show duration for completed tasks
-                        if !task.status.isActive, task.completedAt != nil {
+                        if !effectiveStatus.isActive, task.completedAt != nil {
                             Text("•")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
@@ -124,7 +128,7 @@ struct TaskRowView: View {
                         }
                         
                         // Show elapsed time for running tasks
-                        if task.status == .running, let startedAt = task.startedAt {
+                        if effectiveStatus == .running, let startedAt = task.startedAt {
                             Text("•")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
@@ -132,7 +136,7 @@ struct TaskRowView: View {
                         }
                         
                         // Show deliverable count for completed tasks with outputs
-                        if !task.status.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
+                        if !effectiveStatus.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
                             Text("•")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
@@ -155,10 +159,10 @@ struct TaskRowView: View {
                 Spacer()
                 
                 // Actions (shown on hover or always for planReview)
-                if isHovered || task.status == .planReview {
+                if isHovered || effectiveStatus == .planReview {
                     HStack(spacing: 8) {
                         // Plan Review actions
-                        if task.status == .planReview {
+                        if effectiveStatus == .planReview {
                             Button {
                                 showingPlanReview = true
                             } label: {
@@ -194,7 +198,7 @@ struct TaskRowView: View {
                             .help("Cancel task")
                         } else {
                             // Rerun button for inactive tasks
-                            if !task.status.isActive {
+                            if !effectiveStatus.isActive {
                                 Button(action: { handleRerun() }) {
                                     Image(systemName: "arrow.counterclockwise")
                                         .foregroundStyle(.blue)
@@ -204,14 +208,14 @@ struct TaskRowView: View {
                             }
                             
                             // Cancel button for planning state
-                            if task.status == .planning {
+                            if effectiveStatus == .planning {
                                 Button(action: { Task { await taskService.cancelPlanning(for: task) } }) {
                                     Image(systemName: "xmark.circle")
                                         .foregroundStyle(.orange)
                                 }
                                 .buttonStyle(.plain)
                                 .help("Cancel planning")
-                            } else if task.status.isActive {
+                            } else if effectiveStatus.isActive {
                                 Button(action: { Task { await taskService.cancelTask(task) } }) {
                                     Image(systemName: "xmark.circle")
                                         .foregroundStyle(.orange)
@@ -242,7 +246,7 @@ struct TaskRowView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             // Only show delete action for non-active tasks
-            if !task.status.isActive {
+            if !effectiveStatus.isActive {
                 Button(role: .destructive) {
                     Task { await taskService.deleteTask(task) }
                 } label: {
@@ -283,7 +287,7 @@ struct TaskRowView: View {
             }
             
             // Rerun option for inactive tasks
-            if !task.status.isActive {
+            if !effectiveStatus.isActive {
                 Button {
                     handleRerun()
                 } label: {
@@ -301,7 +305,7 @@ struct TaskRowView: View {
             }
             
             // Cancel option for active tasks
-            if task.status.isActive {
+            if effectiveStatus.isActive {
                 Divider()
                 Button(role: .destructive) {
                     Task { await taskService.cancelTask(task) }
@@ -311,7 +315,7 @@ struct TaskRowView: View {
             }
             
             // Delete option for inactive tasks
-            if !task.status.isActive {
+            if !effectiveStatus.isActive {
                 Divider()
                 Button(role: .destructive) {
                     Task { await taskService.deleteTask(task) }
@@ -323,7 +327,7 @@ struct TaskRowView: View {
     }
     
     private func handleRowTap() {
-        if task.status == .planning || task.status == .planReview {
+        if effectiveStatus == .planning || effectiveStatus == .planReview {
             // Show plan review window (streaming during planning, editable during review)
             showingPlanReview = true
         } else if isActivelyRunning {

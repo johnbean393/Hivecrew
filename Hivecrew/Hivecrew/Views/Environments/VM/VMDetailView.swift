@@ -24,7 +24,9 @@ struct VMDetailView: View {
     
     /// Get the task assigned to this VM
     private var assignedTask: TaskRecord? {
-        taskService.tasks.first { $0.assignedVMId == vm.id && $0.status.isActive }
+        taskService.tasks.first { task in
+            task.assignedVMId == vm.id && taskService.isTaskEffectivelyActive(task)
+        }
     }
     
     /// Get the state publisher for the assigned task

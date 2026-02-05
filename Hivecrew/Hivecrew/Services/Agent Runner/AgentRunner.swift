@@ -154,6 +154,7 @@ final class AgentRunner {
             connection: connection,
             vmScheduler: vmToolScheduler,
             vmId: vmId,
+            taskId: task.id,
             taskProviderId: task.providerId,
             taskModelId: task.modelId,
             taskService: taskService,
@@ -179,15 +180,24 @@ final class AgentRunner {
             }
         )
         self.toolExecutor.subagentManager = self.subagentManager
+        subagentToolExecutor.subagentManager = self.subagentManager
         
         // Set up question callback to use statePublisher
         self.toolExecutor.onAskQuestion = { [weak statePublisher] question in
             guard let publisher = statePublisher else { return "No response available" }
             return await publisher.askQuestion(question)
         }
+        subagentToolExecutor.onAskQuestion = { [weak statePublisher] question in
+            guard let publisher = statePublisher else { return "No response available" }
+            return await publisher.askQuestion(question)
+        }
         
         // Set up permission callback for dangerous tools
         self.toolExecutor.onRequestPermission = { [weak statePublisher] toolName, details in
+            guard let publisher = statePublisher else { return false }
+            return await publisher.requestPermission(toolName: toolName, details: details)
+        }
+        subagentToolExecutor.onRequestPermission = { [weak statePublisher] toolName, details in
             guard let publisher = statePublisher else { return false }
             return await publisher.requestPermission(toolName: toolName, details: details)
         }

@@ -22,16 +22,22 @@ final class SubagentToolExecutor {
     private let connection: GuestAgentConnection
     private let vmScheduler: VMToolScheduler
     private let vmId: String
+    private let taskId: String
     private let taskProviderId: String
     private let taskModelId: String
     private weak var taskService: (any CreateWorkerClientProtocol)?
     private let todoManager: TodoManager
     private let modelContext: ModelContext?
     
+    weak var subagentManager: SubagentManager?
+    var onAskQuestion: ((AgentQuestion) async -> String)?
+    var onRequestPermission: ((String, String) async -> Bool)?
+    
     init(
         connection: GuestAgentConnection,
         vmScheduler: VMToolScheduler,
         vmId: String,
+        taskId: String,
         taskProviderId: String,
         taskModelId: String,
         taskService: (any CreateWorkerClientProtocol)?,
@@ -41,6 +47,7 @@ final class SubagentToolExecutor {
         self.connection = connection
         self.vmScheduler = vmScheduler
         self.vmId = vmId
+        self.taskId = taskId
         self.taskProviderId = taskProviderId
         self.taskModelId = taskModelId
         self.taskService = taskService
@@ -53,6 +60,30 @@ final class SubagentToolExecutor {
         let name = toolCall.function.name
         
         switch name {
+        case "screenshot":
+            return try await executeScreenshot()
+        case "health_check":
+            return try await executeHealthCheck()
+        case "traverse_accessibility_tree":
+            return try await executeTraverseAccessibilityTree(args: args)
+        case "open_app":
+            return try await executeOpenApp(args: args)
+        case "open_file":
+            return try await executeOpenFile(args: args)
+        case "open_url":
+            return try await executeOpenUrl(args: args)
+        case "mouse_move":
+            return try await executeMouseMove(args: args)
+        case "mouse_click":
+            return try await executeMouseClick(args: args)
+        case "mouse_drag":
+            return try await executeMouseDrag(args: args)
+        case "keyboard_type":
+            return try await executeKeyboardType(args: args)
+        case "keyboard_key":
+            return try await executeKeyboardKey(args: args)
+        case "scroll":
+            return try await executeScroll(args: args)
         case "run_shell":
             return try await executeRunShell(args: args)
         case "read_file":
@@ -61,6 +92,14 @@ final class SubagentToolExecutor {
             return try await executeMoveFile(args: args)
         case "wait":
             return try await executeWait(args: args)
+        case "ask_text_question":
+            return try await executeAskTextQuestion(args: args, toolCallId: toolCall.id)
+        case "ask_multiple_choice":
+            return try await executeAskMultipleChoice(args: args, toolCallId: toolCall.id)
+        case "request_user_intervention":
+            return try await executeRequestIntervention(args: args, toolCallId: toolCall.id)
+        case "get_login_credentials":
+            return executeGetCredentials(args: args)
         case "web_search":
             return try await executeWebSearch(args: args)
         case "read_webpage_content":
@@ -77,6 +116,16 @@ final class SubagentToolExecutor {
             return try executeFinishTodoItem(args: args)
         case "generate_image":
             return try await executeGenerateImage(args: args)
+        case "spawn_subagent":
+            return await executeSpawnSubagent(args: args)
+        case "get_subagent_status":
+            return await executeGetSubagentStatus(args: args)
+        case "await_subagents", "await_subagent":
+            return await executeAwaitSubagents(args: args)
+        case "cancel_subagent":
+            return await executeCancelSubagent(args: args)
+        case "list_subagents":
+            return await executeListSubagents()
         default:
             if MCPServerManager.shared.isMCPTool(name) {
                 return try await executeMCPTool(name: name, args: args)
@@ -87,9 +136,133 @@ final class SubagentToolExecutor {
     
     // MARK: - VM Tools
     
+    private func executeScreenshot() async throws -> ToolResult {
+        let result = try await vmScheduler.run {
+            try await self.connection.screenshot()
+        }
+        let desc = "Screenshot captured (\(result.width)x\(result.height) pixels)"
+        return .image(description: desc, base64: result.imageBase64, mimeType: "image/png")
+    }
+    
+    private func executeHealthCheck() async throws -> ToolResult {
+        let result = try await vmScheduler.run {
+            try await self.connection.healthCheck()
+        }
+        var output = "Status: \(result.status)"
+        output += "\nAccessibility permission: \(result.accessibilityPermission ? "granted" : "missing")"
+        output += "\nScreen recording permission: \(result.screenRecordingPermission ? "granted" : "missing")"
+        output += "\nShared folder mounted: \(result.sharedFolderMounted ? "yes" : "no")"
+        if let path = result.sharedFolderPath { output += "\nShared folder path: \(path)" }
+        output += "\nAgent version: \(result.agentVersion)"
+        return .text(output)
+    }
+    
+    private func executeTraverseAccessibilityTree(args: [String: Any]) async throws -> ToolResult {
+        let pid = (args["pid"] as? Int).map { Int32($0) }
+        let onlyVisibleElements = args["onlyVisibleElements"] as? Bool ?? true
+        let result = try await vmScheduler.run {
+            try await self.connection.traverseAccessibilityTree(pid: pid, onlyVisibleElements: onlyVisibleElements)
+        }
+        return .text("Traversed accessibility tree for \(result.appName): \(result.elements.count) elements found")
+    }
+    
+    private func executeOpenApp(args: [String: Any]) async throws -> ToolResult {
+        let bundleId = args["bundleId"] as? String
+        let appName = args["appName"] as? String
+        try await vmScheduler.run {
+            try await self.connection.openApp(bundleId: bundleId, appName: appName)
+        }
+        return .text("Opened app: \(appName ?? bundleId ?? "unknown")")
+    }
+    
+    private func executeOpenFile(args: [String: Any]) async throws -> ToolResult {
+        let path = args["path"] as? String ?? ""
+        let withApp = args["withApp"] as? String
+        try await vmScheduler.run {
+            try await self.connection.openFile(path: path, withApp: withApp)
+        }
+        return .text("Opened file: \(path)")
+    }
+    
+    private func executeOpenUrl(args: [String: Any]) async throws -> ToolResult {
+        let url = args["url"] as? String ?? ""
+        try await vmScheduler.run {
+            try await self.connection.openUrl(url)
+        }
+        return .text("Opened URL: \(url)")
+    }
+    
+    private func executeMouseMove(args: [String: Any]) async throws -> ToolResult {
+        let x = parseDouble(args["x"])
+        let y = parseDouble(args["y"])
+        try await vmScheduler.run {
+            try await self.connection.mouseMove(x: x, y: y)
+        }
+        return .text("Moved mouse to (\(Int(x)), \(Int(y)))")
+    }
+    
+    private func executeMouseClick(args: [String: Any]) async throws -> ToolResult {
+        let x = parseDouble(args["x"])
+        let y = parseDouble(args["y"])
+        let button = args["button"] as? String ?? "left"
+        let clickType = args["clickType"] as? String ?? "single"
+        try await vmScheduler.run {
+            try await self.connection.mouseClick(x: x, y: y, button: button, clickType: clickType)
+        }
+        return .text("Clicked at (\(Int(x)), \(Int(y))) with \(button) button")
+    }
+    
+    private func executeMouseDrag(args: [String: Any]) async throws -> ToolResult {
+        let fromX = parseDouble(args["fromX"])
+        let fromY = parseDouble(args["fromY"])
+        let toX = parseDouble(args["toX"])
+        let toY = parseDouble(args["toY"])
+        try await vmScheduler.run {
+            try await self.connection.mouseDrag(fromX: fromX, fromY: fromY, toX: toX, toY: toY)
+        }
+        return .text("Dragged from (\(Int(fromX)), \(Int(fromY))) to (\(Int(toX)), \(Int(toY)))")
+    }
+    
+    private func executeKeyboardType(args: [String: Any]) async throws -> ToolResult {
+        let originalText = args["text"] as? String ?? ""
+        let actualText = CredentialManager.shared.substituteTokens(in: originalText)
+        try await vmScheduler.run {
+            try await self.connection.keyboardType(text: actualText)
+        }
+        let preview = originalText.prefix(50)
+        return .text("Typed: \"\(preview)\(originalText.count > 50 ? "..." : "")\"")
+    }
+    
+    private func executeKeyboardKey(args: [String: Any]) async throws -> ToolResult {
+        let key = args["key"] as? String ?? ""
+        let modifiers = args["modifiers"] as? [String] ?? []
+        try await vmScheduler.run {
+            try await self.connection.keyboardKey(key: key, modifiers: modifiers)
+        }
+        let modStr = modifiers.isEmpty ? "" : "\(modifiers.joined(separator: "+"))+"
+        return .text("Pressed key: \(modStr)\(key)")
+    }
+    
+    private func executeScroll(args: [String: Any]) async throws -> ToolResult {
+        let x = parseDouble(args["x"])
+        let y = parseDouble(args["y"])
+        let deltaX = parseDouble(args["deltaX"])
+        let deltaY = parseDouble(args["deltaY"])
+        try await vmScheduler.run {
+            try await self.connection.scroll(x: x, y: y, deltaX: -deltaX, deltaY: -deltaY)
+        }
+        return .text("Scrolled at (\(Int(x)), \(Int(y)))")
+    }
+    
     private func executeRunShell(args: [String: Any]) async throws -> ToolResult {
         let command = args["command"] as? String ?? ""
         let timeout = parseDoubleOptional(args["timeout"])
+        
+        if UserDefaults.standard.bool(forKey: "requireConfirmationForShell") {
+            let approved = await onRequestPermission?("Shell Command", command) ?? false
+            if !approved { return .text("Command blocked: User denied permission") }
+        }
+        
         let result = try await vmScheduler.run {
             try await self.connection.runShell(command: command, timeout: timeout)
         }
@@ -127,6 +300,61 @@ final class SubagentToolExecutor {
         let seconds = parseDouble(args["seconds"], default: 1.0)
         try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         return .text("Waited \(seconds) seconds")
+    }
+    
+    // MARK: - Question Tools
+    
+    private func executeAskTextQuestion(args: [String: Any], toolCallId: String) async throws -> ToolResult {
+        let question = args["question"] as? String ?? ""
+        guard let callback = onAskQuestion else { return .text("Error: No question handler") }
+        let q = AgentTextQuestion(id: toolCallId, taskId: taskId, question: question)
+        let answer = await callback(.text(q))
+        return .text("User answered: \(answer)")
+    }
+    
+    private func executeAskMultipleChoice(args: [String: Any], toolCallId: String) async throws -> ToolResult {
+        let question = args["question"] as? String ?? ""
+        let options = args["options"] as? [String] ?? []
+        guard let callback = onAskQuestion else { return .text("Error: No question handler") }
+        let q = AgentMultipleChoiceQuestion(id: toolCallId, taskId: taskId, question: question, options: options)
+        let answer = await callback(.multipleChoice(q))
+        return .text("User selected: \(answer)")
+    }
+    
+    private func executeRequestIntervention(args: [String: Any], toolCallId: String) async throws -> ToolResult {
+        let message = args["message"] as? String ?? ""
+        let service = args["service"] as? String
+        guard let callback = onAskQuestion else { return .text("Error: No handler") }
+        let request = AgentInterventionRequest(id: toolCallId, taskId: taskId, message: message, service: service)
+        let response = await callback(.intervention(request))
+        return .text(response == "completed" ? "User completed the requested action" : "User cancelled")
+    }
+    
+    // MARK: - Credential Tools
+    
+    private func executeGetCredentials(args: [String: Any]) -> ToolResult {
+        let serviceFilter = args["service"] as? String
+        
+        var credentials = CredentialManager.shared.getCredentialsForAgent(service: serviceFilter)
+        var noMatchMsg: String? = nil
+        
+        if credentials.isEmpty, let service = serviceFilter {
+            credentials = CredentialManager.shared.getCredentialsForAgent(service: nil)
+            if !credentials.isEmpty { noMatchMsg = "No credentials matching '\(service)'. Returning all." }
+        }
+        
+        if credentials.isEmpty {
+            return .text("No credentials stored.")
+        }
+        
+        var output = noMatchMsg.map { "\($0)\n\n" } ?? ""
+        output += "Available credentials:\n\n"
+        for cred in credentials {
+            let usernameDisplay = CredentialManager.shared.resolveToken(cred.usernameToken.uuidString) ?? "(no username)"
+            output += "\(cred.displayName):\n  Username: \(usernameDisplay)\n  Password: \(cred.passwordToken.uuidString)\n\n"
+        }
+        
+        return .text(output)
     }
     
     // MARK: - Host Tools
@@ -448,6 +676,170 @@ final class SubagentToolExecutor {
         case .text:
             return nil
         }
+    }
+    
+    // MARK: - Subagent Tools
+    
+    private func executeSpawnSubagent(args: [String: Any]) async -> ToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        
+        let goal = args["goal"] as? String ?? ""
+        let purpose = args["purpose"] as? String
+        let domainRaw = args["domain"] as? String ?? "host"
+        let domain = SubagentDomain(rawValue: domainRaw) ?? .host
+        
+        let toolAllowlist = (args["toolAllowlist"] as? [String]) ?? (args["tool_allowlist"] as? [String])
+        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
+        let modelOverride = args["modelOverride"] as? String ?? args["model_override"] as? String
+        
+        let info = await manager.spawn(
+            goal: goal,
+            domain: domain,
+            toolAllowlist: toolAllowlist,
+            timeoutSeconds: timeoutSeconds,
+            modelOverride: modelOverride,
+            purpose: purpose
+        )
+        
+        var output = "Subagent spawned: \(info.id)"
+        if let purpose = info.purpose, !purpose.isEmpty {
+            output += "\nPurpose: \(purpose)"
+        }
+        output += "\nDomain: \(info.domain.rawValue)"
+        output += "\nStatus: \(info.status.rawValue)"
+        return .text(output)
+    }
+    
+    private func executeGetSubagentStatus(args: [String: Any]) async -> ToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let id = args["subagentId"] as? String ?? ""
+        guard let info = manager.getStatus(subagentId: id) else {
+            return .text("Subagent not found: \(id)")
+        }
+        return .text(formatSubagentInfo(info))
+    }
+    
+    private func executeAwaitSubagents(args: [String: Any]) async -> ToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let ids = parseSubagentIds(args)
+        if ids.isEmpty {
+            return .text("Error: subagentIds is required")
+        }
+        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"]) ?? 600
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        
+        var notFound: Set<String> = []
+        var pending: [String] = []
+        for id in ids {
+            if manager.getStatus(subagentId: id) == nil {
+                notFound.insert(id)
+            } else {
+                pending.append(id)
+            }
+        }
+        
+        var resultsById: [String: SubagentManager.Info] = [:]
+        if !pending.isEmpty {
+            await withTaskGroup(of: (String, SubagentManager.Info?).self) { group in
+                for id in pending {
+                    group.addTask { [manager] in
+                        let remaining = deadline.timeIntervalSinceNow
+                        if remaining <= 0 {
+                            return (id, nil)
+                        }
+                        let info = await manager.awaitResult(subagentId: id, timeoutSeconds: remaining)
+                        return (id, info)
+                    }
+                }
+                
+                for await (id, info) in group {
+                    if let info {
+                        resultsById[id] = info
+                    }
+                }
+            }
+        }
+        
+        var outputBlocks: [String] = []
+        for id in ids {
+            if notFound.contains(id) {
+                outputBlocks.append("Subagent not found: \(id)")
+                continue
+            }
+            if let info = resultsById[id] {
+                outputBlocks.append(formatSubagentInfo(info))
+                continue
+            }
+            outputBlocks.append("Timed out waiting for subagent \(id)")
+        }
+        
+        return .text(outputBlocks.joined(separator: "\n\n"))
+    }
+    
+    private func executeCancelSubagent(args: [String: Any]) async -> ToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let id = args["subagentId"] as? String ?? ""
+        let cancelled = await manager.cancel(subagentId: id)
+        return .text(cancelled ? "Cancelled subagent \(id)" : "Subagent not found: \(id)")
+    }
+    
+    private func executeListSubagents() async -> ToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let infos = manager.list()
+        if infos.isEmpty {
+            return .text("No subagents")
+        }
+        let lines = infos.map { formatSubagentInfo($0) }
+        return .text(lines.joined(separator: "\n\n"))
+    }
+    
+    private func formatSubagentInfo(_ info: SubagentManager.Info) -> String {
+        var lines: [String] = []
+        lines.append("ID: \(info.id)")
+        if let purpose = info.purpose, !purpose.isEmpty {
+            lines.append("Purpose: \(purpose)")
+        }
+        lines.append("Domain: \(info.domain.rawValue)")
+        lines.append("Status: \(info.status.rawValue)")
+        if let summary = info.summary, !summary.isEmpty {
+            lines.append("Summary: \(summary)")
+        }
+        if let error = info.errorMessage, !error.isEmpty {
+            lines.append("Error: \(error)")
+        }
+        return lines.joined(separator: "\n")
+    }
+    
+    private func parseSubagentIds(_ args: [String: Any]) -> [String] {
+        if let ids = args["subagentIds"] as? [String] {
+            return ids.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+        if let ids = args["subagent_ids"] as? [String] {
+            return ids.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        }
+        if let id = args["subagentId"] as? String {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? [] : [trimmed]
+        }
+        if let id = args["subagent_id"] as? String {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? [] : [trimmed]
+        }
+        if let idsString = args["subagentIds"] as? String {
+            let parts = idsString.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            return parts.filter { !$0.isEmpty }
+        }
+        return []
     }
     
     // MARK: - MCP Tools

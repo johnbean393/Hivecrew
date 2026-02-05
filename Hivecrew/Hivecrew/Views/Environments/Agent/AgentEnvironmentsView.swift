@@ -93,7 +93,7 @@ struct AgentEnvironmentsView: View {
     /// Tasks that have an assigned VM (running or recently completed)
     private var activeTasksWithVMs: [TaskRecord] {
         taskService.tasks.filter { task in
-            task.assignedVMId != nil && task.status.isActive
+            task.assignedVMId != nil && taskService.isTaskEffectivelyActive(task)
         }.sorted { $0.createdAt > $1.createdAt }
     }
     

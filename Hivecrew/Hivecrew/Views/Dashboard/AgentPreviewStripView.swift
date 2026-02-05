@@ -59,7 +59,7 @@ struct AgentPreviewStripView: View {
     }
     
     private func sortedItems() -> [AgentPreviewItem] {
-        let activeTasks = taskService.tasks.filter { $0.status.isActive }
+        let activeTasks = taskService.tasks.filter { taskService.isTaskEffectivelyActive($0) }
         let items = activeTasks.map { task in
             let publisher = taskService.statePublishers[task.id]
             return AgentPreviewItem(
@@ -87,11 +87,12 @@ struct AgentPreviewStripView: View {
             return (0, interventionTimestamp)
         }
         
-        if item.task.status == .planReview {
+        let effectiveStatus = taskService.effectiveStatus(for: item.task)
+        if effectiveStatus == .planReview {
             return (0, item.task.createdAt)
         }
         
-        switch item.task.status {
+        switch effectiveStatus {
         case .running:
             return (1, item.task.startedAt ?? item.task.createdAt)
         case .paused:
@@ -248,7 +249,7 @@ private struct AgentPreviewCardContent: View {
     }
     
     private var statusDescription: String {
-        switch task.status {
+        switch effectiveStatus {
         case .queued:
             return "Queued"
         case .waitingForVM:
@@ -357,7 +358,7 @@ private struct AgentPreviewCardContent: View {
             if needsIntervention {
                 StatusPill(text: interventionPillText, color: .orange)
             } else {
-                StatusPill(text: task.status.displayName, color: statusPillColor)
+                StatusPill(text: effectiveStatus.displayName, color: statusPillColor)
             }
         }
     }
@@ -370,7 +371,7 @@ private struct AgentPreviewCardContent: View {
     }
     
     private var statusPillColor: Color {
-        switch task.status {
+        switch effectiveStatus {
         case .running: return .green
         case .paused, .queued, .waitingForVM, .planning: return .yellow
         case .planReview: return .blue
@@ -379,6 +380,10 @@ private struct AgentPreviewCardContent: View {
         case .timedOut, .maxIterations: return .orange
         case .completed: return .secondary
         }
+    }
+
+    private var effectiveStatus: TaskStatus {
+        taskService.effectiveStatus(for: task)
     }
     
     private var previewImage: some View {
@@ -419,7 +424,7 @@ private struct AgentPreviewCardContent: View {
     
     private var controlRow: some View {
         HStack(spacing: 8) {
-            if task.status == .running {
+            if effectiveStatus == .running {
                 Button {
                     taskService.pauseTask(task)
                 } label: {
@@ -430,7 +435,7 @@ private struct AgentPreviewCardContent: View {
                 .tint(.yellow)
                 .controlSize(.small)
                 .help("Pause agent")
-            } else if task.status == .paused {
+            } else if effectiveStatus == .paused {
                 Button {
                     taskService.resumeTask(task)
                 } label: {
@@ -441,7 +446,7 @@ private struct AgentPreviewCardContent: View {
                 .tint(.green)
                 .controlSize(.small)
                 .help("Resume agent")
-            } else if task.status == .planReview {
+            } else if effectiveStatus == .planReview {
                 Button {
                     Task { await taskService.executePlan(for: task) }
                 } label: {
@@ -468,9 +473,9 @@ private struct AgentPreviewCardContent: View {
     }
 
     private func handleCardTap() {
-        if task.status == .planning || task.status == .planReview {
+        if effectiveStatus == .planning || effectiveStatus == .planReview {
             showingPlanReview = true
-        } else if task.status == .running || task.status == .paused {
+        } else if effectiveStatus == .running || effectiveStatus == .paused {
             navigateToTask(task.id)
         } else {
             showingTrace = true
@@ -486,7 +491,7 @@ private struct AgentPreviewCardContent: View {
     }
     
     private var stopHelpText: String {
-        switch task.status {
+        switch effectiveStatus {
         case .queued, .waitingForVM:
             return "Remove from queue"
         case .planning, .planReview:
@@ -497,7 +502,7 @@ private struct AgentPreviewCardContent: View {
     }
     
     private func stopTask() {
-        switch task.status {
+        switch effectiveStatus {
         case .queued, .waitingForVM:
             Task { await taskService.removeFromQueue(task) }
         case .planning, .planReview:

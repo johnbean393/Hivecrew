@@ -301,7 +301,7 @@ class TaskService: ObservableObject {
     
     /// Get active tasks (queued, waiting, or running)
     var activeTasks: [TaskRecord] {
-        tasks.filter { $0.status.isActive }
+        tasks.filter { isTaskEffectivelyActive($0) }
     }
     
     /// Get completed tasks (success, failed, or cancelled)
@@ -312,6 +312,42 @@ class TaskService: ObservableObject {
     /// Get queued tasks (for startup sheet)
     var queuedTasks: [TaskRecord] {
         tasks.filter { $0.status == .queued || $0.status == .waitingForVM }
+    }
+
+    /// Derive an effective status that accounts for live agent state.
+    func effectiveStatus(for task: TaskRecord) -> TaskStatus {
+        switch task.status {
+        case .planning, .planReview, .planFailed:
+            return task.status
+        default:
+            break
+        }
+
+        guard let publisher = statePublishers[task.id] else {
+            return task.status
+        }
+
+        switch publisher.status {
+        case .running:
+            return .running
+        case .paused:
+            return .paused
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        case .cancelled:
+            return .cancelled
+        case .connecting:
+            return .waitingForVM
+        case .idle:
+            return task.status
+        }
+    }
+
+    /// True when the task is effectively active based on runtime state.
+    func isTaskEffectivelyActive(_ task: TaskRecord) -> Bool {
+        effectiveStatus(for: task).isActive
     }
     
     /// Get the state publisher for a task
