@@ -52,10 +52,14 @@ final class SubagentRunner {
     private let toolExecutor: SubagentToolExecutor
     private let tools: [LLMToolDefinition]
     private let maxIterations: Int
+    private let maxLLMRetries = 3
     private let onActionUpdate: (@MainActor (String) -> Void)?
     private let onLine: (@MainActor (ProgressLine) -> Void)?
     private var incompleteTodoRetryCount = 0
     private let maxIncompleteTodoRetries = 3
+    private var consecutiveNoToolCalls = 0
+    private let maxContinueNudges = 3
+    private let maxReportNudges = 2
     
     init(
         subagentId: String,
@@ -67,7 +71,7 @@ final class SubagentRunner {
         tracer: AgentTracer,
         toolExecutor: SubagentToolExecutor,
         tools: [LLMToolDefinition],
-        maxIterations: Int = 10,
+        maxIterations: Int = 50,
         onActionUpdate: (@MainActor (String) -> Void)? = nil,
         onLine: (@MainActor (ProgressLine) -> Void)? = nil
     ) {
@@ -92,6 +96,7 @@ final class SubagentRunner {
         ]
         
         var iteration = 0
+        var consecutiveLLMFailures = 0
         var lastResponseText: String?
         var lastStreamedText: String = ""
         
@@ -106,16 +111,41 @@ final class SubagentRunner {
                 model: llmClient.configuration.model
             )
             
+            // LLM call with retry
             let start = Date()
             lastStreamedText = ""
-            let response = try await llmClient.chatWithStreaming(
-                messages: messages,
-                tools: tools,
-                onReasoningUpdate: { _ in },
-                onContentUpdate: { content in
-                    lastStreamedText = content
+            let response: LLMResponse
+            do {
+                response = try await llmClient.chatWithStreaming(
+                    messages: messages,
+                    tools: tools,
+                    onReasoningUpdate: { _ in },
+                    onContentUpdate: { content in
+                        lastStreamedText = content
+                    }
+                )
+                consecutiveLLMFailures = 0
+            } catch {
+                consecutiveLLMFailures += 1
+                let errorMsg = error.localizedDescription
+                onLine?(ProgressLine(
+                    type: .error,
+                    summary: "LLM call failed (\(consecutiveLLMFailures)/\(maxLLMRetries))",
+                    details: errorMsg
+                ))
+                if consecutiveLLMFailures >= maxLLMRetries {
+                    return Result(
+                        status: .failed,
+                        summary: "LLM call failed \(maxLLMRetries) times consecutively.",
+                        details: nil,
+                        failureReason: errorMsg
+                    )
                 }
-            )
+                // Brief backoff before retry
+                try? await Task.sleep(nanoseconds: UInt64(pow(2.0, Double(consecutiveLLMFailures))) * 1_000_000_000)
+                continue
+            }
+            
             let latencyMs = Int(Date().timeIntervalSince(start) * 1000)
             lastResponseText = (response.text?.isEmpty == false) ? response.text : lastStreamedText
             if let text = lastResponseText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -128,7 +158,9 @@ final class SubagentRunner {
             
             try? await tracer.logLLMResponse(response, latencyMs: latencyMs)
             
+            // If the LLM returned tool calls, process them
             if let toolCalls = response.toolCalls, !toolCalls.isEmpty {
+                consecutiveNoToolCalls = 0
                 messages.append(.assistant(response.text ?? "", toolCalls: toolCalls))
                 
                 for toolCall in toolCalls {
@@ -142,25 +174,15 @@ final class SubagentRunner {
 
                     if toolCall.function.name == Self.finalReportToolName {
                         if let result = handleFinalReportToolCall(toolCall, messages: &messages) {
-                            if case .success = result.status {
-                                try? await tracer.logToolResult(
-                                    toolCallId: toolCall.id,
-                                    toolName: toolCall.function.name,
-                                    success: true,
-                                    result: result.summary,
-                                    errorMessage: nil,
-                                    latencyMs: nil
-                                )
-                            } else {
-                                try? await tracer.logToolResult(
-                                    toolCallId: toolCall.id,
-                                    toolName: toolCall.function.name,
-                                    success: false,
-                                    result: result.summary,
-                                    errorMessage: result.failureReason,
-                                    latencyMs: nil
-                                )
-                            }
+                            let isSuccess = result.status == .success
+                            try? await tracer.logToolResult(
+                                toolCallId: toolCall.id,
+                                toolName: toolCall.function.name,
+                                success: isSuccess,
+                                result: result.summary,
+                                errorMessage: isSuccess ? nil : result.failureReason,
+                                latencyMs: nil
+                            )
                             return result
                         }
                         continue
@@ -239,9 +261,38 @@ final class SubagentRunner {
                 continue
             }
             
+            // LLM returned text without tool calls
+            consecutiveNoToolCalls += 1
+            messages.append(.assistant(response.text ?? ""))
+            
+            if consecutiveNoToolCalls <= maxContinueNudges {
+                // Phase 1: Tell the agent to keep working
+                messages.append(.user("Do not respond with text. You must call tools to complete your todo items. Review your todo list and call the next tool needed to make progress."))
+                onLine?(ProgressLine(
+                    type: .info,
+                    summary: "Prompting subagent to continue working (\(consecutiveNoToolCalls)/\(maxContinueNudges))",
+                    details: nil
+                ))
+                continue
+            }
+            
+            if consecutiveNoToolCalls <= maxContinueNudges + maxReportNudges {
+                // Phase 2: Agent is stuck — ask for the final report
+                let reportNudge = consecutiveNoToolCalls - maxContinueNudges
+                messages.append(.user("You appear to be stuck. Call \(Self.finalReportToolName) now to submit your final report. Mark incomplete items as not completed and set status to failed if needed."))
+                onLine?(ProgressLine(
+                    type: .info,
+                    summary: "Requesting final report (\(reportNudge)/\(maxReportNudges))",
+                    details: nil
+                ))
+                continue
+            }
+            
+            // Exhausted all nudges
             break
         }
         
+        // Loop exited without submit_final_report — try to extract one
         onActionUpdate?("Writing report…")
         let finalResult = try await finalizeResult(messages: messages, fallback: lastResponseText ?? lastStreamedText)
         onActionUpdate?("Done")

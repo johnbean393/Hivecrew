@@ -19,6 +19,9 @@ struct ContentView: View {
     @State private var pendingPermissionTaskId: String?
     @State private var pendingPermission: PermissionRequest?
     
+    // Keyboard shortcut monitor for tab switching
+    @State private var tabSwitchMonitor: Any?
+    
     // Tips
     private let watchAgentsWorkTip = WatchAgentsWorkTip()
     
@@ -50,6 +53,9 @@ struct ContentView: View {
                 .popoverTip(watchAgentsWorkTip, arrowEdge: .top)
         }
         .frame(minWidth: 900, minHeight: 600)
+        .onAppear {
+            setupTabSwitchShortcuts()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToTask)) { notification in
             if let taskId = notification.userInfo?["taskId"] as? String {
                 selectedTaskId = taskId
@@ -97,6 +103,35 @@ struct ContentView: View {
                 pendingPermissionTaskId = taskId
                 pendingPermission = request
             }
+        }
+    }
+    
+    /// Install a local key-event monitor for Ctrl+Tab / Ctrl+Shift+Tab tab switching
+    private func setupTabSwitchShortcuts() {
+        guard tabSwitchMonitor == nil else { return }
+        tabSwitchMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Tab key = keyCode 48; require Control modifier
+            guard event.keyCode == 48,
+                  event.modifierFlags.contains(.control) else {
+                return event
+            }
+            
+            let tabs = AppTab.allCases
+            guard let currentIndex = tabs.firstIndex(of: selectedTab) else {
+                return event
+            }
+            
+            if event.modifierFlags.contains(.shift) {
+                // Ctrl+Shift+Tab → previous tab
+                let previousIndex = (currentIndex - 1 + tabs.count) % tabs.count
+                selectedTab = tabs[previousIndex]
+            } else {
+                // Ctrl+Tab → next tab
+                let nextIndex = (currentIndex + 1) % tabs.count
+                selectedTab = tabs[nextIndex]
+            }
+            
+            return nil // consume the event
         }
     }
 }
