@@ -422,11 +422,15 @@ public final class ToolSchemaBuilder: Sendable {
                                 "Optional list of allowed tools for this subagent. If omitted, defaults are chosen based on domain.",
                                 itemType: ["type": "string"]
                             ),
+                            "todoItems": arrayProperty(
+                                "Prescribed todo list for the subagent to complete (3-7 concise items). This list must be provided by the main agent; subagents must not create or modify it.",
+                                itemType: ["type": "string"]
+                            ),
                             "timeoutSeconds": numberProperty("Optional timeout in seconds for the subagent."),
                             "modelOverride": stringProperty("Optional model ID to use instead of the default worker model."),
                             "purpose": stringProperty("Optional short label for UI and trace display.")
                         ],
-                        required: ["goal", "domain"]
+                        required: ["goal", "domain", "todoItems"]
                     )
                 )
                 

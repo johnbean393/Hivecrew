@@ -89,12 +89,14 @@ final class SubagentManager {
         goal: String,
         domain: SubagentDomain,
         toolAllowlist: [String]?,
+        todoItems: [String]?,
         timeoutSeconds: Double?,
         modelOverride: String?,
         purpose: String?
     ) async -> Info {
         let id = UUID().uuidString
-        let allowlist = normalizedAllowlist(goal: goal, domain: domain, requested: toolAllowlist)
+        let normalizedTodos = normalizedTodoItems(todoItems)
+        let allowlist = normalizedAllowlist(goal: goal, domain: domain, requested: toolAllowlist, todoItems: normalizedTodos)
         let subagentDir = sessionPath.appendingPathComponent("subagents").appendingPathComponent(id)
         let tracePath = subagentDir.appendingPathComponent("trace.jsonl")
         let relativeTracePath = "subagents/\(id)/trace.jsonl"
@@ -115,6 +117,9 @@ final class SubagentManager {
         
         let handle = Handle(info: info, task: nil)
         handles[id] = handle
+
+        let todoTitle = (purpose?.isEmpty == false) ? purpose! : "Subagent Todo List"
+        toolExecutor.registerTodoList(subagentId: id, title: todoTitle, items: normalizedTodos)
         
         statePublisher?.subagentStarted(
             id: id,
@@ -160,6 +165,7 @@ final class SubagentManager {
                 goal: goal,
                 domain: domain,
                 toolAllowlist: allowlist,
+                todoItems: normalizedTodos,
                 llmClient: client,
                 tracer: tracer,
                 toolExecutor: self.toolExecutor,
@@ -213,6 +219,7 @@ final class SubagentManager {
         handle.info = updatedInfo(handle.info, status: .cancelled, summary: nil, errorMessage: "Cancelled")
         handles[subagentId] = handle
         statePublisher?.subagentFinished(id: subagentId, status: .cancelled, summary: nil)
+        toolExecutor.clearTodoList(subagentId: subagentId)
         logLifecycleEvent(
             eventType: "subagent_cancelled",
             subagentId: subagentId,
@@ -296,6 +303,7 @@ final class SubagentManager {
         updatedHandle.info = updatedInfo(updatedHandle.info, status: .completed, summary: result.summary, errorMessage: nil)
         handles[subagentId] = updatedHandle
         statePublisher?.subagentFinished(id: subagentId, status: .completed, summary: result.summary)
+        toolExecutor.clearTodoList(subagentId: subagentId)
         
         completionQueue.append(Completion(
             id: subagentId,
@@ -322,6 +330,7 @@ final class SubagentManager {
         updatedHandle.info = updatedInfo(updatedHandle.info, status: .failed, summary: summary, errorMessage: errorMessage)
         handles[subagentId] = updatedHandle
         statePublisher?.subagentFinished(id: subagentId, status: .failed, summary: errorMessage)
+        toolExecutor.clearTodoList(subagentId: subagentId)
         logLifecycleEvent(
             eventType: "subagent_failed",
             subagentId: subagentId,
@@ -338,25 +347,38 @@ final class SubagentManager {
     private func defaultAllowlist(for domain: SubagentDomain) -> [String] {
         switch domain {
         case .host:
-            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "create_todo_list", "add_todo_item", "finish_todo_item", "generate_image", "wait"]
+            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "finish_todo_item", "generate_image", "wait"]
         case .vm:
             return ["run_shell", "read_file", "move_file", "wait"]
         case .mixed:
-            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "run_shell", "read_file", "move_file", "create_todo_list", "add_todo_item", "finish_todo_item", "generate_image", "wait"]
+            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "run_shell", "read_file", "move_file", "finish_todo_item", "generate_image", "wait"]
         }
     }
     
     private func normalizedAllowlist(
         goal: String,
         domain: SubagentDomain,
-        requested: [String]?
+        requested: [String]?,
+        todoItems: [String]
     ) -> [String] {
-        // Subagents always get all built-in tools plus all MCP tools.
-        // This avoids mismatches where a subagent's goal requires a tool (file ops, images, etc.)
-        // that wasn't included in an allowlist for its domain.
-        var allowlist = Set(AgentMethod.allCases.map(\.rawValue))
+        let base = (requested?.isEmpty == false) ? requested! : defaultAllowlist(for: domain)
+        var allowlist = Set(base)
+        allowlist.remove("create_todo_list")
+        allowlist.remove("add_todo_item")
+        if !todoItems.isEmpty {
+            allowlist.insert("finish_todo_item")
+        }
+        allowlist.insert(SubagentRunner.finalReportToolName)
+        // Always include MCP wildcard so subagents can use any connected MCP tools
         allowlist.insert("mcp_*")
         return Array(allowlist).sorted()
+    }
+
+    private func normalizedTodoItems(_ items: [String]?) -> [String] {
+        guard let items else { return [] }
+        return items
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
     
     private func isResearchGoal(_ goal: String) -> Bool {

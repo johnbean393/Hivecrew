@@ -28,6 +28,7 @@ final class SubagentToolExecutor {
     private weak var taskService: (any CreateWorkerClientProtocol)?
     private let todoManager: TodoManager
     private let modelContext: ModelContext?
+    private var todoManagers: [String: TodoManager] = [:]
     
     weak var subagentManager: SubagentManager?
     var onAskQuestion: ((AgentQuestion) async -> String)?
@@ -55,7 +56,7 @@ final class SubagentToolExecutor {
         self.modelContext = modelContext
     }
     
-    func execute(toolCall: LLMToolCall) async throws -> ToolResult {
+    func execute(toolCall: LLMToolCall, subagentId: String?) async throws -> ToolResult {
         let args = try toolCall.function.argumentsDictionary()
         let name = toolCall.function.name
         
@@ -109,11 +110,11 @@ final class SubagentToolExecutor {
         case "get_location":
             return try await executeGetLocation()
         case "create_todo_list":
-            return try executeCreateTodoList(args: args)
+            return try executeCreateTodoList(args: args, subagentId: subagentId)
         case "add_todo_item":
-            return try executeAddTodoItem(args: args)
+            return try executeAddTodoItem(args: args, subagentId: subagentId)
         case "finish_todo_item":
-            return try executeFinishTodoItem(args: args)
+            return try executeFinishTodoItem(args: args, subagentId: subagentId)
         case "generate_image":
             return try await executeGenerateImage(args: args)
         case "spawn_subagent":
@@ -126,12 +127,25 @@ final class SubagentToolExecutor {
             return await executeCancelSubagent(args: args)
         case "list_subagents":
             return await executeListSubagents()
+        case SubagentRunner.finalReportToolName:
+            // Handled by SubagentRunner directly; should not reach here.
+            return .text("Error: \(SubagentRunner.finalReportToolName) must be handled by the runner, not the executor.")
         default:
             if MCPServerManager.shared.isMCPTool(name) {
                 return try await executeMCPTool(name: name, args: args)
             }
             throw SubagentToolError.unknownTool(name)
         }
+    }
+
+    func registerTodoList(subagentId: String, title: String, items: [String]) {
+        let manager = TodoManager()
+        _ = manager.createList(title: title, items: items)
+        todoManagers[subagentId] = manager
+    }
+
+    func clearTodoList(subagentId: String) {
+        todoManagers.removeValue(forKey: subagentId)
     }
     
     // MARK: - VM Tools
@@ -555,7 +569,10 @@ final class SubagentToolExecutor {
     
     // MARK: - Todo Tools
     
-    private func executeCreateTodoList(args: [String: Any]) throws -> ToolResult {
+    private func executeCreateTodoList(args: [String: Any], subagentId: String?) throws -> ToolResult {
+        if subagentId != nil {
+            return .text("Error: create_todo_list is disabled for subagents. Use the prescribed todo list.")
+        }
         let title = args["title"] as? String ?? "Untitled"
         let items = args["items"] as? [String]
         let list = todoManager.createList(title: title, items: items)
@@ -566,15 +583,18 @@ final class SubagentToolExecutor {
         return .text(result)
     }
     
-    private func executeAddTodoItem(args: [String: Any]) throws -> ToolResult {
+    private func executeAddTodoItem(args: [String: Any], subagentId: String?) throws -> ToolResult {
+        if subagentId != nil {
+            return .text("Error: add_todo_item is disabled for subagents. Use the prescribed todo list.")
+        }
         let itemText = args["item"] as? String ?? ""
         let index = try todoManager.addItem(itemText: itemText)
         return .text("✓ Added item #\(index): \(itemText)")
     }
     
-    private func executeFinishTodoItem(args: [String: Any]) throws -> ToolResult {
+    private func executeFinishTodoItem(args: [String: Any], subagentId: String?) throws -> ToolResult {
         let index = args["index"] as? Int ?? 0
-        try todoManager.finishItem(index: index)
+        try todoManager(for: subagentId).finishItem(index: index)
         return .text("✓ Marked item #\(index) as completed")
     }
     
@@ -691,6 +711,13 @@ final class SubagentToolExecutor {
         let domain = SubagentDomain(rawValue: domainRaw) ?? .host
         
         let toolAllowlist = (args["toolAllowlist"] as? [String]) ?? (args["tool_allowlist"] as? [String])
+        let todoItemsRaw = (args["todoItems"] as? [String]) ?? (args["todo_items"] as? [String]) ?? []
+        let todoItems = todoItemsRaw
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if todoItems.isEmpty {
+            return .text("Error: todoItems is required when spawning subagents. Provide a concise main-agent-prescribed todo list.")
+        }
         let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
         let modelOverride = args["modelOverride"] as? String ?? args["model_override"] as? String
         
@@ -698,6 +725,7 @@ final class SubagentToolExecutor {
             goal: goal,
             domain: domain,
             toolAllowlist: toolAllowlist,
+            todoItems: todoItems,
             timeoutSeconds: timeoutSeconds,
             modelOverride: modelOverride,
             purpose: purpose
@@ -883,6 +911,14 @@ final class SubagentToolExecutor {
         if let v = value as? Int { return Double(v) }
         if let v = value as? String, let d = Double(v) { return d }
         return nil
+    }
+
+    private func todoManager(for subagentId: String?) -> TodoManager {
+        guard let subagentId else { return todoManager }
+        if let manager = todoManagers[subagentId] {
+            return manager
+        }
+        return todoManager
     }
 }
 

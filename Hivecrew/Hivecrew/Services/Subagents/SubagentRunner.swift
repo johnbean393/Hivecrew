@@ -10,6 +10,8 @@ import HivecrewLLM
 
 @MainActor
 final class SubagentRunner {
+    static let finalReportToolName = "submit_final_report"
+
     enum CompletionStatus: String, Sendable {
         case success
         case failed
@@ -19,6 +21,18 @@ final class SubagentRunner {
         let status: CompletionStatus
         let summary: String
         let details: String?
+        let failureReason: String?
+    }
+
+    private struct FinalReportPayload: Decodable {
+        struct TodoItem: Decodable {
+            let index: Int
+            let completed: Bool
+        }
+
+        let status: String
+        let todoItems: [TodoItem]
+        let report: String
         let failureReason: String?
     }
     
@@ -32,6 +46,7 @@ final class SubagentRunner {
     private let goal: String
     private let domain: SubagentDomain
     private let toolAllowlist: [String]
+    private let todoItems: [String]
     private let llmClient: any LLMClientProtocol
     private let tracer: AgentTracer
     private let toolExecutor: SubagentToolExecutor
@@ -39,12 +54,15 @@ final class SubagentRunner {
     private let maxIterations: Int
     private let onActionUpdate: (@MainActor (String) -> Void)?
     private let onLine: (@MainActor (ProgressLine) -> Void)?
+    private var incompleteTodoRetryCount = 0
+    private let maxIncompleteTodoRetries = 3
     
     init(
         subagentId: String,
         goal: String,
         domain: SubagentDomain,
         toolAllowlist: [String],
+        todoItems: [String],
         llmClient: any LLMClientProtocol,
         tracer: AgentTracer,
         toolExecutor: SubagentToolExecutor,
@@ -57,10 +75,11 @@ final class SubagentRunner {
         self.goal = goal
         self.domain = domain
         self.toolAllowlist = toolAllowlist
+        self.todoItems = todoItems
         self.llmClient = llmClient
         self.tracer = tracer
         self.toolExecutor = toolExecutor
-        self.tools = tools
+        self.tools = Self.withFinalReportTool(tools)
         self.maxIterations = maxIterations
         self.onActionUpdate = onActionUpdate
         self.onLine = onLine
@@ -120,10 +139,36 @@ final class SubagentRunner {
                         summary: "Executing: \(toolCall.function.name)",
                         details: "Args: \(toolCall.function.arguments)"
                     ))
+
+                    if toolCall.function.name == Self.finalReportToolName {
+                        if let result = handleFinalReportToolCall(toolCall, messages: &messages) {
+                            if case .success = result.status {
+                                try? await tracer.logToolResult(
+                                    toolCallId: toolCall.id,
+                                    toolName: toolCall.function.name,
+                                    success: true,
+                                    result: result.summary,
+                                    errorMessage: nil,
+                                    latencyMs: nil
+                                )
+                            } else {
+                                try? await tracer.logToolResult(
+                                    toolCallId: toolCall.id,
+                                    toolName: toolCall.function.name,
+                                    success: false,
+                                    result: result.summary,
+                                    errorMessage: result.failureReason,
+                                    latencyMs: nil
+                                )
+                            }
+                            return result
+                        }
+                        continue
+                    }
                     
                     let result: SubagentToolExecutor.ToolResult
                     do {
-                        result = try await toolExecutor.execute(toolCall: toolCall)
+                        result = try await toolExecutor.execute(toolCall: toolCall, subagentId: subagentId)
                     } catch {
                         let message = error.localizedDescription
                         onLine?(ProgressLine(
@@ -198,22 +243,18 @@ final class SubagentRunner {
         }
         
         onActionUpdate?("Writing report…")
-        let detailedSummary = try await ensureDetailedSummary(messages: messages, fallback: lastResponseText ?? lastStreamedText)
-        let outcome = outcomeForReport(detailedSummary)
+        let finalResult = try await finalizeResult(messages: messages, fallback: lastResponseText ?? lastStreamedText)
         onActionUpdate?("Done")
-        return Result(
-            status: outcome.status,
-            summary: detailedSummary,
-            details: nil,
-            failureReason: outcome.failureReason
-        )
+        return finalResult
     }
     
     private func systemPrompt() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let dateStr = formatter.string(from: Date())
-        let allowed = toolAllowlist.isEmpty ? "none" : toolAllowlist.joined(separator: ", ")
+        let allowedTools = Array(Set(toolAllowlist + [Self.finalReportToolName])).sorted()
+        let allowed = allowedTools.isEmpty ? "none" : allowedTools.joined(separator: ", ")
+        let todoListSection = formatTodoListSection()
         return """
         You are a Hivecrew subagent. You operate asynchronously and must stay within the allowed tools.
         
@@ -223,18 +264,24 @@ final class SubagentRunner {
         Domain: \(domain.rawValue)
         Allowed tools: \(allowed)
         
+        TODO LIST (prescribed by the main agent):
+        \(todoListSection)
+        
         Rules:
         - Only call tools that appear in the allowed tools list.
         - Do not ask the user questions or request intervention.
-        - Start by calling create_todo_list with 3-7 concise, high-level steps. Keep the list lightweight and avoid including excessive background or main-agent knowledge.
-        - Track progress with add_todo_item and finish_todo_item. Every todo item must be completed before reporting success.
+        - Do NOT create or modify the todo list. Do not call create_todo_list or add_todo_item.
+        - Use finish_todo_item with the item numbers shown in the list to mark prescribed items complete as you finish them.
+        - Every todo item must be completed before reporting STATUS: SUCCESS.
         - If you cannot complete every todo item, report STATUS: FAILED and explain why in the final report.
+        - Do not produce the final report until all todo items are completed or a blocker prevents completion.
+        - If no todo list is provided, report STATUS: FAILED and explain that the list was missing.
+        - When finished, call \(Self.finalReportToolName) with a structured report. Do NOT return a normal message.
+        - In \(Self.finalReportToolName), include todoItems for every list index with completed=true/false.
         - Prefer web_search/read_webpage_content for research; avoid run_shell unless the goal explicitly requires shell or file operations.
         - Treat any model lists or factual claims in the goal as hypotheses; verify and correct them using sources.
         - Do not use prior knowledge for factual claims. Every factual claim must be grounded in tool-derived sources.
-        - When you are done, respond with a detailed report that includes:
-          - STATUS: SUCCESS or STATUS: FAILED (first line)
-          - TODO LIST: with items formatted as "- [x] ..." or "- [ ] ..."
+        - The report you submit must include:
           - What you did (step-by-step, concise)
           - Key findings (bulleted)
           - Sources (URLs) for any web-derived claims
@@ -243,148 +290,258 @@ final class SubagentRunner {
         """
     }
     
-    private func ensureDetailedSummary(messages: [LLMMessage], fallback: String) async throws -> String {
-        let trimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
-        if isFinalReportCompliant(trimmed), trimmed.count >= 300 {
-            return trimmed
+    private func finalizeResult(messages: [LLMMessage], fallback: String) async throws -> Result {
+        // Try structured output up to 2 times
+        for attempt in 1...2 {
+            if let structured = try? await requestStructuredFinalReport(messages: messages, attempt: attempt) {
+                let validation = validateTodoItems(structured.todoItems)
+                if validation.allCompleted || attempt == 2 {
+                    return resultFromStructuredReport(structured, validation: validation)
+                }
+            }
         }
-        
-        let prompt = """
-        Produce the final report now.
-        Do NOT call any tools.
-        Use this exact format:
-        
-        STATUS: SUCCESS or STATUS: FAILED
-        TODO LIST:
-        - [x] Item
-        - [ ] Item
-        
-        Then include: What you did, Key findings, Sources, Commands run, Next steps.
-        """
+        // Last resort: use whatever text we have
+        let summary = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        if summary.isEmpty {
+            return Result(
+                status: .failed,
+                summary: "Subagent completed but produced no summary.",
+                details: nil,
+                failureReason: "No structured final report received."
+            )
+        }
+        return Result(
+            status: .failed,
+            summary: summary,
+            details: nil,
+            failureReason: "Subagent did not submit a structured final report."
+        )
+    }
+
+    private func requestStructuredFinalReport(messages: [LLMMessage], attempt: Int) async throws -> FinalReportPayload? {
+        let prompt: String
+        if attempt == 1 {
+            prompt = """
+            Submit the final report now using the \(Self.finalReportToolName) tool.
+            Do NOT call any other tools and do NOT output normal text.
+            """
+        } else {
+            prompt = """
+            You MUST call the \(Self.finalReportToolName) tool now with status, todoItems, and report.
+            Do NOT output text. Call the tool.
+            """
+        }
         let response = try await llmClient.chat(
             messages: messages + [.user(prompt)],
-            tools: nil
+            tools: [Self.finalReportToolDefinition()]
         )
-        let text = (response.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if isFinalReportCompliant(text), text.count >= 200 {
-            return text
+        guard let toolCall = response.toolCalls?.first(where: { $0.function.name == Self.finalReportToolName }) else {
+            return nil
         }
-        if isFinalReportCompliant(trimmed) {
-            return trimmed
-        }
-        return trimmed.isEmpty ? "Subagent completed but produced no summary." : trimmed
+        return decodeFinalReportPayload(toolCall)
     }
 
-    private struct FinalReportOutcome {
-        let status: CompletionStatus
-        let failureReason: String?
-    }
-
-    private struct FinalReportEvaluation {
-        let reportedStatus: CompletionStatus?
-        let todoItems: [Bool]
-
-        var hasTodoList: Bool {
-            !todoItems.isEmpty
+    private func handleFinalReportToolCall(_ toolCall: LLMToolCall, messages: inout [LLMMessage]) -> Result? {
+        guard let payload = decodeFinalReportPayload(toolCall) else {
+            let errorMessage = "Error: Invalid final report payload. Use \(Self.finalReportToolName) with the required JSON schema."
+            messages.append(.toolResult(toolCallId: toolCall.id, content: errorMessage))
+            return nil
         }
-
-        var allTodoItemsComplete: Bool {
-            hasTodoList && todoItems.allSatisfy { $0 }
+        let validation = validateTodoItems(payload.todoItems)
+        if !validation.hasTodoList {
+            return Result(
+                status: .failed,
+                summary: payload.report.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Subagent reported without a prescribed todo list."
+                    : payload.report,
+                details: nil,
+                failureReason: validation.failureReason ?? "No todo list provided by main agent."
+            )
         }
-    }
-
-    private func outcomeForReport(_ report: String) -> FinalReportOutcome {
-        let evaluation = evaluateFinalReport(report)
-        if let reported = evaluation.reportedStatus {
-            if reported == .failed {
-                return FinalReportOutcome(status: .failed, failureReason: "Subagent reported failed status.")
+        if !validation.allCompleted {
+            if incompleteTodoRetryCount < maxIncompleteTodoRetries {
+                incompleteTodoRetryCount += 1
+                let message = buildIncompleteTodoMessage(validation: validation)
+                messages.append(.toolResult(toolCallId: toolCall.id, content: message))
+                return nil
             }
-            if !evaluation.hasTodoList {
-                return FinalReportOutcome(status: .failed, failureReason: "Final report missing TODO LIST section.")
-            }
-            if !evaluation.allTodoItemsComplete {
-                return FinalReportOutcome(status: .failed, failureReason: "Todo list not fully completed.")
-            }
-            return FinalReportOutcome(status: .success, failureReason: nil)
         }
-
-        var reason = "Final report missing STATUS line."
-        if !evaluation.hasTodoList {
-            reason = "Final report missing STATUS line and TODO LIST section."
-        } else if !evaluation.allTodoItemsComplete {
-            reason = "Final report missing STATUS line and has incomplete todo items."
-        }
-        return FinalReportOutcome(status: .failed, failureReason: reason)
+        return resultFromStructuredReport(payload, validation: validation)
     }
 
-    private func isFinalReportCompliant(_ report: String) -> Bool {
-        let evaluation = evaluateFinalReport(report)
-        return evaluation.reportedStatus != nil && evaluation.hasTodoList
+    private func decodeFinalReportPayload(_ toolCall: LLMToolCall) -> FinalReportPayload? {
+        do {
+            return try toolCall.function.decodeArguments(FinalReportPayload.self)
+        } catch {
+            return nil
+        }
     }
 
-    private func evaluateFinalReport(_ report: String) -> FinalReportEvaluation {
-        let lines = report.components(separatedBy: .newlines)
-        var reportedStatus: CompletionStatus?
-        var inTodoList = false
-        var todoItems: [Bool] = []
+    private func resultFromStructuredReport(_ payload: FinalReportPayload, validation: TodoValidation? = nil) -> Result {
+        let reportedStatus = normalizeStatus(payload.status)
+        let validation = validation ?? validateTodoItems(payload.todoItems)
+        let summary = payload.report.trimmingCharacters(in: .whitespacesAndNewlines)
+        if reportedStatus == .success && !validation.allCompleted {
+            return Result(
+                status: .failed,
+                summary: summary.isEmpty ? "Subagent reported success without completing todo items." : summary,
+                details: nil,
+                failureReason: validation.failureReason ?? "Todo list not fully completed."
+            )
+        }
+        if reportedStatus == .failed {
+            return Result(
+                status: .failed,
+                summary: summary.isEmpty ? "Subagent reported failed status." : summary,
+                details: nil,
+                failureReason: payload.failureReason ?? validation.failureReason ?? "Subagent reported failed status."
+            )
+        }
+        return Result(
+            status: .success,
+            summary: summary.isEmpty ? "Subagent completed successfully." : summary,
+            details: nil,
+            failureReason: nil
+        )
+    }
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { continue }
-            let lower = trimmed.lowercased()
+    private struct TodoValidation {
+        let missingIndices: [Int]
+        let incompleteIndices: [Int]
+        let hasTodoList: Bool
 
-            if lower.hasPrefix("status:") || lower.hasPrefix("status -") {
-                let normalized = lower
-                    .replacingOccurrences(of: "status:", with: "")
-                    .replacingOccurrences(of: "status -", with: "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if normalized.hasPrefix("success") || normalized.hasPrefix("completed") || normalized.hasPrefix("complete") {
-                    reportedStatus = .success
-                } else if normalized.hasPrefix("failed") || normalized.hasPrefix("failure") {
-                    reportedStatus = .failed
-                }
+        var allCompleted: Bool {
+            hasTodoList && missingIndices.isEmpty && incompleteIndices.isEmpty
+        }
+
+        var failureReason: String? {
+            if !hasTodoList {
+                return "No todo list provided by main agent."
+            }
+            if missingIndices.isEmpty && incompleteIndices.isEmpty {
+                return nil
+            }
+            if !missingIndices.isEmpty {
+                return "Final report missing todo item(s): \(missingIndices.map(String.init).joined(separator: ", "))."
+            }
+            return "Todo list not fully completed."
+        }
+    }
+
+    private func validateTodoItems(_ items: [FinalReportPayload.TodoItem]) -> TodoValidation {
+        if todoItems.isEmpty {
+            return TodoValidation(missingIndices: [], incompleteIndices: [], hasTodoList: false)
+        }
+        let byIndex = Dictionary(uniqueKeysWithValues: items.map { ($0.index, $0) })
+        var missing: [Int] = []
+        var incomplete: [Int] = []
+        for index in 1...todoItems.count {
+            guard let item = byIndex[index] else {
+                missing.append(index)
                 continue
             }
-
-            if lower == "todo list:" || lower == "todo list" || lower == "to-do list:" || lower == "to-do list" {
-                inTodoList = true
-                continue
-            }
-
-            if inTodoList {
-                if let completion = parseTodoCheckbox(from: trimmed) {
-                    todoItems.append(completion)
-                    continue
-                }
-
-                if trimmed.hasPrefix("-") || trimmed.range(of: #"^\d+\."#, options: .regularExpression) != nil {
-                    todoItems.append(false)
-                    continue
-                }
-
-                if looksLikeSectionHeader(trimmed) {
-                    inTodoList = false
-                }
+            if item.completed == false {
+                incomplete.append(index)
             }
         }
-
-        return FinalReportEvaluation(reportedStatus: reportedStatus, todoItems: todoItems)
+        return TodoValidation(missingIndices: missing, incompleteIndices: incomplete, hasTodoList: true)
     }
 
-    private func parseTodoCheckbox(from line: String) -> Bool? {
-        let lower = line.lowercased()
-        if lower.contains("[x]") {
-            return true
+    private func normalizeStatus(_ status: String) -> CompletionStatus {
+        let lowered = status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lowered == "success" || lowered == "completed" {
+            return .success
         }
-        if lower.contains("[ ]") {
-            return false
-        }
-        return nil
+        return .failed
     }
 
-    private func looksLikeSectionHeader(_ line: String) -> Bool {
-        if line.hasPrefix("#") { return true }
-        if line.hasSuffix(":") { return true }
-        return false
+    private func buildIncompleteTodoMessage(validation: TodoValidation) -> String {
+        if !validation.hasTodoList {
+            return "No todo list was provided by the main agent. You must report STATUS: FAILED with a failureReason indicating the missing list."
+        }
+        var lines: [String] = ["Todo list incomplete. Complete the items below, then call \(Self.finalReportToolName) again."]
+
+        if !validation.missingIndices.isEmpty {
+            lines.append("Missing items:")
+            for index in validation.missingIndices.sorted() {
+                lines.append("- #\(index): \(todoItems[safe: index - 1] ?? "Unknown item")")
+            }
+        }
+
+        if !validation.incompleteIndices.isEmpty {
+            lines.append("Incomplete items:")
+            for index in validation.incompleteIndices.sorted() {
+                lines.append("- #\(index): \(todoItems[safe: index - 1] ?? "Unknown item")")
+            }
+        }
+
+        lines.append("Use finish_todo_item with the item numbers above.")
+        lines.append("If an item is blocked after reasonable attempts, set status to failed and include failureReason.")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func finalReportToolDefinition() -> LLMToolDefinition {
+        LLMToolDefinition.function(
+            name: finalReportToolName,
+            description: "Submit the final structured subagent report.",
+            parameters: [
+                "type": "object",
+                "properties": [
+                    "status": [
+                        "type": "string",
+                        "description": "Overall completion status.",
+                        "enum": ["success", "failed"]
+                    ],
+                    "todoItems": [
+                        "type": "array",
+                        "description": "Completion state for each prescribed todo item by index.",
+                        "items": [
+                            "type": "object",
+                            "properties": [
+                                "index": [
+                                    "type": "integer",
+                                    "description": "1-based index of the todo item."
+                                ],
+                                "completed": [
+                                    "type": "boolean",
+                                    "description": "True if the item was completed."
+                                ]
+                            ],
+                            "required": ["index", "completed"],
+                            "additionalProperties": false
+                        ]
+                    ],
+                    "report": [
+                        "type": "string",
+                        "description": "Final report text including what you did, findings, sources, commands, and next steps."
+                    ],
+                    "failureReason": [
+                        "type": "string",
+                        "description": "If status is failed, explain why."
+                    ]
+                ],
+                "required": ["status", "todoItems", "report"],
+                "additionalProperties": false
+            ]
+        )
+    }
+
+    private static func withFinalReportTool(_ tools: [LLMToolDefinition]) -> [LLMToolDefinition] {
+        if tools.contains(where: { $0.function.name == finalReportToolName }) {
+            return tools
+        }
+        return tools + [finalReportToolDefinition()]
+    }
+
+    private func formatTodoListSection() -> String {
+        if todoItems.isEmpty {
+            return "1. [ ] (no items provided)"
+        }
+        let items = todoItems
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return items.enumerated()
+            .map { "\($0.offset + 1). [ ] \($0.element)" }
+            .joined(separator: "\n")
     }
 }

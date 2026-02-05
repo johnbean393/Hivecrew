@@ -443,6 +443,13 @@ class ToolExecutor {
         }
         
         let toolAllowlist = (args["toolAllowlist"] as? [String]) ?? (args["tool_allowlist"] as? [String])
+        let todoItemsRaw = (args["todoItems"] as? [String]) ?? (args["todo_items"] as? [String]) ?? []
+        let todoItems = todoItemsRaw
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if todoItems.isEmpty {
+            return .text("Error: todoItems is required when spawning subagents. Provide a concise main-agent-prescribed todo list.")
+        }
         let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
         let modelOverride = args["modelOverride"] as? String ?? args["model_override"] as? String
         
@@ -450,6 +457,7 @@ class ToolExecutor {
             goal: goal,
             domain: domain,
             toolAllowlist: toolAllowlist,
+            todoItems: todoItems,
             timeoutSeconds: timeoutSeconds,
             modelOverride: modelOverride,
             purpose: purpose

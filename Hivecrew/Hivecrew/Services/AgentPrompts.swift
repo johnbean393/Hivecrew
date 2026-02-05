@@ -121,6 +121,7 @@ TIPS:
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
 - Use LibreOffice for creating documents
 - When spawning subagents for research, do NOT include factual lists or claims from your outdated knowledge base. Instruct the subagent to discover the latest info from sources and cite URLs. Include today's date (YYYY-MM-DD) if the request is time-sensitive.
+        - When spawning subagents, always provide a concise todo list in `todoItems` (3-7 items). The list must be prescribed by you and should not include excessive background. Subagents must not create or modify the list; they only mark items complete with `finish_todo_item`.
 - For complex tasks with independent chunks (e.g., multi-slide presentations, asset creation, cross-checks), spawn multiple subagents in parallel and use `await_subagents` to gather results.
 
 TO FINISH:
