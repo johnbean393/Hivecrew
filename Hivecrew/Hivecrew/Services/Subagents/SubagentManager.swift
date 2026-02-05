@@ -180,7 +180,8 @@ final class SubagentManager {
                 let result = try await withOptionalTimeout(seconds: timeoutSeconds) {
                     try await runner.run()
                 }
-                try? await tracer.logSessionEnd(status: "completed", summary: result.summary)
+                let status = result.status == .success ? "completed" : "failed"
+                try? await tracer.logSessionEnd(status: status, summary: result.summary)
                 return result
             } catch {
                 try? await tracer.logSessionEnd(status: "failed", summary: error.localizedDescription)
@@ -256,10 +257,15 @@ final class SubagentManager {
         guard let handle = handles[subagentId], let task = handle.task else { return false }
         do {
             let result = try await task.value
-            finalizeSuccess(subagentId: subagentId, handle: handle, result: result)
-            return true
+            if result.status == .success {
+                finalizeSuccess(subagentId: subagentId, handle: handle, result: result)
+                return true
+            }
+            let errorMessage = result.failureReason ?? "Subagent reported failed status."
+            finalizeFailure(subagentId: subagentId, handle: handle, summary: result.summary, errorMessage: errorMessage)
+            return false
         } catch {
-            finalizeFailure(subagentId: subagentId, handle: handle, error: error)
+            finalizeFailure(subagentId: subagentId, handle: handle, summary: nil, errorMessage: error.localizedDescription)
             return false
         }
     }
@@ -270,12 +276,17 @@ final class SubagentManager {
             let result = try await withOptionalTimeout(seconds: timeoutSeconds) {
                 try await task.value
             }
-            finalizeSuccess(subagentId: subagentId, handle: handle, result: result)
-            return true
+            if result.status == .success {
+                finalizeSuccess(subagentId: subagentId, handle: handle, result: result)
+                return true
+            }
+            let errorMessage = result.failureReason ?? "Subagent reported failed status."
+            finalizeFailure(subagentId: subagentId, handle: handle, summary: result.summary, errorMessage: errorMessage)
+            return false
         } catch is CancellationError {
             return false
         } catch {
-            finalizeFailure(subagentId: subagentId, handle: handle, error: error)
+            finalizeFailure(subagentId: subagentId, handle: handle, summary: nil, errorMessage: error.localizedDescription)
             return false
         }
     }
@@ -306,11 +317,11 @@ final class SubagentManager {
         )
     }
     
-    private func finalizeFailure(subagentId: String, handle: Handle, error: Error) {
+    private func finalizeFailure(subagentId: String, handle: Handle, summary: String?, errorMessage: String) {
         var updatedHandle = handle
-        updatedHandle.info = updatedInfo(updatedHandle.info, status: .failed, summary: nil, errorMessage: error.localizedDescription)
+        updatedHandle.info = updatedInfo(updatedHandle.info, status: .failed, summary: summary, errorMessage: errorMessage)
         handles[subagentId] = updatedHandle
-        statePublisher?.subagentFinished(id: subagentId, status: .failed, summary: error.localizedDescription)
+        statePublisher?.subagentFinished(id: subagentId, status: .failed, summary: errorMessage)
         logLifecycleEvent(
             eventType: "subagent_failed",
             subagentId: subagentId,
@@ -320,7 +331,7 @@ final class SubagentManager {
             tracePath: updatedHandle.info.tracePath,
             status: "failed",
             durationMs: durationMs(for: updatedHandle.info),
-            errorMessage: error.localizedDescription
+            errorMessage: errorMessage
         )
     }
     
