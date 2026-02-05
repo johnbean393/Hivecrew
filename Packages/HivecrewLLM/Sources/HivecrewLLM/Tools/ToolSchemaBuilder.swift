@@ -413,7 +413,7 @@ public final class ToolSchemaBuilder: Sendable {
             // Subagent management tools
             case .spawnSubagent:
                 return (
-                    "Spawn a background subagent to work asynchronously on a subtask. Use this for parallel research or long-running shell checks. For research: avoid listing models or facts from memory. Instruct the subagent to discover from sources and cite URLs. Use today's date for any 'latest' or 'current' requests; avoid hardcoding past dates unless explicitly required.",
+                    "Spawn a background subagent to work asynchronously on a subtask. Use this for parallelizable work (research, asset generation, verification, or independent slide/content preparation) and long-running shell checks. For example, when creating a deck, delegate slide content or image generation to multiple subagents in parallel instead of doing them sequentially. For research: avoid listing models or facts from memory. Instruct the subagent to discover from sources and cite URLs. Use today's date for any 'latest' or 'current' requests; avoid hardcoding past dates unless explicitly required.",
                     objectSchema(
                         properties: [
                             "goal": stringProperty("A clear, specific goal for the subagent to accomplish."),
