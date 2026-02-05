@@ -101,9 +101,8 @@ public class SkillMatcher {
         6. Prefer selecting ZERO skills over selecting marginally relevant ones
         
         Examples of when to select:
-        - Task asks to "create a PowerPoint" → select pptx skill
+        - Task asks to "create a PowerPoint" → select pptx skill (not canvas-design)
         - Task asks to "read a PDF, then write a Word document" → select docx skill (not pdf)  
-        - Task asks to "extract text from a PDF" → select pdf skill
         - Task asks to "create a website" -> select a frontend-design skill
         
         Examples of when NOT to select:

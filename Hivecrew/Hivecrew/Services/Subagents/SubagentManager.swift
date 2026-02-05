@@ -327,11 +327,11 @@ final class SubagentManager {
     private func defaultAllowlist(for domain: SubagentDomain) -> [String] {
         switch domain {
         case .host:
-            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "wait"]
+            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "create_todo_list", "add_todo_item", "finish_todo_item", "generate_image", "wait"]
         case .vm:
-            return ["run_shell", "read_file", "wait"]
+            return ["run_shell", "read_file", "move_file", "wait"]
         case .mixed:
-            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "run_shell", "read_file", "wait"]
+            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "run_shell", "read_file", "move_file", "create_todo_list", "add_todo_item", "finish_todo_item", "generate_image", "wait"]
         }
     }
     
@@ -348,13 +348,15 @@ final class SubagentManager {
             allowlist.formUnion(base)
         }
         
-        let hostAllowed = Set(["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "wait"])
-        let vmAllowed = Set(["run_shell", "read_file", "wait"])
+        let hostAllowed = Set(["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "create_todo_list", "add_todo_item", "finish_todo_item", "generate_image", "wait"])
+        let vmAllowed = Set(["run_shell", "read_file", "move_file", "wait"])
         let mixedAllowed = hostAllowed.union(vmAllowed)
         
         let isResearch = isResearchGoal(goal)
-        if isResearch && domain != .vm {
+        let needsFileIO = requiresFileIO(goal)
+        if isResearch && domain != .vm && !needsFileIO {
             allowlist.remove("run_shell")
+            allowlist.remove("read_file")
         }
         
         switch domain {
@@ -379,6 +381,21 @@ final class SubagentManager {
         lowered.contains("release date") ||
         lowered.contains("llm") ||
         lowered.contains("model")
+    }
+    
+    private func requiresFileIO(_ goal: String) -> Bool {
+        let lowered = goal.lowercased()
+        if lowered.contains("outbox") || lowered.contains("inbox") {
+            return true
+        }
+        if lowered.contains("~/") || lowered.contains("/desktop/") || lowered.contains("/documents/") {
+            return true
+        }
+        let extensions = [
+            ".md", ".txt", ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".key",
+            ".csv", ".json", ".rtf", ".html", ".png", ".jpg", ".jpeg", ".gif", ".webp"
+        ]
+        return extensions.contains(where: { lowered.contains($0) })
     }
     
     private func buildTools(for allowlist: [String]) async throws -> [LLMToolDefinition] {

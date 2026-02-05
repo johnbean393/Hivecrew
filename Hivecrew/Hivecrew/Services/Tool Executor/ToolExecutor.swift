@@ -432,9 +432,14 @@ class ToolExecutor {
         let domainRaw = args["domain"] as? String ?? "host"
         var domain = SubagentDomain(rawValue: domainRaw) ?? .host
         let researchGoal = isResearchGoal(goal)
+        let needsFileIO = requiresFileIO(goal)
         if researchGoal && domain == .vm {
-            // Research should run with host tools (web_search, read_webpage_content).
-            domain = .host
+            // Research should run with host tools; allow mixed if file output is required.
+            domain = needsFileIO ? .mixed : .host
+        }
+        if needsFileIO && domain == .host {
+            // File output requires VM tools (run_shell/read_file) alongside host tools.
+            domain = .mixed
         }
         
         let toolAllowlist = (args["toolAllowlist"] as? [String]) ?? (args["tool_allowlist"] as? [String])
@@ -455,8 +460,14 @@ class ToolExecutor {
             output += "\nPurpose: \(purpose)"
         }
         output += "\nDomain: \(info.domain.rawValue)"
-        if researchGoal && domainRaw != domain.rawValue {
-            output += "\nNote: Domain adjusted to \(info.domain.rawValue) for research."
+        if domainRaw != domain.rawValue {
+            if researchGoal && needsFileIO {
+                output += "\nNote: Domain adjusted to \(info.domain.rawValue) for research plus file output."
+            } else if researchGoal {
+                output += "\nNote: Domain adjusted to \(info.domain.rawValue) for research."
+            } else if needsFileIO {
+                output += "\nNote: Domain adjusted to \(info.domain.rawValue) to allow file output tools."
+            }
         }
         output += "\nStatus: \(info.status.rawValue)"
         return .text(output)
@@ -609,5 +620,20 @@ class ToolExecutor {
         lowered.contains("release date") ||
         lowered.contains("llm") ||
         lowered.contains("model")
+    }
+    
+    private func requiresFileIO(_ goal: String) -> Bool {
+        let lowered = goal.lowercased()
+        if lowered.contains("outbox") || lowered.contains("inbox") {
+            return true
+        }
+        if lowered.contains("~/") || lowered.contains("/desktop/") || lowered.contains("/documents/") {
+            return true
+        }
+        let extensions = [
+            ".md", ".txt", ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".key",
+            ".csv", ".json", ".rtf", ".html", ".png", ".jpg", ".jpeg", ".gif", ".webp"
+        ]
+        return extensions.contains(where: { lowered.contains($0) })
     }
 }

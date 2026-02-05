@@ -6,9 +6,11 @@
 //
 
 import Foundation
+import SwiftData
 import GoogleSearch
 import HivecrewLLM
 import HivecrewMCP
+import HivecrewShared
 
 @MainActor
 final class SubagentToolExecutor {
@@ -19,22 +21,31 @@ final class SubagentToolExecutor {
     
     private let connection: GuestAgentConnection
     private let vmScheduler: VMToolScheduler
+    private let vmId: String
     private let taskProviderId: String
     private let taskModelId: String
     private weak var taskService: (any CreateWorkerClientProtocol)?
+    private let todoManager: TodoManager
+    private let modelContext: ModelContext?
     
     init(
         connection: GuestAgentConnection,
         vmScheduler: VMToolScheduler,
+        vmId: String,
         taskProviderId: String,
         taskModelId: String,
-        taskService: (any CreateWorkerClientProtocol)?
+        taskService: (any CreateWorkerClientProtocol)?,
+        todoManager: TodoManager,
+        modelContext: ModelContext?
     ) {
         self.connection = connection
         self.vmScheduler = vmScheduler
+        self.vmId = vmId
         self.taskProviderId = taskProviderId
         self.taskModelId = taskModelId
         self.taskService = taskService
+        self.todoManager = todoManager
+        self.modelContext = modelContext
     }
     
     func execute(toolCall: LLMToolCall) async throws -> ToolResult {
@@ -46,6 +57,8 @@ final class SubagentToolExecutor {
             return try await executeRunShell(args: args)
         case "read_file":
             return try await executeReadFile(args: args)
+        case "move_file":
+            return try await executeMoveFile(args: args)
         case "wait":
             return try await executeWait(args: args)
         case "web_search":
@@ -56,6 +69,14 @@ final class SubagentToolExecutor {
             return try await executeExtractInfoFromWebpage(args: args)
         case "get_location":
             return try await executeGetLocation()
+        case "create_todo_list":
+            return try executeCreateTodoList(args: args)
+        case "add_todo_item":
+            return try executeAddTodoItem(args: args)
+        case "finish_todo_item":
+            return try executeFinishTodoItem(args: args)
+        case "generate_image":
+            return try await executeGenerateImage(args: args)
         default:
             if MCPServerManager.shared.isMCPTool(name) {
                 return try await executeMCPTool(name: name, args: args)
@@ -91,6 +112,15 @@ final class SubagentToolExecutor {
             if let w = w, let h = h { desc += " (\(w)x\(h) pixels)" }
             return .image(description: desc, base64: base64, mimeType: mimeType)
         }
+    }
+    
+    private func executeMoveFile(args: [String: Any]) async throws -> ToolResult {
+        let source = args["source"] as? String ?? ""
+        let destination = args["destination"] as? String ?? ""
+        try await vmScheduler.run {
+            try await self.connection.moveFile(source: source, destination: destination)
+        }
+        return .text("Moved file from \(source) to \(destination)")
     }
     
     private func executeWait(args: [String: Any]) async throws -> ToolResult {
@@ -293,6 +323,131 @@ final class SubagentToolExecutor {
     private func executeGetLocation() async throws -> ToolResult {
         let location = try await IPLocation.getLocation()
         return .text("Your location: \(location)")
+    }
+    
+    // MARK: - Todo Tools
+    
+    private func executeCreateTodoList(args: [String: Any]) throws -> ToolResult {
+        let title = args["title"] as? String ?? "Untitled"
+        let items = args["items"] as? [String]
+        let list = todoManager.createList(title: title, items: items)
+        var result = "✓ Created: \(list.title)\n"
+        for (i, item) in list.items.enumerated() {
+            result += "\(i+1). \(item.isCompleted ? "[✓]" : "[ ]") \(item.text)\n"
+        }
+        return .text(result)
+    }
+    
+    private func executeAddTodoItem(args: [String: Any]) throws -> ToolResult {
+        let itemText = args["item"] as? String ?? ""
+        let index = try todoManager.addItem(itemText: itemText)
+        return .text("✓ Added item #\(index): \(itemText)")
+    }
+    
+    private func executeFinishTodoItem(args: [String: Any]) throws -> ToolResult {
+        let index = args["index"] as? Int ?? 0
+        try todoManager.finishItem(index: index)
+        return .text("✓ Marked item #\(index) as completed")
+    }
+    
+    // MARK: - Image Generation
+    
+    private func executeGenerateImage(args: [String: Any]) async throws -> ToolResult {
+        let prompt = args["prompt"] as? String ?? ""
+        let referenceImagePaths = args["referenceImagePaths"] as? [String]
+        let aspectRatio = args["aspectRatio"] as? String
+        
+        guard let config = try await getImageGenerationConfig(aspectRatio: aspectRatio) else {
+            return .text("Error: Image generation is not configured. Enable it in Settings > Tasks.")
+        }
+        
+        let outputDirectory = AppPaths.vmInboxDirectory(id: vmId).appendingPathComponent("images", isDirectory: true)
+        
+        var referenceImages: [(data: String, mimeType: String)]?
+        if let paths = referenceImagePaths, !paths.isEmpty {
+            referenceImages = []
+            for (index, path) in paths.enumerated() {
+                if let imageData = try? await loadReferenceImage(path: path) {
+                    if index == 0 {
+                        if imageData.mimeType == "image/png" || imageData.mimeType == "image/jpeg" {
+                            referenceImages?.append(imageData)
+                        } else if let converted = ImageDownscaler.convertToJPEG(
+                            base64Data: imageData.data,
+                            mimeType: imageData.mimeType
+                        ) {
+                            referenceImages?.append(converted)
+                        } else {
+                            referenceImages?.append(imageData)
+                        }
+                    } else {
+                        if let downscaled = ImageDownscaler.downscale(
+                            base64Data: imageData.data,
+                            mimeType: imageData.mimeType,
+                            to: .small
+                        ) {
+                            referenceImages?.append(downscaled)
+                        } else {
+                            referenceImages?.append(imageData)
+                        }
+                    }
+                }
+            }
+        }
+        
+        let service = ImageGenerationService(outputDirectory: outputDirectory)
+        let result = try await service.generateImage(
+            prompt: prompt,
+            referenceImages: referenceImages,
+            config: config
+        )
+        
+        var response = "Image generated and saved to: \(result.imagePath)"
+        if let description = result.description {
+            response += "\n\nModel description: \(description)"
+        }
+        return .text(response)
+    }
+    
+    private func getImageGenerationConfig(aspectRatio: String?) async throws -> ImageGenerationConfiguration? {
+        guard UserDefaults.standard.bool(forKey: "imageGenerationEnabled") else {
+            return nil
+        }
+        
+        let providerString = UserDefaults.standard.string(forKey: "imageGenerationProvider") ?? "openRouter"
+        let model = UserDefaults.standard.string(forKey: "imageGenerationModel") ?? ""
+        
+        guard !model.isEmpty else {
+            return nil
+        }
+        
+        guard let modelContext = self.modelContext else {
+            return nil
+        }
+        
+        let provider = ImageGenerationProvider(rawValue: providerString) ?? .openRouter
+        
+        guard let (apiKey, baseURL) = ImageGenerationAvailability.getCredentials(modelContext: modelContext) else {
+            return nil
+        }
+        
+        return ImageGenerationConfiguration(
+            provider: provider,
+            model: model,
+            apiKey: apiKey,
+            baseURL: provider == .openRouter ? baseURL : nil,
+            aspectRatio: aspectRatio
+        )
+    }
+    
+    private func loadReferenceImage(path: String) async throws -> (data: String, mimeType: String)? {
+        let result = try await connection.readFile(path: path)
+        
+        switch result {
+        case .image(let base64, let mimeType, _, _):
+            return (base64, mimeType)
+        case .text:
+            return nil
+        }
     }
     
     // MARK: - MCP Tools

@@ -153,9 +153,12 @@ final class AgentRunner {
         let subagentToolExecutor = SubagentToolExecutor(
             connection: connection,
             vmScheduler: vmToolScheduler,
+            vmId: vmId,
             taskProviderId: task.providerId,
             taskModelId: task.modelId,
-            taskService: taskService
+            taskService: taskService,
+            todoManager: TodoManager(),
+            modelContext: taskService.modelContext
         )
         self.subagentManager = SubagentManager(
             taskId: task.id,
