@@ -4,6 +4,14 @@
         <title>Hivecrew</title>
         <item>
             <title>1.8</title>
+            <pubDate>Fri, 06 Feb 2026 12:07:51 -0500</pubDate>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>1.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/johnbean393/Hivecrew/releases/download/v1.8.0/Hivecrew.1.8.dmg" sparkle:edSignature="lgD01yGOEWNDQKiQPh4LANiFo+vPkF5ih//zakW31FizRiBpIteCtdsWxk4kn0ngW5WDipPeb+BLhTprZ2mjCA==" length="13062178" type="application/octet-stream"/>
+        </item>
+        <item>
+            <title>1.8</title>
             <pubDate>Tue, 03 Feb 2026 21:42:59 -0500</pubDate>
             <sparkle:version>11</sparkle:version>
             <sparkle:shortVersionString>1.8</sparkle:shortVersionString>
