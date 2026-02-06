@@ -178,7 +178,8 @@ final class ToolHandler {
              .getLoginCredentials,
              .webSearch, .readWebpageContent, .extractInfoFromWebpage, .getLocation,
              .createTodoList, .addTodoItem, .finishTodoItem,
-             .generateImage:
+             .generateImage,
+             .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents:
             throw AgentError(code: AgentError.toolExecutionFailed, message: "This tool runs on the host, not in the guest VM")
         }
     }

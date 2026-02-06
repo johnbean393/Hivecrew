@@ -342,54 +342,52 @@ final class SubagentRunner {
     }
     
     private func finalizeResult(messages: [LLMMessage], fallback: String) async throws -> Result {
-        // Try structured output up to 2 times
-        for attempt in 1...2 {
-            if let structured = try? await requestStructuredFinalReport(messages: messages, attempt: attempt) {
-                let validation = validateTodoItems(structured.todoItems)
-                if validation.allCompleted || attempt == 2 {
-                    return resultFromStructuredReport(structured, validation: validation)
-                }
+        // Force the LLM to call submit_final_report with only that tool available.
+        // Try up to 3 times, each with escalating prompts.
+        let reportOnlyTools = [Self.finalReportToolDefinition()]
+        var forceMessages = messages
+        
+        let prompts = [
+            "Your session is ending. Call \(Self.finalReportToolName) now. Summarize everything you accomplished. For each todo item, mark completed=true if done or completed=false if not. This is the ONLY tool available.",
+            "You MUST call \(Self.finalReportToolName) right now. It is the only tool available. Include status (success/failed), todoItems array with index and completed for each item, and a report string summarizing your work.",
+            "FINAL ATTEMPT. Call \(Self.finalReportToolName). Arguments: {\"status\": \"failed\", \"todoItems\": [\(todoItems.enumerated().map { "{\"index\":\($0.offset+1),\"completed\":false}" }.joined(separator: ","))], \"report\": \"Session ended before completion.\", \"failureReason\": \"Ran out of iterations.\"}. Call the tool with these or better arguments NOW."
+        ]
+        
+        for (index, prompt) in prompts.enumerated() {
+            forceMessages.append(.user(prompt))
+            
+            let response: LLMResponse
+            do {
+                response = try await llmClient.chat(
+                    messages: forceMessages,
+                    tools: reportOnlyTools
+                )
+            } catch {
+                onLine?(ProgressLine(
+                    type: .error,
+                    summary: "Forced report LLM call failed (\(index + 1)/\(prompts.count))",
+                    details: error.localizedDescription
+                ))
+                continue
             }
+            
+            if let toolCall = response.toolCalls?.first(where: { $0.function.name == Self.finalReportToolName }),
+               let payload = decodeFinalReportPayload(toolCall) {
+                return resultFromStructuredReport(payload)
+            }
+            
+            // Append the assistant's non-tool response so the next attempt has context
+            forceMessages.append(.assistant(response.text ?? ""))
         }
-        // Last resort: use whatever text we have
+        
+        // Absolute last resort: synthesize a failed result from whatever text we have
         let summary = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
-        if summary.isEmpty {
-            return Result(
-                status: .failed,
-                summary: "Subagent completed but produced no summary.",
-                details: nil,
-                failureReason: "No structured final report received."
-            )
-        }
         return Result(
             status: .failed,
-            summary: summary,
+            summary: summary.isEmpty ? "Subagent session ended without producing a report." : summary,
             details: nil,
-            failureReason: "Subagent did not submit a structured final report."
+            failureReason: "Subagent did not submit a structured final report after \(prompts.count) forced attempts."
         )
-    }
-
-    private func requestStructuredFinalReport(messages: [LLMMessage], attempt: Int) async throws -> FinalReportPayload? {
-        let prompt: String
-        if attempt == 1 {
-            prompt = """
-            Submit the final report now using the \(Self.finalReportToolName) tool.
-            Do NOT call any other tools and do NOT output normal text.
-            """
-        } else {
-            prompt = """
-            You MUST call the \(Self.finalReportToolName) tool now with status, todoItems, and report.
-            Do NOT output text. Call the tool.
-            """
-        }
-        let response = try await llmClient.chat(
-            messages: messages + [.user(prompt)],
-            tools: [Self.finalReportToolDefinition()]
-        )
-        guard let toolCall = response.toolCalls?.first(where: { $0.function.name == Self.finalReportToolName }) else {
-            return nil
-        }
-        return decodeFinalReportPayload(toolCall)
     }
 
     private func handleFinalReportToolCall(_ toolCall: LLMToolCall, messages: inout [LLMMessage]) -> Result? {

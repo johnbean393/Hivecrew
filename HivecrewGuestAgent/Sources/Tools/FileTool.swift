@@ -22,7 +22,26 @@ final class FileTool {
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-c", command]
+        // Use login shell (-l) so that /etc/zprofile (which runs path_helper) and
+        // ~/.zprofile are sourced. Without this, the PATH is minimal and user-installed
+        // tools (Python packages, Homebrew binaries, etc.) are not found.
+        process.arguments = ["-l", "-c", command]
+        
+        // Ensure common paths are present even if profile files are incomplete.
+        // Merge with inherited environment so we don't lose existing variables.
+        var env = ProcessInfo.processInfo.environment
+        let currentPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let additionalPaths = [
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+        ]
+        let pathComponents = currentPath.split(separator: ":").map(String.init)
+        let missingPaths = additionalPaths.filter { !pathComponents.contains($0) }
+        if !missingPaths.isEmpty {
+            env["PATH"] = (missingPaths + pathComponents).joined(separator: ":")
+        }
+        process.environment = env
         
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

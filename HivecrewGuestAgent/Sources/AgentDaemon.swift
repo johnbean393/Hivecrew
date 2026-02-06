@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AppKit
 import ApplicationServices
 import ScreenCaptureKit
 import Photos
@@ -29,15 +30,14 @@ final class AgentDaemon: @unchecked Sendable {
         logger.log("HivecrewGuestAgent v\(AgentProtocol.agentVersion) starting...")
     }
     
-    /// Start the daemon and begin listening for connections
-    func run() {
+    /// Start the daemon and begin listening for connections.
+    /// This method is called from a background queue. The main thread runs
+    /// NSApplication's event loop to stay responsive to macOS system events.
+    func start() {
         isRunning = true
         
-        // Trigger permission prompts on startup
-        triggerPermissionPrompts()
-        
-        // Try to mount shared folder
-        mountSharedFolder()
+        // IMPORTANT: Start the vsock server FIRST so the host can connect immediately.
+        // Permission prompts and shared folder mounting happen afterward.
         
         // Try to start vsock server with retries
         var serverStarted = false
@@ -53,14 +53,12 @@ final class AgentDaemon: @unchecked Sendable {
                 serverStarted = true
             } catch {
                 retryCount += 1
-                // Print synchronously so we can see the error
                 let errorMsg = "Failed to start vsock server (attempt \(retryCount)/\(maxRetries)): \(error)"
                 print(errorMsg)
                 fputs("\(errorMsg)\n", stderr)
                 fflush(stderr)
                 
                 if retryCount < maxRetries {
-                    // Wait 1 second before retrying
                     Thread.sleep(forTimeInterval: 1.0)
                 }
             }
@@ -71,17 +69,25 @@ final class AgentDaemon: @unchecked Sendable {
             print(msg)
             fputs("\(msg)\n", stderr)
             fflush(stderr)
-            exit(1)
+            DispatchQueue.main.async {
+                NSApplication.shared.terminate(nil)
+            }
+            return
         }
         
-        // Run the main loop
         logger.log("Agent daemon running. Waiting for connections...")
         
-        while isRunning {
-            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 1.0))
+        // Now that the server is running, perform setup tasks in the background
+        // so they don't block the agent from responding to host requests.
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            
+            // Trigger permission prompts (non-critical for basic operation)
+            self.triggerPermissionPrompts()
+            
+            // Try to mount shared folder (with timeout protection)
+            self.mountSharedFolder()
         }
-        
-        logger.log("Agent daemon stopped")
     }
     
     /// Gracefully shutdown the daemon
@@ -89,31 +95,36 @@ final class AgentDaemon: @unchecked Sendable {
         logger.log("Shutdown requested...")
         isRunning = false
         server?.stop()
+        
+        // Terminate NSApplication to exit the process
+        DispatchQueue.main.async {
+            NSApplication.shared.terminate(nil)
+        }
     }
     
     // MARK: - Startup Tasks
     
-    /// Trigger permission prompts by attempting to use protected APIs
-    /// Accessibility is requested first since Screen Recording may require app restart
+    /// Trigger permission prompts by attempting to use protected APIs.
+    /// Accessibility is requested first since Screen Recording may require app restart.
+    ///
+    /// NOTE: NSApplication must be running on the main thread for permission
+    /// dialogs to display. This is handled by main.swift.
     private func triggerPermissionPrompts() {
         logger.log("Triggering permission prompts...")
         
-        // 1. FIRST: Trigger Accessibility permission prompt
-        // Use AXIsProcessTrustedWithOptions with kAXTrustedCheckOptionPrompt to show the dialog
+        // 1. Trigger Accessibility permission prompt
         logger.log("Requesting Accessibility permission...")
-        // The key string is "AXTrustedCheckOptionPrompt" - use literal to avoid concurrency issues
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         let accessibilityGranted = AXIsProcessTrustedWithOptions(options)
         logger.log("Accessibility permission: \(accessibilityGranted ? "granted" : "not granted (dialog shown)")")
         
-        // Give user time to respond to Accessibility prompt before Screen Recording
+        // Brief pause before Screen Recording prompt so they don't overlap
         if !accessibilityGranted {
-            logger.log("Waiting for user to respond to Accessibility prompt...")
-            Thread.sleep(forTimeInterval: 2.0)
+            logger.log("Accessibility not yet granted, continuing with other permission requests...")
+            Thread.sleep(forTimeInterval: 0.5)
         }
         
-        // 2. SECOND: Trigger Screen Recording permission prompt
-        // Attempting to get shareable content will trigger the prompt
+        // 2. Trigger Screen Recording permission prompt
         logger.log("Requesting Screen Recording permission...")
         Task {
             do {
@@ -128,11 +139,10 @@ final class AgentDaemon: @unchecked Sendable {
             }
         }
         
-        // 3. THIRD: Trigger file access permissions for common user folders
-        // Attempting to list directory contents will trigger permission prompts
+        // 3. Trigger file access permissions for user folders
         triggerFileAccessPermissions()
         
-        // 4. Trigger additional app/data access permissions
+        // 4. Trigger app/data access permissions
         triggerPhotosAccessPermission()
         triggerContactsAccessPermission()
         triggerCalendarAccessPermission()
@@ -141,16 +151,19 @@ final class AgentDaemon: @unchecked Sendable {
         triggerAutomationPermission()
         triggerCameraAndMicrophonePermissions()
         triggerLocationPermission()
+        
+        // 5. Trigger broader data access permissions (other apps, media, etc.)
+        triggerBroaderDataAccessPermissions()
     }
     
-    /// Trigger file access permission prompts for protected user folders
-    /// This allows the user to grant permissions on startup rather than during task execution
+    /// Trigger file access permission prompts for protected user folders.
+    /// This allows the user to grant permissions on startup rather than during task execution.
     private func triggerFileAccessPermissions() {
         logger.log("Requesting file access permissions for user folders...")
         
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
         
-        // List of protected folders that commonly need access
+        // TCC-protected user folders that trigger permission prompts
         let protectedFolders = [
             "Desktop",
             "Documents",
@@ -160,8 +173,6 @@ final class AgentDaemon: @unchecked Sendable {
         for folderName in protectedFolders {
             let folderPath = (homeDirectory as NSString).appendingPathComponent(folderName)
             
-            // Attempt to list directory contents - this triggers the permission prompt
-            // We use a minimal operation (contentsOfDirectory) that has no side effects
             do {
                 let contents = try FileManager.default.contentsOfDirectory(atPath: folderPath)
                 logger.log("\(folderName) folder access: granted (\(contents.count) items)")
@@ -177,8 +188,65 @@ final class AgentDaemon: @unchecked Sendable {
         }
     }
     
+    /// Trigger broader data access permissions to ensure the agent can access
+    /// data from other apps, media libraries, and protected system locations.
+    private func triggerBroaderDataAccessPermissions() {
+        logger.log("Triggering broader data access permissions...")
+        
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+        
+        // Access additional user directories that may trigger "access data from other apps" prompts.
+        // On macOS 15+, accessing files created by other apps can trigger a system prompt.
+        let additionalFolders: [(String, String)] = [
+            ("Music", "Music folder"),
+            ("Pictures", "Pictures folder"),
+            ("Movies", "Movies folder"),
+            ("Library/Application Support", "Application Support (other apps' data)"),
+        ]
+        
+        for (relativePath, description) in additionalFolders {
+            let fullPath = (homeDirectory as NSString).appendingPathComponent(relativePath)
+            do {
+                let contents = try FileManager.default.contentsOfDirectory(atPath: fullPath)
+                logger.log("\(description): accessible (\(contents.count) items)")
+            } catch let error as NSError {
+                if error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoPermissionError {
+                    logger.log("\(description): permission dialog shown or denied")
+                } else if error.code == NSFileNoSuchFileError {
+                    logger.log("\(description): directory doesn't exist")
+                } else {
+                    logger.log("\(description): \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        // Access the system Applications directory to trigger any app data prompts
+        do {
+            let apps = try FileManager.default.contentsOfDirectory(atPath: "/Applications")
+            logger.log("Applications directory: accessible (\(apps.count) apps)")
+        } catch {
+            logger.log("Applications directory: \(error.localizedDescription)")
+        }
+        
+        // Try to access removable volumes and network volumes (triggers prompts if connected)
+        let volumesPath = "/Volumes"
+        if FileManager.default.fileExists(atPath: volumesPath) {
+            do {
+                let volumes = try FileManager.default.contentsOfDirectory(atPath: volumesPath)
+                logger.log("Volumes: accessible (\(volumes.count) volumes)")
+                
+                // Try reading contents of each volume to trigger removable/network volume prompts
+                for volume in volumes where volume != "Macintosh HD" {
+                    let volumePath = (volumesPath as NSString).appendingPathComponent(volume)
+                    _ = try? FileManager.default.contentsOfDirectory(atPath: volumePath)
+                }
+            } catch {
+                logger.log("Volumes: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     /// Trigger Photos library access permission
-    /// Enables the agent to read photos and albums
     private func triggerPhotosAccessPermission() {
         logger.log("Requesting Photos library access...")
         
@@ -210,7 +278,6 @@ final class AgentDaemon: @unchecked Sendable {
     }
     
     /// Trigger Contacts access permission
-    /// Enables the agent to read contact information
     private func triggerContactsAccessPermission() {
         logger.log("Requesting Contacts access...")
         
@@ -240,7 +307,6 @@ final class AgentDaemon: @unchecked Sendable {
     }
     
     /// Trigger Calendar access permission
-    /// Enables the agent to read and modify calendar events
     private func triggerCalendarAccessPermission() {
         logger.log("Requesting Calendar access...")
         
@@ -268,7 +334,6 @@ final class AgentDaemon: @unchecked Sendable {
                 logger.log("Calendar access: unknown status")
             }
         } else {
-            // Pre-macOS 14 fallback
             eventStore.requestAccess(to: .event) { granted, error in
                 if granted {
                     self.logger.log("Calendar access: authorized")
@@ -282,7 +347,6 @@ final class AgentDaemon: @unchecked Sendable {
     }
     
     /// Trigger Reminders access permission
-    /// Enables the agent to read and modify reminders
     private func triggerRemindersAccessPermission() {
         logger.log("Requesting Reminders access...")
         
@@ -310,7 +374,6 @@ final class AgentDaemon: @unchecked Sendable {
                 logger.log("Reminders access: unknown status")
             }
         } else {
-            // Pre-macOS 14 fallback
             eventStore.requestAccess(to: .reminder) { granted, error in
                 if granted {
                     self.logger.log("Reminders access: authorized")
@@ -324,13 +387,11 @@ final class AgentDaemon: @unchecked Sendable {
     }
     
     /// Check for Full Disk Access by testing protected directories
-    /// Full Disk Access must be granted manually in System Settings
     private func triggerFullDiskAccessCheck() {
         logger.log("Checking Full Disk Access...")
         
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
         
-        // Directories that require Full Disk Access
         let protectedDirectories = [
             ("Library/Mail", "Mail data"),
             ("Library/Messages", "Messages data"),
@@ -352,7 +413,6 @@ final class AgentDaemon: @unchecked Sendable {
                     hasFullDiskAccess = false
                     logger.log("Full Disk Access (\(description)): not accessible - permission denied")
                 } else if error.code == NSFileNoSuchFileError {
-                    // Directory doesn't exist, not a permission issue
                     logger.log("Full Disk Access (\(description)): directory doesn't exist")
                 } else {
                     logger.log("Full Disk Access (\(description)): \(error.localizedDescription)")
@@ -369,12 +429,9 @@ final class AgentDaemon: @unchecked Sendable {
     }
     
     /// Trigger Automation permission by attempting to control System Events
-    /// This enables AppleScript/automation control of other apps
     private func triggerAutomationPermission() {
         logger.log("Checking Automation permissions...")
         
-        // Try to get automation permission by running a simple AppleScript
-        // that targets System Events - this will trigger the permission prompt
         let script = """
         tell application "System Events"
             return name of first process whose frontmost is true
@@ -388,7 +445,6 @@ final class AgentDaemon: @unchecked Sendable {
                 
                 if let error = error {
                     let errorNumber = error[NSAppleScript.errorNumber] as? Int ?? 0
-                    // Error -1743 is "not authorized to send Apple events"
                     if errorNumber == -1743 {
                         self.logger.log("Automation (System Events): permission prompt shown or denied")
                     } else {
@@ -402,7 +458,6 @@ final class AgentDaemon: @unchecked Sendable {
             }
         }
         
-        // Also try Finder automation (commonly needed)
         let finderScript = """
         tell application "Finder"
             return name of desktop
@@ -429,11 +484,9 @@ final class AgentDaemon: @unchecked Sendable {
     }
     
     /// Trigger Camera and Microphone access permissions
-    /// These are needed for audio/video capture capabilities
     private func triggerCameraAndMicrophonePermissions() {
         logger.log("Requesting Camera and Microphone access...")
         
-        // Check and request Camera permission
         let cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
         switch cameraStatus {
         case .authorized:
@@ -452,7 +505,6 @@ final class AgentDaemon: @unchecked Sendable {
             logger.log("Camera access: unknown status")
         }
         
-        // Check and request Microphone permission
         let microphoneStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         switch microphoneStatus {
         case .authorized:
@@ -473,12 +525,9 @@ final class AgentDaemon: @unchecked Sendable {
     }
     
     /// Trigger Location Services permission
-    /// Enables the agent to access location information
     private func triggerLocationPermission() {
         logger.log("Checking Location Services access...")
         
-        // Note: CLLocationManager must be used from main thread for delegate callbacks
-        // We just check the authorization status here since requesting requires a delegate
         let status = CLLocationManager.authorizationStatus()
         
         switch status {
@@ -487,9 +536,6 @@ final class AgentDaemon: @unchecked Sendable {
         case .authorized:
             logger.log("Location access: authorized")
         case .notDetermined:
-            // To actually request permission, we'd need to create a CLLocationManager
-            // and call requestWhenInUseAuthorization or requestAlwaysAuthorization
-            // This requires a delegate to be set up
             logger.log("Location access: not determined (requires user action in System Settings)")
             logger.log("To enable Location Services: System Settings > Privacy & Security > Location Services")
         case .denied:
@@ -500,7 +546,6 @@ final class AgentDaemon: @unchecked Sendable {
             logger.log("Location access: unknown status")
         }
         
-        // Check if location services are enabled system-wide
         if !CLLocationManager.locationServicesEnabled() {
             logger.log("Location Services: disabled system-wide")
         }
@@ -522,30 +567,49 @@ final class AgentDaemon: @unchecked Sendable {
         logger.log("Attempting to mount shared folder...")
         
         // Try to mount VirtioFS
-        // Note: This may require root, so we try with a helper script approach
+        // Avoid sudo to prevent hanging when no TTY is available
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", """
             # Create mount point if needed
             if [ ! -d "\(sharedPath)" ]; then
-                sudo mkdir -p "\(sharedPath)" 2>/dev/null || mkdir -p "\(sharedPath)" 2>/dev/null
+                mkdir -p "\(sharedPath)" 2>/dev/null
             fi
             
-            # Try to mount (may fail without sudo)
+            # Try to mount (without sudo to avoid password prompt hangs)
             mount_virtiofs shared "\(sharedPath)" 2>/dev/null || \
-            sudo mount_virtiofs shared "\(sharedPath)" 2>/dev/null || \
             echo "Mount failed - may need manual setup"
             """]
         
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        // Prevent the process from inheriting stdin (avoids sudo/password hangs)
+        process.standardInput = FileHandle.nullDevice
+        
+        let mountTimeout: TimeInterval = 10  // seconds
         
         do {
             try process.run()
-            process.waitUntilExit()
             
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            // Wait with a timeout to prevent indefinite hangs
+            let deadline = Date(timeIntervalSinceNow: mountTimeout)
+            while process.isRunning && Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            
+            if process.isRunning {
+                logger.warning("Mount process timed out after \(Int(mountTimeout))s - terminating")
+                process.terminate()
+                Thread.sleep(forTimeInterval: 1.0)
+                if process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                }
+                return
+            }
+            
+            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8), !output.isEmpty {
                 logger.log("Mount output: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
             }

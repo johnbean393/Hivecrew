@@ -52,14 +52,14 @@ public class WebpageReader {
     // MARK: - txtify.it fallback
     
     private static func readWithTxtify(url: URL) async throws -> String {
-        let targetURL = url.absoluteString
-        guard let encoded = targetURL.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let txtifyURL = URL(string: "https://txtify.it/\(encoded)") else {
+        // txtify.it expects the raw target URL appended directly after the base path
+        guard let txtifyURL = URL(string: "https://txtify.it/\(url.absoluteString)") else {
             throw WebpageReaderError.invalidURL
         }
         
         var request = URLRequest(url: txtifyURL)
-        request.setValue("text/plain", forHTTPHeaderField: "Accept")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        request.setValue("text/html,text/plain;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
         
         let (data, response) = try await URLSession.shared.data(for: request)
         

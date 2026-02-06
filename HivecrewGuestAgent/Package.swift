@@ -17,6 +17,7 @@ let package = Package(
             dependencies: ["HivecrewAgentProtocol"],
             path: "Sources",
             linkerSettings: [
+                .linkedFramework("AppKit"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("Photos"),
                 .linkedFramework("Contacts"),
