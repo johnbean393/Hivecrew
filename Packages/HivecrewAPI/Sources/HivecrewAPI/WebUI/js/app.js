@@ -35,6 +35,7 @@ document.addEventListener('alpine:init', () => {
         quickPlanFirst: localStorage.getItem('hivecrew_plan_first') === 'true',
         quickFiles: [],
         quickModelId: localStorage.getItem('hivecrew_model_id') || '',
+        isDraggingFiles: false,
         
         // Create Task
         showCreateModal: false,
@@ -521,6 +522,19 @@ document.addEventListener('alpine:init', () => {
             }
             this.quickFiles = [...this.quickFiles, ...files];
             event.target.value = '';
+        },
+        
+        async handlePromptDrop(event) {
+            this.isDraggingFiles = false;
+            const dt = event.dataTransfer;
+            if (!dt || !dt.files || dt.files.length === 0) return;
+            
+            const files = await this.filterOutFolders(Array.from(dt.files));
+            if (files.length === 0) {
+                this.showToast('Folders cannot be uploaded — please select individual files', 'error');
+                return;
+            }
+            this.quickFiles = [...this.quickFiles, ...files];
         },
         
         removeQuickFile(index) {

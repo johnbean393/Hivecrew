@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=24">
+    <link rel="stylesheet" href="/web/css/styles.css?v=27">
     <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=24"></script>
+    <script defer src="/web/js/app.js?v=25"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -54,41 +54,31 @@
 
                 <!-- ---- Navigation ---- -->
                 <nav class="navbar">
-                    <div class="nav-brand">
-                        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
-                            <line x1="12" y1="22" x2="12" y2="15.5"></line>
-                            <polyline points="22 8.5 12 15.5 2 8.5"></polyline>
-                        </svg>
-                        <span>Hivecrew</span>
-                    </div>
-                    <div class="nav-links">
-                        <button 
-                            class="nav-link" 
-                            :class="{ active: view === 'tasks' }" 
-                            @click="view = 'tasks'; loadTasks()"
-                        >
-                            Tasks
-                        </button>
-                        <button 
-                            class="nav-link" 
-                            :class="{ active: view === 'scheduled' }" 
-                            @click="view = 'scheduled'; loadScheduledTasks()"
-                        >
-                            Scheduled
-                        </button>
-                    </div>
-                    <div class="nav-status" x-show="systemStatus" x-cloak>
-                        <span class="nav-status-item">
-                            <span class="status-dot" :class="systemStatus?.runningAgents > 0 ? 'dot-active' : 'dot-idle'"></span>
-                            <span x-text="(systemStatus?.runningAgents || 0) + ' running'"></span>
-                        </span>
-                        <span class="nav-status-item">
-                            <span x-text="(systemStatus?.queuedAgents || 0) + ' queued'"></span>
-                        </span>
-                        <span class="nav-status-item">
-                            <span x-text="(systemStatus?.activeVMs || 0) + '/' + (systemStatus?.maxVMs || 0) + ' VMs'"></span>
-                        </span>
+                    <div class="nav-left">
+                        <div class="nav-brand">
+                            <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>
+                                <line x1="12" y1="22" x2="12" y2="15.5"></line>
+                                <polyline points="22 8.5 12 15.5 2 8.5"></polyline>
+                            </svg>
+                            <span>Hivecrew</span>
+                        </div>
+                        <div class="nav-links">
+                            <button 
+                                class="nav-link" 
+                                :class="{ active: view === 'tasks' }" 
+                                @click="view = 'tasks'; loadTasks()"
+                            >
+                                Tasks
+                            </button>
+                            <button 
+                                class="nav-link" 
+                                :class="{ active: view === 'scheduled' }" 
+                                @click="view = 'scheduled'; loadScheduledTasks()"
+                            >
+                                Scheduled
+                            </button>
+                        </div>
                     </div>
                     <div class="nav-actions">
                         <button class="btn btn-primary" @click="openCreateModal()">
@@ -139,7 +129,14 @@
                     </div>
 
                     <!-- Quick Create Prompt Bar -->
-                    <div class="prompt-bar">
+                    <div
+                        class="prompt-bar"
+                        :class="{ 'prompt-bar-dragover': isDraggingFiles }"
+                        @dragover.prevent="isDraggingFiles = true"
+                        @dragenter.prevent="isDraggingFiles = true"
+                        @dragleave.self="isDraggingFiles = false"
+                        @drop.prevent="handlePromptDrop($event)"
+                    >
                         <textarea
                             class="prompt-input"
                             x-model="quickTaskDescription"
@@ -242,16 +239,16 @@
 
                             <!-- Run button -->
                             <button
-                                class="btn btn-primary"
+                                class="btn btn-primary btn-icon-only"
                                 @click="quickCreateTask()"
                                 :disabled="quickCreating || !quickTaskDescription.trim()"
+                                title="Run task"
                             >
                                 <span x-show="quickCreating" x-cloak class="spinner-small"></span>
                                 <svg x-show="!quickCreating" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                     <line x1="22" y1="2" x2="11" y2="13"></line>
                                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                                 </svg>
-                                <span x-text="quickCreating ? 'Creating...' : 'Run'"></span>
                             </button>
                         </div>
                     </div>
@@ -683,9 +680,22 @@
                                             </div>
                                         </template>
 
-                                        <!-- Description (compact) -->
-                                        <div class="detail-section">
-                                            <p class="detail-description" x-text="selectedTask?.description"></p>
+                                        <!-- User Prompt Box -->
+                                        <div class="user-prompt-box">
+                                            <p class="user-prompt-text" x-text="selectedTask?.description"></p>
+                                            <template x-if="selectedTask?.inputFiles?.length > 0">
+                                                <div class="user-prompt-attachments">
+                                                    <template x-for="file in selectedTask?.inputFiles" :key="file.name">
+                                                        <span class="prompt-file-chip">
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                            </svg>
+                                                            <span x-text="file.name"></span>
+                                                        </span>
+                                                    </template>
+                                                </div>
+                                            </template>
                                         </div>
 
                                         <!-- Pending Agent Question Banner -->
@@ -955,17 +965,24 @@
                                             @keydown.enter="sendInstructions()"
                                             :disabled="actionLoading"
                                         >
-                                        <button class="btn btn-primary" @click="sendInstructions()" :disabled="actionLoading || !instructionsText.trim()">Send</button>
-                                    </div>
-                                    <div class="action-bar-row">
-                                        <button class="btn btn-secondary" @click="pauseTask()" :disabled="actionLoading">
+                                        <button class="btn btn-primary btn-icon-only" @click="sendInstructions()" :disabled="actionLoading || !instructionsText.trim()" title="Send">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                            </svg>
+                                        </button>
+                                        <button class="btn btn-secondary btn-icon-only" @click="pauseTask()" :disabled="actionLoading" title="Pause">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                                 <rect x="6" y="4" width="4" height="16"></rect>
                                                 <rect x="14" y="4" width="4" height="16"></rect>
                                             </svg>
-                                            Pause
                                         </button>
-                                        <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                        <button class="btn btn-danger btn-icon-only" @click="cancelTask()" :disabled="actionLoading" title="Cancel">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
                             </template>
@@ -977,12 +994,22 @@
                                         </svg>
                                         Resume
                                     </button>
-                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                    <button class="btn btn-danger btn-icon-only" @click="cancelTask()" :disabled="actionLoading" title="Cancel">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                             </template>
                             <template x-if="selectedTask?.status === 'queued' || selectedTask?.status === 'waiting_for_vm'">
                                 <div class="action-buttons">
-                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                    <button class="btn btn-danger btn-icon-only" @click="cancelTask()" :disabled="actionLoading" title="Cancel">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                             </template>
                             <template x-if="selectedTask?.status === 'plan_review'">
@@ -1003,12 +1030,22 @@
                                             Save &amp; Approve
                                         </button>
                                     </template>
-                                    <button class="btn btn-danger" @click="cancelPlan()" :disabled="actionLoading">Cancel Plan</button>
+                                    <button class="btn btn-danger btn-icon-only" @click="cancelPlan()" :disabled="actionLoading" title="Cancel Plan">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                             </template>
                             <template x-if="selectedTask?.status === 'planning'">
                                 <div class="action-buttons">
-                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                    <button class="btn btn-danger btn-icon-only" @click="cancelTask()" :disabled="actionLoading" title="Cancel">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                             </template>
                             <template x-if="['completed', 'failed', 'cancelled', 'timed_out', 'max_iterations'].includes(selectedTask?.status)">
