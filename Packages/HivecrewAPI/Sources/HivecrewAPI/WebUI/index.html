@@ -8,11 +8,11 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=27">
+    <link rel="stylesheet" href="/web/css/styles.css?v=29">
     <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=25"></script>
+    <script defer src="/web/js/app.js?v=26"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -1050,17 +1050,26 @@
                             </template>
                             <template x-if="['completed', 'failed', 'cancelled', 'timed_out', 'max_iterations'].includes(selectedTask?.status)">
                                 <div class="action-buttons">
-                                    <button class="btn btn-primary" @click="rerunTask()" :disabled="actionLoading">
+                                    <button class="btn btn-primary btn-icon-only" @click="rerunTask()" :disabled="actionLoading" title="Rerun">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                             <polyline points="23 4 23 10 17 10"></polyline>
                                             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                                         </svg>
-                                        Rerun
                                     </button>
-                                    <button class="btn btn-danger" @click="deleteTask()" :disabled="actionLoading">Delete</button>
+                                    <button class="btn btn-danger btn-icon-only" @click="deleteTask()" :disabled="actionLoading" title="Delete">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                    </button>
                                 </div>
                             </template>
-                            <button class="btn btn-secondary" @click="closeTaskDetail()">Close</button>
+                            <button class="btn btn-icon" @click="closeTaskDetail()" title="Close">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1144,6 +1153,79 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ============================================================
+                     Pending Alert Popups (questions/permissions from running tasks)
+                     ============================================================ -->
+                <template x-if="pendingAlerts.length > 0 && !selectedTask">
+                    <div class="alert-popup-container">
+                        <template x-for="alert in pendingAlerts" :key="alert.id">
+                            <div class="alert-popup" :class="'alert-popup-' + alert.type">
+                                <div class="alert-popup-header">
+                                    <div class="alert-popup-title">
+                                        <!-- Question icon -->
+                                        <template x-if="alert.type === 'question'">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                            </svg>
+                                        </template>
+                                        <!-- Permission icon -->
+                                        <template x-if="alert.type === 'permission'">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                            </svg>
+                                        </template>
+                                        <span class="alert-popup-label" x-text="alert.type === 'question' ? 'Agent Question' : 'Permission Required'"></span>
+                                    </div>
+                                    <div class="alert-popup-task-name" x-text="alert.task.title"></div>
+                                    <button class="btn btn-icon alert-popup-dismiss" @click="dismissAlert(alert)" title="Dismiss">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <!-- Question content -->
+                                <template x-if="alert.type === 'question'">
+                                    <div class="alert-popup-body">
+                                        <p class="alert-popup-text" x-text="alert.task.pendingQuestion.question"></p>
+                                        <template x-if="alert.task.pendingQuestion.suggestedAnswers?.length > 0">
+                                            <div class="alert-popup-suggestions">
+                                                <template x-for="(suggestion, i) in alert.task.pendingQuestion.suggestedAnswers" :key="i">
+                                                    <button class="btn btn-secondary btn-small" @click="submitAlertAnswer(alert, suggestion)" :disabled="actionLoading" x-text="suggestion"></button>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <div class="alert-popup-input">
+                                            <input type="text" class="action-bar-input" x-model="pendingAlertAnswer" placeholder="Type your answer..." @keydown.enter="submitAlertAnswer(alert)" :disabled="actionLoading">
+                                            <button class="btn btn-primary btn-icon-only" @click="submitAlertAnswer(alert)" :disabled="actionLoading || !pendingAlertAnswer.trim()" title="Send">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Permission content -->
+                                <template x-if="alert.type === 'permission'">
+                                    <div class="alert-popup-body">
+                                        <p class="alert-popup-tool" x-text="alert.task.pendingPermission.toolName"></p>
+                                        <p class="alert-popup-text" x-text="alert.task.pendingPermission.details"></p>
+                                        <div class="alert-popup-actions">
+                                            <button class="btn btn-primary" @click="respondAlertPermission(alert, true)" :disabled="actionLoading">Approve</button>
+                                            <button class="btn btn-danger" @click="respondAlertPermission(alert, false)" :disabled="actionLoading">Deny</button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
 
                 <!-- ============================================================
                      Toast Notifications

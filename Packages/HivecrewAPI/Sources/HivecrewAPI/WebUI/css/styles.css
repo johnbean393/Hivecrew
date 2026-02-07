@@ -950,7 +950,7 @@ body {
     gap: 8px;
     padding: 12px 20px;
     border-top: 1px solid var(--border);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .modal-footer .btn {
@@ -2158,6 +2158,150 @@ label.checkbox-label {
 }
 
 /* ====================================================================
+   Pending Alert Popups
+   ==================================================================== */
+
+.alert-popup-container {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 480px;
+    padding: 0 16px;
+}
+
+.alert-popup {
+    background: var(--bg-control);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    animation: alert-slide-up 0.3s ease;
+}
+
+@keyframes alert-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-popup-question {
+    border-color: rgba(0, 122, 255, 0.3);
+}
+
+.alert-popup-permission {
+    border-color: rgba(255, 149, 0, 0.3);
+}
+
+.alert-popup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px 0;
+    position: relative;
+}
+
+.alert-popup-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.alert-popup-question .alert-popup-title {
+    color: var(--status-scheduled);
+}
+
+.alert-popup-permission .alert-popup-title {
+    color: var(--status-paused);
+}
+
+.alert-popup-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.alert-popup-task-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.alert-popup-dismiss {
+    flex-shrink: 0;
+    padding: 4px;
+    margin: -4px -4px -4px 0;
+}
+
+.alert-popup-body {
+    padding: 10px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.alert-popup-text {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
+.alert-popup-tool {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.alert-popup-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.alert-popup-input {
+    display: flex;
+    gap: 8px;
+}
+
+.alert-popup-input .action-bar-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.alert-popup-actions {
+    display: flex;
+    gap: 8px;
+}
+
+@media (max-width: 480px) {
+    .alert-popup-container {
+        bottom: 12px;
+        padding: 0 8px;
+    }
+    
+    .alert-popup-input .action-bar-input {
+        font-size: 16px;
+    }
+}
+
+/* ====================================================================
    Toast Notifications
    ==================================================================== */
 
@@ -2476,15 +2620,10 @@ label.checkbox-label {
         font-size: 13px;
     }
     
-    /* Action buttons stack on mobile */
+    /* Action buttons stay in a row on mobile */
     .action-buttons:not(.action-bar-full) {
-        flex-direction: column;
-        width: 100%;
-    }
-    
-    .action-buttons:not(.action-bar-full) .btn {
-        width: 100%;
-        justify-content: center;
+        flex-direction: row;
+        width: auto;
     }
     
     .action-bar-input {

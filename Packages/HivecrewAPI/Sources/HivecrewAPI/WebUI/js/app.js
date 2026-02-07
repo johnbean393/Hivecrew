@@ -87,6 +87,11 @@ document.addEventListener('alpine:init', () => {
         instructionsText: '',
         answerText: '',
         
+        // Pending Alerts (questions/permissions from running tasks, shown as popups)
+        pendingAlerts: [],
+        pendingAlertAnswer: '',
+        pendingAlertDismissed: new Set(),
+        
         // Toasts
         toasts: [],
         toastId: 0,
@@ -291,6 +296,114 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
+        async checkPendingAlerts() {
+            const runningTasks = this.tasks.filter(t => 
+                ['running', 'queued', 'waiting_for_vm'].includes(t.status)
+            );
+            
+            const alerts = [];
+            for (const task of runningTasks) {
+                try {
+                    const response = await this.apiFetch(`/api/v1/tasks/${task.id}`);
+                    if (response.ok) {
+                        const fullTask = await response.json();
+                        if (fullTask.pendingQuestion && !this.pendingAlertDismissed.has(fullTask.pendingQuestion.id)) {
+                            alerts.push({
+                                type: 'question',
+                                task: fullTask,
+                                id: fullTask.pendingQuestion.id
+                            });
+                        }
+                        if (fullTask.pendingPermission && !this.pendingAlertDismissed.has(fullTask.pendingPermission.id)) {
+                            alerts.push({
+                                type: 'permission',
+                                task: fullTask,
+                                id: fullTask.pendingPermission.id
+                            });
+                        }
+                    }
+                } catch (error) {
+                    // Silently ignore errors
+                }
+            }
+            this.pendingAlerts = alerts;
+        },
+        
+        async submitAlertAnswer(alert, answer) {
+            const text = (answer || this.pendingAlertAnswer || '').trim();
+            if (!text) return;
+            
+            this.actionLoading = true;
+            try {
+                const response = await this.apiFetch(
+                    `/api/v1/tasks/${alert.task.id}/question/answer`,
+                    {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            questionId: alert.task.pendingQuestion.id,
+                            answer: text
+                        })
+                    }
+                );
+                
+                if (!response.ok && response.status !== 204) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to submit answer');
+                }
+                
+                this.pendingAlertAnswer = '';
+                this.pendingAlertDismissed.add(alert.id);
+                this.pendingAlerts = this.pendingAlerts.filter(a => a.id !== alert.id);
+                this.showToast('Answer submitted', 'success');
+                await this.loadTasks();
+                if (this.selectedTask?.id === alert.task.id) {
+                    await this.refreshSelectedTask();
+                }
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async respondAlertPermission(alert, approved) {
+            this.actionLoading = true;
+            try {
+                const response = await this.apiFetch(
+                    `/api/v1/tasks/${alert.task.id}/permission/respond`,
+                    {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            permissionId: alert.task.pendingPermission.id,
+                            approved: approved
+                        })
+                    }
+                );
+                
+                if (!response.ok && response.status !== 204) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to respond to permission');
+                }
+                
+                this.pendingAlertDismissed.add(alert.id);
+                this.pendingAlerts = this.pendingAlerts.filter(a => a.id !== alert.id);
+                this.showToast(approved ? 'Permission granted' : 'Permission denied', 'success');
+                await this.loadTasks();
+                if (this.selectedTask?.id === alert.task.id) {
+                    await this.refreshSelectedTask();
+                }
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        dismissAlert(alert) {
+            this.pendingAlertDismissed.add(alert.id);
+            this.pendingAlerts = this.pendingAlerts.filter(a => a.id !== alert.id);
+        },
+        
         get filteredTasks() {
             if (!this.searchQuery.trim()) return this.tasks;
             const q = this.searchQuery.toLowerCase();
@@ -406,6 +519,10 @@ document.addEventListener('alpine:init', () => {
                     await this.loadTasks();
                     if (this.selectedTask) {
                         await this.refreshSelectedTask();
+                    }
+                    // Check for pending questions/permissions on running tasks
+                    if (!this.selectedTask && this.hasActiveTasks()) {
+                        await this.checkPendingAlerts();
                     }
                 } else if (this.view === 'scheduled') {
                     await this.loadScheduledTasks();
