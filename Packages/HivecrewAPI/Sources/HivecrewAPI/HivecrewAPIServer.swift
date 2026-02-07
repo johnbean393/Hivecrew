@@ -132,9 +132,17 @@ public actor HivecrewAPIServer {
             maxTotalUploadSize: configuration.maxTotalUploadSize
         ).register(with: apiV1)
         
+        ScheduleRoutes(
+            serviceProvider: serviceProvider,
+            fileStorage: fileStorage,
+            maxFileSize: configuration.maxFileSize,
+            maxTotalUploadSize: configuration.maxTotalUploadSize
+        ).register(with: apiV1)
+        
         ProviderRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         TemplateRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         SystemRoutes(serviceProvider: serviceProvider).register(with: apiV1)
+        EventRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         
         // Health check endpoint (no auth required)
         router.get("health") { _, _ in

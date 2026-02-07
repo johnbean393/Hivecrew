@@ -2,10 +2,12 @@
 //  APITask.swift
 //  HivecrewAPI
 //
-//  Task models for API requests and responses
+//  Core task models: status enums, task detail, task summary, and list response
 //
 
 import Foundation
+
+// MARK: - Enums
 
 /// Task status values
 public enum APITaskStatus: String, Codable, Sendable {
@@ -30,6 +32,52 @@ public enum APITaskPriority: String, Codable, Sendable {
     case high = "high"
 }
 
+// MARK: - Agent Question
+
+/// A pending question from the agent that requires a human answer before the task can proceed.
+public struct APIAgentQuestion: Codable, Sendable {
+    public let id: String
+    public let question: String
+    public let suggestedAnswers: [String]?
+    public let createdAt: Date
+    
+    public init(
+        id: String,
+        question: String,
+        suggestedAnswers: [String]? = nil,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.question = question
+        self.suggestedAnswers = suggestedAnswers
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Permission Request
+
+/// A pending permission request from the agent for a potentially dangerous operation.
+public struct APIPermissionRequest: Codable, Sendable {
+    public let id: String
+    public let toolName: String
+    public let details: String
+    public let createdAt: Date
+    
+    public init(
+        id: String,
+        toolName: String,
+        details: String,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.toolName = toolName
+        self.details = details
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Supporting Types
+
 /// Token usage information
 public struct APITokenUsage: Codable, Sendable {
     public let prompt: Int
@@ -42,6 +90,8 @@ public struct APITokenUsage: Codable, Sendable {
         self.total = total
     }
 }
+
+// MARK: - Task Models
 
 /// Task response model (full details)
 public struct APITask: Codable, Sendable {
@@ -63,6 +113,10 @@ public struct APITask: Codable, Sendable {
     public let duration: Int?
     public let stepCount: Int?
     public let tokenUsage: APITokenUsage?
+    public let planMarkdown: String?
+    public let planFirst: Bool?
+    public let pendingQuestion: APIAgentQuestion?
+    public let pendingPermission: APIPermissionRequest?
     
     public init(
         id: String,
@@ -82,7 +136,11 @@ public struct APITask: Codable, Sendable {
         vmId: String? = nil,
         duration: Int? = nil,
         stepCount: Int? = nil,
-        tokenUsage: APITokenUsage? = nil
+        tokenUsage: APITokenUsage? = nil,
+        planMarkdown: String? = nil,
+        planFirst: Bool? = nil,
+        pendingQuestion: APIAgentQuestion? = nil,
+        pendingPermission: APIPermissionRequest? = nil
     ) {
         self.id = id
         self.title = title
@@ -102,6 +160,10 @@ public struct APITask: Codable, Sendable {
         self.duration = duration
         self.stepCount = stepCount
         self.tokenUsage = tokenUsage
+        self.planMarkdown = planMarkdown
+        self.planFirst = planFirst
+        self.pendingQuestion = pendingQuestion
+        self.pendingPermission = pendingPermission
     }
 }
 
@@ -143,6 +205,8 @@ public struct APITaskSummary: Codable, Sendable {
     }
 }
 
+// MARK: - List Response
+
 /// Response for GET /tasks (list)
 public struct APITaskListResponse: Codable, Sendable {
     public let tasks: [APITaskSummary]
@@ -155,73 +219,5 @@ public struct APITaskListResponse: Codable, Sendable {
         self.total = total
         self.limit = limit
         self.offset = offset
-    }
-}
-
-/// Request for POST /tasks (JSON body)
-public struct CreateTaskRequest: Codable, Sendable {
-    public let description: String
-    public let providerName: String
-    public let modelId: String
-    public let priority: APITaskPriority?
-    /// Custom output directory path for task deliverables (optional)
-    public let outputDirectory: String?
-    
-    public init(
-        description: String,
-        providerName: String,
-        modelId: String,
-        priority: APITaskPriority? = nil,
-        outputDirectory: String? = nil
-    ) {
-        self.description = description
-        self.providerName = providerName
-        self.modelId = modelId
-        self.priority = priority
-        self.outputDirectory = outputDirectory
-    }
-}
-
-/// Request for POST /schedules (create scheduled task)
-public struct CreateScheduleRequest: Codable, Sendable {
-    public let title: String
-    public let description: String
-    public let providerName: String
-    public let modelId: String
-    public let outputDirectory: String?
-    public let schedule: APISchedule
-    
-    public init(
-        title: String,
-        description: String,
-        providerName: String,
-        modelId: String,
-        outputDirectory: String? = nil,
-        schedule: APISchedule
-    ) {
-        self.title = title
-        self.description = description
-        self.providerName = providerName
-        self.modelId = modelId
-        self.outputDirectory = outputDirectory
-        self.schedule = schedule
-    }
-}
-
-/// Task action types for PATCH /tasks/:id
-public enum APITaskAction: String, Codable, Sendable {
-    case cancel = "cancel"
-    case pause = "pause"
-    case resume = "resume"
-}
-
-/// Request for PATCH /tasks/:id
-public struct UpdateTaskRequest: Codable, Sendable {
-    public let action: APITaskAction
-    public let instructions: String?
-    
-    public init(action: APITaskAction, instructions: String? = nil) {
-        self.action = action
-        self.instructions = instructions
     }
 }

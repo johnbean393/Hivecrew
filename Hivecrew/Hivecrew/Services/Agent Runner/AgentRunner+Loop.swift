@@ -392,6 +392,8 @@ extension AgentRunner {
         // Check for pending instructions from user
         if let instructions = statePublisher.pendingInstructions {
             statePublisher.pendingInstructions = nil
+            // Log to activity trace so it appears in both macOS and web UI
+            statePublisher.logInfo("User instruction received: \(instructions)")
             // Add user instructions as a separate message
             conversationHistory.append(.user("User instruction: \(instructions)"))
         }

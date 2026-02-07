@@ -46,20 +46,4 @@ public struct TemplateRoutes: Sendable {
         return try createJSONResponse(template)
     }
     
-    // MARK: - Helpers
-    
-    private func createJSONResponse<T: Encodable>(_ value: T, status: HTTPResponse.Status = .ok) throws -> Response {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(value)
-        
-        var headers = HTTPFields()
-        headers[.contentType] = "application/json"
-        
-        return Response(
-            status: status,
-            headers: headers,
-            body: .init(byteBuffer: ByteBuffer(data: data))
-        )
-    }
 }

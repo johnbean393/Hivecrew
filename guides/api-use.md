@@ -54,7 +54,8 @@ POST /api/v1/tasks
   "description": "Open Safari and search for 'Swift programming'",
   "providerName": "OpenRouter",
   "modelId": "anthropic/claude-sonnet-4.5",
-  "outputDirectory": "/Users/me/Desktop/outputs"
+  "outputDirectory": "/Users/me/Desktop/outputs",
+  "planFirst": true
 }
 ```
 
@@ -64,6 +65,7 @@ POST /api/v1/tasks
 | `providerName` | string | Yes | Name of the LLM provider (e.g., "OpenRouter") |
 | `modelId` | string | Yes | Model identifier (e.g., "anthropic/claude-sonnet-4.5") |
 | `outputDirectory` | string | No | Absolute path for task output files (overrides app settings) |
+| `planFirst` | bool | No | If `true`, the agent generates a plan for review before executing the task (default: `false`) |
 
 **Example:**
 
@@ -78,7 +80,7 @@ curl -X POST http://localhost:5482/api/v1/tasks \
   }'
 ```
 
-**Example with custom output directory:**
+**Example with plan-first mode:**
 
 ```bash
 curl -X POST http://localhost:5482/api/v1/tasks \
@@ -88,7 +90,7 @@ curl -X POST http://localhost:5482/api/v1/tasks \
     "description": "Create a report and save it",
     "providerName": "OpenRouter",
     "modelId": "anthropic/claude-sonnet-4.5",
-    "outputDirectory": "/Users/me/Desktop/reports"
+    "planFirst": true
   }'
 ```
 
@@ -103,6 +105,7 @@ curl -X POST http://localhost:5482/api/v1/tasks \
   "providerName": "OpenRouter",
   "modelId": "anthropic/claude-sonnet-4.5",
   "createdAt": "2026-01-18T10:30:00Z",
+  "planFirst": false,
   "inputFiles": [],
   "outputFiles": []
 }
@@ -122,7 +125,7 @@ curl -X POST http://localhost:5482/api/v1/tasks \
   -F "files=@/path/to/data.csv"
 ```
 
-**With custom output directory:**
+**With plan-first and custom output directory:**
 
 ```bash
 curl -X POST http://localhost:5482/api/v1/tasks \
@@ -130,6 +133,7 @@ curl -X POST http://localhost:5482/api/v1/tasks \
   -F "description=Analyze this document and summarize it" \
   -F "providerName=OpenRouter" \
   -F "modelId=anthropic/claude-sonnet-4.5" \
+  -F "planFirst=true" \
   -F "outputDirectory=/Users/me/Desktop/analysis-results" \
   -F "files=@/path/to/document.pdf"
 ```
@@ -217,6 +221,10 @@ curl http://localhost:5482/api/v1/tasks/A1B2C3D4-E5F6-7890-ABCD-EF1234567890 \
     "completion": 1230,
     "total": 6650
   },
+  "planFirst": false,
+  "planMarkdown": null,
+  "pendingQuestion": null,
+  "pendingPermission": null,
   "inputFiles": [],
   "outputFiles": [
     {
@@ -228,19 +236,46 @@ curl http://localhost:5482/api/v1/tasks/A1B2C3D4-E5F6-7890-ABCD-EF1234567890 \
 }
 ```
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `planFirst` | bool | Whether plan-first mode was enabled for this task |
+| `planMarkdown` | string? | The generated plan in Markdown format (present when task is in `planning` or `planReview` status) |
+| `pendingQuestion` | object? | A pending agent question awaiting a human answer (see [Agent Questions](#agent-questions)) |
+| `pendingPermission` | object? | A pending permission request from the agent (see [Agent Permissions](#agent-permissions)) |
+
 ### Update Task (Actions)
 
 ```bash
 PATCH /api/v1/tasks/:id
 ```
 
+**Request Body:**
+
+```json
+{
+  "action": "cancel",
+  "instructions": null,
+  "planMarkdown": null
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | string | Yes | The action to perform (see table below) |
+| `instructions` | string | No | Additional instructions (used with `resume`) |
+| `planMarkdown` | string | No | Edited plan markdown (used with `edit_plan`) |
+
 **Actions:**
 
-| Action   | Description |
-|----------|-------------|
+| Action | Description |
+|--------|-------------|
 | `cancel` | Cancel a running or queued task |
-| `pause`  | Pause a running task |
+| `pause` | Pause a running task |
 | `resume` | Resume a paused task (optional: provide new instructions) |
+| `rerun` | Re-run a finished task (creates a new task with the same configuration) |
+| `approve_plan` | Approve a pending plan so the agent proceeds with execution (task must be in `planReview` status) |
+| `edit_plan` | Submit an edited plan for the agent to follow (task must be in `planReview` status; include `planMarkdown`) |
+| `cancel_plan` | Cancel a pending plan and stop the task (task must be in `planning` or `planReview` status) |
 
 **Example - Cancel:**
 
@@ -260,6 +295,36 @@ curl -X PATCH http://localhost:5482/api/v1/tasks/A1B2C3D4... \
   -d '{
     "action": "resume",
     "instructions": "Continue and also take a screenshot"
+  }'
+```
+
+**Example - Rerun a completed task:**
+
+```bash
+curl -X PATCH http://localhost:5482/api/v1/tasks/A1B2C3D4... \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "rerun"}'
+```
+
+**Example - Approve a pending plan:**
+
+```bash
+curl -X PATCH http://localhost:5482/api/v1/tasks/A1B2C3D4... \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "approve_plan"}'
+```
+
+**Example - Edit a plan before approving:**
+
+```bash
+curl -X PATCH http://localhost:5482/api/v1/tasks/A1B2C3D4... \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "edit_plan",
+    "planMarkdown": "## Updated Plan\n1. Step one\n2. Step two revised\n3. New step three"
   }'
 ```
 
@@ -333,6 +398,330 @@ curl -o document.pdf \
   "http://localhost:5482/api/v1/tasks/A1B2C3D4.../files/document.pdf?type=input" \
   -H "Authorization: Bearer $HIVECREW_API_KEY"
 ```
+
+### Get Task Screenshot
+
+```bash
+GET /api/v1/tasks/:id/screenshot
+```
+
+Returns the latest VM screenshot for a running task. The response is the raw image data (not JSON).
+
+**Example:**
+
+```bash
+curl -o screenshot.png \
+  http://localhost:5482/api/v1/tasks/A1B2C3D4.../screenshot \
+  -H "Authorization: Bearer $HIVECREW_API_KEY"
+```
+
+**Response:**
+
+- `200 OK` with the image body (`Content-Type: image/png` or similar) and `Cache-Control: no-cache`
+- `404 Not Found` if no screenshot is currently available (task is not running or has no VM)
+
+### Get Task Activity (Polling)
+
+```bash
+GET /api/v1/tasks/:id/activity
+```
+
+Returns activity log events for a running task. Use the `since` parameter to fetch only new events since your last poll. This is the recommended way to monitor live task progress.
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `since`   | int  | 0       | Event offset — pass the `total` from the previous response to get only new events |
+
+**Example:**
+
+```bash
+# First poll (get all events)
+curl "http://localhost:5482/api/v1/tasks/A1B2C3D4.../activity" \
+  -H "Authorization: Bearer $HIVECREW_API_KEY"
+
+# Subsequent polls (get only new events since offset 12)
+curl "http://localhost:5482/api/v1/tasks/A1B2C3D4.../activity?since=12" \
+  -H "Authorization: Bearer $HIVECREW_API_KEY"
+```
+
+**Response:**
+
+```json
+{
+  "events": [
+    {
+      "type": "tool_call_start",
+      "timestamp": "2026-01-18T10:30:10Z",
+      "data": {
+        "summary": "Opening Safari",
+        "activityType": "tool_call"
+      }
+    },
+    {
+      "type": "screenshot",
+      "timestamp": "2026-01-18T10:30:12Z",
+      "data": {
+        "summary": "Captured screen state",
+        "activityType": "observation"
+      }
+    },
+    {
+      "type": "llm_response",
+      "timestamp": "2026-01-18T10:30:15Z",
+      "data": {
+        "summary": "Analyzing screenshot",
+        "activityType": "llm_response",
+        "reasoning": "The browser has opened. I need to navigate to..."
+      }
+    }
+  ],
+  "total": 15
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `events` | array | New events since the `since` offset |
+| `total` | int | Total event count on the server — pass this as `since` in your next request |
+
+**Event Types:**
+
+| Event Type | Description |
+|------------|-------------|
+| `screenshot` | A new screenshot/observation was captured |
+| `tool_call_start` | The agent started invoking a tool |
+| `tool_call_result` | A tool invocation completed with a result |
+| `llm_response` | The LLM returned a response |
+| `status_change` | The task status changed (includes `status` and `taskId` in data) |
+| `subagent_update` | A sub-agent reported progress (includes `subagentId` in data) |
+| `question` | The agent asked a question requiring human input |
+| `permission_request` | The agent requested permission for an operation |
+
+**Event Data Fields:**
+
+All events include:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | The event type |
+| `timestamp` | string | ISO 8601 timestamp |
+| `data.summary` | string | Human-readable summary of the event |
+| `data.activityType` | string | Internal activity category (`tool_call`, `tool_result`, `llm_response`, `llm_request`, `observation`, `error`, `info`, `user_question`, `user_answer`, `subagent`) |
+
+Some events include additional fields:
+
+| Field | Present In | Description |
+|-------|-----------|-------------|
+| `data.details` | varies | Extended details about the event |
+| `data.reasoning` | varies | The agent's reasoning/thinking for the action |
+| `data.subagentId` | `subagent_update` | Identifier of the reporting sub-agent |
+| `data.status` | `status_change` | The new task status value |
+| `data.taskId` | `status_change` | The task identifier |
+
+Returns an empty `events` array with `total: 0` if the task has no active agent (e.g., task is queued or already finished).
+
+---
+
+## Agent Questions
+
+While a task is running, the agent may pause and ask a question that requires a human answer before it can proceed. The pending question (if any) is also included in the task detail response under the `pendingQuestion` field.
+
+### Get Pending Question
+
+```bash
+GET /api/v1/tasks/:id/question
+```
+
+**Example:**
+
+```bash
+curl http://localhost:5482/api/v1/tasks/A1B2C3D4.../question \
+  -H "Authorization: Bearer $HIVECREW_API_KEY"
+```
+
+**Response (question pending):**
+
+```json
+{
+  "id": "Q-1234",
+  "question": "Which browser should I use for this task?",
+  "suggestedAnswers": ["Safari", "Chrome", "Firefox"],
+  "createdAt": "2026-01-18T10:31:00Z"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier for this question |
+| `question` | string | The question text from the agent |
+| `suggestedAnswers` | string[]? | Optional list of suggested answers (for multiple-choice questions) |
+| `createdAt` | string | ISO 8601 timestamp of when the question was asked |
+
+Returns `204 No Content` if there is no pending question.
+
+### Answer a Question
+
+```bash
+POST /api/v1/tasks/:id/question/answer
+```
+
+**Request Body:**
+
+```json
+{
+  "questionId": "Q-1234",
+  "answer": "Safari"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `questionId` | string | Yes | The `id` of the pending question being answered |
+| `answer` | string | Yes | The answer text |
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:5482/api/v1/tasks/A1B2C3D4.../question/answer \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "questionId": "Q-1234",
+    "answer": "Safari"
+  }'
+```
+
+Returns `204 No Content` on success. Returns `409 Conflict` if the `questionId` does not match the current pending question.
+
+---
+
+## Agent Permissions
+
+The agent may request permission before performing a potentially dangerous operation (e.g., running a shell command, accessing certain resources). The pending permission (if any) is also included in the task detail response under the `pendingPermission` field.
+
+### Get Pending Permission Request
+
+```bash
+GET /api/v1/tasks/:id/permission
+```
+
+**Example:**
+
+```bash
+curl http://localhost:5482/api/v1/tasks/A1B2C3D4.../permission \
+  -H "Authorization: Bearer $HIVECREW_API_KEY"
+```
+
+**Response (permission pending):**
+
+```json
+{
+  "id": "P-5678",
+  "toolName": "bash",
+  "details": "Run command: rm -rf /tmp/old-cache",
+  "createdAt": "2026-01-18T10:31:30Z"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier for this permission request |
+| `toolName` | string | The tool or operation requesting permission |
+| `details` | string | Human-readable description of what the agent wants to do |
+| `createdAt` | string | ISO 8601 timestamp of when permission was requested |
+
+Returns `204 No Content` if there is no pending permission request.
+
+### Respond to Permission Request
+
+```bash
+POST /api/v1/tasks/:id/permission/respond
+```
+
+**Request Body:**
+
+```json
+{
+  "permissionId": "P-5678",
+  "approved": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `permissionId` | string | Yes | The `id` of the pending permission request |
+| `approved` | bool | Yes | `true` to allow, `false` to deny |
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:5482/api/v1/tasks/A1B2C3D4.../permission/respond \
+  -H "Authorization: Bearer $HIVECREW_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "permissionId": "P-5678",
+    "approved": true
+  }'
+```
+
+Returns `204 No Content` on success. Returns `409 Conflict` if the `permissionId` does not match the current pending request.
+
+---
+
+## Event Streaming (SSE) — Experimental
+
+> **Note:** The SSE endpoint is experimental and may not work reliably in all environments. For production use, the [activity polling endpoint](#get-task-activity-polling) (`GET /tasks/:id/activity`) is recommended — it uses the same event format and is fully supported.
+
+### Subscribe to Task Events
+
+```bash
+GET /api/v1/tasks/:id/events
+```
+
+Opens a long-lived SSE connection. Existing activity log entries are emitted immediately as an initial burst, followed by live events as they occur. The stream ends automatically when the task reaches a terminal state (`completed`, `failed`, or `cancelled`).
+
+**Example:**
+
+```bash
+curl -N http://localhost:5482/api/v1/tasks/A1B2C3D4.../events \
+  -H "Authorization: Bearer $HIVECREW_API_KEY"
+```
+
+**Response Headers:**
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+```
+
+**Event Format:**
+
+Each event follows the standard SSE format:
+
+```
+event: <event_type>
+data: <json_payload>
+
+```
+
+**Example event stream:**
+
+```
+event: tool_call_start
+data: {"type":"tool_call_start","timestamp":"2026-01-18T10:30:10Z","data":{"summary":"Opening Safari","activityType":"tool_call"}}
+
+event: screenshot
+data: {"type":"screenshot","timestamp":"2026-01-18T10:30:12Z","data":{"summary":"Captured screen state","activityType":"observation"}}
+
+event: status_change
+data: {"type":"status_change","timestamp":"2026-01-18T10:32:15Z","data":{"status":"completed","taskId":"A1B2C3D4..."}}
+
+```
+
+The event types and data fields are identical to those documented in the [activity polling endpoint](#get-task-activity-polling).
 
 ---
 
@@ -806,6 +1195,8 @@ All errors return a consistent JSON structure:
 |--------|-------------|
 | `queued` | Waiting to start |
 | `waitingForVM` | Waiting for a VM to become available |
+| `planning` | Agent is generating a plan (when `planFirst` is enabled) |
+| `planReview` | Plan is ready for human review (approve, edit, or cancel) |
 | `running` | Currently executing |
 | `paused` | Paused, waiting for user action |
 | `completed` | Finished successfully |
@@ -846,4 +1237,82 @@ while true; do
   
   sleep 5
 done
+```
+
+## Example: Monitor Activity in Real Time
+
+```bash
+#!/bin/bash
+
+TASK_ID="$1"
+API_KEY="$HIVECREW_API_KEY"
+BASE_URL="http://localhost:5482/api/v1"
+SINCE=0
+
+# Poll activity log every second
+while true; do
+  RESPONSE=$(curl -s "$BASE_URL/tasks/$TASK_ID/activity?since=$SINCE" \
+    -H "Authorization: Bearer $API_KEY")
+  
+  # Print new events
+  echo "$RESPONSE" | jq -r '.events[] | "\(.timestamp) [\(.type)] \(.data.summary)"'
+  
+  # Update offset
+  SINCE=$(echo "$RESPONSE" | jq -r '.total')
+  
+  # Check if task is still active
+  STATUS=$(curl -s "$BASE_URL/tasks/$TASK_ID" \
+    -H "Authorization: Bearer $API_KEY" | jq -r '.status')
+  
+  case $STATUS in
+    completed|failed|cancelled|timedOut|maxIterations)
+      echo "Task finished with status: $STATUS"
+      break
+      ;;
+  esac
+  
+  sleep 1
+done
+```
+
+## Example: Create a Plan-First Task and Approve
+
+```bash
+#!/bin/bash
+
+API_KEY="$HIVECREW_API_KEY"
+BASE_URL="http://localhost:5482/api/v1"
+
+# 1. Create task with planFirst enabled
+TASK_ID=$(curl -s -X POST "$BASE_URL/tasks" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Research competitors and create a summary report",
+    "providerName": "OpenRouter",
+    "modelId": "anthropic/claude-sonnet-4.5",
+    "planFirst": true
+  }' | jq -r '.id')
+
+echo "Created task: $TASK_ID"
+
+# 2. Wait for planReview status
+while true; do
+  STATUS=$(curl -s "$BASE_URL/tasks/$TASK_ID" \
+    -H "Authorization: Bearer $API_KEY" | jq -r '.status')
+  
+  if [ "$STATUS" = "planReview" ]; then
+    echo "Plan ready for review!"
+    curl -s "$BASE_URL/tasks/$TASK_ID" \
+      -H "Authorization: Bearer $API_KEY" | jq '.planMarkdown'
+    break
+  fi
+  sleep 2
+done
+
+# 3. Approve the plan
+curl -X PATCH "$BASE_URL/tasks/$TASK_ID" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "approve_plan"}'
 ```

@@ -5,7 +5,6 @@
 //  Implementation of APIServiceProvider that bridges the API to the app's services
 //
 
-import Combine
 import Foundation
 import SwiftData
 import HivecrewAPI
@@ -45,7 +44,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         providerName: String,
         modelId: String,
         attachedFilePaths: [String],
-        outputDirectory: String?
+        outputDirectory: String?,
+        planFirst: Bool = false
     ) async throws -> APITask {
         // Find provider by name
         let providerId = try await findProviderIdByName(providerName)
@@ -56,7 +56,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             providerId: providerId,
             modelId: modelId,
             attachedFilePaths: attachedFilePaths,
-            outputDirectory: outputDirectory
+            outputDirectory: outputDirectory,
+            planFirstEnabled: planFirst
         )
         
         return convertToAPITask(task)
@@ -140,6 +141,48 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                 throw APIError.conflict("Cannot resume task with status '\(task.status.displayName)'")
             }
             taskService.resumeTask(task, withInstructions: instructions)
+            
+        case .instruct:
+            guard task.status == .running else {
+                throw APIError.conflict("Cannot send instructions to task with status '\(task.status.displayName)' — task must be running")
+            }
+            guard let text = instructions, !text.isEmpty else {
+                throw APIError.badRequest("Instructions text is required for the 'instruct' action")
+            }
+            guard let statePublisher = taskService.statePublishers[task.id] else {
+                throw APIError.conflict("No active agent found for task '\(id)'")
+            }
+            statePublisher.pendingInstructions = text
+            
+        case .rerun:
+            guard !task.status.isActive else {
+                throw APIError.conflict("Cannot rerun task with status '\(task.status.displayName)' — task must be finished first")
+            }
+            let newTask = try await taskService.rerunTask(task)
+            return convertToAPITask(newTask)
+            
+        case .approvePlan:
+            guard task.status == .planReview else {
+                throw APIError.conflict("Cannot approve plan for task with status '\(task.status.displayName)'")
+            }
+            await taskService.executePlan(for: task)
+            
+        case .editPlan:
+            guard task.status == .planReview else {
+                throw APIError.conflict("Cannot edit plan for task with status '\(task.status.displayName)'")
+            }
+            // Update the plan markdown if provided via instructions
+            if let editedPlan = instructions, !editedPlan.isEmpty {
+                task.planMarkdown = editedPlan
+                try? modelContext.save()
+            }
+            await taskService.executePlan(for: task)
+            
+        case .cancelPlan:
+            guard task.status == .planReview || task.status == .planning else {
+                throw APIError.conflict("Cannot cancel plan for task with status '\(task.status.displayName)'")
+            }
+            await taskService.cancelPlanning(for: task)
         }
         
         return convertToAPITask(task)
@@ -425,7 +468,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         let available = max(0, effectiveMax - running - pending)
         
         // Get memory info
-        var memoryUsedGB: Double? = nil
+        let memoryUsedGB: Double? = nil
         var memoryTotalGB: Double? = nil
         
         let processInfo = ProcessInfo.processInfo
@@ -478,6 +521,235 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         )
     }
     
+    // MARK: - Screenshot
+    
+    func getTaskScreenshot(id: String) async throws -> (data: Data, mimeType: String)? {
+        guard taskService.tasks.contains(where: { $0.id == id }) else {
+            throw APIError.notFound("Task with ID '\(id)' not found")
+        }
+        
+        // Look up the running agent's state publisher for this task
+        guard let statePublisher = taskService.statePublishers[id],
+              let screenshotPath = statePublisher.lastScreenshotPath else {
+            return nil
+        }
+        
+        guard FileManager.default.fileExists(atPath: screenshotPath) else {
+            return nil
+        }
+        
+        let url = URL(fileURLWithPath: screenshotPath)
+        let data = try Data(contentsOf: url)
+        let mimeType = APIFile.mimeType(for: url.lastPathComponent)
+        
+        return (data, mimeType)
+    }
+    
+    // MARK: - Agent Questions
+    
+    func getPendingQuestion(taskId: String) async throws -> APIAgentQuestion? {
+        guard taskService.tasks.contains(where: { $0.id == taskId }) else {
+            throw APIError.notFound("Task with ID '\(taskId)' not found")
+        }
+        
+        guard let statePublisher = taskService.statePublishers[taskId],
+              let pendingQuestion = statePublisher.pendingQuestion else {
+            return nil
+        }
+        
+        return convertToAPIAgentQuestion(pendingQuestion)
+    }
+    
+    func answerQuestion(taskId: String, questionId: String, answer: String) async throws {
+        guard taskService.tasks.contains(where: { $0.id == taskId }) else {
+            throw APIError.notFound("Task with ID '\(taskId)' not found")
+        }
+        
+        guard let statePublisher = taskService.statePublishers[taskId] else {
+            throw APIError.notFound("No active agent for task '\(taskId)'")
+        }
+        
+        guard let pendingQuestion = statePublisher.pendingQuestion else {
+            throw APIError.conflict("No pending question for task '\(taskId)'")
+        }
+        
+        guard pendingQuestion.id == questionId else {
+            throw APIError.conflict("Question ID '\(questionId)' does not match pending question '\(pendingQuestion.id)'")
+        }
+        
+        statePublisher.provideAnswer(answer)
+    }
+    
+    // MARK: - Agent Permissions
+    
+    func getPendingPermission(taskId: String) async throws -> APIPermissionRequest? {
+        guard taskService.tasks.contains(where: { $0.id == taskId }) else {
+            throw APIError.notFound("Task with ID '\(taskId)' not found")
+        }
+        
+        guard let statePublisher = taskService.statePublishers[taskId],
+              let pendingPermission = statePublisher.pendingPermissionRequest else {
+            return nil
+        }
+        
+        return convertToAPIPermissionRequest(pendingPermission)
+    }
+    
+    func respondToPermission(taskId: String, permissionId: String, approved: Bool) async throws {
+        guard taskService.tasks.contains(where: { $0.id == taskId }) else {
+            throw APIError.notFound("Task with ID '\(taskId)' not found")
+        }
+        
+        guard let statePublisher = taskService.statePublishers[taskId] else {
+            throw APIError.notFound("No active agent for task '\(taskId)'")
+        }
+        
+        guard let pendingPermission = statePublisher.pendingPermissionRequest else {
+            throw APIError.conflict("No pending permission request for task '\(taskId)'")
+        }
+        
+        guard pendingPermission.id.uuidString == permissionId else {
+            throw APIError.conflict("Permission ID '\(permissionId)' does not match pending permission '\(pendingPermission.id.uuidString)'")
+        }
+        
+        statePublisher.providePermissionResponse(approved)
+    }
+    
+    // MARK: - Activity Polling
+    
+    func getTaskActivity(id: String, since: Int) async throws -> APIActivityResponse {
+        guard taskService.tasks.contains(where: { $0.id == id }) else {
+            throw APIError.notFound("Task with ID '\(id)' not found")
+        }
+        
+        guard let statePublisher = taskService.statePublishers[id] else {
+            // No active agent — return empty
+            return APIActivityResponse(events: [], total: 0)
+        }
+        
+        let log = statePublisher.activityLog
+        let total = log.count
+        let newEntries = since < total ? Array(log.dropFirst(since)) : []
+        let events = newEntries.map { Self.convertActivityEntry($0) }
+        
+        return APIActivityResponse(events: events, total: total)
+    }
+    
+    // MARK: - Event Streaming
+    
+    func subscribeToTaskEvents(id: String) async throws -> AsyncStream<APITaskEvent> {
+        guard taskService.tasks.contains(where: { $0.id == id }) else {
+            throw APIError.notFound("Task with ID '\(id)' not found")
+        }
+        
+        guard taskService.statePublishers[id] != nil else {
+            // No active agent — return an empty stream
+            return AsyncStream { $0.finish() }
+        }
+        
+        // Snapshot the current activity log on the main actor
+        let initialLog = taskService.statePublishers[id]!.activityLog
+        let taskId = id
+        
+        return AsyncStream { continuation in
+            // Emit existing activity log entries as initial burst
+            for entry in initialLog {
+                continuation.yield(Self.convertActivityEntry(entry))
+            }
+            
+            // Poll for new entries from a @MainActor task.
+            // This avoids Combine subscription lifecycle issues with @Sendable
+            // closures in Swift 6 strict concurrency mode.
+            let pollingTask = Task { @MainActor [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+                
+                var lastSeenCount = initialLog.count
+                
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    
+                    guard let pub = self.taskService.statePublishers[taskId] else {
+                        continuation.finish()
+                        return
+                    }
+                    
+                    // Yield any new activity log entries
+                    let log = pub.activityLog
+                    if log.count > lastSeenCount {
+                        for entry in log.dropFirst(lastSeenCount) {
+                            continuation.yield(Self.convertActivityEntry(entry))
+                        }
+                        lastSeenCount = log.count
+                    }
+                    
+                    // Finish on terminal status
+                    let status = pub.status
+                    if [.completed, .failed, .cancelled].contains(status) {
+                        continuation.yield(APITaskEvent(
+                            type: .statusChange,
+                            timestamp: Date(),
+                            data: [
+                                "status": .string(status.rawValue),
+                                "taskId": .string(taskId)
+                            ]
+                        ))
+                        continuation.finish()
+                        return
+                    }
+                }
+            }
+            
+            continuation.onTermination = { _ in
+                pollingTask.cancel()
+            }
+        }
+    }
+    
+    /// Convert an internal AgentActivityEntry to an API event.
+    /// Static so it can be called from non-isolated Combine sink closures.
+    private static func convertActivityEntry(_ entry: AgentActivityEntry) -> APITaskEvent {
+        let eventType: APITaskEventType
+        switch entry.type {
+        case .toolCall:
+            eventType = .toolCallStart
+        case .toolResult:
+            eventType = .toolCallResult
+        case .llmRequest, .llmResponse:
+            eventType = .llmResponse
+        case .observation:
+            eventType = .screenshot
+        case .userQuestion:
+            eventType = .question
+        case .subagent:
+            eventType = .subagentUpdate
+        case .error, .info, .userAnswer:
+            eventType = .statusChange
+        }
+        
+        var data: [String: JSONValue] = [
+            "summary": .string(entry.summary)
+        ]
+        if let details = entry.details {
+            data["details"] = .string(details)
+        }
+        if let reasoning = entry.reasoning {
+            data["reasoning"] = .string(reasoning)
+        }
+        if let subagentId = entry.subagentId {
+            data["subagentId"] = .string(subagentId)
+        }
+        data["activityType"] = .string(entry.type.rawValue)
+        
+        return APITaskEvent(
+            type: eventType,
+            timestamp: entry.timestamp,
+            data: data
+        )
+    }
+    
     // MARK: - Private Helpers
     
     private func findProviderIdByName(_ name: String) async throws -> String {
@@ -489,3 +761,4 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         return provider.id
     }
 }
+

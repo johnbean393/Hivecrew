@@ -2,7 +2,7 @@
 //  TaskRoutes.swift
 //  HivecrewAPI
 //
-//  Routes for /api/v1/tasks
+//  Routes for /api/v1/tasks (CRUD and file operations)
 //
 
 import Foundation
@@ -10,7 +10,7 @@ import Hummingbird
 import NIOCore
 import HTTPTypes
 
-/// Register task routes
+/// Register task routes for creating, listing, updating, and deleting tasks.
 public final class TaskRoutes: Sendable {
     let serviceProvider: APIServiceProvider
     let fileStorage: TaskFileStorage
@@ -47,35 +47,32 @@ public final class TaskRoutes: Sendable {
         // DELETE /tasks/:id - Delete task
         tasks.delete(":id", use: deleteTask)
         
+        // GET /tasks/:id/screenshot - Latest VM screenshot
+        tasks.get(":id/screenshot", use: getScreenshot)
+        
+        // GET /tasks/:id/question - Pending agent question
+        tasks.get(":id/question", use: getPendingQuestion)
+        
+        // POST /tasks/:id/question/answer - Answer agent question
+        tasks.post(":id/question/answer", use: answerQuestion)
+        
+        // GET /tasks/:id/permission - Pending permission request
+        tasks.get(":id/permission", use: getPendingPermission)
+        
+        // POST /tasks/:id/permission/respond - Respond to permission request
+        tasks.post(":id/permission/respond", use: respondToPermission)
+        
+        // GET /tasks/:id/activity - Poll for activity events
+        tasks.get(":id/activity", use: getTaskActivity)
+        
         // GET /tasks/:id/files - List task files
         tasks.get(":id/files", use: listTaskFiles)
         
         // GET /tasks/:id/files/:filename - Download file
         tasks.get(":id/files/:filename", use: downloadFile)
-        
-        // Schedule endpoints
-        let schedules = router.group("schedules")
-        
-        // POST /schedules - Create scheduled task
-        schedules.post(use: createScheduledTask)
-        
-        // GET /schedules - List scheduled tasks
-        schedules.get(use: listScheduledTasks)
-        
-        // GET /schedules/:id - Get scheduled task
-        schedules.get(":id", use: getScheduledTask)
-        
-        // PATCH /schedules/:id - Update scheduled task
-        schedules.patch(":id", use: updateScheduledTask)
-        
-        // DELETE /schedules/:id - Delete scheduled task
-        schedules.delete(":id", use: deleteScheduledTask)
-        
-        // POST /schedules/:id/run - Run scheduled task now
-        schedules.post(":id/run", use: runScheduledTaskNow)
     }
     
-    // MARK: - Route Handlers
+    // MARK: - Task CRUD
     
     @Sendable
     func createTask(request: Request, context: APIRequestContext) async throws -> Response {
@@ -87,26 +84,25 @@ public final class TaskRoutes: Sendable {
         // Note: priority is parsed but not currently used in task creation
         var uploadedFilePaths: [String] = []
         var outputDirectory: String?
+        var planFirst: Bool = false
         
         if contentType.contains("multipart/form-data") {
-            // Handle multipart form data with file uploads
-            let result = try await parseMultipartForm(request: request, context: context)
+            let result = try await parseTaskMultipartForm(request: request)
             description = result.description
             providerName = result.providerName
             modelId = result.modelId
             uploadedFilePaths = result.filePaths
             outputDirectory = result.outputDirectory
+            planFirst = result.planFirst
         } else {
-            // Handle JSON request
-            let body = try await request.body.collect(upTo: 1024 * 1024) // 1MB limit for JSON
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let createRequest = try decoder.decode(CreateTaskRequest.self, from: body)
+            let body = try await request.body.collect(upTo: 1024 * 1024)
+            let createRequest = try makeISO8601Decoder().decode(CreateTaskRequest.self, from: body)
             
             description = createRequest.description
             providerName = createRequest.providerName
             modelId = createRequest.modelId
             outputDirectory = createRequest.outputDirectory
+            planFirst = createRequest.planFirst ?? false
         }
         
         // Validate required fields
@@ -120,13 +116,13 @@ public final class TaskRoutes: Sendable {
             throw APIError.badRequest("Missing required field: modelId")
         }
         
-        // Create the task
         let task = try await serviceProvider.createTask(
             description: description,
             providerName: providerName,
             modelId: modelId,
             attachedFilePaths: uploadedFilePaths,
-            outputDirectory: outputDirectory
+            outputDirectory: outputDirectory,
+            planFirst: planFirst
         )
         
         return try createJSONResponse(task, status: .created)
@@ -134,9 +130,7 @@ public final class TaskRoutes: Sendable {
     
     @Sendable
     func listTasks(request: Request, context: APIRequestContext) async throws -> Response {
-        // Parse query parameters
-        let uri = request.uri
-        let queryItems = parseQueryItems(from: uri.string)
+        let queryItems = parseQueryItems(from: request.uri.string)
         
         let statusFilter: [APITaskStatus]? = queryItems["status"].flatMap { statusString in
             statusString.split(separator: ",").compactMap { APITaskStatus(rawValue: String($0)) }
@@ -174,14 +168,17 @@ public final class TaskRoutes: Sendable {
             throw APIError.badRequest("Missing task ID")
         }
         
-        let body = try await request.body.collect(upTo: 64 * 1024) // 64KB limit
-        let decoder = JSONDecoder()
-        let updateRequest = try decoder.decode(UpdateTaskRequest.self, from: body)
+        let body = try await request.body.collect(upTo: 64 * 1024)
+        let updateRequest = try JSONDecoder().decode(UpdateTaskRequest.self, from: body)
+        
+        // For editPlan, pass planMarkdown through the instructions parameter;
+        // otherwise use the regular instructions field.
+        let effectiveInstructions = updateRequest.planMarkdown ?? updateRequest.instructions
         
         let task = try await serviceProvider.performTaskAction(
             id: taskId,
             action: updateRequest.action,
-            instructions: updateRequest.instructions
+            instructions: effectiveInstructions
         )
         
         return try createJSONResponse(task)
@@ -200,6 +197,112 @@ public final class TaskRoutes: Sendable {
         
         return Response(status: .noContent)
     }
+    
+    // MARK: - Screenshot
+    
+    @Sendable
+    func getScreenshot(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+        
+        guard let (data, mimeType) = try await serviceProvider.getTaskScreenshot(id: taskId) else {
+            throw APIError.notFound("No screenshot available for task '\(taskId)'")
+        }
+        
+        var headers = HTTPFields()
+        headers[.contentType] = mimeType
+        headers[.contentLength] = "\(data.count)"
+        headers[.cacheControl] = "no-cache"
+        
+        return Response(
+            status: .ok,
+            headers: headers,
+            body: .init(byteBuffer: ByteBuffer(data: data))
+        )
+    }
+    
+    // MARK: - Activity Polling
+    
+    @Sendable
+    func getTaskActivity(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+        
+        let queryItems = parseQueryItems(from: request.uri.string)
+        let since = queryItems["since"].flatMap(Int.init) ?? 0
+        let activity = try await serviceProvider.getTaskActivity(id: taskId, since: since)
+        return try createJSONResponse(activity)
+    }
+    
+    // MARK: - Agent Questions
+    
+    @Sendable
+    func getPendingQuestion(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+        
+        guard let question = try await serviceProvider.getPendingQuestion(taskId: taskId) else {
+            return Response(status: .noContent)
+        }
+        
+        return try createJSONResponse(question)
+    }
+    
+    @Sendable
+    func answerQuestion(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+        
+        let body = try await request.body.collect(upTo: 64 * 1024)
+        let answerRequest = try makeISO8601Decoder().decode(AnswerQuestionRequest.self, from: body)
+        
+        try await serviceProvider.answerQuestion(
+            taskId: taskId,
+            questionId: answerRequest.questionId,
+            answer: answerRequest.answer
+        )
+        
+        return Response(status: .noContent)
+    }
+    
+    // MARK: - Agent Permissions
+    
+    @Sendable
+    func getPendingPermission(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+        
+        guard let permission = try await serviceProvider.getPendingPermission(taskId: taskId) else {
+            return Response(status: .noContent)
+        }
+        
+        return try createJSONResponse(permission)
+    }
+    
+    @Sendable
+    func respondToPermission(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+        
+        let body = try await request.body.collect(upTo: 64 * 1024)
+        let respondRequest = try makeISO8601Decoder().decode(RespondToPermissionRequest.self, from: body)
+        
+        try await serviceProvider.respondToPermission(
+            taskId: taskId,
+            permissionId: respondRequest.permissionId,
+            approved: respondRequest.approved
+        )
+        
+        return Response(status: .noContent)
+    }
+    
+    // MARK: - File Operations
     
     @Sendable
     func listTaskFiles(request: Request, context: APIRequestContext) async throws -> Response {
@@ -221,8 +324,7 @@ public final class TaskRoutes: Sendable {
         }
         
         // Parse query parameter for file type
-        let uri = request.uri
-        let queryItems = parseQueryItems(from: uri.string)
+        let queryItems = parseQueryItems(from: request.uri.string)
         let isInput = queryItems["type"] == "input"
         
         // Get file data from the task's actual stored paths
@@ -244,198 +346,30 @@ public final class TaskRoutes: Sendable {
         )
     }
     
-    @Sendable
-    func createScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
-        let contentType = request.headers[.contentType] ?? ""
-        
-        var title: String = ""
-        var description: String = ""
-        var providerName: String = ""
-        var modelId: String = ""
-        var outputDirectory: String?
-        var schedule: APISchedule?
-        var uploadedFilePaths: [String] = []
-        
-        if contentType.contains("multipart/form-data") {
-            // Handle multipart form data with file uploads
-            let result = try await parseScheduleMultipartForm(request: request, context: context)
-            title = result.title
-            description = result.description
-            providerName = result.providerName
-            modelId = result.modelId
-            outputDirectory = result.outputDirectory
-            schedule = result.schedule
-            uploadedFilePaths = result.filePaths
-        } else {
-            // Handle JSON request
-            let body = try await request.body.collect(upTo: 1024 * 1024) // 1MB limit
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let createRequest = try decoder.decode(CreateScheduleRequest.self, from: body)
-            
-            title = createRequest.title
-            description = createRequest.description
-            providerName = createRequest.providerName
-            modelId = createRequest.modelId
-            outputDirectory = createRequest.outputDirectory
-            schedule = createRequest.schedule
-        }
-        
-        // Validate
-        guard !title.isEmpty else {
-            throw APIError.badRequest("Missing required field: title")
-        }
-        guard !description.isEmpty else {
-            throw APIError.badRequest("Missing required field: description")
-        }
-        guard !providerName.isEmpty else {
-            throw APIError.badRequest("Missing required field: providerName")
-        }
-        guard !modelId.isEmpty else {
-            throw APIError.badRequest("Missing required field: modelId")
-        }
-        
-        guard let schedule = schedule else {
-            throw APIError.badRequest("Missing required field: schedule")
-        }
-        
-        // Validate schedule - need either scheduledAt (one-time) or recurrence (recurring)
-        if schedule.scheduledAt == nil && schedule.recurrence == nil {
-            throw APIError.badRequest("Schedule must include either scheduledAt (one-time) or recurrence (recurring)")
-        }
-        
-        if let scheduledAt = schedule.scheduledAt, scheduledAt < Date() {
-            throw APIError.badRequest("scheduledAt must be in the future")
-        }
-        
-        let scheduledTask = try await serviceProvider.createScheduledTask(
-            title: title,
-            description: description,
-            providerName: providerName,
-            modelId: modelId,
-            attachedFilePaths: uploadedFilePaths,
-            outputDirectory: outputDirectory,
-            schedule: schedule
-        )
-        
-        return try createJSONResponse(scheduledTask, status: .created)
-    }
+    // MARK: - Multipart Parsing
     
-    @Sendable
-    func listScheduledTasks(request: Request, context: APIRequestContext) async throws -> Response {
-        let uri = request.uri
-        let queryItems = parseQueryItems(from: uri.string)
-        
-        let limit = min(queryItems["limit"].flatMap { Int($0) } ?? 50, 200)
-        let offset = queryItems["offset"].flatMap { Int($0) } ?? 0
-        
-        let response = try await serviceProvider.getScheduledTasks(
-            limit: limit,
-            offset: offset
-        )
-        
-        return try createJSONResponse(response)
-    }
-    
-    @Sendable
-    func getScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
-        guard let scheduleId = context.parameters.get("id") else {
-            throw APIError.badRequest("Missing schedule ID")
-        }
-        
-        let scheduledTask = try await serviceProvider.getScheduledTask(id: scheduleId)
-        return try createJSONResponse(scheduledTask)
-    }
-    
-    @Sendable
-    func updateScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
-        guard let scheduleId = context.parameters.get("id") else {
-            throw APIError.badRequest("Missing schedule ID")
-        }
-        
-        let body = try await request.body.collect(upTo: 64 * 1024) // 64KB limit
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let updateRequest = try decoder.decode(UpdateScheduleRequest.self, from: body)
-        
-        // Validate scheduled time if provided
-        if let scheduledAt = updateRequest.scheduledAt, scheduledAt < Date() {
-            throw APIError.badRequest("scheduledAt must be in the future")
-        }
-        
-        let scheduledTask = try await serviceProvider.updateScheduledTask(
-            id: scheduleId,
-            request: updateRequest
-        )
-        
-        return try createJSONResponse(scheduledTask)
-    }
-    
-    @Sendable
-    func deleteScheduledTask(request: Request, context: APIRequestContext) async throws -> Response {
-        guard let scheduleId = context.parameters.get("id") else {
-            throw APIError.badRequest("Missing schedule ID")
-        }
-        
-        try await serviceProvider.deleteScheduledTask(id: scheduleId)
-        return Response(status: .noContent)
-    }
-    
-    @Sendable
-    func runScheduledTaskNow(request: Request, context: APIRequestContext) async throws -> Response {
-        guard let scheduleId = context.parameters.get("id") else {
-            throw APIError.badRequest("Missing schedule ID")
-        }
-        
-        let task = try await serviceProvider.runScheduledTaskNow(id: scheduleId)
-        return try createJSONResponse(task)
-    }
-    
-    // MARK: - Helpers
-    
-    private struct MultipartFormResult {
+    private struct TaskMultipartFormResult {
         let description: String
         let providerName: String
         let modelId: String
         let priority: APITaskPriority
         let filePaths: [String]
         let outputDirectory: String?
+        let planFirst: Bool
     }
     
-    private func parseMultipartForm(request: Request, context: APIRequestContext) async throws -> MultipartFormResult {
-        // For multipart form data, we need to parse the boundary and parts
-        // This is a simplified implementation - Hummingbird has multipart support via plugins
-        
+    private func parseTaskMultipartForm(request: Request) async throws -> TaskMultipartFormResult {
         var description = ""
         var providerName = ""
         var modelId = ""
         var priority = APITaskPriority.normal
         var filePaths: [String] = []
         var outputDirectory: String?
+        var planFirst = false
         
-        // Generate a task ID for file storage
         let taskId = UUID().uuidString
-        
-        // Collect the body with size limit
         let bodyData = try await request.body.collect(upTo: maxTotalUploadSize)
-        
-        // Get content type header to extract boundary
-        guard let contentTypeHeader = request.headers[.contentType] else {
-            throw APIError.badRequest("Missing Content-Type header")
-        }
-        
-        let contentType = String(contentTypeHeader)
-        guard let boundaryRange = contentType.range(of: "boundary=") else {
-            throw APIError.badRequest("Missing boundary in Content-Type")
-        }
-        
-        var boundary = String(contentType[boundaryRange.upperBound...])
-        // Remove quotes if present
-        if boundary.hasPrefix("\"") && boundary.hasSuffix("\"") {
-            boundary = String(boundary.dropFirst().dropLast())
-        }
-        
-        // Parse multipart data
+        let boundary = try extractMultipartBoundary(from: request)
         let parts = parseMultipartData(data: Data(buffer: bodyData), boundary: boundary)
         
         for part in parts {
@@ -453,16 +387,15 @@ public final class TaskRoutes: Sendable {
                     }
                 } else if name == "outputDirectory" {
                     outputDirectory = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if name == "planFirst" {
+                    if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                        planFirst = value == "true" || value == "1"
+                    }
                 } else if name == "files" {
-                    // This is a file upload
                     let filename = part.filename ?? "file_\(filePaths.count)"
-                    
-                    // Check file size
                     if part.data.count > maxFileSize {
                         throw APIError.payloadTooLarge("File '\(filename)' exceeds maximum size of \(maxFileSize / 1024 / 1024)MB")
                     }
-                    
-                    // Save the file
                     let savedURL = try await fileStorage.saveUploadedFile(
                         data: part.data,
                         filename: filename,
@@ -473,235 +406,14 @@ public final class TaskRoutes: Sendable {
             }
         }
         
-        return MultipartFormResult(
+        return TaskMultipartFormResult(
             description: description,
             providerName: providerName,
             modelId: modelId,
             priority: priority,
             filePaths: filePaths,
-            outputDirectory: outputDirectory
-        )
-    }
-    
-    private struct ScheduleMultipartFormResult {
-        let title: String
-        let description: String
-        let providerName: String
-        let modelId: String
-        let outputDirectory: String?
-        let schedule: APISchedule?
-        let filePaths: [String]
-    }
-    
-    private func parseScheduleMultipartForm(request: Request, context: APIRequestContext) async throws -> ScheduleMultipartFormResult {
-        var title = ""
-        var description = ""
-        var providerName = ""
-        var modelId = ""
-        var outputDirectory: String?
-        var scheduleJSON: String?
-        var filePaths: [String] = []
-        
-        // Generate a schedule ID for file storage
-        let scheduleId = UUID().uuidString
-        
-        // Collect the body with size limit
-        let bodyData = try await request.body.collect(upTo: maxTotalUploadSize)
-        
-        // Get content type header to extract boundary
-        guard let contentTypeHeader = request.headers[.contentType] else {
-            throw APIError.badRequest("Missing Content-Type header")
-        }
-        
-        let contentType = String(contentTypeHeader)
-        guard let boundaryRange = contentType.range(of: "boundary=") else {
-            throw APIError.badRequest("Missing boundary in Content-Type")
-        }
-        
-        var boundary = String(contentType[boundaryRange.upperBound...])
-        // Remove quotes if present
-        if boundary.hasPrefix("\"") && boundary.hasSuffix("\"") {
-            boundary = String(boundary.dropFirst().dropLast())
-        }
-        
-        // Parse multipart data
-        let parts = parseMultipartData(data: Data(buffer: bodyData), boundary: boundary)
-        
-        for part in parts {
-            if let name = part.name {
-                switch name {
-                case "title":
-                    title = String(data: part.data, encoding: .utf8) ?? ""
-                case "description":
-                    description = String(data: part.data, encoding: .utf8) ?? ""
-                case "providerName":
-                    providerName = String(data: part.data, encoding: .utf8) ?? ""
-                case "modelId":
-                    modelId = String(data: part.data, encoding: .utf8) ?? ""
-                case "outputDirectory":
-                    outputDirectory = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                case "schedule":
-                    scheduleJSON = String(data: part.data, encoding: .utf8)
-                case "files":
-                    // This is a file upload
-                    let filename = part.filename ?? "file_\(filePaths.count)"
-                    
-                    // Check file size
-                    if part.data.count > maxFileSize {
-                        throw APIError.payloadTooLarge("File '\(filename)' exceeds maximum size of \(maxFileSize / 1024 / 1024)MB")
-                    }
-                    
-                    // Save the file using schedule ID as task ID (will be associated with the schedule)
-                    let savedURL = try await fileStorage.saveUploadedFile(
-                        data: part.data,
-                        filename: filename,
-                        taskId: scheduleId
-                    )
-                    filePaths.append(savedURL.path)
-                default:
-                    break
-                }
-            }
-        }
-        
-        // Parse schedule JSON
-        var schedule: APISchedule?
-        if let scheduleJSON = scheduleJSON, let scheduleData = scheduleJSON.data(using: .utf8) {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            schedule = try? decoder.decode(APISchedule.self, from: scheduleData)
-        }
-        
-        return ScheduleMultipartFormResult(
-            title: title,
-            description: description,
-            providerName: providerName,
-            modelId: modelId,
             outputDirectory: outputDirectory,
-            schedule: schedule,
-            filePaths: filePaths
-        )
-    }
-    
-    private struct MultipartPart {
-        let name: String?
-        let filename: String?
-        let data: Data
-    }
-    
-    private func parseMultipartData(data: Data, boundary: String) -> [MultipartPart] {
-        var parts: [MultipartPart] = []
-        let boundaryData = "--\(boundary)".data(using: .utf8)!
-        let endBoundaryData = "--\(boundary)--".data(using: .utf8)!
-        let crlfData = "\r\n".data(using: .utf8)!
-        let doubleCrlfData = "\r\n\r\n".data(using: .utf8)!
-        
-        var currentIndex = data.startIndex
-        
-        while currentIndex < data.endIndex {
-            // Find next boundary
-            guard let boundaryRange = data.range(of: boundaryData, in: currentIndex..<data.endIndex) else {
-                break
-            }
-            
-            // Move past boundary and CRLF
-            var partStart = boundaryRange.upperBound
-            if data[partStart..<min(partStart + 2, data.endIndex)] == crlfData {
-                partStart = data.index(partStart, offsetBy: 2)
-            }
-            
-            // Check for end boundary
-            if data[boundaryRange.lowerBound..<min(data.index(boundaryRange.lowerBound, offsetBy: endBoundaryData.count), data.endIndex)] == endBoundaryData {
-                break
-            }
-            
-            // Find headers/body separator
-            guard let headerEndRange = data.range(of: doubleCrlfData, in: partStart..<data.endIndex) else {
-                currentIndex = boundaryRange.upperBound
-                continue
-            }
-            
-            // Parse headers
-            let headersData = data[partStart..<headerEndRange.lowerBound]
-            let headersString = String(data: headersData, encoding: .utf8) ?? ""
-            
-            var name: String?
-            var filename: String?
-            
-            for line in headersString.split(separator: "\r\n") {
-                let lineStr = String(line)
-                if lineStr.lowercased().hasPrefix("content-disposition:") {
-                    // Parse Content-Disposition header
-                    if let nameMatch = lineStr.range(of: "name=\"") {
-                        let start = nameMatch.upperBound
-                        if let end = lineStr[start...].firstIndex(of: "\"") {
-                            name = String(lineStr[start..<end])
-                        }
-                    }
-                    if let filenameMatch = lineStr.range(of: "filename=\"") {
-                        let start = filenameMatch.upperBound
-                        if let end = lineStr[start...].firstIndex(of: "\"") {
-                            filename = String(lineStr[start..<end])
-                        }
-                    }
-                }
-            }
-            
-            // Find part end (next boundary)
-            let bodyStart = headerEndRange.upperBound
-            var bodyEnd = data.endIndex
-            
-            if let nextBoundaryRange = data.range(of: boundaryData, in: bodyStart..<data.endIndex) {
-                // Remove trailing CRLF before boundary
-                bodyEnd = nextBoundaryRange.lowerBound
-                if bodyEnd > bodyStart && data[data.index(bodyEnd, offsetBy: -2)..<bodyEnd] == crlfData {
-                    bodyEnd = data.index(bodyEnd, offsetBy: -2)
-                }
-            }
-            
-            let partData = data[bodyStart..<bodyEnd]
-            parts.append(MultipartPart(name: name, filename: filename, data: Data(partData)))
-            
-            currentIndex = bodyEnd
-        }
-        
-        return parts
-    }
-    
-    private func parseQueryItems(from urlString: String) -> [String: String] {
-        var items: [String: String] = [:]
-        
-        guard let queryStart = urlString.firstIndex(of: "?") else {
-            return items
-        }
-        
-        let queryString = String(urlString[urlString.index(after: queryStart)...])
-        let pairs = queryString.split(separator: "&")
-        
-        for pair in pairs {
-            let keyValue = pair.split(separator: "=", maxSplits: 1)
-            if keyValue.count == 2 {
-                let key = String(keyValue[0]).removingPercentEncoding ?? String(keyValue[0])
-                let value = String(keyValue[1]).removingPercentEncoding ?? String(keyValue[1])
-                items[key] = value
-            }
-        }
-        
-        return items
-    }
-    
-    private func createJSONResponse<T: Encodable>(_ value: T, status: HTTPResponse.Status = .ok) throws -> Response {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(value)
-        
-        var headers = HTTPFields()
-        headers[.contentType] = "application/json"
-        
-        return Response(
-            status: status,
-            headers: headers,
-            body: .init(byteBuffer: ByteBuffer(data: data))
+            planFirst: planFirst
         )
     }
 }

@@ -8,14 +8,19 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=12">
+    <link rel="stylesheet" href="/web/css/styles.css?v=24">
+    <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=12"></script>
+    <script defer src="/web/js/app.js?v=24"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
     <div id="app" x-data="hivecrew()" x-init="init()">
-        <!-- Auth Modal -->
+
+        <!-- ============================================================
+             Authentication Modal
+             ============================================================ -->
         <div class="modal-overlay" x-show="!apiKey" x-cloak>
             <div class="modal auth-modal">
                 <div class="modal-header">
@@ -41,10 +46,13 @@
             </div>
         </div>
 
-        <!-- Main App (shown when authenticated) -->
+        <!-- ============================================================
+             Main App (shown when authenticated)
+             ============================================================ -->
         <template x-if="apiKey">
             <div class="app-container">
-                <!-- Navigation -->
+
+                <!-- ---- Navigation ---- -->
                 <nav class="navbar">
                     <div class="nav-brand">
                         <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -70,6 +78,18 @@
                             Scheduled
                         </button>
                     </div>
+                    <div class="nav-status" x-show="systemStatus" x-cloak>
+                        <span class="nav-status-item">
+                            <span class="status-dot" :class="systemStatus?.runningAgents > 0 ? 'dot-active' : 'dot-idle'"></span>
+                            <span x-text="(systemStatus?.runningAgents || 0) + ' running'"></span>
+                        </span>
+                        <span class="nav-status-item">
+                            <span x-text="(systemStatus?.queuedAgents || 0) + ' queued'"></span>
+                        </span>
+                        <span class="nav-status-item">
+                            <span x-text="(systemStatus?.activeVMs || 0) + '/' + (systemStatus?.maxVMs || 0) + ' VMs'"></span>
+                        </span>
+                    </div>
                     <div class="nav-actions">
                         <button class="btn btn-primary" @click="openCreateModal()">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -88,14 +108,22 @@
                     </div>
                 </nav>
 
-                <!-- Tasks View -->
+                <!-- ============================================================
+                     Tasks View
+                     ============================================================ -->
                 <main class="main-content" x-show="view === 'tasks'">
                     <div class="content-header">
                         <h1>Tasks</h1>
                         <div class="filter-bar">
+                            <input
+                                type="text"
+                                x-model="searchQuery"
+                                placeholder="Search tasks..."
+                                class="filter-search"
+                            >
                             <select x-model="statusFilter" @change="loadTasks()">
                                 <option value="">All Status</option>
-                                <option value="queued,waiting_for_vm,running">Active</option>
+                                <option value="queued,waiting_for_vm,running,planning,plan_review">Active</option>
                                 <option value="completed">Completed</option>
                                 <option value="failed">Failed</option>
                                 <option value="cancelled">Cancelled</option>
@@ -110,6 +138,124 @@
                         </div>
                     </div>
 
+                    <!-- Quick Create Prompt Bar -->
+                    <div class="prompt-bar">
+                        <textarea
+                            class="prompt-input"
+                            x-model="quickTaskDescription"
+                            placeholder="Describe a task for the agent..."
+                            rows="1"
+                            @keydown.enter.meta.prevent="quickCreateTask()"
+                            @keydown.ctrl.enter.prevent="quickCreateTask()"
+                            @input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
+                            :disabled="quickCreating"
+                        ></textarea>
+
+                        <!-- Attached file chips -->
+                        <template x-if="quickFiles.length > 0">
+                            <div class="prompt-files">
+                                <template x-for="(file, i) in quickFiles" :key="i">
+                                    <span class="prompt-file-chip">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                        </svg>
+                                        <span x-text="file.name"></span>
+                                        <button type="button" @click="removeQuickFile(i)" title="Remove">&times;</button>
+                                    </span>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Toolbar -->
+                        <div class="prompt-toolbar">
+                            <!-- Attach files -->
+                            <label class="prompt-toolbar-btn" title="Attach files">
+                                <input type="file" multiple @change="handleQuickFileSelect($event)" class="prompt-file-input">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                                </svg>
+                            </label>
+
+                            <!-- Model selector -->
+                            <div class="prompt-model-select" @click.away="modelDropdownOpen = false">
+                                <button
+                                    type="button"
+                                    class="prompt-model-trigger"
+                                    @click="modelDropdownOpen = !modelDropdownOpen; if(modelDropdownOpen) $nextTick(() => $refs.modelSearch?.focus())"
+                                >
+                                    <span class="prompt-model-value" x-text="quickModelId || 'Select model...'"></span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+                                <div class="prompt-model-dropdown" x-show="modelDropdownOpen" x-cloak x-transition.opacity>
+                                    <input
+                                        type="text"
+                                        class="prompt-model-search"
+                                        x-ref="modelSearch"
+                                        x-model="modelSearchQuery"
+                                        placeholder="Search or enter model ID..."
+                                        @keydown.enter.prevent="selectCustomModel()"
+                                        @keydown.escape.prevent="modelDropdownOpen = false"
+                                    >
+                                    <div class="prompt-model-options">
+                                        <template x-for="model in filteredModels" :key="model.id">
+                                            <button
+                                                type="button"
+                                                class="prompt-model-option"
+                                                :class="{ selected: quickModelId === model.id }"
+                                                @click="selectModel(model.id)"
+                                            >
+                                                <span class="prompt-model-option-name" x-text="model.name"></span>
+                                                <span class="prompt-model-option-id" x-text="model.id"></span>
+                                            </button>
+                                        </template>
+                                        <template x-if="modelSearchQuery.trim() && filteredModels.length === 0">
+                                            <button type="button" class="prompt-model-option" @click="selectCustomModel()">
+                                                <span class="prompt-model-option-name">Use custom model</span>
+                                                <span class="prompt-model-option-id" x-text="modelSearchQuery.trim()"></span>
+                                            </button>
+                                        </template>
+                                        <template x-if="availableModels.length === 0 && !modelSearchQuery.trim()">
+                                            <div class="prompt-model-empty">Type a model ID and press Enter</div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Direct / Plan mode toggle -->
+                            <div class="prompt-mode-toggle">
+                                <button
+                                    type="button"
+                                    class="prompt-mode-btn"
+                                    :class="{ active: !quickPlanFirst }"
+                                    @click="setQuickMode(false)"
+                                >Direct</button>
+                                <button
+                                    type="button"
+                                    class="prompt-mode-btn"
+                                    :class="{ active: quickPlanFirst }"
+                                    @click="setQuickMode(true)"
+                                >Plan</button>
+                            </div>
+
+                            <!-- Run button -->
+                            <button
+                                class="btn btn-primary"
+                                @click="quickCreateTask()"
+                                :disabled="quickCreating || !quickTaskDescription.trim()"
+                            >
+                                <span x-show="quickCreating" x-cloak class="spinner-small"></span>
+                                <svg x-show="!quickCreating" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                                <span x-text="quickCreating ? 'Creating...' : 'Run'"></span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Loading State -->
                     <div class="loading-state" x-show="loading && tasks.length === 0">
                         <div class="spinner"></div>
@@ -117,7 +263,7 @@
                     </div>
 
                     <!-- Empty State -->
-                    <div class="empty-state" x-show="!loading && tasks.length === 0">
+                    <div class="empty-state" x-show="!loading && filteredTasks.length === 0">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
                             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                         </svg>
@@ -127,24 +273,40 @@
                     </div>
 
                     <!-- Task List -->
-                    <div class="task-list" x-show="tasks.length > 0">
-                        <template x-for="task in tasks" :key="task.id">
+                    <div class="task-list" x-show="filteredTasks.length > 0">
+                        <template x-for="task in filteredTasks" :key="task.id">
                             <div class="task-card" @click="openTaskDetail(task)">
                                 <div class="task-header">
-                                    <span class="task-status" :class="'status-' + task.status" x-text="formatStatus(task.status)"></span>
+                                    <template x-if="task.status === 'completed' && task.wasSuccessful === true">
+                                        <span class="task-status status-completed">Verified</span>
+                                    </template>
+                                    <template x-if="task.status === 'completed' && task.wasSuccessful === false">
+                                        <span class="task-status status-failed">Incomplete</span>
+                                    </template>
+                                    <template x-if="!(task.status === 'completed' && (task.wasSuccessful === true || task.wasSuccessful === false))">
+                                        <span class="task-status" :class="'status-' + task.status" x-text="formatStatus(task.status)"></span>
+                                    </template>
                                     <span class="task-time" x-text="formatDate(task.createdAt)"></span>
                                 </div>
                                 <h3 class="task-title" x-text="task.title"></h3>
                                 <div class="task-meta">
                                     <span class="task-model" x-text="task.modelId"></span>
                                     <span class="task-provider" x-text="task.providerName"></span>
+                                    <template x-if="['running', 'planning', 'queued', 'waiting_for_vm'].includes(task.status)">
+                                        <span class="task-elapsed" x-text="formatElapsed(task.startedAt || task.createdAt)"></span>
+                                    </template>
+                                    <template x-if="task.duration && ['completed', 'failed', 'timed_out', 'max_iterations'].includes(task.status)">
+                                        <span class="task-duration" x-text="formatDuration(task.duration)"></span>
+                                    </template>
                                 </div>
                             </div>
                         </template>
                     </div>
                 </main>
 
-                <!-- Scheduled Tasks View -->
+                <!-- ============================================================
+                     Scheduled Tasks View
+                     ============================================================ -->
                 <main class="main-content" x-show="view === 'scheduled'">
                     <div class="content-header">
                         <h1>Scheduled Tasks</h1>
@@ -210,7 +372,9 @@
                     </div>
                 </main>
 
-                <!-- Create/Schedule Task Modal -->
+                <!-- ============================================================
+                     Create / Schedule Task Modal
+                     ============================================================ -->
                 <div class="modal-overlay" x-show="showCreateModal" x-cloak @click.self="closeCreateModal()">
                     <div class="modal create-modal">
                         <div class="modal-header">
@@ -306,6 +470,21 @@
                                     </div>
                                 </template>
                             </div>
+
+                            <!-- Plan First Toggle (non-scheduled tasks only) -->
+                            <template x-if="!isScheduling">
+                                <div class="form-group checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input 
+                                            type="checkbox" 
+                                            x-model="newTask.planFirst"
+                                        >
+                                        <span class="checkbox-toggle"></span>
+                                        <span class="checkbox-text">Plan first</span>
+                                    </label>
+                                    <p class="form-hint">Generate a plan for review before executing the task</p>
+                                </div>
+                            </template>
 
                             <!-- Schedule Options (when scheduling) -->
                             <template x-if="isScheduling">
@@ -408,9 +587,11 @@
                     </div>
                 </div>
 
-                <!-- Task Detail Modal -->
+                <!-- ============================================================
+                     Task Detail Modal
+                     ============================================================ -->
                 <div class="modal-overlay" x-show="selectedTask" x-cloak @click.self="closeTaskDetail()">
-                    <div class="modal detail-modal" x-show="selectedTask">
+                    <div class="modal detail-modal" :class="{ 'is-active': isActiveStatus(selectedTask?.status), 'is-plan-review': isPlanReviewStatus(selectedTask?.status) }" x-show="selectedTask">
                         <div class="modal-header">
                             <div class="detail-header-content">
                                 <span class="task-status" :class="'status-' + selectedTask?.status" x-text="formatStatus(selectedTask?.status)"></span>
@@ -424,134 +605,368 @@
                             </button>
                         </div>
                         <div class="modal-body" x-show="selectedTask">
-                            <!-- Task Description -->
-                            <div class="detail-section">
-                                <h4>Description</h4>
-                                <p class="detail-description" x-text="selectedTask?.description"></p>
-                            </div>
 
-                            <!-- Task Info Grid -->
-                            <div class="detail-grid">
-                                <div class="detail-item">
-                                    <span class="detail-label">Provider</span>
-                                    <span class="detail-value" x-text="selectedTask?.providerName"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Model</span>
-                                    <span class="detail-value" x-text="selectedTask?.modelId"></span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Created</span>
-                                    <span class="detail-value" x-text="formatDateTime(selectedTask?.createdAt)"></span>
-                                </div>
-                                <template x-if="selectedTask?.startedAt">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Started</span>
-                                        <span class="detail-value" x-text="formatDateTime(selectedTask?.startedAt)"></span>
-                                    </div>
-                                </template>
-                                <template x-if="selectedTask?.completedAt">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Completed</span>
-                                        <span class="detail-value" x-text="formatDateTime(selectedTask?.completedAt)"></span>
-                                    </div>
-                                </template>
-                                <template x-if="selectedTask?.duration">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Duration</span>
-                                        <span class="detail-value" x-text="formatDuration(selectedTask?.duration)"></span>
-                                    </div>
-                                </template>
-                                <template x-if="selectedTask?.stepCount">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Steps</span>
-                                        <span class="detail-value" x-text="selectedTask?.stepCount"></span>
-                                    </div>
-                                </template>
-                                <template x-if="selectedTask?.tokenUsage">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Tokens</span>
-                                        <span class="detail-value" x-text="selectedTask?.tokenUsage?.total?.toLocaleString()"></span>
-                                    </div>
-                                </template>
-                            </div>
+                            <!-- ========== PLAN REVIEW: Full-width plan layout ========== -->
+                            <template x-if="isPlanReviewStatus(selectedTask?.status)">
+                                <div class="plan-review-layout">
+                                    <!-- Planning indicator -->
+                                    <template x-if="selectedTask?.status === 'planning'">
+                                        <div class="plan-generating">
+                                            <div class="spinner"></div>
+                                            <span>Generating plan...</span>
+                                        </div>
+                                    </template>
 
-                            <!-- Result Summary -->
-                            <template x-if="selectedTask?.resultSummary">
-                                <div class="detail-section">
-                                    <h4>Result</h4>
-                                    <p class="detail-result" x-text="selectedTask?.resultSummary"></p>
+                                    <!-- Rendered plan -->
+                                    <template x-if="selectedTask?.planMarkdown">
+                                        <div class="plan-review-body">
+                                            <div class="plan-review-header">
+                                                <div class="plan-review-title">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                                    </svg>
+                                                    <h3>PLAN</h3>
+                                                </div>
+                                                <template x-if="selectedTask?.status === 'plan_review' && !planEditing">
+                                                    <button class="btn btn-icon btn-small" @click="planEditing = true; editedPlanMarkdown = selectedTask?.planMarkdown || ''" title="Edit plan">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                                        </svg>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                            <template x-if="!planEditing">
+                                                <div class="plan-rendered" x-html="renderMarkdown(selectedTask?.planMarkdown)"></div>
+                                            </template>
+                                            <template x-if="planEditing">
+                                                <div class="plan-edit">
+                                                    <textarea class="plan-textarea" x-model="editedPlanMarkdown" rows="16"></textarea>
+                                                    <div class="plan-edit-actions">
+                                                        <button class="btn btn-secondary btn-small" @click="planEditing = false">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <!-- Task description (compact, below plan) -->
+                                    <div class="detail-section plan-review-description">
+                                        <p class="detail-description" x-text="selectedTask?.description"></p>
+                                    </div>
                                 </div>
                             </template>
 
-                            <!-- Error Message -->
-                            <template x-if="selectedTask?.errorMessage">
-                                <div class="detail-section error-section">
-                                    <h4>Error</h4>
-                                    <p class="detail-error" x-text="selectedTask?.errorMessage"></p>
-                                </div>
-                            </template>
+                            <!-- ========== ACTIVE TASK: Two-column layout ========== -->
+                            <template x-if="isActiveStatus(selectedTask?.status)">
+                                <div class="detail-body-columns">
+                                    <!-- Left column: Screenshot + Banners -->
+                                    <div class="detail-left-column">
+                                        <!-- Live Screenshot -->
+                                        <template x-if="screenshotUrl">
+                                            <div class="screenshot-section">
+                                                <img :src="screenshotUrl" class="task-screenshot" alt="VM Screenshot">
+                                            </div>
+                                        </template>
+                                        <template x-if="!screenshotUrl">
+                                            <div class="screenshot-placeholder">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                                                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                                                </svg>
+                                                <span>Waiting for screenshot...</span>
+                                            </div>
+                                        </template>
 
-                            <!-- Output Files -->
-                            <template x-if="selectedTask?.outputFiles?.length > 0">
-                                <div class="detail-section">
-                                    <h4>Output Files</h4>
-                                    <div class="file-list">
-                                        <template x-for="file in selectedTask?.outputFiles" :key="file.name">
-                                            <div class="file-item downloadable" @click="downloadFile(selectedTask?.id, file.name)">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                                </svg>
-                                                <span class="file-name" x-text="file.name"></span>
-                                                <span class="file-size" x-text="formatFileSize(file.size)"></span>
-                                                <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                    <polyline points="7 10 12 15 17 10"></polyline>
-                                                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                                                </svg>
+                                        <!-- Description (compact) -->
+                                        <div class="detail-section">
+                                            <p class="detail-description" x-text="selectedTask?.description"></p>
+                                        </div>
+
+                                        <!-- Pending Agent Question Banner -->
+                                        <template x-if="selectedTask?.pendingQuestion">
+                                            <div class="question-banner">
+                                                <div class="question-banner-header">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                                                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                                    </svg>
+                                                    <span class="question-banner-label">Agent Question</span>
+                                                </div>
+                                                <p class="question-banner-text" x-text="selectedTask.pendingQuestion.question"></p>
+                                                <template x-if="selectedTask.pendingQuestion.suggestedAnswers?.length > 0">
+                                                    <div class="question-banner-suggestions">
+                                                        <template x-for="(suggestion, i) in selectedTask.pendingQuestion.suggestedAnswers" :key="i">
+                                                            <button class="btn btn-secondary btn-small" @click="submitAnswer(suggestion)" :disabled="actionLoading" x-text="suggestion"></button>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                                <div class="question-banner-input">
+                                                    <input type="text" class="action-bar-input" x-model="answerText" placeholder="Type your answer..." @keydown.enter="submitAnswer()" :disabled="actionLoading">
+                                                    <button class="btn btn-primary" @click="submitAnswer()" :disabled="actionLoading || !answerText.trim()">
+                                                        <span x-text="actionLoading ? 'Sending...' : 'Answer'"></span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        <!-- Pending Permission Request Banner -->
+                                        <template x-if="selectedTask?.pendingPermission">
+                                            <div class="permission-banner">
+                                                <div class="permission-banner-header">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                                    </svg>
+                                                    <span class="permission-banner-label">Permission Required</span>
+                                                </div>
+                                                <p class="permission-banner-tool" x-text="selectedTask.pendingPermission.toolName"></p>
+                                                <p class="permission-banner-details" x-text="selectedTask.pendingPermission.details"></p>
+                                                <div class="permission-banner-actions">
+                                                    <button class="btn btn-primary" @click="approvePermission()" :disabled="actionLoading">Approve</button>
+                                                    <button class="btn btn-danger" @click="denyPermission()" :disabled="actionLoading">Deny</button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    <!-- Right column: Event Log -->
+                                    <div class="event-log">
+                                        <template x-if="taskEvents.length === 0">
+                                            <div class="event-log-empty">
+                                                <div class="spinner"></div>
+                                                <span>Connecting to event stream...</span>
+                                            </div>
+                                        </template>
+                                        <template x-for="(evt, idx) in taskEvents" :key="idx">
+                                            <div class="event-entry" :class="'event-type-' + (evt.data?.activityType || evt.type)">
+                                                <div class="event-entry-icon">
+                                                    <!-- Tool call -->
+                                                    <template x-if="evt.data?.activityType === 'tool_call'">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                                                        </svg>
+                                                    </template>
+                                                    <!-- Tool result -->
+                                                    <template x-if="evt.data?.activityType === 'tool_result'">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                                        </svg>
+                                                    </template>
+                                                    <!-- LLM request/response -->
+                                                    <template x-if="evt.data?.activityType === 'llm_request' || evt.data?.activityType === 'llm_response'">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                                        </svg>
+                                                    </template>
+                                                    <!-- Screenshot/observation -->
+                                                    <template x-if="evt.data?.activityType === 'observation'">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                                                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                                                        </svg>
+                                                    </template>
+                                                    <!-- Error -->
+                                                    <template x-if="evt.data?.activityType === 'error'">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <line x1="15" y1="9" x2="9" y2="15"></line>
+                                                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                                                        </svg>
+                                                    </template>
+                                                    <!-- Info / status / other -->
+                                                    <template x-if="!['tool_call','tool_result','llm_request','llm_response','observation','error'].includes(evt.data?.activityType)">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                            <circle cx="12" cy="12" r="10"></circle>
+                                                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                                                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                                        </svg>
+                                                    </template>
+                                                </div>
+                                                <div class="event-entry-content">
+                                                    <span class="event-entry-summary" x-text="evt.data?.summary || evt.type"></span>
+                                                    <template x-if="evt.data?.details">
+                                                        <p class="event-entry-details" x-text="evt.data.details"></p>
+                                                    </template>
+                                                    <template x-if="evt.data?.reasoning">
+                                                        <div class="event-entry-reasoning" x-text="evt.data.reasoning"></div>
+                                                    </template>
+                                                </div>
+                                                <span class="event-entry-time" x-text="formatEventTime(evt.timestamp)"></span>
                                             </div>
                                         </template>
                                     </div>
                                 </div>
                             </template>
 
-                            <!-- Input Files -->
-                            <template x-if="selectedTask?.inputFiles?.length > 0">
-                                <div class="detail-section">
-                                    <h4>Input Files</h4>
-                                    <div class="file-list">
-                                        <template x-for="file in selectedTask?.inputFiles" :key="file.name">
-                                            <div class="file-item downloadable" @click="downloadFile(selectedTask?.id, file.name, true)">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                                </svg>
-                                                <span class="file-name" x-text="file.name"></span>
-                                                <span class="file-size" x-text="formatFileSize(file.size)"></span>
-                                                <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                                    <polyline points="7 10 12 15 17 10"></polyline>
-                                                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                                                </svg>
+                            <!-- ========== INACTIVE TASK: Single-column layout ========== -->
+                            <template x-if="!isActiveStatus(selectedTask?.status) && !isPlanReviewStatus(selectedTask?.status)">
+                                <div>
+                                    <!-- Task Description -->
+                                    <div class="detail-section">
+                                        <h4>Description</h4>
+                                        <p class="detail-description" x-text="selectedTask?.description"></p>
+                                    </div>
+
+                                    <!-- Plan Section (rendered markdown) -->
+                                    <template x-if="selectedTask?.planMarkdown">
+                                        <div class="detail-section plan-section">
+                                            <div class="plan-header">
+                                                <h4>Plan</h4>
+                                            </div>
+                                            <div class="plan-rendered" x-html="renderMarkdown(selectedTask?.planMarkdown)"></div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Task Info Grid -->
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Provider</span>
+                                            <span class="detail-value" x-text="selectedTask?.providerName"></span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Model</span>
+                                            <span class="detail-value" x-text="selectedTask?.modelId"></span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Created</span>
+                                            <span class="detail-value" x-text="formatDateTime(selectedTask?.createdAt)"></span>
+                                        </div>
+                                        <template x-if="selectedTask?.startedAt">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Started</span>
+                                                <span class="detail-value" x-text="formatDateTime(selectedTask?.startedAt)"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="selectedTask?.completedAt">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Completed</span>
+                                                <span class="detail-value" x-text="formatDateTime(selectedTask?.completedAt)"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="selectedTask?.duration">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Duration</span>
+                                                <span class="detail-value" x-text="formatDuration(selectedTask?.duration)"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="selectedTask?.stepCount">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Steps</span>
+                                                <span class="detail-value" x-text="selectedTask?.stepCount"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="selectedTask?.tokenUsage">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Tokens</span>
+                                                <span class="detail-value" x-text="selectedTask?.tokenUsage?.total?.toLocaleString()"></span>
+                                            </div>
+                                        </template>
+                                        <template x-if="selectedTask?.wasSuccessful !== null && selectedTask?.wasSuccessful !== undefined">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Verification</span>
+                                                <span class="detail-value" :style="selectedTask?.wasSuccessful ? 'color: var(--status-completed)' : 'color: var(--status-failed)'" x-text="selectedTask?.wasSuccessful ? 'Verified Complete' : 'Incomplete'"></span>
                                             </div>
                                         </template>
                                     </div>
+
+                                    <!-- Result Summary -->
+                                    <template x-if="selectedTask?.resultSummary">
+                                        <div class="detail-section">
+                                            <h4>Result</h4>
+                                            <p class="detail-result" x-text="selectedTask?.resultSummary"></p>
+                                        </div>
+                                    </template>
+
+                                    <!-- Error Message -->
+                                    <template x-if="selectedTask?.errorMessage">
+                                        <div class="detail-section error-section">
+                                            <h4>Error</h4>
+                                            <p class="detail-error" x-text="selectedTask?.errorMessage"></p>
+                                        </div>
+                                    </template>
+
+                                    <!-- Output Files -->
+                                    <template x-if="selectedTask?.outputFiles?.length > 0">
+                                        <div class="detail-section">
+                                            <h4>Output Files</h4>
+                                            <div class="file-list">
+                                                <template x-for="file in selectedTask?.outputFiles" :key="file.name">
+                                                    <div class="file-item downloadable" @click="downloadFile(selectedTask?.id, file.name)">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                                        </svg>
+                                                        <span class="file-name" x-text="file.name"></span>
+                                                        <span class="file-size" x-text="formatFileSize(file.size)"></span>
+                                                        <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                            <polyline points="7 10 12 15 17 10"></polyline>
+                                                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                        </svg>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Input Files -->
+                                    <template x-if="selectedTask?.inputFiles?.length > 0">
+                                        <div class="detail-section">
+                                            <h4>Input Files</h4>
+                                            <div class="file-list">
+                                                <template x-for="file in selectedTask?.inputFiles" :key="file.name">
+                                                    <div class="file-item downloadable" @click="downloadFile(selectedTask?.id, file.name, true)">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                                        </svg>
+                                                        <span class="file-name" x-text="file.name"></span>
+                                                        <span class="file-size" x-text="formatFileSize(file.size)"></span>
+                                                        <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                            <polyline points="7 10 12 15 17 10"></polyline>
+                                                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                                                        </svg>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </template>
                         </div>
                         <div class="modal-footer" x-show="selectedTask">
                             <!-- Actions based on status -->
                             <template x-if="selectedTask?.status === 'running'">
-                                <div class="action-buttons">
-                                    <button class="btn btn-secondary" @click="pauseTask()" :disabled="actionLoading">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                            <rect x="6" y="4" width="4" height="16"></rect>
-                                            <rect x="14" y="4" width="4" height="16"></rect>
-                                        </svg>
-                                        Pause
-                                    </button>
-                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                <div class="action-buttons action-bar-full">
+                                    <div class="action-bar-row">
+                                        <input
+                                            type="text"
+                                            class="action-bar-input"
+                                            x-model="instructionsText"
+                                            placeholder="Send instructions to agent..."
+                                            @keydown.enter="sendInstructions()"
+                                            :disabled="actionLoading"
+                                        >
+                                        <button class="btn btn-primary" @click="sendInstructions()" :disabled="actionLoading || !instructionsText.trim()">Send</button>
+                                    </div>
+                                    <div class="action-bar-row">
+                                        <button class="btn btn-secondary" @click="pauseTask()" :disabled="actionLoading">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <rect x="6" y="4" width="4" height="16"></rect>
+                                                <rect x="14" y="4" width="4" height="16"></rect>
+                                            </svg>
+                                            Pause
+                                        </button>
+                                        <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                    </div>
                                 </div>
                             </template>
                             <template x-if="selectedTask?.status === 'paused'">
@@ -570,12 +985,52 @@
                                     <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
                                 </div>
                             </template>
+                            <template x-if="selectedTask?.status === 'plan_review'">
+                                <div class="action-buttons">
+                                    <template x-if="!planEditing">
+                                        <button class="btn btn-primary" @click="approvePlan()" :disabled="actionLoading">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                            Approve Plan
+                                        </button>
+                                    </template>
+                                    <template x-if="planEditing">
+                                        <button class="btn btn-primary" @click="savePlanEdits()" :disabled="actionLoading">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                            Save &amp; Approve
+                                        </button>
+                                    </template>
+                                    <button class="btn btn-danger" @click="cancelPlan()" :disabled="actionLoading">Cancel Plan</button>
+                                </div>
+                            </template>
+                            <template x-if="selectedTask?.status === 'planning'">
+                                <div class="action-buttons">
+                                    <button class="btn btn-danger" @click="cancelTask()" :disabled="actionLoading">Cancel</button>
+                                </div>
+                            </template>
+                            <template x-if="['completed', 'failed', 'cancelled', 'timed_out', 'max_iterations'].includes(selectedTask?.status)">
+                                <div class="action-buttons">
+                                    <button class="btn btn-primary" @click="rerunTask()" :disabled="actionLoading">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="23 4 23 10 17 10"></polyline>
+                                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                        </svg>
+                                        Rerun
+                                    </button>
+                                    <button class="btn btn-danger" @click="deleteTask()" :disabled="actionLoading">Delete</button>
+                                </div>
+                            </template>
                             <button class="btn btn-secondary" @click="closeTaskDetail()">Close</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Schedule Detail Modal -->
+                <!-- ============================================================
+                     Schedule Detail Modal
+                     ============================================================ -->
                 <div class="modal-overlay" x-show="selectedSchedule" x-cloak @click.self="closeScheduleDetail()">
                     <div class="modal detail-modal" x-show="selectedSchedule">
                         <div class="modal-header">
@@ -653,7 +1108,9 @@
                     </div>
                 </div>
 
-                <!-- Toast Notifications -->
+                <!-- ============================================================
+                     Toast Notifications
+                     ============================================================ -->
                 <div class="toast-container">
                     <template x-for="toast in toasts" :key="toast.id">
                         <div class="toast" :class="'toast-' + toast.type" x-show="toast.visible" x-transition>

@@ -8,6 +8,11 @@ console.log('[Hivecrew] app.js loaded');
 document.addEventListener('alpine:init', () => {
     console.log('[Hivecrew] Alpine initializing...');
     Alpine.data('hivecrew', () => ({
+
+        // -------------------------------------------------------------------
+        // --- Data Properties ------------------------------------------------
+        // -------------------------------------------------------------------
+
         // Authentication
         apiKey: localStorage.getItem('hivecrew_api_key') || '',
         apiKeyInput: '',
@@ -22,6 +27,14 @@ document.addEventListener('alpine:init', () => {
         selectedTask: null,
         loading: false,
         statusFilter: '',
+        searchQuery: '',
+        
+        // Quick Create
+        quickTaskDescription: '',
+        quickCreating: false,
+        quickPlanFirst: localStorage.getItem('hivecrew_plan_first') === 'true',
+        quickFiles: [],
+        quickModelId: localStorage.getItem('hivecrew_model_id') || '',
         
         // Create Task
         showCreateModal: false,
@@ -33,6 +46,7 @@ document.addEventListener('alpine:init', () => {
             description: '',
             providerId: '',
             modelId: '',
+            planFirst: false,
             isRecurring: false,
             scheduleDate: '',
             scheduleTime: '09:00',
@@ -42,26 +56,75 @@ document.addEventListener('alpine:init', () => {
             files: [] // Supports both immediate and scheduled tasks
         },
         
+        // Plan review
+        editedPlanMarkdown: '',
+        planEditing: false,
+        
         // Selected schedule (for detail view)
         selectedSchedule: null,
         
         // Providers & Models
         providers: [],
+        availableModels: [],
+        modelDropdownOpen: false,
+        modelSearchQuery: '',
+        
+        // System Status
+        systemStatus: null,
+        
+        // Screenshot
+        screenshotUrl: '',
+        screenshotTimer: null,
+        
+        // Event Stream (polling)
+        taskEvents: [],
+        eventSince: 0,
+        eventTimer: null,
         
         // Task Actions
         actionLoading: false,
+        instructionsText: '',
+        answerText: '',
         
         // Toasts
         toasts: [],
         toastId: 0,
         
-        // Auto-refresh
-        refreshInterval: null,
-        
-        // Initialize
+        // Auto-refresh & elapsed time
+        refreshTimer: null,
+        tickInterval: null,
+        now: Date.now(),
+
+        // -------------------------------------------------------------------
+        // --- Initialization & Persistence ----------------------------------
+        // -------------------------------------------------------------------
+
         async init() {
             console.log('[Hivecrew] Component init() called, apiKey:', this.apiKey ? 'present' : 'missing');
             this.creating = false;
+            
+            // Initialize Mermaid for diagram rendering
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+                    securityLevel: 'loose'
+                });
+            }
+            
+            // Configure marked to preserve mermaid code blocks with a recognizable class
+            if (typeof marked !== 'undefined') {
+                const renderer = new marked.Renderer();
+                const originalCode = renderer.code?.bind(renderer);
+                renderer.code = function({ text, lang }) {
+                    if (lang === 'mermaid') {
+                        return '<pre><code class="language-mermaid">' + text + '</code></pre>';
+                    }
+                    const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return '<pre><code' + (lang ? ' class="language-' + lang + '"' : '') + '>' + escaped + '</code></pre>';
+                };
+                marked.setOptions({ renderer, breaks: false, gfm: true });
+            }
             if (this.apiKey) {
                 await this.loadInitialData();
                 this.startAutoRefresh();
@@ -77,10 +140,10 @@ document.addEventListener('alpine:init', () => {
             console.log('[Hivecrew] Component init() complete');
         },
         
-        // Persist model selection
         saveModelSelection() {
             if (this.newTask.modelId) {
                 localStorage.setItem('hivecrew_model_id', this.newTask.modelId);
+                this.quickModelId = this.newTask.modelId;
             }
         },
         
@@ -100,10 +163,14 @@ document.addEventListener('alpine:init', () => {
             
             if (savedModelId) {
                 this.newTask.modelId = savedModelId;
+                this.quickModelId = savedModelId;
             }
         },
-        
-        // Authentication
+
+        // -------------------------------------------------------------------
+        // --- Authentication ------------------------------------------------
+        // -------------------------------------------------------------------
+
         async saveApiKey() {
             if (!this.apiKeyInput) return;
             
@@ -150,36 +217,56 @@ document.addEventListener('alpine:init', () => {
             this.providers = [];
             this.models = [];
         },
-        
-        // API Helpers
+
+        // -------------------------------------------------------------------
+        // --- API Helpers ---------------------------------------------------
+        // -------------------------------------------------------------------
+
+        /**
+         * Authenticated fetch wrapper.
+         *
+         * Adds the Authorization header to every request and sets
+         * Content-Type to application/json unless the caller supplies
+         * a FormData body (in which case the browser sets the correct
+         * multipart Content-Type automatically).
+         */
         async apiFetch(endpoint, options = {}) {
             console.log('[Hivecrew] apiFetch:', options.method || 'GET', endpoint);
             
+            const headers = {
+                'Authorization': `Bearer ${this.apiKey}`,
+                ...options.headers
+            };
+            
+            // Only set Content-Type for non-FormData bodies
+            const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+            if (!isFormData && !headers['Content-Type']) {
+                headers['Content-Type'] = 'application/json';
+            }
+            
             const response = await fetch(endpoint, {
                 ...options,
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                }
+                headers
             });
             
             console.log('[Hivecrew] apiFetch response:', response.status, endpoint);
             
             if (response.status === 401) {
-                this.logout();
-                this.authError = 'Session expired. Please log in again.';
                 throw new Error('Unauthorized');
             }
             
             return response;
         },
-        
-        // Data Loading
+
+        // -------------------------------------------------------------------
+        // --- Data Loading --------------------------------------------------
+        // -------------------------------------------------------------------
+
         async loadInitialData() {
             await Promise.all([
                 this.loadTasks(),
-                this.loadProviders()
+                this.loadProviders(),
+                this.loadSystemStatus()
             ]);
         },
         
@@ -203,6 +290,23 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
+        get filteredTasks() {
+            if (!this.searchQuery.trim()) return this.tasks;
+            const q = this.searchQuery.toLowerCase();
+            return this.tasks.filter(t =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.modelId && t.modelId.toLowerCase().includes(q))
+            );
+        },
+        
+        get filteredModels() {
+            if (!this.modelSearchQuery.trim()) return this.availableModels;
+            const q = this.modelSearchQuery.toLowerCase();
+            return this.availableModels.filter(m =>
+                m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)
+            );
+        },
+        
         async loadScheduledTasks() {
             this.loading = true;
             try {
@@ -215,6 +319,18 @@ document.addEventListener('alpine:init', () => {
                 console.error('Failed to load scheduled tasks:', error);
             } finally {
                 this.loading = false;
+            }
+        },
+        
+        async loadSystemStatus() {
+            try {
+                const response = await this.apiFetch('/api/v1/system/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.systemStatus = data;
+                }
+            } catch (error) {
+                console.error('Failed to load system status:', error);
             }
         },
         
@@ -232,59 +348,118 @@ document.addEventListener('alpine:init', () => {
                             this.newTask.providerId = defaultProvider.id;
                         }
                     }
+                    
+                    // Load models for the active provider
+                    const activeProvider = this.getActiveProvider();
+                    if (activeProvider) {
+                        await this.loadModelsForProvider(activeProvider.id);
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load providers:', error);
             }
         },
         
-        // Auto-refresh
+        getActiveProvider() {
+            const savedId = localStorage.getItem('hivecrew_provider_id');
+            return (savedId && this.providers.find(p => p.id === savedId))
+                || this.providers.find(p => p.isDefault)
+                || this.providers[0]
+                || null;
+        },
+        
+        async loadModelsForProvider(providerId) {
+            try {
+                const response = await this.apiFetch(`/api/v1/providers/${providerId}/models`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.availableModels = data.models || [];
+                }
+            } catch (error) {
+                console.error('Failed to load models:', error);
+            }
+        },
+
+        // -------------------------------------------------------------------
+        // --- Auto-refresh --------------------------------------------------
+        // -------------------------------------------------------------------
+
         startAutoRefresh() {
             this.stopAutoRefresh();
-            this.refreshInterval = setInterval(async () => {
-                // Refresh the current view's list
+            
+            // 1-second tick for elapsed time display
+            this.now = Date.now();
+            this.tickInterval = setInterval(() => {
+                this.now = Date.now();
+            }, 1000);
+            
+            // Recursive setTimeout for adaptive API refresh
+            this.scheduleRefresh();
+        },
+        
+        scheduleRefresh() {
+            const delay = this.hasActiveTasks() ? 3000 : 15000;
+            this.refreshTimer = setTimeout(async () => {
+                await this.loadSystemStatus();
                 if (this.view === 'tasks') {
                     await this.loadTasks();
-                    // Also refresh selected task details if viewing one
                     if (this.selectedTask) {
                         await this.refreshSelectedTask();
                     }
                 } else if (this.view === 'scheduled') {
                     await this.loadScheduledTasks();
-                    // Also refresh selected schedule details if viewing one
                     if (this.selectedSchedule) {
                         await this.refreshSelectedSchedule();
                     }
                 }
-            }, 10000); // Refresh every 10 seconds
+                // Schedule next refresh (re-evaluates delay based on current state)
+                this.scheduleRefresh();
+            }, delay);
         },
         
-        // Refresh selected task without closing the modal
         async refreshSelectedTask() {
             if (!this.selectedTask) return;
             try {
-                const response = await fetch(`/api/v1/tasks/${this.selectedTask.id}`, {
-                    headers: { 'Authorization': `Bearer ${this.apiKey}` }
-                });
+                const response = await this.apiFetch(`/api/v1/tasks/${this.selectedTask.id}`);
                 if (response.ok) {
-                    const data = await response.json();
-                    this.selectedTask = data.task;
+                    const wasActive = this.isActiveStatus(this.selectedTask?.status);
+                    const oldPlan = this.selectedTask?.planMarkdown;
+                    this.selectedTask = await response.json();
+                    const isActive = this.isActiveStatus(this.selectedTask?.status);
+                    
+                    // Sync plan markdown if not actively editing
+                    if (!this.planEditing) {
+                        this.editedPlanMarkdown = this.selectedTask?.planMarkdown || '';
+                    }
+                    
+                    // Start/stop screenshot polling and event stream on status change
+                    if (!wasActive && isActive) {
+                        this.startScreenshotPolling();
+                        this.startEventStream(this.selectedTask.id);
+                    } else if (wasActive && !isActive) {
+                        this.stopScreenshotPolling();
+                        this.stopEventStream();
+                    }
+                    
+                    // Re-render Mermaid if plan changed
+                    if (this.selectedTask?.planMarkdown && this.selectedTask.planMarkdown !== oldPlan) {
+                        this.$nextTick(() => {
+                            const planEl = document.querySelector('.plan-rendered');
+                            this.renderMermaidDiagrams(planEl);
+                        });
+                    }
                 }
             } catch (error) {
                 console.error('Failed to refresh task:', error);
             }
         },
         
-        // Refresh selected schedule without closing the modal
         async refreshSelectedSchedule() {
             if (!this.selectedSchedule) return;
             try {
-                const response = await fetch(`/api/v1/schedules/${this.selectedSchedule.id}`, {
-                    headers: { 'Authorization': `Bearer ${this.apiKey}` }
-                });
+                const response = await this.apiFetch(`/api/v1/schedules/${this.selectedSchedule.id}`);
                 if (response.ok) {
-                    const data = await response.json();
-                    this.selectedSchedule = data.schedule;
+                    this.selectedSchedule = await response.json();
                 }
             } catch (error) {
                 console.error('Failed to refresh schedule:', error);
@@ -292,13 +467,139 @@ document.addEventListener('alpine:init', () => {
         },
         
         stopAutoRefresh() {
-            if (this.refreshInterval) {
-                clearInterval(this.refreshInterval);
-                this.refreshInterval = null;
+            if (this.refreshTimer) {
+                clearTimeout(this.refreshTimer);
+                this.refreshTimer = null;
+            }
+            if (this.tickInterval) {
+                clearInterval(this.tickInterval);
+                this.tickInterval = null;
             }
         },
         
-        // Create Task Modal
+        hasActiveTasks() {
+            return this.tasks.some(t => ['running', 'queued', 'waiting_for_vm', 'planning', 'plan_review'].includes(t.status));
+        },
+
+        // -------------------------------------------------------------------
+        // --- Quick Create --------------------------------------------------
+        // -------------------------------------------------------------------
+
+        saveQuickModelSelection() {
+            if (this.quickModelId) {
+                localStorage.setItem('hivecrew_model_id', this.quickModelId);
+                this.newTask.modelId = this.quickModelId;
+            }
+        },
+        
+        selectModel(modelId) {
+            this.quickModelId = modelId;
+            this.modelDropdownOpen = false;
+            this.modelSearchQuery = '';
+            this.saveQuickModelSelection();
+        },
+        
+        selectCustomModel() {
+            const custom = this.modelSearchQuery.trim();
+            if (custom) {
+                this.quickModelId = custom;
+                this.modelDropdownOpen = false;
+                this.modelSearchQuery = '';
+                this.saveQuickModelSelection();
+            }
+        },
+        
+        setQuickMode(planFirst) {
+            this.quickPlanFirst = planFirst;
+            localStorage.setItem('hivecrew_plan_first', planFirst ? 'true' : 'false');
+        },
+        
+        handleQuickFileSelect(event) {
+            const files = Array.from(event.target.files);
+            this.quickFiles = [...this.quickFiles, ...files];
+            event.target.value = '';
+        },
+        
+        removeQuickFile(index) {
+            this.quickFiles.splice(index, 1);
+        },
+        
+        async quickCreateTask() {
+            if (this.quickCreating) return;
+            const description = this.quickTaskDescription.trim();
+            if (!description) return;
+            
+            // Resolve provider: persisted → default → first available
+            const savedProviderId = localStorage.getItem('hivecrew_provider_id');
+            const provider = (savedProviderId && this.providers.find(p => p.id === savedProviderId))
+                || this.providers.find(p => p.isDefault)
+                || this.providers[0];
+            
+            if (!provider) {
+                this.showToast('No providers configured. Add one in the Hivecrew app.', 'error');
+                return;
+            }
+            
+            const modelId = this.quickModelId.trim();
+            if (!modelId) {
+                this.showToast('Enter a model ID in the prompt bar.', 'error');
+                return;
+            }
+            
+            this.quickCreating = true;
+            
+            try {
+                const providerName = provider.displayName || provider.id;
+                let response;
+                
+                if (this.quickFiles.length > 0) {
+                    const formData = new FormData();
+                    formData.append('description', description);
+                    formData.append('providerName', providerName);
+                    formData.append('modelId', modelId);
+                    if (this.quickPlanFirst) {
+                        formData.append('planFirst', 'true');
+                    }
+                    for (const file of this.quickFiles) {
+                        formData.append('files', file);
+                    }
+                    response = await this.apiFetch('/api/v1/tasks', {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    response = await this.apiFetch('/api/v1/tasks', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            description,
+                            providerName,
+                            modelId,
+                            planFirst: this.quickPlanFirst
+                        })
+                    });
+                }
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || 'Failed to create task');
+                }
+                
+                this.quickTaskDescription = '';
+                this.quickFiles = [];
+                this.showToast('Task created', 'success');
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.quickCreating = false;
+            }
+        },
+
+        // -------------------------------------------------------------------
+        // --- Task Create Modal ---------------------------------------------
+        // -------------------------------------------------------------------
+
         openCreateModal() {
             this.showCreateModal = true;
             this.isScheduling = false;
@@ -322,7 +623,6 @@ document.addEventListener('alpine:init', () => {
             this.creating = false;
         },
         
-        // File handling for task creation
         handleFileSelect(event) {
             const files = Array.from(event.target.files);
             this.newTask.files = files;
@@ -352,6 +652,7 @@ document.addEventListener('alpine:init', () => {
                 description: '',
                 providerId: defaultProviderId,
                 modelId: savedModelId || '',
+                planFirst: false,
                 isRecurring: false,
                 scheduleDate: tomorrow.toISOString().split('T')[0],
                 scheduleTime: '09:00',
@@ -398,130 +699,9 @@ document.addEventListener('alpine:init', () => {
                 const providerName = provider?.displayName || this.newTask.providerId;
                 
                 if (this.isScheduling) {
-                    // Create a scheduled task via /api/v1/schedules
-                    const [hours, minutes] = this.newTask.scheduleTime.split(':').map(Number);
-                    
-                    // Build schedule object
-                    const schedule = {};
-                    if (this.newTask.isRecurring) {
-                        // Recurring schedule
-                        schedule.recurrence = {
-                            type: this.newTask.recurrenceType,
-                            hour: hours,
-                            minute: minutes
-                        };
-                        
-                        if (this.newTask.recurrenceType === 'weekly') {
-                            schedule.recurrence.daysOfWeek = this.newTask.daysOfWeek;
-                        } else if (this.newTask.recurrenceType === 'monthly') {
-                            schedule.recurrence.dayOfMonth = this.newTask.dayOfMonth;
-                        }
-                    } else {
-                        // One-time schedule
-                        const scheduledAt = new Date(`${this.newTask.scheduleDate}T${this.newTask.scheduleTime}:00`);
-                        schedule.scheduledAt = scheduledAt.toISOString();
-                    }
-                    
-                    let response;
-                    
-                    if (this.newTask.files.length > 0) {
-                        // Use FormData for file uploads
-                        const formData = new FormData();
-                        formData.append('title', this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50));
-                        formData.append('description', this.newTask.description.trim());
-                        formData.append('providerName', providerName);
-                        formData.append('modelId', this.newTask.modelId);
-                        formData.append('schedule', JSON.stringify(schedule));
-                        
-                        for (const file of this.newTask.files) {
-                            formData.append('files', file);
-                        }
-                        
-                        response = await fetch('/api/v1/schedules', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${this.apiKey}`
-                            },
-                            body: formData
-                        });
-                    } else {
-                        // Regular JSON request
-                        const body = {
-                            title: this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50),
-                            description: this.newTask.description.trim(),
-                            providerName: providerName,
-                            modelId: this.newTask.modelId,
-                            schedule: schedule
-                        };
-                        
-                        response = await this.apiFetch('/api/v1/schedules', {
-                            method: 'POST',
-                            body: JSON.stringify(body)
-                        });
-                    }
-                    
-                    if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.error?.message || 'Failed to create schedule');
-                    }
-                    
-                    this.closeCreateModal();
-                    this.showToast('Task scheduled successfully', 'success');
-                    this.view = 'scheduled';
-                    await this.loadScheduledTasks();
+                    await this._createScheduledTask(providerName);
                 } else {
-                    // Create an immediate task via /api/v1/tasks
-                    console.log('[Hivecrew] Creating immediate task...');
-                    
-                    const body = {
-                        description: this.newTask.description.trim(),
-                        providerName: providerName,
-                        modelId: this.newTask.modelId
-                    };
-                    
-                    let response;
-                    
-                    if (this.newTask.files.length > 0) {
-                        // Use FormData for file uploads
-                        console.log('[Hivecrew] Using FormData for file upload');
-                        const formData = new FormData();
-                        formData.append('description', body.description);
-                        formData.append('providerName', body.providerName);
-                        formData.append('modelId', body.modelId);
-                        
-                        for (const file of this.newTask.files) {
-                            formData.append('files', file);
-                        }
-                        
-                        response = await fetch('/api/v1/tasks', {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${this.apiKey}`
-                            },
-                            body: formData
-                        });
-                    } else {
-                        // Regular JSON request
-                        console.log('[Hivecrew] Sending JSON request:', body);
-                        response = await this.apiFetch('/api/v1/tasks', {
-                            method: 'POST',
-                            body: JSON.stringify(body)
-                        });
-                    }
-                    
-                    console.log('[Hivecrew] Response status:', response.status);
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        console.log('[Hivecrew] Error response:', errorData);
-                        throw new Error(errorData.error?.message || 'Failed to create task');
-                    }
-                    
-                    console.log('[Hivecrew] Task created successfully');
-                    this.closeCreateModal();
-                    this.showToast('Task created successfully', 'success');
-                    this.view = 'tasks';
-                    await this.loadTasks();
+                    await this._createImmediateTask(providerName);
                 }
                 
             } catch (error) {
@@ -533,9 +713,132 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        // Task Detail
+        /** @private Create a scheduled task via /api/v1/schedules */
+        async _createScheduledTask(providerName) {
+            const [hours, minutes] = this.newTask.scheduleTime.split(':').map(Number);
+            
+            // Build schedule object
+            const schedule = {};
+            if (this.newTask.isRecurring) {
+                schedule.recurrence = {
+                    type: this.newTask.recurrenceType,
+                    hour: hours,
+                    minute: minutes
+                };
+                
+                if (this.newTask.recurrenceType === 'weekly') {
+                    schedule.recurrence.daysOfWeek = this.newTask.daysOfWeek;
+                } else if (this.newTask.recurrenceType === 'monthly') {
+                    schedule.recurrence.dayOfMonth = this.newTask.dayOfMonth;
+                }
+            } else {
+                const scheduledAt = new Date(`${this.newTask.scheduleDate}T${this.newTask.scheduleTime}:00`);
+                schedule.scheduledAt = scheduledAt.toISOString();
+            }
+            
+            let response;
+            
+            if (this.newTask.files.length > 0) {
+                const formData = new FormData();
+                formData.append('title', this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50));
+                formData.append('description', this.newTask.description.trim());
+                formData.append('providerName', providerName);
+                formData.append('modelId', this.newTask.modelId);
+                formData.append('schedule', JSON.stringify(schedule));
+                
+                for (const file of this.newTask.files) {
+                    formData.append('files', file);
+                }
+                
+                response = await this.apiFetch('/api/v1/schedules', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                const body = {
+                    title: this.newTask.title.trim() || this.newTask.description.trim().substring(0, 50),
+                    description: this.newTask.description.trim(),
+                    providerName: providerName,
+                    modelId: this.newTask.modelId,
+                    schedule: schedule
+                };
+                
+                response = await this.apiFetch('/api/v1/schedules', {
+                    method: 'POST',
+                    body: JSON.stringify(body)
+                });
+            }
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error?.message || 'Failed to create schedule');
+            }
+            
+            this.closeCreateModal();
+            this.showToast('Task scheduled successfully', 'success');
+            this.view = 'scheduled';
+            await this.loadScheduledTasks();
+        },
+        
+        /** @private Create an immediate task via /api/v1/tasks */
+        async _createImmediateTask(providerName) {
+            console.log('[Hivecrew] Creating immediate task...');
+            
+            const body = {
+                description: this.newTask.description.trim(),
+                providerName: providerName,
+                modelId: this.newTask.modelId,
+                planFirst: this.newTask.planFirst || false
+            };
+            
+            let response;
+            
+            if (this.newTask.files.length > 0) {
+                console.log('[Hivecrew] Using FormData for file upload');
+                const formData = new FormData();
+                formData.append('description', body.description);
+                formData.append('providerName', body.providerName);
+                formData.append('modelId', body.modelId);
+                if (body.planFirst) {
+                    formData.append('planFirst', 'true');
+                }
+                
+                for (const file of this.newTask.files) {
+                    formData.append('files', file);
+                }
+                
+                response = await this.apiFetch('/api/v1/tasks', {
+                    method: 'POST',
+                    body: formData
+                });
+            } else {
+                console.log('[Hivecrew] Sending JSON request:', body);
+                response = await this.apiFetch('/api/v1/tasks', {
+                    method: 'POST',
+                    body: JSON.stringify(body)
+                });
+            }
+            
+            console.log('[Hivecrew] Response status:', response.status);
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.log('[Hivecrew] Error response:', errorData);
+                throw new Error(errorData.error?.message || 'Failed to create task');
+            }
+            
+            console.log('[Hivecrew] Task created successfully');
+            this.closeCreateModal();
+            this.showToast('Task created successfully', 'success');
+            this.view = 'tasks';
+            await this.loadTasks();
+        },
+
+        // -------------------------------------------------------------------
+        // --- Task Detail ---------------------------------------------------
+        // -------------------------------------------------------------------
+
         async openTaskDetail(task) {
-            // Load full task details
             try {
                 const response = await this.apiFetch(`/api/v1/tasks/${task.id}`);
                 if (response.ok) {
@@ -546,11 +849,168 @@ document.addEventListener('alpine:init', () => {
             } catch (error) {
                 this.selectedTask = task;
             }
+            // Initialize editing state
+            this.editedPlanMarkdown = this.selectedTask?.planMarkdown || '';
+            this.planEditing = false;
+            this.answerText = '';
+            
+            // Start screenshot polling and event stream for active tasks
+            if (this.isActiveStatus(this.selectedTask?.status)) {
+                this.startScreenshotPolling();
+                this.startEventStream(this.selectedTask.id);
+            }
+            
+            // Render Mermaid diagrams after DOM update
+            if (this.selectedTask?.planMarkdown) {
+                this.$nextTick(() => {
+                    const planEl = document.querySelector('.plan-rendered');
+                    this.renderMermaidDiagrams(planEl);
+                });
+            }
         },
         
-        // Schedule Detail
+        closeTaskDetail() {
+            this.selectedTask = null;
+            this.stopScreenshotPolling();
+            this.stopEventStream();
+        },
+        
+        isActiveStatus(status) {
+            return ['running', 'queued', 'waiting_for_vm'].includes(status);
+        },
+        
+        isPlanReviewStatus(status) {
+            return ['planning', 'plan_review'].includes(status);
+        },
+        
+        startScreenshotPolling() {
+            this.stopScreenshotPolling();
+            this.refreshScreenshot();
+            this.screenshotTimer = setInterval(() => {
+                this.refreshScreenshot();
+            }, 2000);
+        },
+        
+        stopScreenshotPolling() {
+            if (this.screenshotTimer) {
+                clearInterval(this.screenshotTimer);
+                this.screenshotTimer = null;
+            }
+            if (this.screenshotUrl) {
+                URL.revokeObjectURL(this.screenshotUrl);
+                this.screenshotUrl = '';
+            }
+        },
+        
+        async refreshScreenshot() {
+            if (!this.selectedTask) return;
+            try {
+                const response = await this.apiFetch(
+                    `/api/v1/tasks/${this.selectedTask.id}/screenshot`
+                );
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const oldUrl = this.screenshotUrl;
+                    this.screenshotUrl = URL.createObjectURL(blob);
+                    if (oldUrl) URL.revokeObjectURL(oldUrl);
+                }
+            } catch (error) {
+                // Silently ignore screenshot errors
+            }
+        },
+        
+        // -------------------------------------------------------------------
+        // --- Event Stream (polling) ----------------------------------------
+        // -------------------------------------------------------------------
+        
+        startEventStream(taskId) {
+            this.stopEventStream();
+            this.taskEvents = [];
+            this.eventSince = 0;
+            
+            // Poll immediately, then every second
+            this.pollActivity(taskId);
+            this.eventTimer = setInterval(() => {
+                this.pollActivity(taskId);
+            }, 1000);
+        },
+        
+        async pollActivity(taskId) {
+            try {
+                const response = await this.apiFetch(
+                    `/api/v1/tasks/${taskId}/activity?since=${this.eventSince}`
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.events && data.events.length > 0) {
+                        this.taskEvents.push(...data.events);
+                        this.eventSince = data.total;
+                        // Auto-scroll the event log
+                        this.$nextTick(() => {
+                            const log = document.querySelector('.event-log');
+                            if (log) log.scrollTop = log.scrollHeight;
+                        });
+                    } else if (data.total !== undefined) {
+                        this.eventSince = data.total;
+                    }
+                }
+            } catch (error) {
+                // Silently ignore polling errors
+            }
+        },
+        
+        stopEventStream() {
+            if (this.eventTimer) {
+                clearInterval(this.eventTimer);
+                this.eventTimer = null;
+            }
+            this.taskEvents = [];
+            this.eventSince = 0;
+        },
+        
+        formatEventTime(timestamp) {
+            if (!timestamp) return '';
+            const d = new Date(timestamp);
+            return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        },
+        
+        // -------------------------------------------------------------------
+        // --- Markdown Rendering --------------------------------------------
+        // -------------------------------------------------------------------
+        
+        renderMarkdown(md) {
+            if (!md || typeof marked === 'undefined') return md || '';
+            try {
+                return marked.parse(md);
+            } catch (e) {
+                return md;
+            }
+        },
+        
+        async renderMermaidDiagrams(containerEl) {
+            if (typeof mermaid === 'undefined' || !containerEl) return;
+            const codeBlocks = containerEl.querySelectorAll('pre code.language-mermaid');
+            for (const block of codeBlocks) {
+                const pre = block.parentElement;
+                const source = block.textContent;
+                const id = 'mermaid-' + Math.random().toString(36).substring(2, 9);
+                try {
+                    const { svg } = await mermaid.render(id, source);
+                    const div = document.createElement('div');
+                    div.className = 'mermaid-diagram';
+                    div.innerHTML = svg;
+                    pre.replaceWith(div);
+                } catch (e) {
+                    // Leave the code block as-is if Mermaid can't render it
+                }
+            }
+        },
+
+        // -------------------------------------------------------------------
+        // --- Schedule Detail -----------------------------------------------
+        // -------------------------------------------------------------------
+
         async openScheduleDetail(schedule) {
-            // Load full schedule details
             try {
                 const response = await this.apiFetch(`/api/v1/schedules/${schedule.id}`);
                 if (response.ok) {
@@ -563,15 +1023,14 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        closeTaskDetail() {
-            this.selectedTask = null;
-        },
-        
         closeScheduleDetail() {
             this.selectedSchedule = null;
         },
-        
-        // Task Actions
+
+        // -------------------------------------------------------------------
+        // --- Task Actions --------------------------------------------------
+        // -------------------------------------------------------------------
+
         async performAction(action, instructions = null) {
             if (!this.selectedTask) return;
             
@@ -597,8 +1056,6 @@ document.addEventListener('alpine:init', () => {
                 this.selectedTask = updatedTask;
                 
                 this.showToast(`Task ${action}ed successfully`, 'success');
-                
-                // Refresh task list
                 await this.loadTasks();
                 
             } catch (error) {
@@ -608,7 +1065,15 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
+        async sendInstructions() {
+            if (!this.instructionsText.trim()) return;
+            const text = this.instructionsText.trim();
+            this.instructionsText = '';
+            await this.performAction('instruct', text);
+        },
+        
         async cancelTask() {
+            if (!confirm('Are you sure you want to cancel this task?')) return;
             await this.performAction('cancel');
         },
         
@@ -620,6 +1085,186 @@ document.addEventListener('alpine:init', () => {
             await this.performAction('resume');
         },
         
+        async approvePlan() {
+            await this.performAction('approve_plan');
+        },
+        
+        async savePlanEdits() {
+            if (!this.selectedTask) return;
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(`/api/v1/tasks/${this.selectedTask.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        action: 'edit_plan',
+                        planMarkdown: this.editedPlanMarkdown
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to save plan edits');
+                }
+                
+                const updatedTask = await response.json();
+                this.selectedTask = updatedTask;
+                this.planEditing = false;
+                
+                this.showToast('Plan updated and approved', 'success');
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async cancelPlan() {
+            await this.performAction('cancel_plan');
+        },
+        
+        async submitAnswer(answer) {
+            if (!this.selectedTask?.pendingQuestion) return;
+            
+            const text = (answer || this.answerText || '').trim();
+            if (!text) return;
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(
+                    `/api/v1/tasks/${this.selectedTask.id}/question/answer`,
+                    {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            questionId: this.selectedTask.pendingQuestion.id,
+                            answer: text
+                        })
+                    }
+                );
+                
+                if (!response.ok && response.status !== 204) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to submit answer');
+                }
+                
+                this.answerText = '';
+                this.showToast('Answer submitted', 'success');
+                await this.refreshSelectedTask();
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async respondToPermission(approved) {
+            if (!this.selectedTask?.pendingPermission) return;
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(
+                    `/api/v1/tasks/${this.selectedTask.id}/permission/respond`,
+                    {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            permissionId: this.selectedTask.pendingPermission.id,
+                            approved: approved
+                        })
+                    }
+                );
+                
+                if (!response.ok && response.status !== 204) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to respond to permission');
+                }
+                
+                this.showToast(approved ? 'Permission granted' : 'Permission denied', 'success');
+                await this.refreshSelectedTask();
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async approvePermission() {
+            await this.respondToPermission(true);
+        },
+        
+        async denyPermission() {
+            await this.respondToPermission(false);
+        },
+        
+        async rerunTask() {
+            if (!this.selectedTask) return;
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(`/api/v1/tasks/${this.selectedTask.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ action: 'rerun' })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to rerun task');
+                }
+                
+                this.showToast('Task restarted', 'success');
+                this.closeTaskDetail();
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+        
+        async deleteTask() {
+            if (!this.selectedTask) return;
+            
+            if (!confirm('Are you sure you want to delete this task? This cannot be undone.')) {
+                return;
+            }
+            
+            this.actionLoading = true;
+            
+            try {
+                const response = await this.apiFetch(`/api/v1/tasks/${this.selectedTask.id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error?.message || 'Failed to delete task');
+                }
+                
+                this.showToast('Task deleted', 'success');
+                this.closeTaskDetail();
+                await this.loadTasks();
+                
+            } catch (error) {
+                this.showToast(error.message, 'error');
+            } finally {
+                this.actionLoading = false;
+            }
+        },
+
+        // -------------------------------------------------------------------
+        // --- Schedule Actions ----------------------------------------------
+        // -------------------------------------------------------------------
+
         async runScheduleNow() {
             if (!this.selectedSchedule) return;
             
@@ -709,16 +1354,17 @@ document.addEventListener('alpine:init', () => {
                 this.actionLoading = false;
             }
         },
-        
-        // File Downloads
+
+        // -------------------------------------------------------------------
+        // --- File Downloads ------------------------------------------------
+        // -------------------------------------------------------------------
+
         async downloadFile(taskId, filename, isInput = false) {
             try {
                 const typeParam = isInput ? '?type=input' : '';
-                const response = await fetch(`/api/v1/tasks/${taskId}/files/${encodeURIComponent(filename)}${typeParam}`, {
-                    headers: {
-                        'Authorization': `Bearer ${this.apiKey}`
-                    }
-                });
+                const response = await this.apiFetch(
+                    `/api/v1/tasks/${taskId}/files/${encodeURIComponent(filename)}${typeParam}`
+                );
                 
                 if (!response.ok) {
                     throw new Error('Failed to download file');
@@ -743,8 +1389,11 @@ document.addEventListener('alpine:init', () => {
                 this.showToast(`Download failed: ${error.message}`, 'error');
             }
         },
-        
-        // Toast Notifications
+
+        // -------------------------------------------------------------------
+        // --- Toast Notifications -------------------------------------------
+        // -------------------------------------------------------------------
+
         showToast(message, type = 'info') {
             const id = ++this.toastId;
             this.toasts.push({ id, message, type, visible: true });
@@ -764,8 +1413,11 @@ document.addEventListener('alpine:init', () => {
                 }, 300);
             }
         },
-        
-        // Formatting Helpers
+
+        // -------------------------------------------------------------------
+        // --- Formatting Helpers --------------------------------------------
+        // -------------------------------------------------------------------
+
         formatStatus(status) {
             if (!status) return '';
             
@@ -779,7 +1431,10 @@ document.addEventListener('alpine:init', () => {
                 'cancelled': 'Cancelled',
                 'timed_out': 'Timed Out',
                 'max_iterations': 'Max Steps',
-                'scheduled': 'Scheduled'
+                'scheduled': 'Scheduled',
+                'planning': 'Planning',
+                'plan_review': 'Review Plan',
+                'plan_failed': 'Plan Failed'
             };
             
             return statusMap[status] || status;
@@ -792,30 +1447,11 @@ document.addEventListener('alpine:init', () => {
             const now = new Date();
             const diff = now - date;
             
-            // Less than a minute
-            if (diff < 60000) {
-                return 'Just now';
-            }
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+            if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
             
-            // Less than an hour
-            if (diff < 3600000) {
-                const minutes = Math.floor(diff / 60000);
-                return `${minutes}m ago`;
-            }
-            
-            // Less than a day
-            if (diff < 86400000) {
-                const hours = Math.floor(diff / 3600000);
-                return `${hours}h ago`;
-            }
-            
-            // Less than a week
-            if (diff < 604800000) {
-                const days = Math.floor(diff / 86400000);
-                return `${days}d ago`;
-            }
-            
-            // Otherwise show date
             return date.toLocaleDateString(undefined, {
                 month: 'short',
                 day: 'numeric'
@@ -836,19 +1472,16 @@ document.addEventListener('alpine:init', () => {
         },
         
         formatScheduledTime(schedule) {
-            // Use nextRunAt for scheduled tasks
             const dateStr = schedule.nextRunAt || schedule.scheduledAt;
             if (!dateStr) return '';
             
             const date = new Date(dateStr);
             const now = new Date();
             
-            // If today
             if (date.toDateString() === now.toDateString()) {
                 return `Today at ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
             }
             
-            // If tomorrow
             const tomorrow = new Date(now);
             tomorrow.setDate(tomorrow.getDate() + 1);
             if (date.toDateString() === tomorrow.toDateString()) {
@@ -907,9 +1540,7 @@ document.addEventListener('alpine:init', () => {
         formatDuration(seconds) {
             if (!seconds) return '';
             
-            if (seconds < 60) {
-                return `${seconds}s`;
-            }
+            if (seconds < 60) return `${seconds}s`;
             
             const minutes = Math.floor(seconds / 60);
             const remainingSeconds = seconds % 60;
@@ -924,17 +1555,24 @@ document.addEventListener('alpine:init', () => {
             return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
         },
         
+        formatElapsed(dateString) {
+            if (!dateString) return '';
+            const seconds = Math.floor((this.now - new Date(dateString).getTime()) / 1000);
+            if (seconds < 0) return '';
+            if (seconds < 60) return `${seconds}s`;
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            if (minutes < 60) return `${minutes}m ${String(secs).padStart(2, '0')}s`;
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+        },
+        
         formatFileSize(bytes) {
             if (!bytes) return '';
             
-            if (bytes < 1024) {
-                return `${bytes} B`;
-            }
-            
-            if (bytes < 1024 * 1024) {
-                return `${(bytes / 1024).toFixed(1)} KB`;
-            }
-            
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
             return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
         }
     }));

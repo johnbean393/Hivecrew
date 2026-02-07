@@ -61,15 +61,24 @@ extension APIServiceProviderBridge {
         let inputFiles = getInputFiles(for: task)
         let outputFiles = getOutputFiles(for: task)
         
-        // Get token usage from session if available
+        // Get token usage, pending question, and pending permission from state publisher
+        let publisher = taskService.statePublishers[task.id]
+        
         var tokenUsage: APITokenUsage? = nil
-        if let sessionId = task.sessionId,
-           let publisher = taskService.statePublishers[task.id] {
+        if task.sessionId != nil, let publisher {
             tokenUsage = APITokenUsage(
                 prompt: publisher.promptTokens,
                 completion: publisher.completionTokens,
                 total: publisher.totalTokens
             )
+        }
+        
+        let pendingQuestion: APIAgentQuestion? = publisher?.pendingQuestion.flatMap {
+            convertToAPIAgentQuestion($0)
+        }
+        
+        let pendingPermission: APIPermissionRequest? = publisher?.pendingPermissionRequest.flatMap {
+            convertToAPIPermissionRequest($0)
         }
         
         return APITask(
@@ -89,8 +98,12 @@ extension APIServiceProviderBridge {
             wasSuccessful: task.wasSuccessful,
             vmId: task.assignedVMId,
             duration: task.startedAt.map { Int(Date().timeIntervalSince($0)) },
-            stepCount: taskService.statePublishers[task.id]?.currentStep,
-            tokenUsage: tokenUsage
+            stepCount: publisher?.currentStep,
+            tokenUsage: tokenUsage,
+            planMarkdown: task.planMarkdown,
+            planFirst: task.planFirstEnabled,
+            pendingQuestion: pendingQuestion,
+            pendingPermission: pendingPermission
         )
     }
     
@@ -144,6 +157,53 @@ extension APIServiceProviderBridge {
                 mimeType: APIFile.mimeType(for: url.lastPathComponent)
             )
         }
+    }
+}
+
+// MARK: - Agent Question Conversions
+
+extension APIServiceProviderBridge {
+    
+    /// Convert an internal `AgentQuestion` enum to an `APIAgentQuestion`.
+    func convertToAPIAgentQuestion(_ question: AgentQuestion) -> APIAgentQuestion {
+        switch question {
+        case .text(let q):
+            return APIAgentQuestion(
+                id: q.id,
+                question: q.question,
+                suggestedAnswers: nil,
+                createdAt: q.createdAt
+            )
+        case .multipleChoice(let q):
+            return APIAgentQuestion(
+                id: q.id,
+                question: q.question,
+                suggestedAnswers: q.options,
+                createdAt: q.createdAt
+            )
+        case .intervention(let r):
+            return APIAgentQuestion(
+                id: r.id,
+                question: r.message,
+                suggestedAnswers: nil,
+                createdAt: r.createdAt
+            )
+        }
+    }
+}
+
+// MARK: - Permission Request Conversions
+
+extension APIServiceProviderBridge {
+    
+    /// Convert an internal `PermissionRequest` to an `APIPermissionRequest`.
+    func convertToAPIPermissionRequest(_ request: PermissionRequest) -> APIPermissionRequest {
+        return APIPermissionRequest(
+            id: request.id.uuidString,
+            toolName: request.toolName,
+            details: request.details,
+            createdAt: request.createdAt
+        )
     }
 }
 
