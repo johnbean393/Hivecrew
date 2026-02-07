@@ -113,7 +113,7 @@ public class SkillMatcher {
         }.joined(separator: "\n")
         
         let prompt = """
-        You are selecting which skills are REQUIRED for a task. Veer on the side of strictness.
+        You are selecting which skills would help complete a task. These skills have already been pre-filtered for relevance — your job is to confirm which ones genuinely apply.
         
         TASK: \(task)
         
@@ -121,34 +121,32 @@ public class SkillMatcher {
         \(skillsText)
         
         SELECTION RULES:
-        1. ONLY select a skill if the task requires and makes HEAVY use of that skill's specific capability
-        2. A skill must match the PRIMARY deliverable or format requested in the task
-        3. Do NOT select skills for tangential or "nice to have" features
-        4. Do NOT select skills just because they COULD be useful - they must be REQUIRED and HEAVILY USED
-        5. When in doubt, do NOT include the skill
-        6. Prefer selecting ZERO skills over selecting marginally relevant ones
+        1. Select a skill if the task's primary goal or deliverable matches the skill's domain
+        2. Select skills whose tools, formats, or workflows the task will clearly use
+        3. Do NOT select skills that are only tangentially related (e.g. don't select xlsx for a task that merely mentions "data")
+        4. When multiple skills cover similar ground, prefer the most specific match
+        5. It is fine to select zero skills if truly none are relevant, but do not avoid selecting relevant skills out of excessive caution
         
         Examples of when to select:
-        - Task asks to "create a PowerPoint" → select pptx skill (not canvas-design)
-        - Task asks to "read a PDF, then write a Word document" → select docx skill (not pdf)  
-        - Task asks to "create a website" -> select a frontend-design skill
+        - Task asks to "create a PowerPoint" → select pptx skill
+        - Task asks to "create a 3D model" → select 3D modeling skills (e.g. build123d, render-glb)
+        - Task asks to "create a website" → select frontend-design skill
+        - Task asks to "analyze financial statements" → select analyzing-financial-statements skill
         
         Examples of when NOT to select:
         - Task mentions "research" but doesn't specifically need web artifacts → don't select web-artifacts-builder
         - Task is general coding but doesn't specifically need frontend design → don't select frontend-design
         - Task involves any document but doesn't specifically need Excel / LibreOffice → don't select xlsx
         
-        Return an EMPTY array if no skills are essential.
-        
         Respond with ONLY a valid JSON object:
         {
-            "selectedSkillNames": [],
-            "reasoning": "Brief explanation"
+            "selectedSkillNames": ["skill-name-here"],
+            "reasoning": "Brief explanation of why each skill was selected"
         }
         """
         
         let messages: [LLMMessage] = [
-            .system("You are a strict skill selector. Default to selecting NO skills. Only select skills that are EXPLICITLY required by the task. Always respond with valid JSON only."),
+            .system("You are a skill selector. Select skills that clearly match the task's domain and deliverables. These candidates have been pre-filtered for relevance, so focus on confirming genuine matches rather than defaulting to none. Always respond with valid JSON only."),
             .user(prompt)
         ]
         

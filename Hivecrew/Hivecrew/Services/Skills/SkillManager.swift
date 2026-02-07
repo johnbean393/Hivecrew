@@ -69,7 +69,6 @@ public class SkillManager: ObservableObject {
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/biopython", "biopython"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/clinical-reports", "clinical-reports"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/clinical-decision-support", "clinical-decision-support"),
-        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/infographics", "infographics"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/latex-posters", "latex-posters"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/market-research-reports", "market-research-reports"),
     ]

@@ -7,6 +7,7 @@
 //  sentence vectors entirely on-device with zero API calls.
 //
 
+import Accelerate
 import Foundation
 import NaturalLanguage
 import HivecrewShared
@@ -29,12 +30,19 @@ public class SkillEmbeddingService {
         sentenceEmbedding != nil
     }
     
-    /// Default number of top candidates to return from pre-filtering
-    public static let defaultTopK = 8
+    /// Hard cap on candidates from pre-filtering (only applied for very large collections).
+    /// Acts as a backstop; the relative score threshold is the primary cutoff mechanism.
+    public static let hardTopK = 20
     
-    /// Minimum number of skills before pre-filtering activates
-    /// Below this threshold, all skills are passed directly to the LLM
-    public static let prefilterThreshold = 10
+    /// Minimum number of skills before pre-filtering activates.
+    /// Below this threshold, all skills are passed directly to the LLM.
+    public static let prefilterThreshold = 25
+    
+    /// Relative score cutoff ratio. Skills scoring above `topScore * cutoffRatio`
+    /// are kept. When scores are clustered (embedding model can't differentiate),
+    /// this naturally passes most skills through. When there's genuine separation,
+    /// low-scorers get cut.
+    public static let relativeCutoffRatio = 0.6
     
     // MARK: - Initialization
     
@@ -53,24 +61,23 @@ public class SkillEmbeddingService {
         return model.vector(for: text)
     }
     
-    // MARK: - Similarity
+    // MARK: - Similarity (Accelerate / AMX)
     
-    /// Compute cosine similarity between two vectors.
+    /// Compute cosine similarity between two vectors using Accelerate vDSP.
+    /// On Apple Silicon, vDSP operations dispatch to the AMX coprocessor for
+    /// hardware-accelerated vector math.
     /// - Returns: A value between -1 and 1, where 1 means identical direction
     public func cosineSimilarity(_ a: [Double], _ b: [Double]) -> Double {
         guard a.count == b.count, !a.isEmpty else { return 0 }
         
-        var dotProduct: Double = 0
-        var magnitudeA: Double = 0
-        var magnitudeB: Double = 0
+        // vDSP.dot computes the dot product using AMX-accelerated SIMD
+        let dotProduct = vDSP.dot(a, b)
         
-        for i in 0..<a.count {
-            dotProduct += a[i] * b[i]
-            magnitudeA += a[i] * a[i]
-            magnitudeB += b[i] * b[i]
-        }
+        // vDSP.sumOfSquares computes sum of element squares via AMX
+        let magnitudeA = sqrt(vDSP.sumOfSquares(a))
+        let magnitudeB = sqrt(vDSP.sumOfSquares(b))
         
-        let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
+        let magnitude = magnitudeA * magnitudeB
         guard magnitude > 0 else { return 0 }
         
         return dotProduct / magnitude
@@ -79,18 +86,30 @@ public class SkillEmbeddingService {
     // MARK: - Ranking
     
     /// Rank skills by semantic similarity to a task description using cached embeddings.
-    /// Returns the top-K most similar skills.
+    /// Returns candidates that pass the relative score threshold, erring on the side of inclusion.
+    ///
+    /// The pre-filter is intentionally permissive -- its job is to cut *obvious* noise
+    /// (skills with very low similarity), not to make final selection decisions (the LLM
+    /// does that). It uses a **relative score threshold** as the primary cutoff:
+    ///
+    /// - Compute cosine similarity for all skills
+    /// - Keep every skill scoring above `topScore * relativeCutoffRatio` (default 0.6)
+    /// - When scores are clustered (embedding model can't differentiate), nearly all pass
+    /// - When there's genuine separation, low-scorers get cut
+    /// - A hard cap (`hardTopK`) prevents sending too many in extreme cases
+    /// - Skills without cached embeddings are always included unconditionally
+    ///
+    /// Uses Accelerate vDSP for all vector math, which dispatches to the AMX coprocessor
+    /// on Apple Silicon.
     ///
     /// - Parameters:
-    ///   - skills: The skills to rank (must have cached embeddings in metadata)
+    ///   - skills: The skills to rank (should have cached embeddings in metadata)
     ///   - task: The task description to match against
-    ///   - topK: Number of top candidates to return (default: 8)
-    /// - Returns: The top-K skills sorted by descending similarity, or all skills if
-    ///            embedding is unavailable or skill count is below threshold
+    /// - Returns: Skills passing the relative threshold, or all skills if embedding is
+    ///            unavailable or skill count is below threshold
     public func rankSkills(
         _ skills: [Skill],
-        forTask task: String,
-        topK: Int = SkillEmbeddingService.defaultTopK
+        forTask task: String
     ) -> [Skill] {
         // Don't pre-filter small collections
         guard skills.count > Self.prefilterThreshold else {
@@ -103,38 +122,76 @@ public class SkillEmbeddingService {
             return skills
         }
         
-        // Load cached embeddings for each skill and compute similarity
+        // Precompute the task embedding magnitude once (via AMX-accelerated vDSP)
+        let taskMagnitude = sqrt(vDSP.sumOfSquares(taskEmbedding))
+        guard taskMagnitude > 0 else {
+            print("SkillEmbeddingService: Task embedding has zero magnitude, returning all skills")
+            return skills
+        }
+        
+        // Separate skills into those with embeddings (scoreable) and those without (always included)
         var scoredSkills: [(skill: Skill, score: Double)] = []
+        var uncachedSkills: [Skill] = []
+        scoredSkills.reserveCapacity(skills.count)
         
         for skill in skills {
             let metadata = SkillParser.loadLocalMetadata(for: skill.name)
             
             if let embedding = metadata?.embedding {
-                let score = cosineSimilarity(taskEmbedding, embedding)
+                // AMX-accelerated dot product and magnitude
+                let dot = vDSP.dot(taskEmbedding, embedding)
+                let skillMagnitude = sqrt(vDSP.sumOfSquares(embedding))
+                let denominator = taskMagnitude * skillMagnitude
+                let score = denominator > 0 ? dot / denominator : 0
                 scoredSkills.append((skill: skill, score: score))
             } else {
-                // No cached embedding — include with a neutral score so it's not excluded
-                // This handles skills that haven't had their embedding computed yet
-                scoredSkills.append((skill: skill, score: 0))
-                print("SkillEmbeddingService: No cached embedding for '\(skill.name)', included with neutral score")
+                // No cached embedding — always include to avoid silent exclusion
+                uncachedSkills.append(skill)
+                print("SkillEmbeddingService: No cached embedding for '\(skill.name)', included unconditionally")
             }
         }
         
-        // Sort by similarity descending
+        // Sort scored skills by similarity descending
         scoredSkills.sort { $0.score > $1.score }
         
-        // Log the ranking
-        let topResults = scoredSkills.prefix(topK)
-        let shortlist = topResults.map { "\($0.skill.name) (\(String(format: "%.3f", $0.score)))" }.joined(separator: ", ")
-        print("SkillEmbeddingService: Pre-filtered \(skills.count) skills to top \(topK): \(shortlist)")
+        // Relative threshold: keep everything scoring above topScore * cutoffRatio.
+        // When scores are clustered (e.g. 0.22-0.34), this passes nearly all through.
+        // When there's genuine separation, low-scorers get cut.
+        let topScore = scoredSkills.first?.score ?? 0
+        let cutoff = topScore * Self.relativeCutoffRatio
         
-        // Return top-K
-        return Array(scoredSkills.prefix(topK).map { $0.skill })
+        let aboveCutoff = scoredSkills.filter { $0.score >= cutoff }
+        
+        // Apply hard cap only as a backstop for very large collections
+        let capped = Array(aboveCutoff.prefix(Self.hardTopK))
+        
+        // Combine: scored skills above threshold + all uncached skills
+        var result = capped.map { $0.skill }
+        result.append(contentsOf: uncachedSkills)
+        
+        // Log the ranking
+        let keptSummary = capped.map { "\($0.skill.name) (\(String(format: "%.3f", $0.score)))" }.joined(separator: ", ")
+        let cutCount = scoredSkills.count - capped.count
+        let uncachedSummary = uncachedSkills.isEmpty ? "" : ", \(uncachedSkills.count) uncached"
+        print("SkillEmbeddingService: Pre-filtered \(skills.count) → \(result.count) candidates (cutoff=\(String(format: "%.3f", cutoff)), cut \(cutCount) below threshold\(uncachedSummary)): \(keptSummary)")
+        
+        return result
     }
     
     // MARK: - Embedding Cache Management
     
+    // MARK: - Embedding Text
+    
+    /// Build the text to embed for a skill. Combines name and description so that
+    /// technical skill names (e.g. "build123d", "render-glb") contribute to the
+    /// embedding vector alongside the natural-language description.
+    public static func embeddingText(for skill: Skill) -> String {
+        "\(skill.name): \(skill.description)"
+    }
+    
     /// Compute and cache the embedding for a skill if missing or stale.
+    /// Embeds `"{name}: {description}"` so that technical skill names contribute
+    /// to the semantic vector.
     /// - Parameters:
     ///   - skill: The skill to compute an embedding for
     ///   - existingMetadata: The skill's current local metadata (to check/update)
@@ -143,21 +200,23 @@ public class SkillEmbeddingService {
         for skill: Skill,
         existingMetadata: SkillParser.LocalMetadata
     ) -> SkillParser.LocalMetadata {
+        let textToEmbed = Self.embeddingText(for: skill)
+        
         // Check if embedding is already computed and up-to-date
         if existingMetadata.embedding != nil,
-           existingMetadata.embeddingText == skill.description {
+           existingMetadata.embeddingText == textToEmbed {
             return existingMetadata
         }
         
-        // Compute new embedding
-        guard let embedding = computeEmbedding(for: skill.description) else {
+        // Compute new embedding (name + description combined)
+        guard let embedding = computeEmbedding(for: textToEmbed) else {
             return existingMetadata
         }
         
         // Return updated metadata
         var updated = existingMetadata
         updated.embedding = embedding
-        updated.embeddingText = skill.description
+        updated.embeddingText = textToEmbed
         
         print("SkillEmbeddingService: Computed embedding for '\(skill.name)'")
         return updated
