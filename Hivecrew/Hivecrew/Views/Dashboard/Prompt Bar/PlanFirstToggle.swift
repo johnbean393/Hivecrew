@@ -12,6 +12,13 @@ enum ExecutionMode: String, CaseIterable {
     case direct = "Direct"
     case plan = "Plan"
     
+    var localizedName: String {
+        switch self {
+        case .direct: return String(localized: "Direct")
+        case .plan: return String(localized: "Plan")
+        }
+    }
+    
     var iconName: String {
         switch self {
         case .direct: return "bolt.fill"
@@ -133,7 +140,7 @@ struct PlanFirstToggle: View {
             HStack(spacing: 4) {
                 Image(systemName: mode.iconName)
                     .font(.caption)
-                Text(mode.rawValue)
+                Text(mode.localizedName)
                     .font(.caption)
             }
             .foregroundStyle(isSelected ? selectedTextColor : unselectedTextColor)

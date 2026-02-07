@@ -52,6 +52,13 @@ struct PlanReviewStreamingContent: View {
     enum PlanViewMode: String, CaseIterable {
         case raw = "Raw"
         case checklist = "Checklist"
+        
+        var localizedName: String {
+            switch self {
+            case .raw: return String(localized: "Raw")
+            case .checklist: return String(localized: "Checklist")
+            }
+        }
     }
     
     var body: some View {
@@ -309,6 +316,14 @@ struct PlanReviewStaticContent: View {
         case preview = "Preview"
         case edit = "Edit"
         case checklist = "Tasks"
+        
+        var localizedName: String {
+            switch self {
+            case .preview: return String(localized: "Preview")
+            case .edit: return String(localized: "Edit")
+            case .checklist: return String(localized: "Tasks")
+            }
+        }
     }
     
     var body: some View {
@@ -421,7 +436,7 @@ struct PlanReviewStaticContent: View {
             HStack {
                 Picker("View", selection: $viewMode) {
                     ForEach(PlanViewMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
+                        Text(mode.localizedName).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)

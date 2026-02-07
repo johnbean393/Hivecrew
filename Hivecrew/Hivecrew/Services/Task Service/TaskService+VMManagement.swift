@@ -377,17 +377,17 @@ extension TaskService {
                     guard defaults.object(forKey: "notifyTaskCompleted") == nil || defaults.bool(forKey: "notifyTaskCompleted") else {
                         return
                     }
-                    content.title = "Task Completed"
+                    content.title = String(localized: "Task Completed")
                     content.body = task.title
                     if let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
-                        content.subtitle = "\(outputPaths.count) deliverable(s) ready"
+                        content.subtitle = String(localized: "\(outputPaths.count) deliverable(s) ready")
                     }
                 } else {
                     // Check if task incomplete notifications are enabled
                     guard defaults.object(forKey: "notifyTaskIncomplete") == nil || defaults.bool(forKey: "notifyTaskIncomplete") else {
                         return
                     }
-                    content.title = "Task Incomplete"
+                    content.title = String(localized: "Task Incomplete")
                     content.body = task.title
                     if let summary = task.resultSummary {
                         content.subtitle = String(summary.prefix(50))
@@ -398,7 +398,7 @@ extension TaskService {
                 guard defaults.object(forKey: "notifyTaskFailed") == nil || defaults.bool(forKey: "notifyTaskFailed") else {
                     return
                 }
-                content.title = "Task Failed"
+                content.title = String(localized: "Task Failed")
                 content.body = task.title
                 if let error = task.errorMessage {
                     content.subtitle = String(error.prefix(50))
@@ -408,14 +408,14 @@ extension TaskService {
                 guard defaults.object(forKey: "notifyTaskTimedOut") == nil || defaults.bool(forKey: "notifyTaskTimedOut") else {
                     return
                 }
-                content.title = "Task Timed Out"
+                content.title = String(localized: "Task Timed Out")
                 content.body = task.title
             case .maxIterations:
                 // Check if task max iterations notifications are enabled
                 guard defaults.object(forKey: "notifyTaskMaxIterations") == nil || defaults.bool(forKey: "notifyTaskMaxIterations") else {
                     return
                 }
-                content.title = "Task Hit Max Steps"
+                content.title = String(localized: "Task Hit Max Steps")
                 content.body = task.title
             default:
                 // Don't notify for cancelled (user initiated) or other states

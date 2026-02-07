@@ -21,12 +21,12 @@ enum VMStatus: Int, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .stopped: return "Stopped"
-        case .booting: return "Booting"
-        case .ready: return "Ready"
-        case .busy: return "Busy"
-        case .suspending: return "Suspending"
-        case .error: return "Error"
+        case .stopped: return String(localized: "Stopped")
+        case .booting: return String(localized: "Booting")
+        case .ready: return String(localized: "Ready")
+        case .busy: return String(localized: "Busy")
+        case .suspending: return String(localized: "Suspending")
+        case .error: return String(localized: "Error")
         }
     }
     

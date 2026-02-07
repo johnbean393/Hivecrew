@@ -15,8 +15,8 @@ enum MCPServerTransportType: String, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .stdio: return "Standard I/O (Local Process)"
-        case .http: return "HTTP (Remote Server)"
+        case .stdio: return String(localized: "Standard I/O (Local Process)")
+        case .http: return String(localized: "HTTP (Remote Server)")
         }
     }
 }

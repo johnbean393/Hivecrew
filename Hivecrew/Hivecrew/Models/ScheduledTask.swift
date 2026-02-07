@@ -15,8 +15,8 @@ enum ScheduleType: Int, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .oneTime: return "One-time"
-        case .recurring: return "Recurring"
+        case .oneTime: return String(localized: "One-time")
+        case .recurring: return String(localized: "Recurring")
         }
     }
 }
@@ -29,9 +29,9 @@ enum RecurrenceFrequency: Int, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .daily: return "Daily"
-        case .weekly: return "Weekly"
-        case .monthly: return "Monthly"
+        case .daily: return String(localized: "Daily")
+        case .weekly: return String(localized: "Weekly")
+        case .monthly: return String(localized: "Monthly")
         }
     }
 }
@@ -78,20 +78,21 @@ struct RecurrenceRule: Codable, Equatable {
         
         switch frequency {
         case .daily:
-            return "Daily at \(timeString)"
+            return String(localized: "Daily at \(timeString)")
             
         case .weekly:
             guard let days = daysOfWeek, !days.isEmpty else {
-                return "Weekly at \(timeString)"
+                return String(localized: "Weekly at \(timeString)")
             }
-            let dayNames = ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+            let symbols = Calendar.current.shortWeekdaySymbols
+            let dayNames = [""] + symbols  // 1=Sunday, 2=Monday, etc.
             let sortedDays = days.sorted()
             let dayString = sortedDays.map { dayNames[$0] }.joined(separator: ", ")
-            return "Every \(dayString) at \(timeString)"
+            return String(localized: "Every \(dayString) at \(timeString)")
             
         case .monthly:
             guard let day = dayOfMonth else {
-                return "Monthly at \(timeString)"
+                return String(localized: "Monthly at \(timeString)")
             }
             let suffix: String
             switch day {
@@ -100,7 +101,7 @@ struct RecurrenceRule: Codable, Equatable {
             case 3, 23: suffix = "rd"
             default: suffix = "th"
             }
-            return "Monthly on the \(day)\(suffix) at \(timeString)"
+            return String(localized: "Monthly on the \(day)\(suffix) at \(timeString)")
         }
     }
 }
@@ -220,14 +221,14 @@ final class ScheduledTask {
     var scheduleDescription: String {
         switch scheduleType {
         case .oneTime:
-            guard let date = scheduledDate else { return "Not scheduled" }
+            guard let date = scheduledDate else { return String(localized: "Not scheduled") }
             let formatter = DateFormatter()
             formatter.dateStyle = .medium
             formatter.timeStyle = .short
             return formatter.string(from: date)
             
         case .recurring:
-            return recurrenceRule?.displayDescription ?? "Not configured"
+            return recurrenceRule?.displayDescription ?? String(localized: "Not configured")
         }
     }
     

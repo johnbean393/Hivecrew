@@ -19,17 +19,17 @@ enum TraceRetentionPolicy: String, CaseIterable, Identifiable {
     
     var displayName: String {
         switch self {
-        case .keepAll: return "Keep all"
-        case .last7Days: return "Last 7 days"
-        case .last30Days: return "Last 30 days"
+        case .keepAll: return String(localized: "Keep all")
+        case .last7Days: return String(localized: "Last 7 days")
+        case .last30Days: return String(localized: "Last 30 days")
         }
     }
     
     var description: String {
         switch self {
-        case .keepAll: return "Session traces are never automatically deleted"
-        case .last7Days: return "Traces older than 7 days are deleted on launch"
-        case .last30Days: return "Traces older than 30 days are deleted on launch"
+        case .keepAll: return String(localized: "Session traces are never automatically deleted")
+        case .last7Days: return String(localized: "Traces older than 7 days are deleted on launch")
+        case .last30Days: return String(localized: "Traces older than 30 days are deleted on launch")
         }
     }
 }

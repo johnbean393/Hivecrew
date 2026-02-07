@@ -39,6 +39,13 @@ struct SessionTraceView: View {
     enum TraceTab: String, CaseIterable {
         case trace = "Trace"
         case plan = "Plan"
+        
+        var localizedName: String {
+            switch self {
+            case .trace: return String(localized: "Trace")
+            case .plan: return String(localized: "Plan")
+            }
+        }
     }
     
     /// Whether the task has a plan
@@ -146,7 +153,7 @@ struct SessionTraceView: View {
     /// Display text for verified status
     var statusDisplayText: String {
         if task.status == .completed, let success = task.wasSuccessful {
-            return success ? "Verified Complete" : "Incomplete"
+            return success ? String(localized: "Verified Complete") : String(localized: "Incomplete")
         }
         return task.status.displayName
     }

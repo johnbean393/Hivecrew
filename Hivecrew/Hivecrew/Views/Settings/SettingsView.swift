@@ -23,6 +23,18 @@ struct SettingsView: View {
         
         var id: String { rawValue }
         
+        var localizedName: String {
+            switch self {
+            case .providers: return String(localized: "Providers")
+            case .environment: return String(localized: "Environment")
+            case .tasks: return String(localized: "Tasks")
+            case .mcp: return "MCP"
+            case .credentials: return String(localized: "Credentials")
+            case .api: return "API"
+            case .developer: return String(localized: "Developer")
+            }
+        }
+        
         var icon: String {
             switch self {
             case .providers: return "brain.head.profile"
@@ -53,43 +65,43 @@ struct SettingsView: View {
     
     private var providersTab: some View {
         ProvidersSettingsView()
-            .tabItem { Label(SettingsTab.providers.rawValue, systemImage: SettingsTab.providers.icon) }
+            .tabItem { Label(SettingsTab.providers.localizedName, systemImage: SettingsTab.providers.icon) }
             .tag(SettingsTab.providers)
     }
     
     private var environmentTab: some View {
         EnvironmentSettingsView()
-            .tabItem { Label(SettingsTab.environment.rawValue, systemImage: SettingsTab.environment.icon) }
+            .tabItem { Label(SettingsTab.environment.localizedName, systemImage: SettingsTab.environment.icon) }
             .tag(SettingsTab.environment)
     }
     
     private var tasksTab: some View {
         TaskDefaultsSettingsView()
-            .tabItem { Label(SettingsTab.tasks.rawValue, systemImage: SettingsTab.tasks.icon) }
+            .tabItem { Label(SettingsTab.tasks.localizedName, systemImage: SettingsTab.tasks.icon) }
             .tag(SettingsTab.tasks)
     }
     
     private var mcpTab: some View {
         MCPSettingsView()
-            .tabItem { Label(SettingsTab.mcp.rawValue, systemImage: SettingsTab.mcp.icon) }
+            .tabItem { Label(SettingsTab.mcp.localizedName, systemImage: SettingsTab.mcp.icon) }
             .tag(SettingsTab.mcp)
     }
     
     private var credentialsTab: some View {
         CredentialsSettingsView()
-            .tabItem { Label(SettingsTab.credentials.rawValue, systemImage: SettingsTab.credentials.icon) }
+            .tabItem { Label(SettingsTab.credentials.localizedName, systemImage: SettingsTab.credentials.icon) }
             .tag(SettingsTab.credentials)
     }
     
     private var apiTab: some View {
         APISettingsView()
-            .tabItem { Label(SettingsTab.api.rawValue, systemImage: SettingsTab.api.icon) }
+            .tabItem { Label(SettingsTab.api.localizedName, systemImage: SettingsTab.api.icon) }
             .tag(SettingsTab.api)
     }
     
     private var developerTab: some View {
         DeveloperSettingsView()
-            .tabItem { Label(SettingsTab.developer.rawValue, systemImage: SettingsTab.developer.icon) }
+            .tabItem { Label(SettingsTab.developer.localizedName, systemImage: SettingsTab.developer.icon) }
             .tag(SettingsTab.developer)
     }
 }

@@ -108,7 +108,7 @@ struct TaskRowView: View {
                     HStack(spacing: 8) {
                         // Show verified status for completed tasks
                         if effectiveStatus == .completed, let success = task.wasSuccessful {
-                            Text(success ? "Verified Complete" : "Incomplete")
+                            Text(success ? String(localized: "Verified Complete") : String(localized: "Incomplete"))
                                 .font(.caption)
                                 .foregroundStyle(success ? .green : .red)
                         } else {

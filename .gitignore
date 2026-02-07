@@ -13,6 +13,9 @@ xcuserdata/
 # macOS
 .DS_Store
 
+# Scripts
+Hivecrew/scripts/
+
 # Swift Package Manager
 .swiftpm/xcode/xcuserdata/
 Package.resolved

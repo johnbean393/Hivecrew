@@ -25,18 +25,18 @@ enum TaskStatus: Int, Codable, CaseIterable {
     
     var displayName: String {
         switch self {
-        case .queued: return "Queued"
-        case .waitingForVM: return "Waiting for VM"
-        case .running: return "In Progress"
-        case .completed: return "Completed"
-        case .failed: return "Failed"
-        case .cancelled: return "Cancelled"
-        case .paused: return "Paused"
-        case .timedOut: return "Timed Out"
-        case .maxIterations: return "Max Iterations"
-        case .planning: return "Generating Plan"
-        case .planReview: return "Review Plan"
-        case .planFailed: return "Planning Failed"
+        case .queued: return String(localized: "Queued")
+        case .waitingForVM: return String(localized: "Waiting for VM")
+        case .running: return String(localized: "In Progress")
+        case .completed: return String(localized: "Completed")
+        case .failed: return String(localized: "Failed")
+        case .cancelled: return String(localized: "Cancelled")
+        case .paused: return String(localized: "Paused")
+        case .timedOut: return String(localized: "Timed Out")
+        case .maxIterations: return String(localized: "Max Iterations")
+        case .planning: return String(localized: "Generating Plan")
+        case .planReview: return String(localized: "Review Plan")
+        case .planFailed: return String(localized: "Planning Failed")
         }
     }
     

@@ -152,17 +152,17 @@ public struct TemplateDownloadProgress: Sendable {
     public var phaseDescription: String {
         switch phase {
         case .downloading:
-            return "Downloading template..."
+            return String(localized: "Downloading template...")
         case .decompressing:
-            return "Decompressing..."
+            return String(localized: "Decompressing...")
         case .extracting:
-            return "Extracting files..."
+            return String(localized: "Extracting files...")
         case .configuring:
-            return "Configuring template..."
+            return String(localized: "Configuring template...")
         case .complete:
-            return "Complete"
+            return String(localized: "Complete")
         case .failed(let error):
-            return "Failed: \(error)"
+            return String(localized: "Failed: \(error)")
         }
     }
 }
@@ -180,19 +180,19 @@ public enum TemplateDownloadError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .downloadFailed(let message):
-            return "Download failed: \(message)"
+            return String(localized: "Download failed: \(message)")
         case .decompressionFailed(let message):
-            return "Decompression failed: \(message)"
+            return String(localized: "Decompression failed: \(message)")
         case .extractionFailed(let message):
-            return "Extraction failed: \(message)"
+            return String(localized: "Extraction failed: \(message)")
         case .configurationFailed(let message):
-            return "Configuration failed: \(message)"
+            return String(localized: "Configuration failed: \(message)")
         case .cancelled:
-            return "Download was cancelled"
+            return String(localized: "Download was cancelled")
         case .invalidTemplate(let message):
-            return "Invalid template: \(message)"
+            return String(localized: "Invalid template: \(message)")
         case .fileSystemError(let message):
-            return "File system error: \(message)"
+            return String(localized: "File system error: \(message)")
         }
     }
 }

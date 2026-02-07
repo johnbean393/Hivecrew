@@ -111,7 +111,7 @@ struct DebugMenuCommands: Commands {
     
     private func backupSwiftData() {
         guard let sourceDir = swiftDataDirectory else {
-            showAlert(title: "Backup Failed", message: "Could not locate SwiftData directory.")
+            showAlert(title: String(localized: "Backup Failed"), message: String(localized: "Could not locate SwiftData directory."))
             return
         }
         
@@ -121,7 +121,7 @@ struct DebugMenuCommands: Commands {
         }
         
         if existingFiles.isEmpty {
-            showAlert(title: "Backup Failed", message: "No SwiftData files found to backup.")
+            showAlert(title: String(localized: "Backup Failed"), message: String(localized: "No SwiftData files found to backup."))
             return
         }
         
@@ -129,11 +129,11 @@ struct DebugMenuCommands: Commands {
             do {
                 try await performBackup(from: sourceDir, to: backupFilePath, files: existingFiles)
                 await MainActor.run {
-                    showAlert(title: "Backup Complete", message: "SwiftData backup saved successfully.")
+                    showAlert(title: String(localized: "Backup Complete"), message: String(localized: "SwiftData backup saved successfully."))
                 }
             } catch {
                 await MainActor.run {
-                    showAlert(title: "Backup Failed", message: error.localizedDescription)
+                    showAlert(title: String(localized: "Backup Failed"), message: error.localizedDescription)
                 }
             }
         }
@@ -180,23 +180,23 @@ struct DebugMenuCommands: Commands {
     
     private func restoreSwiftData() {
         guard let destDir = swiftDataDirectory else {
-            showAlert(title: "Restore Failed", message: "Could not locate SwiftData directory.")
+            showAlert(title: String(localized: "Restore Failed"), message: String(localized: "Could not locate SwiftData directory."))
             return
         }
         
         // Check if backup exists
         guard FileManager.default.fileExists(atPath: backupFilePath.path) else {
-            showAlert(title: "Restore Failed", message: "No backup file found. Create a backup first.")
+            showAlert(title: String(localized: "Restore Failed"), message: String(localized: "No backup file found. Create a backup first."))
             return
         }
         
         // Confirm restore (destructive operation)
         let alert = NSAlert()
-        alert.messageText = "Restore SwiftData?"
-        alert.informativeText = "This will replace your current data with the backup. The app will quit after restoring. This action cannot be undone."
+        alert.messageText = String(localized: "Restore SwiftData?")
+        alert.informativeText = String(localized: "This will replace your current data with the backup. The app will quit after restoring. This action cannot be undone.")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Restore")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Restore"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         
         let result = alert.runModal()
         guard result == .alertFirstButtonReturn else { return }
@@ -206,10 +206,10 @@ struct DebugMenuCommands: Commands {
                 try await performRestore(from: backupFilePath, to: destDir)
                 await MainActor.run {
                     let successAlert = NSAlert()
-                    successAlert.messageText = "Restore Complete"
-                    successAlert.informativeText = "SwiftData has been restored. The app will now quit. Please relaunch the app."
+                    successAlert.messageText = String(localized: "Restore Complete")
+                    successAlert.informativeText = String(localized: "SwiftData has been restored. The app will now quit. Please relaunch the app.")
                     successAlert.alertStyle = .informational
-                    successAlert.addButton(withTitle: "Quit")
+                    successAlert.addButton(withTitle: String(localized: "Quit"))
                     successAlert.runModal()
                     
                     // Quit the app to ensure clean reload of data
@@ -217,7 +217,7 @@ struct DebugMenuCommands: Commands {
                 }
             } catch {
                 await MainActor.run {
-                    showAlert(title: "Restore Failed", message: error.localizedDescription)
+                    showAlert(title: String(localized: "Restore Failed"), message: error.localizedDescription)
                 }
             }
         }
@@ -278,7 +278,7 @@ struct DebugMenuCommands: Commands {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = title.contains("Failed") ? .warning : .informational
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 }
@@ -293,11 +293,11 @@ enum BackupError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .compressionFailed:
-            return "Failed to create backup archive."
+            return String(localized: "Failed to create backup archive.")
         case .decompressionFailed:
-            return "Failed to extract backup archive."
+            return String(localized: "Failed to extract backup archive.")
         case .invalidBackup:
-            return "The backup file does not contain valid SwiftData files."
+            return String(localized: "The backup file does not contain valid SwiftData files.")
         }
     }
 }

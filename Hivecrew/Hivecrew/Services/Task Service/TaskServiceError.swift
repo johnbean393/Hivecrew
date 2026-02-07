@@ -23,21 +23,21 @@ enum TaskServiceError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noModelContext:
-            return "Model context not set"
+            return String(localized: "Model context not set")
         case .noTemplateConfigured:
-            return "No default template configured. Please set a template in Settings → Environment."
+            return String(localized: "No default template configured. Please set a template in Settings → Environment.")
         case .vmCreationFailed(let reason):
-            return "Failed to create VM: \(reason)"
+            return String(localized: "Failed to create VM: \(reason)")
         case .vmStartTimeout(let name):
-            return "Timed out waiting for VM '\(name)' to start"
+            return String(localized: "Timed out waiting for VM '\(name)' to start")
         case .connectionTimeout(let details):
-            return "Connection to GuestAgent timed out: \(details)"
+            return String(localized: "Connection to GuestAgent timed out: \(details)")
         case .providerNotFound(let id):
-            return "LLM provider not found: \(id)"
+            return String(localized: "LLM provider not found: \(id)")
         case .noAPIKey(let provider):
-            return "No API key configured for \(provider)"
+            return String(localized: "No API key configured for \(provider)")
         case .missingLLMClient:
-            return "LLM client was unavailable during task startup"
+            return String(localized: "LLM client was unavailable during task startup")
         }
     }
 }

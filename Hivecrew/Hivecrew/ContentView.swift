@@ -29,6 +29,13 @@ struct ContentView: View {
         case dashboard = "Dashboard"
         case environments = "Environments"
         
+        var localizedName: String {
+            switch self {
+            case .dashboard: return String(localized: "Dashboard")
+            case .environments: return String(localized: "Environments")
+            }
+        }
+        
         var icon: String {
             switch self {
             case .dashboard: return "square.grid.3x3.topleft.filled"
@@ -41,13 +48,13 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Label(AppTab.dashboard.rawValue, systemImage: AppTab.dashboard.icon)
+                    Label(AppTab.dashboard.localizedName, systemImage: AppTab.dashboard.icon)
                 }
                 .tag(AppTab.dashboard)
             
             AgentEnvironmentsView(selectedTaskId: $selectedTaskId)
                 .tabItem {
-                    Label(AppTab.environments.rawValue, systemImage: AppTab.environments.icon)
+                    Label(AppTab.environments.localizedName, systemImage: AppTab.environments.icon)
                 }
                 .tag(AppTab.environments)
                 .popoverTip(watchAgentsWorkTip, arrowEdge: .top)

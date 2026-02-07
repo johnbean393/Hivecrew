@@ -23,13 +23,13 @@ enum APIServerState: Equatable {
     var statusText: String {
         switch self {
         case .stopped:
-            return "Stopped"
+            return String(localized: "Stopped")
         case .starting:
-            return "Starting..."
+            return String(localized: "Starting...")
         case .running(let port):
-            return "Running on port \(port)"
+            return String(localized: "Running on port \(port)")
         case .failed(let error):
-            return "Failed: \(error)"
+            return String(localized: "Failed: \(error)")
         }
     }
     

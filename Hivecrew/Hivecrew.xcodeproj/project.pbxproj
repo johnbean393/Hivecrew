@@ -38,6 +38,7 @@
 		202F64E22F2FE30400F6F359 /* MCPSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64DF2F2FE30400F6F359 /* MCPSettingsView.swift */; };
 		202F64E52F2FE31500F6F359 /* MCPServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64E32F2FE31500F6F359 /* MCPServerManager.swift */; };
 		202F64E72F2FE35300F6F359 /* MCPServerRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */; };
+		20360DB52F36958600A9B998 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20360DB42F36958600A9B998 /* Localizable.xcstrings */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -242,6 +243,7 @@
 		202F64DF2F2FE30400F6F359 /* MCPSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsView.swift; sourceTree = "<group>"; };
 		202F64E32F2FE31500F6F359 /* MCPServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerManager.swift; sourceTree = "<group>"; };
 		202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerRecord.swift; sourceTree = "<group>"; };
+		20360DB42F36958600A9B998 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -704,6 +706,7 @@
 				209C61A12F12ABD700062D0E /* Assets.xcassets */,
 				209C61A32F12ABD700062D0E /* Hivecrew.entitlements */,
 				209C61A52F12ABD700062D0E /* Info.plist */,
+				20360DB42F36958600A9B998 /* Localizable.xcstrings */,
 				20C413F22F14301E00C6E8A9 /* Resources */,
 			);
 			path = Hivecrew;
@@ -1052,6 +1055,13 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				ja,
+				ko,
+				fr,
+				de,
+				it,
+				es,
 			);
 			mainGroup = 209C5F8B2F12947F00062D0E;
 			minimizedProjectReferenceProxies = 1;
@@ -1085,6 +1095,7 @@
 			files = (
 				20C413F62F14302F00C6E8A9 /* Hivecrew.icon in Resources */,
 				209C61BE2F12ABD700062D0E /* Assets.xcassets in Resources */,
+				20360DB52F36958600A9B998 /* Localizable.xcstrings in Resources */,
 				209C61BF2F12ABD700062D0E /* Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1373,6 +1384,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -1431,6 +1443,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};
@@ -1443,7 +1456,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1457,7 +1470,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1479,7 +1492,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1493,7 +1506,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.8;
+				MARKETING_VERSION = 1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

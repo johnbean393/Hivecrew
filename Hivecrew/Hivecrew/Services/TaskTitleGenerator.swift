@@ -62,7 +62,7 @@ class TaskTitleGenerator {
             .prefix(6)
         
         if words.isEmpty {
-            return "New Task"
+            return String(localized: "New Task")
         }
         
         var title = words.joined(separator: " ")

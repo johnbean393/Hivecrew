@@ -91,8 +91,10 @@ struct PromptBar: View {
     }
     
     private var placeholderText: String {
-        let sendKeyDescription = useCommandReturn ? "Command + Return" : "Return"
-        return "Enter a message. Press \(sendKeyDescription) to send."
+        let sendKeyDescription = useCommandReturn
+            ? String(localized: "Command + Return")
+            : String(localized: "Return")
+        return String(localized: "Enter a message. Press \(sendKeyDescription) to send.")
     }
     
     private var hasAttachments: Bool {

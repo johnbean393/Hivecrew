@@ -135,7 +135,7 @@ extension SessionTraceView {
             if hasPlan {
                 Picker("Tab", selection: $selectedTab) {
                     ForEach(TraceTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(tab.localizedName).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)

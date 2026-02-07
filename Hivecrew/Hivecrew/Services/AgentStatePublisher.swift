@@ -277,7 +277,7 @@ class AgentStatePublisher: ObservableObject {
         pendingPermissionRequest = nil
         addActivity(AgentActivityEntry(
             type: .info,
-            summary: approved ? "Permission granted: \(toolName)" : "Permission denied: \(toolName)"
+            summary: approved ? String(localized: "Permission granted: \(toolName)") : String(localized: "Permission denied: \(toolName)")
         ))
         
         return approved
@@ -286,7 +286,7 @@ class AgentStatePublisher: ObservableObject {
     /// Send a macOS notification for permission request
     private func sendPermissionNotification(toolName: String, details: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Permission Required"
+        content.title = String(localized: "Permission Required")
         content.body = "\(toolName): \(details.prefix(80))..."
         content.sound = .default
         content.categoryIdentifier = "AGENT_PERMISSION"
@@ -496,11 +496,11 @@ class AgentStatePublisher: ObservableObject {
         subagents[index].status = status
         switch status {
         case .completed:
-            subagents[index].currentAction = "Completed"
+            subagents[index].currentAction = String(localized: "Completed")
         case .failed:
-            subagents[index].currentAction = "Failed"
+            subagents[index].currentAction = String(localized: "Failed")
         case .cancelled:
-            subagents[index].currentAction = "Cancelled"
+            subagents[index].currentAction = String(localized: "Cancelled")
         case .running:
             break
         }

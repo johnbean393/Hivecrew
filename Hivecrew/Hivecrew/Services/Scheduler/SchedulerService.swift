@@ -329,12 +329,12 @@ class SchedulerService: ObservableObject {
         let content = UNMutableNotificationContent()
         
         if started {
-            content.title = "Scheduled Task Started"
-            content.body = "'\(schedule.title)' has started running."
+            content.title = String(localized: "Scheduled Task Started")
+            content.body = String(localized: "'\(schedule.title)' has started running.")
             content.sound = .default
         } else {
-            content.title = "Scheduled Task Failed"
-            content.body = "'\(schedule.title)' failed to start: \(error?.localizedDescription ?? "Unknown error")"
+            content.title = String(localized: "Scheduled Task Failed")
+            content.body = String(localized: "'\(schedule.title)' failed to start: \(error?.localizedDescription ?? String(localized: "Unknown error"))")
             content.sound = .defaultCritical
         }
         
@@ -377,9 +377,9 @@ enum SchedulerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noModelContext:
-            return "Model context not configured"
+            return String(localized: "Model context not configured")
         case .scheduleNotFound:
-            return "Scheduled task not found"
+            return String(localized: "Scheduled task not found")
         }
     }
 }

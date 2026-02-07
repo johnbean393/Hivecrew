@@ -522,7 +522,7 @@ struct ScheduleCreationSheet: View {
     
     private var weekdayPicker: some View {
         HStack(spacing: 6) {
-            ForEach(Array(zip(1...7, ["S", "M", "T", "W", "T", "F", "S"])), id: \.0) { day, label in
+            ForEach(Array(zip(1...7, Calendar.current.veryShortWeekdaySymbols)), id: \.0) { day, label in
                 Button {
                     toggleDay(day)
                 } label: {
