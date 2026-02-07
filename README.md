@@ -47,6 +47,7 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
   - [MCP Servers](#mcp-servers)
   - [Image Generation](#image-generation)
   - [Credentials & Security](#credentials--security)
+  - [Web Interface](#web-interface)
   - [API & Automation](#api--automation)
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -71,6 +72,7 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
 
 - **Parallel Research and Execution**: Spawn focused subagents for research, data gathering, and verification while the main agent continues the task
 - **Specialized Workflows**: Delegate subtasks like competitor scans, documentation lookups, or multi-source comparisons to targeted subagents
+- **Inter-Agent Messaging**: Agents can send messages to each other (point-to-point or broadcast) that are automatically delivered into the recipient's context
 - **Faster Convergence**: Combine results from multiple subagents to reduce back-and-forth and reach decisions sooner
 - **Agent Swarms**: Leverage's Kimi-K2.5's training for agent swarms
 
@@ -158,11 +160,17 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
 - **On-Demand Access**: Credentials are passed to agents only when needed via secure tokens
 - **CSV Import**: Bulk import credentials from CSV files
 
+### Web Interface
+
+![Web UI on Mobile](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/web-ui-mobile.png)
+
+- **Remote Access**: Built-in web UI lets you manage agents from any browser. Pair with a service like [Tailscale](https://tailscale.com) to securely access Hivecrew running via your phone from anywhere in the world
+- **Full Task Management**: Create, plan, monitor, pause, resume, cancel, rerun, and delete tasks directly from the browser
+
 ### API & Automation
 
 - **REST API**: Control Hivecrew programmatically—create tasks, manage schedules, upload files, and download results
 - **Python SDK**: Use the `hivecrew` package for easy integration with Python workflows
-- **Web Interface**: Access a built-in web UI for remote task management
 
 ## Requirements
 
