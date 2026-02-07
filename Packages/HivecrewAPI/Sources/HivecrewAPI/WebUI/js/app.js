@@ -514,8 +514,11 @@ document.addEventListener('alpine:init', () => {
             localStorage.setItem('hivecrew_plan_first', planFirst ? 'true' : 'false');
         },
         
-        handleQuickFileSelect(event) {
-            const files = Array.from(event.target.files);
+        async handleQuickFileSelect(event) {
+            const files = await this.filterOutFolders(Array.from(event.target.files));
+            if (files.length === 0 && event.target.files.length > 0) {
+                this.showToast('Folders cannot be uploaded — please select individual files', 'error');
+            }
             this.quickFiles = [...this.quickFiles, ...files];
             event.target.value = '';
         },
@@ -623,8 +626,12 @@ document.addEventListener('alpine:init', () => {
             this.creating = false;
         },
         
-        handleFileSelect(event) {
-            const files = Array.from(event.target.files);
+        async handleFileSelect(event) {
+            const allFiles = Array.from(event.target.files);
+            const files = await this.filterOutFolders(allFiles);
+            if (files.length < allFiles.length) {
+                this.showToast('Folders cannot be uploaded — please select individual files', 'error');
+            }
             this.newTask.files = files;
         },
         
@@ -633,6 +640,24 @@ document.addEventListener('alpine:init', () => {
             // Update file input to reflect changes
             const fileInput = document.getElementById('task-files-input');
             if (fileInput) fileInput.value = '';
+        },
+        
+        async filterOutFolders(files) {
+            const validFiles = [];
+            for (const file of files) {
+                // Folders typically have size 0 and no type; verify by attempting to read
+                if (file.size === 0 && !file.type) {
+                    continue; // Almost certainly a folder entry
+                }
+                try {
+                    // Attempt to read the first byte — this fails for directory entries
+                    await file.slice(0, 1).arrayBuffer();
+                    validFiles.push(file);
+                } catch {
+                    // Reading failed — this is a folder, skip it
+                }
+            }
+            return validFiles;
         },
         
         resetNewTask() {
