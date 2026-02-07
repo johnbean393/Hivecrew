@@ -39,6 +39,7 @@
 		202F64E52F2FE31500F6F359 /* MCPServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64E32F2FE31500F6F359 /* MCPServerManager.swift */; };
 		202F64E72F2FE35300F6F359 /* MCPServerRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */; };
 		20360DB52F36958600A9B998 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20360DB42F36958600A9B998 /* Localizable.xcstrings */; };
+		20360DB72F37E0F600A9B998 /* SkillEmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DB62F37E0F600A9B998 /* SkillEmbeddingService.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -244,6 +245,7 @@
 		202F64E32F2FE31500F6F359 /* MCPServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerManager.swift; sourceTree = "<group>"; };
 		202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerRecord.swift; sourceTree = "<group>"; };
 		20360DB42F36958600A9B998 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		20360DB62F37E0F600A9B998 /* SkillEmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillEmbeddingService.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -745,6 +747,7 @@
 		209EB6E92F1E26D000A7F13F /* Skills */ = {
 			isa = PBXGroup;
 			children = (
+				20360DB62F37E0F600A9B998 /* SkillEmbeddingService.swift */,
 				209EB6E52F1E26D000A7F13F /* SkillExtractor.swift */,
 				209EB6E62F1E26D000A7F13F /* SkillManager.swift */,
 				209EB6E72F1E26D000A7F13F /* SkillMatcher.swift */,
@@ -1138,6 +1141,7 @@
 				204DF41D2F14D5E7004AB99B /* OnboardingCompleteStep.swift in Sources */,
 				209EB6E42F1E1A6300A7F13F /* ToolExecutor+WebTools.swift in Sources */,
 				204DF41E2F14D5E7004AB99B /* OnboardingProviderStep.swift in Sources */,
+				20360DB72F37E0F600A9B998 /* SkillEmbeddingService.swift in Sources */,
 				2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */,
 				209C61A72F12ABD700062D0E /* VMRecord.swift in Sources */,
 				209EB6DC2F1E194800A7F13F /* ProviderEditSheet.swift in Sources */,

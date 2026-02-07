@@ -565,7 +565,7 @@ struct PlanReviewStaticContent: View {
                 modelId: task.modelId
             )
             
-            let planningAgent = PlanningAgent(llmClient: llmClient)
+            let planningAgent = PlanningAgent(llmClient: llmClient, embeddingService: taskService.skillManager.embeddingService)
             let revisedPlan = try await planningAgent.revisePlan(
                 currentPlan: editedPlan,
                 revisionRequest: revisionText

@@ -162,7 +162,7 @@ extension TaskService {
                                 return skillsToUse
                             }
                             print("TaskService: Matching skills for task (concurrent with VM boot)...")
-                            let skillMatcher = SkillMatcher(llmClient: llmClient)
+                            let skillMatcher = SkillMatcher(llmClient: llmClient, embeddingService: skillManager.embeddingService)
                             let matchedSkills = try await skillMatcher.matchSkills(
                                 forTask: task.taskDescription,
                                 availableSkills: availableForMatching
@@ -779,7 +779,7 @@ extension TaskService {
             let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
             
             // Create planning agent
-            let planningAgent = PlanningAgent(llmClient: llmClient)
+            let planningAgent = PlanningAgent(llmClient: llmClient, embeddingService: skillManager.embeddingService)
             
             // Generate the plan
             let attachedFiles = task.attachedFilePaths.map { URL(fileURLWithPath: $0) }

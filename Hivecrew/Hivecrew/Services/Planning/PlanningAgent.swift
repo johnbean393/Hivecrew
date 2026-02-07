@@ -33,9 +33,9 @@ class PlanningAgent {
     
     // MARK: - Initialization
     
-    init(llmClient: any LLMClientProtocol) {
+    init(llmClient: any LLMClientProtocol, embeddingService: SkillEmbeddingService? = nil) {
         self.llmClient = llmClient
-        self.skillMatcher = SkillMatcher(llmClient: llmClient)
+        self.skillMatcher = SkillMatcher(llmClient: llmClient, embeddingService: embeddingService)
     }
     
     // MARK: - Plan Generation

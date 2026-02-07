@@ -24,6 +24,11 @@ public class SkillManager: ObservableObject {
     /// Last error (if any)
     @Published public var lastError: SkillError?
     
+    // MARK: - Services
+    
+    /// On-device embedding service for skill matching pre-filtering
+    public let embeddingService = SkillEmbeddingService()
+    
     // MARK: - Constants
     
     /// Name of the skill-creator skill used for extraction
@@ -53,12 +58,28 @@ public class SkillManager: ObservableObject {
         "xlsx"
     ]
     
+    /// Default community skills from various GitHub repositories to import alongside Anthropic skills.
+    /// Each entry is a (url, name) tuple where url is the full GitHub URL and name is the local directory name.
+    public static let defaultCommunitySkills: [(url: String, name: String)] = [
+        ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/analyzing-financial-statements", "analyzing-financial-statements"),
+        ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/applying-brand-guidelines", "applying-brand-guidelines"),
+        ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/creating-financial-models", "creating-financial-models"),
+        ("https://github.com/ryanbbrown/revealjs-skill/tree/main/skills/revealjs", "revealjs"),
+        ("https://github.com/coffeefuelbump/csv-data-summarizer-claude-skill", "csv-data-summarizer-claude-skill"),
+        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/biopython", "biopython"),
+        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/clinical-reports", "clinical-reports"),
+        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/clinical-decision-support", "clinical-decision-support"),
+        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/infographics", "infographics"),
+        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/latex-posters", "latex-posters"),
+        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/market-research-reports", "market-research-reports"),
+    ]
+    
     // MARK: - Initialization
     
     public init() {
         // Load skills and bootstrap defaults on init
         Task {
-            // First bootstrap default skills if this is a fresh install
+            // First ensure all default skills are installed (downloads any missing defaults)
             await bootstrapDefaultSkillsIfNeeded()
             // Then load all skills
             try? await loadAllSkills()
@@ -105,7 +126,7 @@ public class SkillManager: ObservableObject {
             do {
                 // Load local metadata first
                 let skillName = itemURL.lastPathComponent
-                let localMetadata = SkillParser.loadLocalMetadata(for: skillName)
+                var localMetadata = SkillParser.loadLocalMetadata(for: skillName)
                 
                 // Parse SKILL.md
                 var skill = try SkillParser.parse(
@@ -129,6 +150,24 @@ public class SkillManager: ObservableObject {
                         createdAt: metadata.createdAt,
                         isEnabled: metadata.isEnabled
                     )
+                }
+                
+                // Compute and cache embedding if missing or stale
+                let currentMetadata = localMetadata ?? SkillParser.LocalMetadata(
+                    isEnabled: skill.isEnabled,
+                    isImported: skill.isImported,
+                    sourceTaskId: skill.sourceTaskId,
+                    createdAt: skill.createdAt
+                )
+                let updatedMetadata = embeddingService.ensureEmbedding(
+                    for: skill,
+                    existingMetadata: currentMetadata
+                )
+                // Save back if the embedding was computed or updated
+                if updatedMetadata.embedding != nil,
+                   updatedMetadata.embeddingText != localMetadata?.embeddingText {
+                    try? SkillParser.saveLocalMetadata(updatedMetadata, for: skillName)
+                    localMetadata = updatedMetadata
                 }
                 
                 loadedSkills.append(skill)
@@ -205,13 +244,20 @@ public class SkillManager: ObservableObject {
         let skillPath = AppPaths.skillFilePath(name: skill.name)
         try content.write(to: skillPath, atomically: true, encoding: .utf8)
         
-        // Save local metadata
-        let localMetadata = SkillParser.LocalMetadata(
+        // Preserve existing embedding data from previous metadata
+        let existingMetadata = SkillParser.loadLocalMetadata(for: skill.name)
+        
+        // Compute embedding for the (possibly updated) description
+        var localMetadata = SkillParser.LocalMetadata(
             isEnabled: skill.isEnabled,
             isImported: skill.isImported,
             sourceTaskId: skill.sourceTaskId,
-            createdAt: skill.createdAt
+            createdAt: skill.createdAt,
+            embedding: existingMetadata?.embedding,
+            embeddingText: existingMetadata?.embeddingText
         )
+        // Recompute if description changed
+        localMetadata = embeddingService.ensureEmbedding(for: skill, existingMetadata: localMetadata)
         try SkillParser.saveLocalMetadata(localMetadata, for: skill.name)
         
         // Refresh skills list
@@ -260,13 +306,16 @@ public class SkillManager: ObservableObject {
         
         skills[index] = skill
         
-        // Save local metadata
+        // Save local metadata (preserving cached embedding)
         do {
+            let existingMetadata = SkillParser.loadLocalMetadata(for: skillName)
             let localMetadata = SkillParser.LocalMetadata(
                 isEnabled: enabled,
                 isImported: skill.isImported,
                 sourceTaskId: skill.sourceTaskId,
-                createdAt: skill.createdAt
+                createdAt: skill.createdAt,
+                embedding: existingMetadata?.embedding,
+                embeddingText: existingMetadata?.embeddingText
             )
             try SkillParser.saveLocalMetadata(localMetadata, for: skillName)
         } catch {
@@ -361,7 +410,9 @@ public class SkillManager: ObservableObject {
     /// - https://github.com/anthropics/skills/tree/main/skills/skill-creator
     /// - https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md
     /// - https://github.com/user/repo/tree/branch/path/to/skill
-    public func importFromGitHubURL(_ urlString: String) async throws -> Skill {
+    /// - https://github.com/user/repo  (repo root, SKILL.md at root level)
+    /// - Parameter nameOverride: Optional name to use as the local skill directory name.
+    public func importFromGitHubURL(_ urlString: String, nameOverride: String? = nil) async throws -> Skill {
         // Parse the GitHub URL to extract components
         guard let parsed = parseGitHubURL(urlString) else {
             throw SkillError.invalidGitHubURL(urlString)
@@ -372,7 +423,8 @@ public class SkillManager: ObservableObject {
             owner: parsed.owner,
             repo: parsed.repo,
             branch: parsed.branch,
-            skillPath: parsed.skillPath
+            skillPath: parsed.skillPath,
+            nameOverride: nameOverride
         )
     }
     
@@ -394,15 +446,24 @@ public class SkillManager: ObservableObject {
         // Parse GitHub URL patterns:
         // https://github.com/owner/repo/tree/branch/path/to/skill
         // https://github.com/owner/repo/blob/branch/path/to/skill
+        // https://github.com/owner/repo  (repo root, assumes branch=main)
         
         guard let url = URL(string: normalized) else { return nil }
         guard url.host == "github.com" || url.host == "www.github.com" else { return nil }
         
         let pathComponents = url.pathComponents.filter { $0 != "/" }
-        guard pathComponents.count >= 4 else { return nil }
+        guard pathComponents.count >= 2 else { return nil }
         
         let owner = pathComponents[0]
         let repo = pathComponents[1]
+        
+        // Handle repo-root URLs (just owner/repo, no tree/blob/branch)
+        if pathComponents.count == 2 {
+            return (owner: owner, repo: repo, branch: "main", skillPath: "")
+        }
+        
+        guard pathComponents.count >= 4 else { return nil }
+        
         let treeOrBlob = pathComponents[2] // "tree" or "blob"
         let branch = pathComponents[3]
         
@@ -416,9 +477,18 @@ public class SkillManager: ObservableObject {
     }
     
     /// Import from parsed GitHub components
-    private func importFromGitHubComponents(owner: String, repo: String, branch: String, skillPath: String) async throws -> Skill {
-        // Extract skill name from path (last component)
-        let skillName = skillPath.split(separator: "/").last.map(String.init) ?? skillPath
+    /// - Parameter nameOverride: Optional name to use instead of deriving from the path. Useful for repo-root skills.
+    private func importFromGitHubComponents(owner: String, repo: String, branch: String, skillPath: String, nameOverride: String? = nil) async throws -> Skill {
+        // Extract skill name: use override, last path component, or repo name for root-level skills
+        let skillName: String
+        if let override = nameOverride, !override.isEmpty {
+            skillName = override
+        } else if let lastComponent = skillPath.split(separator: "/").last.map(String.init), !lastComponent.isEmpty {
+            skillName = lastComponent
+        } else {
+            // Repo-root skill: use repository name
+            skillName = repo
+        }
         
         // Validate skill name
         guard Skill.isValidName(skillName) else {
@@ -431,8 +501,13 @@ public class SkillManager: ObservableObject {
             throw SkillError.skillAlreadyExists(skillName)
         }
         
-        // Build raw content URL
-        let rawBaseURL = "https://raw.githubusercontent.com/\(owner)/\(repo)/\(branch)/\(skillPath)"
+        // Build raw content URL — handle empty skillPath for repo-root skills
+        let rawBaseURL: String
+        if skillPath.isEmpty {
+            rawBaseURL = "https://raw.githubusercontent.com/\(owner)/\(repo)/\(branch)"
+        } else {
+            rawBaseURL = "https://raw.githubusercontent.com/\(owner)/\(repo)/\(branch)/\(skillPath)"
+        }
         let skillMdURL = URL(string: "\(rawBaseURL)/SKILL.md")!
         
         // Download SKILL.md
@@ -687,44 +762,63 @@ public class SkillManager: ObservableObject {
     
     // MARK: - Bootstrap Default Skills
     
-    /// Key for tracking whether default skills have been bootstrapped
+    /// Key for tracking whether initial bootstrap has completed (kept for migration purposes)
     private static let defaultSkillsBootstrappedKey = "defaultSkillsBootstrapped"
     
-    /// Bootstrap all default Anthropic skills on first launch
+    /// Ensure all default skills (Anthropic + community) are installed.
+    /// Runs on every launch and downloads any missing default skills, so new skills
+    /// added to the defaults list are automatically picked up on the next app start.
     public func bootstrapDefaultSkillsIfNeeded() async {
-        // Check if already bootstrapped
-        guard !UserDefaults.standard.bool(forKey: Self.defaultSkillsBootstrappedKey) else {
+        // Collect all default skill names that should be installed
+        let anthropicNames = Set(Self.defaultAnthropicSkills)
+        let communityNames = Set(Self.defaultCommunitySkills.map { $0.name })
+        let allDefaultNames = anthropicNames.union(communityNames)
+        
+        // Determine which skills are missing
+        let missingNames = allDefaultNames.filter { name in
+            let skillPath = AppPaths.skillFilePath(name: name)
+            return !FileManager.default.fileExists(atPath: skillPath.path)
+        }
+        
+        guard !missingNames.isEmpty else {
+            print("SkillManager: All default skills already installed")
             return
         }
         
-        print("SkillManager: Bootstrapping default Anthropic skills...")
+        print("SkillManager: Installing \(missingNames.count) missing default skill(s)...")
         
         var successCount = 0
         var failedSkills: [String] = []
         
-        for skillName in Self.defaultAnthropicSkills {
-            // Skip if already installed
-            let skillPath = AppPaths.skillFilePath(name: skillName)
-            if FileManager.default.fileExists(atPath: skillPath.path) {
-                print("SkillManager: Skill '\(skillName)' already installed, skipping")
-                successCount += 1
-                continue
-            }
-            
+        // Install missing Anthropic skills (from anthropics/skills repo)
+        for skillName in Self.defaultAnthropicSkills where missingNames.contains(skillName) {
             do {
                 _ = try await importFromGitHub(skillName: skillName)
-                print("SkillManager: Successfully imported '\(skillName)'")
+                print("SkillManager: Successfully imported Anthropic skill '\(skillName)'")
                 successCount += 1
             } catch {
-                print("SkillManager: Failed to import '\(skillName)': \(error.localizedDescription)")
+                print("SkillManager: Failed to import Anthropic skill '\(skillName)': \(error.localizedDescription)")
                 failedSkills.append(skillName)
             }
         }
         
-        // Mark as bootstrapped (even if some failed, we don't want to retry on every launch)
+        // Install missing community skills (from various GitHub repos)
+        for entry in Self.defaultCommunitySkills where missingNames.contains(entry.name) {
+            do {
+                _ = try await importFromGitHubURL(entry.url, nameOverride: entry.name)
+                print("SkillManager: Successfully imported community skill '\(entry.name)'")
+                successCount += 1
+            } catch {
+                print("SkillManager: Failed to import community skill '\(entry.name)': \(error.localizedDescription)")
+                failedSkills.append(entry.name)
+            }
+        }
+        
+        // Mark as bootstrapped (for migration tracking)
         UserDefaults.standard.set(true, forKey: Self.defaultSkillsBootstrappedKey)
         
-        print("SkillManager: Bootstrap complete. Imported \(successCount)/\(Self.defaultAnthropicSkills.count) skills")
+        let totalDefaults = allDefaultNames.count
+        print("SkillManager: Bootstrap complete. Installed \(successCount)/\(missingNames.count) missing skills (\(totalDefaults) total defaults)")
         if !failedSkills.isEmpty {
             print("SkillManager: Failed skills: \(failedSkills.joined(separator: ", "))")
         }

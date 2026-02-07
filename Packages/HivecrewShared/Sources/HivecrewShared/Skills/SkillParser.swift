@@ -227,17 +227,25 @@ extension SkillParser {
         public var isImported: Bool
         public var sourceTaskId: String?
         public var createdAt: Date
+        /// Cached sentence embedding vector (512-dim from NLEmbedding)
+        public var embedding: [Double]?
+        /// The description text that was embedded, used to detect when recomputation is needed
+        public var embeddingText: String?
         
         public init(
             isEnabled: Bool = true,
             isImported: Bool = false,
             sourceTaskId: String? = nil,
-            createdAt: Date = Date()
+            createdAt: Date = Date(),
+            embedding: [Double]? = nil,
+            embeddingText: String? = nil
         ) {
             self.isEnabled = isEnabled
             self.isImported = isImported
             self.sourceTaskId = sourceTaskId
             self.createdAt = createdAt
+            self.embedding = embedding
+            self.embeddingText = embeddingText
         }
     }
     
