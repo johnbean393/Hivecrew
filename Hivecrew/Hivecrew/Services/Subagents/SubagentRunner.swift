@@ -55,6 +55,7 @@ final class SubagentRunner {
     private let maxLLMRetries = 3
     private let onActionUpdate: (@MainActor (String) -> Void)?
     private let onLine: (@MainActor (ProgressLine) -> Void)?
+    private let drainMessages: (@MainActor () -> [SubagentManager.AgentMessage])?
     private var incompleteTodoRetryCount = 0
     private let maxIncompleteTodoRetries = 3
     private var consecutiveNoToolCalls = 0
@@ -73,7 +74,8 @@ final class SubagentRunner {
         tools: [LLMToolDefinition],
         maxIterations: Int = 50,
         onActionUpdate: (@MainActor (String) -> Void)? = nil,
-        onLine: (@MainActor (ProgressLine) -> Void)? = nil
+        onLine: (@MainActor (ProgressLine) -> Void)? = nil,
+        drainMessages: (@MainActor () -> [SubagentManager.AgentMessage])? = nil
     ) {
         self.subagentId = subagentId
         self.goal = goal
@@ -87,6 +89,7 @@ final class SubagentRunner {
         self.maxIterations = maxIterations
         self.onActionUpdate = onActionUpdate
         self.onLine = onLine
+        self.drainMessages = drainMessages
     }
     
     func run() async throws -> Result {
@@ -103,6 +106,22 @@ final class SubagentRunner {
         while iteration < maxIterations {
             iteration += 1
             await tracer.nextStep()
+            
+            // Auto-inject any pending mailbox messages before the LLM call
+            if let drain = drainMessages {
+                let incoming = drain()
+                for msg in incoming {
+                    let senderLabel = msg.from == "main" ? "main agent" : "subagent \(msg.from)"
+                    messages.append(.user(
+                        "[Message from \(senderLabel)] Subject: \(msg.subject)\n\(msg.body)"
+                    ))
+                    onLine?(ProgressLine(
+                        type: .info,
+                        summary: "Mailbox: received message from \(senderLabel)",
+                        details: "Subject: \(msg.subject)"
+                    ))
+                }
+            }
             
             onActionUpdate?("Thinking…")
             try? await tracer.logLLMRequest(
@@ -332,6 +351,8 @@ final class SubagentRunner {
         - Prefer web_search/read_webpage_content for research; avoid run_shell unless the goal explicitly requires shell or file operations.
         - Treat any model lists or factual claims in the goal as hypotheses; verify and correct them using sources.
         - Do not use prior knowledge for factual claims. Every factual claim must be grounded in tool-derived sources.
+        - You can send messages to other agents using send_message (to: 'main', a subagent ID, or 'broadcast'). Messages sent to you will appear automatically in your context.
+        - Use send_message to share important findings with other agents, notify the main agent of critical discoveries, or coordinate with sibling subagents.
         - The report you submit must include:
           - What you did (step-by-step, concise)
           - Key findings (bulleted)

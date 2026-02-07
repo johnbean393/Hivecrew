@@ -181,6 +181,9 @@ class AgentStatePublisher: ObservableObject {
     /// Real-time subagent progress states
     @Published var subagents: [SubagentBoxState] = []
     
+    /// Recent inter-agent mailbox messages for trace panel display
+    @Published var recentMessages: [SubagentManager.AgentMessage] = []
+    
     /// Task ID this publisher is tracking
     let taskId: String
     
@@ -512,6 +515,23 @@ class AgentStatePublisher: ObservableObject {
                 details: summary
             )
         }
+    }
+    
+    // MARK: - Mailbox UI Updates
+    
+    func messageReceived(_ message: SubagentManager.AgentMessage) {
+        recentMessages.append(message)
+        // Cap to avoid unbounded growth
+        if recentMessages.count > 50 {
+            recentMessages.removeFirst(recentMessages.count - 50)
+        }
+        
+        let senderLabel = message.from == "main" ? "main agent" : "subagent \(message.from.prefix(8))"
+        let recipientLabel = message.to == "main" ? "main agent" : (message.to == "broadcast" ? "all agents" : "subagent \(message.to.prefix(8))")
+        addActivity(AgentActivityEntry(
+            type: .info,
+            summary: "Mailbox: \(senderLabel) → \(recipientLabel): \(message.subject)"
+        ))
     }
     
 }

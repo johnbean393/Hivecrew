@@ -64,6 +64,9 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case cancelSubagent = "cancel_subagent"
     case listSubagents = "list_subagents"
     
+    // Host-side inter-agent messaging tool
+    case sendMessage = "send_message"
+    
     /// Returns true if this tool executes on the host (not in the guest VM)
     /// Host-side tools don't affect VM state, so screenshot capture can be skipped
     public var isHostSideTool: Bool {
@@ -72,7 +75,8 @@ public enum AgentMethod: String, CaseIterable, Sendable {
              .getLocation, .createTodoList, .addTodoItem, .finishTodoItem,
              .askTextQuestion, .askMultipleChoice, .requestUserIntervention,
              .getLoginCredentials, .generateImage,
-             .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents:
+             .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents,
+             .sendMessage:
             return true
         default:
             return false

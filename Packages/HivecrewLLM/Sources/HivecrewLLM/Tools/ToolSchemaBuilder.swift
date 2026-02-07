@@ -473,6 +473,19 @@ public final class ToolSchemaBuilder: Sendable {
                     "List all subagents associated with the current task.",
                     emptyObjectSchema()
                 )
+                
+            case .sendMessage:
+                return (
+                    "Send a message to another agent (main agent or subagent). Messages are delivered automatically into the recipient's context before their next LLM call. Use this to share findings, send instructions, or coordinate with other agents.",
+                    objectSchema(
+                        properties: [
+                            "to": stringProperty("Recipient: 'main' for the root agent, a subagent ID, or 'broadcast' for all agents."),
+                            "subject": stringProperty("Brief subject line for the message."),
+                            "body": stringProperty("Message content — findings, instructions, questions, or data to share.")
+                        ],
+                        required: ["to", "subject", "body"]
+                    )
+                )
         }
     }
     

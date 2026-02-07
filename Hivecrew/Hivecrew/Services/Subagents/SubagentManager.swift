@@ -44,6 +44,15 @@ final class SubagentManager {
         let domain: SubagentDomain
     }
     
+    struct AgentMessage: Sendable {
+        let id: String
+        let from: String       // "main" or subagent UUID
+        let to: String         // "main", subagent UUID, or "broadcast"
+        let subject: String
+        let body: String
+        let timestamp: Date
+    }
+    
     private struct Handle {
         var info: Info
         var task: Task<SubagentRunner.Result, Error>?
@@ -51,6 +60,7 @@ final class SubagentManager {
     
     private var handles: [String: Handle] = [:]
     private var completionQueue: [Completion] = []
+    private var mailboxes: [String: [AgentMessage]] = ["main": []]
     
     private let taskId: String
     private let vmId: String
@@ -117,6 +127,7 @@ final class SubagentManager {
         
         let handle = Handle(info: info, task: nil)
         handles[id] = handle
+        mailboxes[id] = []
 
         let todoTitle = (purpose?.isEmpty == false) ? purpose! : "Subagent Todo List"
         toolExecutor.registerTodoList(subagentId: id, title: todoTitle, items: normalizedTodos)
@@ -180,6 +191,9 @@ final class SubagentManager {
                         summary: line.summary,
                         details: line.details
                     )
+                },
+                drainMessages: { [weak self] in
+                    self?.drainMessages(for: id) ?? []
                 }
             )
             do {
@@ -220,6 +234,7 @@ final class SubagentManager {
         handles[subagentId] = handle
         statePublisher?.subagentFinished(id: subagentId, status: .cancelled, summary: nil)
         toolExecutor.clearTodoList(subagentId: subagentId)
+        mailboxes.removeValue(forKey: subagentId)
         logLifecycleEvent(
             eventType: "subagent_cancelled",
             subagentId: subagentId,
@@ -255,6 +270,39 @@ final class SubagentManager {
     func drainCompletions() -> [Completion] {
         let drained = completionQueue
         completionQueue.removeAll()
+        return drained
+    }
+    
+    // MARK: - Mailbox
+    
+    func sendMessage(from: String, to: String, subject: String, body: String) {
+        let message = AgentMessage(
+            id: UUID().uuidString,
+            from: from,
+            to: to,
+            subject: subject,
+            body: body,
+            timestamp: Date()
+        )
+        
+        if to == "broadcast" {
+            // Fan out to every active agent's mailbox, including "main"
+            for key in mailboxes.keys {
+                // Don't deliver the broadcast back to the sender
+                if key != from {
+                    mailboxes[key, default: []].append(message)
+                }
+            }
+        } else {
+            mailboxes[to, default: []].append(message)
+        }
+        
+        statePublisher?.messageReceived(message)
+    }
+    
+    func drainMessages(for agentId: String) -> [AgentMessage] {
+        let drained = mailboxes[agentId] ?? []
+        mailboxes[agentId] = []
         return drained
     }
     
@@ -304,6 +352,7 @@ final class SubagentManager {
         handles[subagentId] = updatedHandle
         statePublisher?.subagentFinished(id: subagentId, status: .completed, summary: result.summary)
         toolExecutor.clearTodoList(subagentId: subagentId)
+        mailboxes.removeValue(forKey: subagentId)
         
         completionQueue.append(Completion(
             id: subagentId,
@@ -331,6 +380,7 @@ final class SubagentManager {
         handles[subagentId] = updatedHandle
         statePublisher?.subagentFinished(id: subagentId, status: .failed, summary: errorMessage)
         toolExecutor.clearTodoList(subagentId: subagentId)
+        mailboxes.removeValue(forKey: subagentId)
         logLifecycleEvent(
             eventType: "subagent_failed",
             subagentId: subagentId,
@@ -347,11 +397,11 @@ final class SubagentManager {
     private func defaultAllowlist(for domain: SubagentDomain) -> [String] {
         switch domain {
         case .host:
-            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "finish_todo_item", "generate_image", "wait"]
+            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "finish_todo_item", "generate_image", "send_message", "wait"]
         case .vm:
-            return ["run_shell", "read_file", "move_file", "wait"]
+            return ["run_shell", "read_file", "move_file", "send_message", "wait"]
         case .mixed:
-            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "run_shell", "read_file", "move_file", "finish_todo_item", "generate_image", "wait"]
+            return ["web_search", "read_webpage_content", "extract_info_from_webpage", "get_location", "run_shell", "read_file", "move_file", "finish_todo_item", "generate_image", "send_message", "wait"]
         }
     }
     
@@ -369,6 +419,8 @@ final class SubagentManager {
             allowlist.insert("finish_todo_item")
         }
         allowlist.insert(SubagentRunner.finalReportToolName)
+        // Always include send_message so subagents can communicate with other agents
+        allowlist.insert("send_message")
         // Always include MCP wildcard so subagents can use any connected MCP tools
         allowlist.insert("mcp_*")
         return Array(allowlist).sorted()

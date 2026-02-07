@@ -117,6 +117,8 @@ final class SubagentToolExecutor {
             return try executeFinishTodoItem(args: args, subagentId: subagentId)
         case "generate_image":
             return try await executeGenerateImage(args: args)
+        case "send_message":
+            return executeSendMessage(args: args, subagentId: subagentId)
         case "spawn_subagent":
             return await executeSpawnSubagent(args: args)
         case "get_subagent_status":
@@ -696,6 +698,27 @@ final class SubagentToolExecutor {
         case .text:
             return nil
         }
+    }
+    
+    // MARK: - Messaging Tools
+    
+    private func executeSendMessage(args: [String: Any], subagentId: String?) -> ToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let from = subagentId ?? "unknown"
+        let to = args["to"] as? String ?? ""
+        let subject = args["subject"] as? String ?? ""
+        let body = args["body"] as? String ?? ""
+        
+        if to.isEmpty {
+            return .text("Error: 'to' is required (use 'main', a subagent ID, or 'broadcast').")
+        }
+        
+        manager.sendMessage(from: from, to: to, subject: subject, body: body)
+        
+        let recipientLabel = to == "main" ? "main agent" : (to == "broadcast" ? "all agents" : "subagent \(to)")
+        return .text("Message sent to \(recipientLabel). Subject: \(subject)")
     }
     
     // MARK: - Subagent Tools

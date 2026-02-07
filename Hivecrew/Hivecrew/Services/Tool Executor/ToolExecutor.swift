@@ -135,6 +135,8 @@ class ToolExecutor {
             return "add_todo_item"
         case "finishtodoitem", "finish_to_do_item":
             return "finish_todo_item"
+        case "sendmessage", "send_msg":
+            return "send_message"
         default:
             return normalized
         }
@@ -284,6 +286,9 @@ class ToolExecutor {
             
         case "list_subagents":
             return await executeListSubagents()
+            
+        case "send_message":
+            return await executeSendMessage(args: args, from: "main")
             
         default:
             // Check if this is an MCP tool
@@ -570,6 +575,24 @@ class ToolExecutor {
         }
         let lines = infos.map { formatSubagentInfo($0) }
         return .text(lines.joined(separator: "\n\n"))
+    }
+    
+    private func executeSendMessage(args: [String: Any], from: String) async -> InternalToolResult {
+        guard let manager = subagentManager else {
+            return .text("Error: Subagent manager not available")
+        }
+        let to = args["to"] as? String ?? ""
+        let subject = args["subject"] as? String ?? ""
+        let body = args["body"] as? String ?? ""
+        
+        if to.isEmpty {
+            return .text("Error: 'to' is required (use 'main', a subagent ID, or 'broadcast').")
+        }
+        
+        manager.sendMessage(from: from, to: to, subject: subject, body: body)
+        
+        let recipientLabel = to == "main" ? "main agent" : (to == "broadcast" ? "all agents" : "subagent \(to)")
+        return .text("Message sent to \(recipientLabel). Subject: \(subject)")
     }
     
     private func formatSubagentInfo(_ info: SubagentManager.Info) -> String {
