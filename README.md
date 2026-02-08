@@ -199,9 +199,19 @@ cd Hivecrew
 open Hivecrew.xcworkspace
 ```
 
-3. Build and run from Xcode (requires signing with appropriate entitlements)
+3. Download and place the `cloudflared` binary:
+```bash
+# Download the latest macOS ARM64 release
+curl -L -o cloudflared.tgz https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz
+tar xzf cloudflared.tgz
+mv cloudflared Hivecrew/Hivecrew/Resources/cloudflared/
+chmod +x Hivecrew/Hivecrew/Resources/cloudflared/cloudflared
+rm cloudflared.tgz
+```
 
-Note: The Virtualization framework requires specific entitlements that must be granted via provisioning profiles or notarization.
+4. Build and run from Xcode (requires signing with appropriate entitlements)
+
+Note: The Virtualization framework requires specific entitlements that must be granted via provisioning profiles or notarization. The `cloudflared` binary is not included in the repository due to its size — see `Hivecrew/Hivecrew/Resources/cloudflared/README.md` for details.
 
 ## API
 

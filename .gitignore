@@ -19,3 +19,9 @@ Hivecrew/scripts/
 # Swift Package Manager
 .swiftpm/xcode/xcuserdata/
 Package.resolved
+
+# Cloudflare Worker
+hivecrew-worker/
+
+# cloudflared binary
+Hivecrew/Hivecrew/Resources/cloudflared/cloudflared

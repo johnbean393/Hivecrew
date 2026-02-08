@@ -40,6 +40,12 @@
 		202F64E72F2FE35300F6F359 /* MCPServerRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */; };
 		20360DB52F36958600A9B998 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 20360DB42F36958600A9B998 /* Localizable.xcstrings */; };
 		20360DB72F37E0F600A9B998 /* SkillEmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DB62F37E0F600A9B998 /* SkillEmbeddingService.swift */; };
+		20360DBB2F3821C400A9B998 /* cloudflared in Resources */ = {isa = PBXBuildFile; fileRef = 20360DB82F3821C400A9B998 /* cloudflared */; };
+		20360DBC2F3821C400A9B998 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 20360DB92F3821C400A9B998 /* README.md */; };
+		20360DC22F38234300A9B998 /* RemoteAccessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DC02F38234300A9B998 /* RemoteAccessManager.swift */; };
+		20360DC32F38234300A9B998 /* CloudflaredManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBD2F38234300A9B998 /* CloudflaredManager.swift */; };
+		20360DC42F38234300A9B998 /* RemoteAccessKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBF2F38234300A9B998 /* RemoteAccessKeychain.swift */; };
+		20360DC52F38234300A9B998 /* RemoteAccessAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBE2F38234300A9B998 /* RemoteAccessAPIClient.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -246,6 +252,12 @@
 		202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerRecord.swift; sourceTree = "<group>"; };
 		20360DB42F36958600A9B998 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		20360DB62F37E0F600A9B998 /* SkillEmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillEmbeddingService.swift; sourceTree = "<group>"; };
+		20360DB82F3821C400A9B998 /* cloudflared */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = cloudflared; sourceTree = "<group>"; };
+		20360DB92F3821C400A9B998 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		20360DBD2F38234300A9B998 /* CloudflaredManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudflaredManager.swift; sourceTree = "<group>"; };
+		20360DBE2F38234300A9B998 /* RemoteAccessAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessAPIClient.swift; sourceTree = "<group>"; };
+		20360DBF2F38234300A9B998 /* RemoteAccessKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessKeychain.swift; sourceTree = "<group>"; };
+		20360DC02F38234300A9B998 /* RemoteAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessManager.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -480,6 +492,26 @@
 			path = MCP;
 			sourceTree = "<group>";
 		};
+		20360DBA2F3821C400A9B998 /* cloudflared */ = {
+			isa = PBXGroup;
+			children = (
+				20360DB82F3821C400A9B998 /* cloudflared */,
+				20360DB92F3821C400A9B998 /* README.md */,
+			);
+			path = cloudflared;
+			sourceTree = "<group>";
+		};
+		20360DC12F38234300A9B998 /* RemoteAccess */ = {
+			isa = PBXGroup;
+			children = (
+				20360DBD2F38234300A9B998 /* CloudflaredManager.swift */,
+				20360DBE2F38234300A9B998 /* RemoteAccessAPIClient.swift */,
+				20360DBF2F38234300A9B998 /* RemoteAccessKeychain.swift */,
+				20360DC02F38234300A9B998 /* RemoteAccessManager.swift */,
+			);
+			path = RemoteAccess;
+			sourceTree = "<group>";
+		};
 		2049633A2F17DDAC007DD5FD /* Updates */ = {
 			isa = PBXGroup;
 			children = (
@@ -614,6 +646,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				20360DC12F38234300A9B998 /* RemoteAccess */,
 				202F64E42F2FE31500F6F359 /* MCP */,
 				202F64832F2DB88700F6F359 /* Planning */,
 				202F646C2F2D26DE00F6F359 /* Image Generation */,
@@ -795,6 +828,7 @@
 		20C413F22F14301E00C6E8A9 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				20360DBA2F3821C400A9B998 /* cloudflared */,
 				20C413F52F14302F00C6E8A9 /* Hivecrew.icon */,
 			);
 			path = Resources;
@@ -1100,6 +1134,8 @@
 				209C61BE2F12ABD700062D0E /* Assets.xcassets in Resources */,
 				20360DB52F36958600A9B998 /* Localizable.xcstrings in Resources */,
 				209C61BF2F12ABD700062D0E /* Info.plist in Resources */,
+				20360DBB2F3821C400A9B998 /* cloudflared in Resources */,
+				20360DBC2F3821C400A9B998 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1240,6 +1276,10 @@
 				204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */,
 				20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */,
 				209EB6E12F1E1A0E00A7F13F /* TemplateDownloadService+UpdateChecking.swift in Sources */,
+				20360DC22F38234300A9B998 /* RemoteAccessManager.swift in Sources */,
+				20360DC32F38234300A9B998 /* CloudflaredManager.swift in Sources */,
+				20360DC42F38234300A9B998 /* RemoteAccessKeychain.swift in Sources */,
+				20360DC52F38234300A9B998 /* RemoteAccessAPIClient.swift in Sources */,
 				209EB6E22F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
 				202F64E12F2FE30400F6F359 /* MCPServerEditSheet.swift in Sources */,

@@ -166,6 +166,11 @@ struct HivecrewApp: App {
         APIServerManager.shared.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
         APIServerManager.shared.startIfEnabled()
         
+        // Reconnect remote access tunnel if previously enabled
+        Task {
+            await RemoteAccessManager.shared.reconnectIfNeeded()
+        }
+        
         // Configure MCP server manager (connections are established lazily)
         // Servers are connected when MCP tools are first needed to avoid startup lag
         MCPServerManager.shared.configure(modelContext: sharedModelContainer.mainContext)

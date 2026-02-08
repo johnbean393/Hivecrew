@@ -2,17 +2,18 @@
 //  APISettingsView.swift
 //  Hivecrew
 //
-//  Settings view for the REST API server
+//  Settings view for the REST API server and remote access
 //
 
 import SwiftUI
 import TipKit
 import HivecrewAPI
+import CoreImage.CIFilterBuiltins
 
-/// Settings view for the Hivecrew REST API server
+/// Settings view for the Hivecrew REST API server and remote access
 struct APISettingsView: View {
     
-    // MARK: - State
+    // MARK: - API Server State
     
     @AppStorage("apiServerEnabled") private var apiServerEnabled = false
     @AppStorage("apiServerPort") private var apiServerPort = 5482
@@ -29,6 +30,16 @@ struct APISettingsView: View {
     
     // Tips
     private let apiIntegrationTip = APIIntegrationTip()
+    
+    // MARK: - Remote Access State
+    
+    @ObservedObject private var remoteStatus = RemoteAccessStatus.shared
+    
+    @State private var emailInput = ""
+    @State private var otpInput = ""
+    @State private var isRemoteLoading = false
+    @State private var showRemoveConfirmation = false
+    @State private var urlCopyFeedback = false
     
     // MARK: - Body
     
@@ -199,6 +210,50 @@ struct APISettingsView: View {
                 Text("File Upload Limits")
             }
             
+            // Remote Access Section
+            Section {
+                switch remoteStatus.state {
+                case .notConfigured:
+                    remoteNotConfiguredView
+                    
+                case .authenticating, .awaitingOTP:
+                    remoteEmailVerificationView
+                    
+                case .provisioning:
+                    remoteProvisioningView
+                    
+                case .connecting:
+                    remoteConnectingView
+                    
+                case .connected:
+                    remoteConnectedView
+                    
+                case .disconnected:
+                    remoteDisconnectedView
+                    
+                case .failed:
+                    remoteFailedView
+                }
+                
+                // Show error if present
+                if let error = remoteStatus.errorMessage {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } header: {
+                Text("Remote Access")
+            } footer: {
+                if remoteStatus.state == .notConfigured {
+                    Text("Access your Hivecrew instance from anywhere via a secure Cloudflare Tunnel. Requires email verification.")
+                }
+            }
+            
             // Usage Section
             Section {
                 VStack(alignment: .leading, spacing: 12) {
@@ -241,7 +296,285 @@ struct APISettingsView: View {
         }
     }
     
-    // MARK: - Helpers
+    // MARK: - Remote Access State Views
+    
+    private var remoteNotConfiguredView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Enable remote access to control Hivecrew from your phone or any device.")
+                .font(.callout)
+                .foregroundColor(.secondary)
+            
+            Button("Set Up Remote Access") {
+                remoteStatus.update(state: .awaitingOTP)
+            }
+        }
+    }
+    
+    private var remoteEmailVerificationView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Email input row
+            HStack {
+                Text("Email")
+                    .frame(width: 50, alignment: .leading)
+                TextField("Email address", text: $emailInput)
+                    .textFieldStyle(.roundedBorder)
+                    .textContentType(.emailAddress)
+                    .disabled(isRemoteLoading || remoteStatus.state == .authenticating)
+                    .onSubmit {
+                        if remoteStatus.state == .awaitingOTP && !emailInput.isEmpty && otpInput.isEmpty {
+                            sendOTP()
+                        }
+                    }
+                
+                Button("Send Code") {
+                    sendOTP()
+                }
+                .disabled(emailInput.isEmpty || isRemoteLoading)
+            }
+            
+            // OTP input row (shown after email is submitted)
+            if remoteStatus.state == .awaitingOTP && !emailInput.isEmpty {
+                HStack {
+                    Text("Code")
+                        .frame(width: 50, alignment: .leading)
+                    TextField("6-digit code", text: $otpInput)
+                        .textFieldStyle(.roundedBorder)
+                        .textContentType(.oneTimeCode)
+                        .frame(maxWidth: 140)
+                        .onSubmit {
+                            if otpInput.count == 6 {
+                                verifyOTP()
+                            }
+                        }
+                    
+                    Button("Verify") {
+                        verifyOTP()
+                    }
+                    .disabled(otpInput.count != 6 || isRemoteLoading)
+                    
+                    Spacer()
+                    
+                    Button("Cancel") {
+                        cancelRemoteSetup()
+                    }
+                    .foregroundColor(.secondary)
+                }
+                
+                Text("Check your email for a 6-digit code.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            if isRemoteLoading {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+    }
+    
+    private var remoteProvisioningView: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Creating your secure tunnel...")
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var remoteConnectingView: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Connecting tunnel...")
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    private var remoteConnectedView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Status
+            HStack {
+                Text("Status")
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 8, height: 8)
+                    Text("Connected")
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Remote URL
+            if let url = remoteStatus.remoteURL {
+                HStack {
+                    Text("Remote URL")
+                    Spacer()
+                    Text(url + "/web")
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                    
+                    if urlCopyFeedback {
+                        Text("Copied!")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    } else {
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(url + "/web", forType: .string)
+                            urlCopyFeedback = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                urlCopyFeedback = false
+                            }
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Copy remote URL")
+                    }
+                }
+            }
+            
+            // QR Code
+            if let url = remoteStatus.remoteURL {
+                HStack {
+                    Spacer()
+                    qrCodeImage(for: url + "/web")
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
+                        .padding(8)
+                        .background(Color.white)
+                        .cornerRadius(8)
+                    Spacer()
+                }
+            }
+            
+            // Email
+            if let email = remoteStatus.email {
+                HStack {
+                    Text("Account")
+                    Spacer()
+                    Text(email)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // Actions
+            HStack {
+                Button("Disconnect") {
+                    Task { await RemoteAccessManager.shared.disconnect() }
+                }
+                
+                Spacer()
+                
+                Button("Remove Remote Access") {
+                    showRemoveConfirmation = true
+                }
+                .foregroundColor(.red)
+            }
+        }
+        .alert("Remove Remote Access?", isPresented: $showRemoveConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Remove", role: .destructive) {
+                Task { await RemoteAccessManager.shared.remove() }
+            }
+        } message: {
+            Text("This will delete your tunnel and remote URL. You can set it up again later, but the URL will change.")
+        }
+    }
+    
+    private var remoteDisconnectedView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Status")
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(.yellow)
+                        .frame(width: 8, height: 8)
+                    Text("Disconnected")
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            if let subdomain = remoteStatus.subdomain {
+                HStack {
+                    Text("Remote URL")
+                    Spacer()
+                    Text("https://\(subdomain).hivecrew.org/web")
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            HStack {
+                Button("Reconnect") {
+                    Task { await RemoteAccessManager.shared.reconnect() }
+                }
+                
+                Spacer()
+                
+                Button("Remove Remote Access") {
+                    showRemoveConfirmation = true
+                }
+                .foregroundColor(.red)
+            }
+        }
+        .alert("Remove Remote Access?", isPresented: $showRemoveConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Remove", role: .destructive) {
+                Task { await RemoteAccessManager.shared.remove() }
+            }
+        } message: {
+            Text("This will delete your tunnel and remote URL. You can set it up again later, but the URL will change.")
+        }
+    }
+    
+    private var remoteFailedView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Status")
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 8, height: 8)
+                    Text("Error")
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            HStack {
+                if RemoteAccessKeychain.isConfigured {
+                    Button("Retry") {
+                        Task { await RemoteAccessManager.shared.reconnect() }
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Remove Remote Access") {
+                        showRemoveConfirmation = true
+                    }
+                    .foregroundColor(.red)
+                } else {
+                    Button("Try Again") {
+                        remoteStatus.update(state: .notConfigured)
+                    }
+                }
+            }
+        }
+        .alert("Remove Remote Access?", isPresented: $showRemoveConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Remove", role: .destructive) {
+                Task { await RemoteAccessManager.shared.remove() }
+            }
+        } message: {
+            Text("This will delete your tunnel and remote URL.")
+        }
+    }
+    
+    // MARK: - API Server Helpers
     
     private var baseURL: String {
         let port = serverStatus.actualPort ?? apiServerPort
@@ -316,6 +649,61 @@ struct APISettingsView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             copyFeedback = false
         }
+    }
+    
+    // MARK: - Remote Access Actions
+    
+    private func sendOTP() {
+        guard !emailInput.isEmpty else { return }
+        isRemoteLoading = true
+        Task {
+            await RemoteAccessManager.shared.requestOTP(email: emailInput)
+            await MainActor.run { isRemoteLoading = false }
+        }
+    }
+    
+    private func verifyOTP() {
+        guard otpInput.count == 6 else { return }
+        isRemoteLoading = true
+        Task {
+            await RemoteAccessManager.shared.verifyOTP(email: emailInput, code: otpInput)
+            await MainActor.run {
+                isRemoteLoading = false
+                otpInput = ""
+            }
+        }
+    }
+    
+    private func cancelRemoteSetup() {
+        emailInput = ""
+        otpInput = ""
+        isRemoteLoading = false
+        remoteStatus.update(state: .notConfigured)
+        remoteStatus.errorMessage = nil
+    }
+    
+    // MARK: - QR Code Generation
+    
+    private func qrCodeImage(for string: String) -> Image {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+        
+        guard let outputImage = filter.outputImage else {
+            return Image(systemName: "qrcode")
+        }
+        
+        // Scale up the QR code for crisp rendering
+        let transform = CGAffineTransform(scaleX: 10, y: 10)
+        let scaledImage = outputImage.transformed(by: transform)
+        
+        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
+            return Image(systemName: "qrcode")
+        }
+        
+        let nsImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        return Image(nsImage: nsImage)
     }
 }
 
