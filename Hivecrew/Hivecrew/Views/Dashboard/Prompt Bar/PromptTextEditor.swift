@@ -141,6 +141,7 @@ struct PromptTextEditor: NSViewRepresentable {
         textView.textColor = .labelColor
         textView.typingAttributes[.foregroundColor] = NSColor.labelColor
         textView.insertionPointColor = NSColor.controlAccentColor
+        textView.allowsUndo = true
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         

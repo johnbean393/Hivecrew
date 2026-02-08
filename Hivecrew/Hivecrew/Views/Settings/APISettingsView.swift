@@ -316,7 +316,7 @@ struct APISettingsView: View {
             HStack {
                 Text("Email")
                     .frame(width: 50, alignment: .leading)
-                TextField("Email address", text: $emailInput)
+                TextField("", text: $emailInput)
                     .textFieldStyle(.roundedBorder)
                     .textContentType(.emailAddress)
                     .disabled(isRemoteLoading || remoteStatus.state == .authenticating)

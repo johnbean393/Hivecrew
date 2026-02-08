@@ -79,6 +79,68 @@ class PromptTextView: NSTextView {
         needsDisplay = true
     }
     
+    // MARK: - Keyboard Shortcuts
+    
+    /// Handle standard text editing shortcuts that SwiftUI may intercept
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.type == .keyDown else {
+            return super.performKeyEquivalent(with: event)
+        }
+        
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let hasCommand = flags.contains(.command)
+        let hasShift = flags.contains(.shift)
+        
+        guard hasCommand else {
+            return super.performKeyEquivalent(with: event)
+        }
+        
+        switch event.charactersIgnoringModifiers {
+        case "z":
+            if hasShift {
+                // Cmd+Shift+Z → Redo
+                if let undoManager = self.undoManager, undoManager.canRedo {
+                    undoManager.redo()
+                    return true
+                }
+            } else {
+                // Cmd+Z → Undo
+                if let undoManager = self.undoManager, undoManager.canUndo {
+                    undoManager.undo()
+                    return true
+                }
+            }
+        case "a":
+            if !hasShift {
+                // Cmd+A → Select All
+                selectAll(nil)
+                return true
+            }
+        case "c":
+            if !hasShift {
+                // Cmd+C → Copy
+                copy(nil)
+                return true
+            }
+        case "x":
+            if !hasShift {
+                // Cmd+X → Cut
+                cut(nil)
+                return true
+            }
+        case "v":
+            if !hasShift {
+                // Cmd+V → Paste (uses our plain-text override below)
+                paste(nil)
+                return true
+            }
+        default:
+            break
+        }
+        
+        return super.performKeyEquivalent(with: event)
+    }
+    
     /// Force pasting as plain text
     override func paste(_ sender: Any?) {
         let pasteboard = NSPasteboard.general
