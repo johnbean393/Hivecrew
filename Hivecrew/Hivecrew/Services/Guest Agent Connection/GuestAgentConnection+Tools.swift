@@ -125,10 +125,13 @@ extension GuestAgentConnection {
         // Without this, packages installed via pip for one Python version (e.g. system 3.9)
         // are invisible to another version (e.g. Homebrew 3.12) since each version has its
         // own user site-packages directory under ~/Library/Python/<version>/.
+        // Use zsh's (N) glob qualifier so unmatched patterns silently expand to
+        // nothing instead of triggering a fatal NOMATCH error that aborts the
+        // entire script in non-interactive zsh -c mode.
         let envSetup = """
             export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:/Library/TeX/texbin:$PATH" 2>/dev/null
-            for _d in "$HOME/Library/Python"/*/bin; do [ -d "$_d" ] && PATH="$_d:$PATH"; done 2>/dev/null; export PATH
-            for _d in "$HOME/Library/Python"/*/lib/python/site-packages "$HOME/.local/lib/python"*/site-packages /opt/homebrew/lib/python*/site-packages; do [ -d "$_d" ] && PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$_d"; done 2>/dev/null; export PYTHONPATH
+            for _d in "$HOME/Library/Python"/*/bin(N); do [ -d "$_d" ] && PATH="$_d:$PATH"; done 2>/dev/null; export PATH
+            for _d in "$HOME/Library/Python"/*/lib/python/site-packages(N) "$HOME/.local/lib/python"*/site-packages(N) /opt/homebrew/lib/python*/site-packages(N); do [ -d "$_d" ] && PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$_d"; done 2>/dev/null; export PYTHONPATH
             """
         let wrappedCommand = "\(envSetup); \(expandedCommand)"
         
