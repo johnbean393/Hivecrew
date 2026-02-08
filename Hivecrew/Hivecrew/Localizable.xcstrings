@@ -6436,13 +6436,13 @@
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connessione"
+            "value": "Connetti"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "API"
+            "value": "Conectar"
           }
         }
       }
