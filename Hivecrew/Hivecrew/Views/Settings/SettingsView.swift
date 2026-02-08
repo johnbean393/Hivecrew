@@ -18,7 +18,7 @@ struct SettingsView: View {
         case tasks = "Tasks"
         case mcp = "MCP"
         case credentials = "Credentials"
-        case api = "API"
+        case api = "Connect"
         case developer = "Developer"
         
         var id: String { rawValue }
@@ -30,7 +30,7 @@ struct SettingsView: View {
             case .tasks: return String(localized: "Tasks")
             case .mcp: return "MCP"
             case .credentials: return String(localized: "Credentials")
-            case .api: return "API"
+            case .api: return String(localized: "Connect")
             case .developer: return String(localized: "Developer")
             }
         }
@@ -42,7 +42,7 @@ struct SettingsView: View {
             case .tasks: return "checklist"
             case .mcp: return "puzzlepiece.extension"
             case .credentials: return "key.fill"
-            case .api: return "network"
+            case .api: return "antenna.radiowaves.left.and.right"
             case .developer: return "hammer"
             }
         }
@@ -59,6 +59,11 @@ struct SettingsView: View {
             developerTab
         }
         .frame(width: 650, height: 500)
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToSettingsTab)) { notification in
+            if let tab = notification.object as? SettingsTab {
+                selectedTab = tab
+            }
+        }
     }
     
     // MARK: - Tabs

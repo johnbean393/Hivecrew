@@ -120,10 +120,17 @@ extension GuestAgentConnection {
         // Prepend common tool paths to ensure Homebrew, Cargo, Bun, and other tools are available.
         // The GuestAgent runs /bin/zsh -c which doesn't source ~/.zshrc or ~/.zprofile,
         // so tools installed via package managers won't be in PATH by default.
-        let pathSetup = """
+        //
+        // Python fix: Also add user site-packages to PYTHONPATH and user bin dirs to PATH.
+        // Without this, packages installed via pip for one Python version (e.g. system 3.9)
+        // are invisible to another version (e.g. Homebrew 3.12) since each version has its
+        // own user site-packages directory under ~/Library/Python/<version>/.
+        let envSetup = """
             export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:/Library/TeX/texbin:$PATH" 2>/dev/null
+            for _d in "$HOME/Library/Python"/*/bin; do [ -d "$_d" ] && PATH="$_d:$PATH"; done 2>/dev/null; export PATH
+            for _d in "$HOME/Library/Python"/*/lib/python/site-packages "$HOME/.local/lib/python"*/site-packages /opt/homebrew/lib/python*/site-packages; do [ -d "$_d" ] && PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$_d"; done 2>/dev/null; export PYTHONPATH
             """
-        let wrappedCommand = "\(pathSetup); \(expandedCommand)"
+        let wrappedCommand = "\(envSetup); \(expandedCommand)"
         
         var params: [String: Any] = ["command": wrappedCommand]
         if let timeout = timeout { params["timeout"] = timeout }

@@ -87,7 +87,10 @@ final class AgentRunner {
     var completionAttempts: Int = 0
     
     /// Maximum number of completion verification retries before giving up
-    let maxCompletionAttempts: Int = 3
+    let maxCompletionAttempts: Int = {
+        let stored = UserDefaults.standard.integer(forKey: "maxCompletionAttempts")
+        return stored > 0 ? min(max(stored, 1), 10) : 3
+    }()
     
     /// Maximum number of retries for LLM calls
     let maxLLMRetries = 3

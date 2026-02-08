@@ -41,6 +41,53 @@ final class FileTool {
         if !missingPaths.isEmpty {
             env["PATH"] = (missingPaths + pathComponents).joined(separator: ":")
         }
+        
+        // Add Python user site-packages to PYTHONPATH and user bin dirs to PATH.
+        // On macOS, pip --user installs packages to ~/Library/Python/<version>/lib/python/site-packages/
+        // and scripts to ~/Library/Python/<version>/bin/. When multiple Python versions are present
+        // (e.g. system 3.9 + Homebrew 3.12), packages installed by one version's pip are invisible
+        // to the other. Adding all versions' site-packages to PYTHONPATH fixes this.
+        let homeDir = env["HOME"] ?? NSHomeDirectory()
+        let pythonLibDir = "\(homeDir)/Library/Python"
+        if let pythonVersions = try? FileManager.default.contentsOfDirectory(atPath: pythonLibDir) {
+            var sitePackagePaths: [String] = []
+            var binPaths: [String] = []
+            for version in pythonVersions {
+                let sitePkgs = "\(pythonLibDir)/\(version)/lib/python/site-packages"
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: sitePkgs, isDirectory: &isDir), isDir.boolValue {
+                    sitePackagePaths.append(sitePkgs)
+                }
+                let binDir = "\(pythonLibDir)/\(version)/bin"
+                isDir = false
+                if FileManager.default.fileExists(atPath: binDir, isDirectory: &isDir), isDir.boolValue {
+                    binPaths.append(binDir)
+                }
+            }
+            if !sitePackagePaths.isEmpty {
+                let existing = env["PYTHONPATH"] ?? ""
+                let all = sitePackagePaths + (existing.isEmpty ? [] : [existing])
+                env["PYTHONPATH"] = all.joined(separator: ":")
+            }
+            if !binPaths.isEmpty {
+                env["PATH"] = (binPaths + [env["PATH"] ?? ""]).joined(separator: ":")
+            }
+        }
+        
+        // Also check Homebrew Python site-packages
+        let brewPythonBase = "/opt/homebrew/lib"
+        if let brewContents = try? FileManager.default.contentsOfDirectory(atPath: brewPythonBase) {
+            let pythonDirs = brewContents.filter { $0.hasPrefix("python") }
+            for pyDir in pythonDirs {
+                let sitePkgs = "\(brewPythonBase)/\(pyDir)/site-packages"
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: sitePkgs, isDirectory: &isDir), isDir.boolValue {
+                    let existing = env["PYTHONPATH"] ?? ""
+                    env["PYTHONPATH"] = existing.isEmpty ? sitePkgs : "\(existing):\(sitePkgs)"
+                }
+            }
+        }
+        
         process.environment = env
         
         let stdoutPipe = Pipe()

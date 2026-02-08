@@ -3919,10 +3919,28 @@
     },
     "Authorized %@": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "已授权 %@"
+            "value": "Autorisiert %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorizado %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorisé %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorizzato %@"
           }
         },
         "ja": {
@@ -3937,38 +3955,38 @@
             "value": "승인됨 %@"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autorisé %@"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Autorisiert %@"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Autorizzato %@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Autorizado %@"
+            "value": "已授权 %@"
           }
         }
       }
     },
     "Authorized Devices": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "已授权设备"
+            "value": "Autorisierte Geräte"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivos Autorizados"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appareils autorisés"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivi autorizzati"
           }
         },
         "ja": {
@@ -3983,28 +4001,10 @@
             "value": "승인된 기기"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Appareils autorisés"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Autorisierte Geräte"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dispositivi autorizzati"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dispositivos Autorizados"
+            "value": "已授权设备"
           }
         }
       }
@@ -6401,6 +6401,52 @@
         }
       }
     },
+    "Connect": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinden"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connessione"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API"
+          }
+        }
+      }
+    },
     "Connect to an OpenAI-compatible API to power your agents": {
       "localizations": {
         "de": {
@@ -6765,6 +6811,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "继续"
+          }
+        }
+      }
+    },
+    "Control Hivecrew from Any Device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过任意设备控制 Hivecrew"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "あらゆるデバイスからHivecrewを操作する"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "어떤 기기에서든 Hivecrew를 제어하세요"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contrôlez Hivecrew depuis n'importe quel appareil"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steuern Sie Hivecrew von jedem Gerät"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla Hivecrew da qualsiasi dispositivo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controla Hivecrew desde cualquier dispositivo"
           }
         }
       }
@@ -9163,10 +9255,28 @@
     },
     "Device name": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "设备名称"
+            "value": "Gerätename"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombre del dispositivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom de l'appareil"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nome dispositivo"
           }
         },
         "ja": {
@@ -9181,38 +9291,38 @@
             "value": "기기 이름"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nom de l'appareil"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gerätename"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nome dispositivo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nombre del dispositivo"
+            "value": "设备名称"
           }
         }
       }
     },
     "Device name:": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "设备名称："
+            "value": "Gerätename:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombre del dispositivo:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom de l'appareil :"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nome dispositivo:"
           }
         },
         "ja": {
@@ -9227,38 +9337,38 @@
             "value": "기기 이름:"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nom de l'appareil :"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gerätename:"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nome dispositivo:"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nombre del dispositivo:"
+            "value": "设备名称："
           }
         }
       }
     },
     "Device Pairing Request": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "配对请求"
+            "value": "Geräte-Pairing-Anfrage"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solicitud de Emparejamiento de Dispositivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demande d'appairage d'appareil"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richiesta di abbinamento dispositivo"
           }
         },
         "ja": {
@@ -9273,38 +9383,38 @@
             "value": "기기 페어링 요청"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Demande d'appairage d'appareil"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geräte-Pairing-Anfrage"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Richiesta di abbinamento dispositivo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Solicitud de Emparejamiento de Dispositivo"
+            "value": "配对请求"
           }
         }
       }
     },
     "Devices that connect via the web UI pairing flow will appear here.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "通过 Web UI 配对流程连接的设备将显示在这里。"
+            "value": "Geräte, die sich über den Web-UI-Pairing-Flow verbinden, werden hier angezeigt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los dispositivos que se conectan mediante el flujo de emparejamiento de la interfaz web aparecerán aquí."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les appareils qui se connectent via le processus d'appairage de l'interface web s'afficheront ici."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I dispositivi che si connettono tramite il flusso di abbinamento dell'interfaccia web UI appariranno qui."
           }
         },
         "ja": {
@@ -9319,28 +9429,10 @@
             "value": "웹 UI 페어링을 통해 연결된 기기가 여기에 표시됩니다."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les appareils qui se connectent via le processus d'appairage de l'interface web s'afficheront ici."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geräte, die sich über den Web-UI-Pairing-Flow verbinden, werden hier angezeigt."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "I dispositivi che si connettono tramite il flusso di abbinamento dell'interfaccia web UI appariranno qui."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los dispositivos que se conectan mediante el flujo de emparejamiento de la interfaz web aparecerán aquí."
+            "value": "通过 Web UI 配对流程连接的设备将显示在这里。"
           }
         }
       }
@@ -10957,10 +11049,28 @@
     },
     "Enter a new name for this device.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "请输入此设备的新名称。"
+            "value": "Geben Sie einen neuen Namen für dieses Gerät ein."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduzca un nuevo nombre para este dispositivo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entrez un nouveau nom pour cet appareil."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Immettere un nuovo nome per questo dispositivo."
           }
         },
         "ja": {
@@ -10975,28 +11085,10 @@
             "value": "새 이름을 입력하세요."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Entrez un nouveau nom pour cet appareil."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geben Sie einen neuen Namen für dieses Gerät ein."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Immettere un nuovo nome per questo dispositivo."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Introduzca un nuevo nombre para este dispositivo."
+            "value": "请输入此设备的新名称。"
           }
         }
       }
@@ -14871,6 +14963,52 @@
         }
       }
     },
+    "Manage Devices…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理设备…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デバイス管理…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 관리…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gérer les appareils…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geräte verwalten…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gestisci dispositivi…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gestionar dispositivos…"
+          }
+        }
+      }
+    },
     "Manage Skills...": {
       "localizations": {
         "de": {
@@ -16673,10 +16811,28 @@
     },
     "No devices authorized": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "无已授权设备"
+            "value": "Keine autorisierten Geräte"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin dispositivos autorizados"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun appareil autorisé"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun dispositivo autorizzato"
           }
         },
         "ja": {
@@ -16691,28 +16847,10 @@
             "value": "승인된 기기 없음"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aucun appareil autorisé"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keine autorisierten Geräte"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessun dispositivo autorizzato"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin dispositivos autorizados"
+            "value": "无已授权设备"
           }
         }
       }
@@ -18001,6 +18139,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "npx"
+          }
+        }
+      }
+    },
+    "Number of verification attempts before ending an agentic loop (1-10)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体循环结束前的验证尝试次数 (1-10)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エージェントループ終了前の検証試行回数（1-10）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "에이전틱 루프 종료 전 검증 시도 횟수 (1-10)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombre de tentatives de vérification avant de mettre fin à une boucle agentique (1-10)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anzahl der Verifizierungsversuche vor Beenden einer agentischen Schleife (1-10)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numero di tentativi di verifica prima di terminare un ciclo agentico (1-10)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Número de intentos de verificación antes de finalizar un bucle agéntico (1-10)"
           }
         }
       }
@@ -20445,10 +20629,28 @@
     },
     "Reject": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "拒绝"
+            "value": "Ablehnen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechazar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejeter"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rifiuta"
           }
         },
         "ja": {
@@ -20463,28 +20665,10 @@
             "value": "거부"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rejeter"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ablehnen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rifiuta"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rechazar"
+            "value": "拒绝"
           }
         }
       }
@@ -20721,10 +20905,28 @@
     },
     "Rename Device": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "重命名设备"
+            "value": "Gerät umbenennen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renombrar dispositivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renommer l'appareil"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rinomina dispositivo"
           }
         },
         "ja": {
@@ -20739,38 +20941,38 @@
             "value": "기기 이름 변경"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Renommer l'appareil"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gerät umbenennen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rinomina dispositivo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Renombrar dispositivo"
+            "value": "重命名设备"
           }
         }
       }
     },
     "Rename this device": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "重命名此设备"
+            "value": "Dieses Gerät umbenennen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renombrar este dispositivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renommer cet appareil"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rinomina questo dispositivo"
           }
         },
         "ja": {
@@ -20785,28 +20987,10 @@
             "value": "이 기기 이름을 변경하세요"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Renommer cet appareil"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Gerät umbenennen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rinomina questo dispositivo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Renombrar este dispositivo"
+            "value": "重命名此设备"
           }
         }
       }
@@ -21963,10 +22147,28 @@
     },
     "Revoke": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "撤销"
+            "value": "Widerrufen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Révoquer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoca"
           }
         },
         "ja": {
@@ -21981,38 +22183,38 @@
             "value": "해제"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Révoquer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Widerrufen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoca"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revocar"
+            "value": "撤销"
           }
         }
       }
     },
     "Revoke Device?": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "撤销设备？"
+            "value": "Gerät widerrufen?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Revocar dispositivo?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Révoquer l'appareil ?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocare il dispositivo?"
           }
         },
         "ja": {
@@ -22027,38 +22229,38 @@
             "value": "기기 해제?"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Révoquer l'appareil ?"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gerät widerrufen?"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revocare il dispositivo?"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Revocar dispositivo?"
+            "value": "撤销设备？"
           }
         }
       }
     },
     "Revoke this device": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "撤销此设备"
+            "value": "Dieses Gerät widerrufen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocar este dispositivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Révoquer cet appareil"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoca questo dispositivo"
           }
         },
         "ja": {
@@ -22073,28 +22275,10 @@
             "value": "이 기기 해제"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Révoquer cet appareil"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Gerät widerrufen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoca questo dispositivo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revocar este dispositivo"
+            "value": "撤销此设备"
           }
         }
       }
@@ -24533,6 +24717,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置远程访问"
+          }
+        }
+      }
+    },
+    "Set up Remote Access to use the Web UI from your phone or any browser. Pair devices securely with a one-time code—no passwords needed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置远程访问，即可通过手机或任意浏览器使用 Web UI。设备配对采用一次性验证码，安全无忧，无需密码。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リモートアクセスを設定すると、携帯電話やブラウザからWeb UIを使用できます。ワンタイムコードで安全にデバイスをペアリングでき、パスワードは不要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원격 접근을 설정하면 휴대전화나 브라우저에서 Web UI를 사용할 수 있습니다. 기기를 일회용 코드로 안전하게 연결하세요—비밀번호가 필요하지 않습니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurez l'accès à distance pour utiliser l'interface Web depuis votre téléphone ou n'importe quel navigateur. Appairez les appareils en toute sécurité avec un code à usage unique—aucun mot de passe requis."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fernzugriff einrichten, um die Web-Oberfläche von Ihrem Smartphone oder einem beliebigen Browser zu nutzen. Koppeln Sie Geräte sicher mit einem Einmalcode – ohne Passwörter."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configura l'Accesso Remoto per usare la Web UI dal telefono o da qualsiasi browser. Associa i dispositivi in modo sicuro con un codice monouso - senza password."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configura el acceso remoto para usar la interfaz web desde tu teléfono o cualquier navegador. Empareja dispositivos de forma segura con un código de un solo uso: no se necesitan contraseñas."
           }
         }
       }
@@ -27575,10 +27805,28 @@
     },
     "This will disconnect \"%@\" and require it to pair again.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "这将断开 \"%@\" 的连接，需要重新配对。"
+            "value": "Dadurch wird \"%@\" getrennt und muss erneut gekoppelt werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto desconectará \"%@\" y requerirá que se empareje de nuevo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cela va déconnecter « %@ » et nécessitera un nouveau couplage."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo disconnetterà \"%@\" e richiederà di effettuare nuovamente l'abbinamento."
           }
         },
         "ja": {
@@ -27593,28 +27841,10 @@
             "value": "이 작업은 \"%@\"의 연결을 해제하고 다시 페어링해야 합니다."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cela va déconnecter « %@ » et nécessitera un nouveau couplage."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dadurch wird \"%@\" getrennt und muss erneut gekoppelt werden."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questo disconnetterà \"%@\" e richiederà di effettuare nuovamente l'abbinamento."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esto desconectará \"%@\" y requerirá que se empareje de nuevo."
+            "value": "这将断开 \"%@\" 的连接，需要重新配对。"
           }
         }
       }
@@ -28907,6 +29137,52 @@
         }
       }
     },
+    "Verification Tries:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证重试次数："
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検証回数:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검증 시도:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tentatives de vérification:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifizierungsversuche:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tentativi di verifica:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intentos de verificación:"
+          }
+        }
+      }
+    },
     "Verified Complete": {
       "localizations": {
         "de": {
@@ -29001,10 +29277,28 @@
     },
     "Verify this code matches the one in the browser:": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "验证此验证码与浏览器中显示的一致："
+            "value": "Überprüfen Sie, ob dieser Code mit dem im Browser übereinstimmt:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica que este código coincida con el del navegador:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifiez que ce code correspond à celui affiché dans le navigateur :"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica che questo codice corrisponda a quello nel browser:"
           }
         },
         "ja": {
@@ -29019,28 +29313,10 @@
             "value": "브라우저에 표시된 코드가 일치하는지 확인하세요:"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérifiez que ce code correspond à celui affiché dans le navigateur :"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Überprüfen Sie, ob dieser Code mit dem im Browser übereinstimmt:"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verifica che questo codice corrisponda a quello nel browser:"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verifica que este código coincida con el del navegador:"
+            "value": "验证此验证码与浏览器中显示的一致："
           }
         }
       }

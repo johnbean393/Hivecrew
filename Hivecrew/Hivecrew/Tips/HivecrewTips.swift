@@ -462,7 +462,30 @@ struct APIIntegrationTip: Tip {
     }
 }
 
-/// Tip 18: Export traces as video
+/// Tip 18: Web UI & Remote Access
+struct WebUIRemoteAccessTip: Tip {
+    
+    var id: String { "webUIRemoteAccess" }
+    
+    var title: Text {
+        Text("Control Hivecrew from Any Device")
+    }
+    
+    var message: Text? {
+        Text("Set up Remote Access to use the Web UI from your phone or any browser. Pair devices securely with a one-time code—no passwords needed.")
+    }
+    
+    var image: Image? {
+        Image(systemName: "antenna.radiowaves.left.and.right")
+    }
+    
+    var rules: [Rule] {
+        #Rule(TipEvents.taskCreated) { $0.donations.count >= 3 }
+        #Rule(TipEvents.apiSettingsOpened) { $0.donations.count >= 1 }
+    }
+}
+
+/// Tip 20: Export traces as video
 struct VideoExportTip: Tip {
     
     var id: String { "videoExport" }
@@ -484,7 +507,7 @@ struct VideoExportTip: Tip {
     }
 }
 
-/// Tip 19: Reference previous deliverables
+/// Tip 21: Reference previous deliverables
 struct DeliverablesMentionTip: Tip {
     
     @Parameter
@@ -510,7 +533,7 @@ struct DeliverablesMentionTip: Tip {
     }
 }
 
-/// Tip 20: Developer mode
+/// Tip 22: Developer mode
 struct DeveloperModeTip: Tip {
     
     var id: String { "developerMode" }

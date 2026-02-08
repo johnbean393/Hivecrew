@@ -30,6 +30,7 @@ struct APISettingsView: View {
     
     // Tips
     private let apiIntegrationTip = APIIntegrationTip()
+    private let webUITip = WebUIRemoteAccessTip()
     
     // MARK: - Device Auth State
     
@@ -54,6 +55,106 @@ struct APISettingsView: View {
     
     var body: some View {
         Form {
+            // Remote Access Section (most user-facing, so it goes first)
+            Section {
+                switch remoteStatus.state {
+                case .notConfigured:
+                    remoteNotConfiguredView
+                    
+                case .authenticating, .awaitingOTP:
+                    remoteEmailVerificationView
+                    
+                case .provisioning:
+                    remoteProvisioningView
+                    
+                case .connecting:
+                    remoteConnectingView
+                    
+                case .connected:
+                    remoteConnectedView
+                    
+                case .disconnected:
+                    remoteDisconnectedView
+                    
+                case .failed:
+                    remoteFailedView
+                }
+                
+                // Show error if present
+                if let error = remoteStatus.errorMessage {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                            .font(.caption)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } header: {
+                Text("Remote Access")
+            } footer: {
+                if remoteStatus.state == .notConfigured {
+                    Text("Access your Hivecrew instance from anywhere via a secure Cloudflare Tunnel. Requires email verification.")
+                }
+            }
+            
+            // Authorized Devices Section
+            Section {
+                if deviceAuth.authorizedDevices.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("No devices authorized")
+                            .foregroundColor(.secondary)
+                        Text("Devices that connect via the web UI pairing flow will appear here.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ForEach(deviceAuth.authorizedDevices) { device in
+                        HStack(spacing: 12) {
+                            Image(systemName: deviceTypeIcon(device.deviceType))
+                                .font(.title2)
+                                .foregroundColor(.secondary)
+                                .frame(width: 28)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.name)
+                                    .font(.body)
+                                Text("Authorized \(formatDeviceDate(device.authorizedAt))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button {
+                                deviceToRename = device
+                                renameText = device.name
+                                showRenameAlert = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Rename this device")
+                            
+                            Button {
+                                deviceToRevoke = device
+                                showRevokeConfirmation = true
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Revoke this device")
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            } header: {
+                Text("Authorized Devices")
+            }
+            
             // Server Section
             Section {
                 Toggle("Enable API Server", isOn: $apiServerEnabled)
@@ -192,62 +293,6 @@ struct APISettingsView: View {
                 Text("Authentication")
             }
             
-            // Authorized Devices Section
-            Section {
-                if deviceAuth.authorizedDevices.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("No devices authorized")
-                            .foregroundColor(.secondary)
-                        Text("Devices that connect via the web UI pairing flow will appear here.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    ForEach(deviceAuth.authorizedDevices) { device in
-                        HStack(spacing: 12) {
-                            Image(systemName: deviceTypeIcon(device.deviceType))
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                                .frame(width: 28)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(device.name)
-                                    .font(.body)
-                                Text("Authorized \(formatDeviceDate(device.authorizedAt))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Button {
-                                deviceToRename = device
-                                renameText = device.name
-                                showRenameAlert = true
-                            } label: {
-                                Image(systemName: "pencil")
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Rename this device")
-                            
-                            Button {
-                                deviceToRevoke = device
-                                showRevokeConfirmation = true
-                            } label: {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Revoke this device")
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            } header: {
-                Text("Authorized Devices")
-            }
-            
             // File Upload Limits Section
             Section {
                 HStack {
@@ -273,50 +318,6 @@ struct APISettingsView: View {
                 }
             } header: {
                 Text("File Upload Limits")
-            }
-            
-            // Remote Access Section
-            Section {
-                switch remoteStatus.state {
-                case .notConfigured:
-                    remoteNotConfiguredView
-                    
-                case .authenticating, .awaitingOTP:
-                    remoteEmailVerificationView
-                    
-                case .provisioning:
-                    remoteProvisioningView
-                    
-                case .connecting:
-                    remoteConnectingView
-                    
-                case .connected:
-                    remoteConnectedView
-                    
-                case .disconnected:
-                    remoteDisconnectedView
-                    
-                case .failed:
-                    remoteFailedView
-                }
-                
-                // Show error if present
-                if let error = remoteStatus.errorMessage {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            } header: {
-                Text("Remote Access")
-            } footer: {
-                if remoteStatus.state == .notConfigured {
-                    Text("Access your Hivecrew instance from anywhere via a secure Cloudflare Tunnel. Requires email verification.")
-                }
             }
             
             // Usage Section
@@ -405,8 +406,12 @@ struct APISettingsView: View {
             
             Button("Set Up Remote Access") {
                 remoteStatus.update(state: .awaitingOTP)
-                self.apiServerEnabled = true
+                if !apiServerEnabled {
+                    apiServerEnabled = true
+                    APIServerManager.shared.startIfEnabled()
+                }
             }
+            .popoverTip(webUITip, arrowEdge: .trailing)
         }
     }
     
@@ -504,7 +509,7 @@ struct APISettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
+            Divider()
             // Remote URL
             if let url = remoteStatus.remoteURL {
                 HStack {
@@ -534,7 +539,7 @@ struct APISettingsView: View {
                     }
                 }
             }
-            
+
             // QR Code
             if let url = remoteStatus.remoteURL {
                 HStack {
@@ -550,7 +555,7 @@ struct APISettingsView: View {
                     Spacer()
                 }
             }
-            
+            Divider()
             // Email
             if let email = remoteStatus.email {
                 HStack {

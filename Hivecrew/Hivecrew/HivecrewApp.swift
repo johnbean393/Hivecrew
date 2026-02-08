@@ -126,6 +126,7 @@ struct HivecrewApp: App {
         .commands {
             CheckForUpdatesCommand(updater: appDelegate.updaterController.updater)
             SkillsMenuCommand()
+            DevicesMenuCommand()
             DebugMenuCommands()
         }
         

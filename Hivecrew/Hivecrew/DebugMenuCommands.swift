@@ -39,11 +39,32 @@ struct SkillsMenuCommand: Commands {
     }
 }
 
+// MARK: - Manage Devices Command
+
+/// Menu command for opening Settings → Connect tab to manage devices
+struct DevicesMenuCommand: Commands {
+    var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Button("Manage Devices…") {
+                // Open Settings window and navigate to the Connect tab
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                // Post notification to switch to the Connect tab
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    NotificationCenter.default.post(name: .navigateToSettingsTab, object: SettingsView.SettingsTab.api)
+                }
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+        }
+    }
+}
+
 // MARK: - Notifications
 
 extension Notification.Name {
     /// Posted to trigger showing the onboarding wizard from the debug menu
     static let showOnboardingWizard = Notification.Name("showOnboardingWizard")
+    /// Posted to navigate to a specific settings tab
+    static let navigateToSettingsTab = Notification.Name("navigateToSettingsTab")
 }
 
 /// Debug menu commands for Help → Debug submenu

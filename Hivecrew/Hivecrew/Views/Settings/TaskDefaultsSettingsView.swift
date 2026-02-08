@@ -19,6 +19,7 @@ struct TaskDefaultsSettingsView: View {
     // Task limits
     @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 30
     @AppStorage("defaultMaxIterations") private var defaultMaxIterations = 100
+    @AppStorage("maxCompletionAttempts") private var maxCompletionAttempts = 3
     @AppStorage("outputDirectoryPath") private var outputDirectoryPath: String = ""
     
     // Web tools
@@ -127,6 +128,24 @@ struct TaskDefaultsSettingsView: View {
                             }
                     }
                     Text("Maximum number of observe-decide-execute cycles (10-500)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Divider()
+                
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Verification Tries:")
+                        TextField("", value: $maxCompletionAttempts, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                            .multilineTextAlignment(.trailing)
+                            .onChange(of: maxCompletionAttempts) { _, newValue in
+                                maxCompletionAttempts = min(max(newValue, 1), 10)
+                            }
+                    }
+                    Text("Number of verification attempts before ending an agentic loop (1-10)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
