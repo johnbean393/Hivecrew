@@ -33,6 +33,8 @@ public struct CreateTaskRequest: Codable, Sendable {
     public let outputDirectory: String?
     /// Whether to generate a plan before executing the task
     public let planFirst: Bool?
+    /// Names of skills explicitly mentioned by the user via @skill-name
+    public let mentionedSkillNames: [String]?
     
     public init(
         description: String,
@@ -40,7 +42,8 @@ public struct CreateTaskRequest: Codable, Sendable {
         modelId: String,
         priority: APITaskPriority? = nil,
         outputDirectory: String? = nil,
-        planFirst: Bool? = nil
+        planFirst: Bool? = nil,
+        mentionedSkillNames: [String]? = nil
     ) {
         self.description = description
         self.providerName = providerName
@@ -48,6 +51,7 @@ public struct CreateTaskRequest: Codable, Sendable {
         self.priority = priority
         self.outputDirectory = outputDirectory
         self.planFirst = planFirst
+        self.mentionedSkillNames = mentionedSkillNames
     }
 }
 

@@ -85,6 +85,7 @@ public final class TaskRoutes: Sendable {
         var uploadedFilePaths: [String] = []
         var outputDirectory: String?
         var planFirst: Bool = false
+        var mentionedSkillNames: [String] = []
         
         if contentType.contains("multipart/form-data") {
             let result = try await parseTaskMultipartForm(request: request)
@@ -94,6 +95,7 @@ public final class TaskRoutes: Sendable {
             uploadedFilePaths = result.filePaths
             outputDirectory = result.outputDirectory
             planFirst = result.planFirst
+            mentionedSkillNames = result.mentionedSkillNames
         } else {
             let body = try await request.body.collect(upTo: 1024 * 1024)
             let createRequest = try makeISO8601Decoder().decode(CreateTaskRequest.self, from: body)
@@ -103,6 +105,7 @@ public final class TaskRoutes: Sendable {
             modelId = createRequest.modelId
             outputDirectory = createRequest.outputDirectory
             planFirst = createRequest.planFirst ?? false
+            mentionedSkillNames = createRequest.mentionedSkillNames ?? []
         }
         
         // Validate required fields
@@ -122,7 +125,8 @@ public final class TaskRoutes: Sendable {
             modelId: modelId,
             attachedFilePaths: uploadedFilePaths,
             outputDirectory: outputDirectory,
-            planFirst: planFirst
+            planFirst: planFirst,
+            mentionedSkillNames: mentionedSkillNames
         )
         
         return try createJSONResponse(task, status: .created)
@@ -356,6 +360,7 @@ public final class TaskRoutes: Sendable {
         let filePaths: [String]
         let outputDirectory: String?
         let planFirst: Bool
+        let mentionedSkillNames: [String]
     }
     
     private func parseTaskMultipartForm(request: Request) async throws -> TaskMultipartFormResult {
@@ -366,6 +371,7 @@ public final class TaskRoutes: Sendable {
         var filePaths: [String] = []
         var outputDirectory: String?
         var planFirst = false
+        var mentionedSkillNames: [String] = []
         
         let taskId = UUID().uuidString
         let bodyData = try await request.body.collect(upTo: maxTotalUploadSize)
@@ -391,6 +397,10 @@ public final class TaskRoutes: Sendable {
                     if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
                         planFirst = value == "true" || value == "1"
                     }
+                } else if name == "mentionedSkillNames" || name == "mentionedSkillNames[]" {
+                    if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+                        mentionedSkillNames.append(value)
+                    }
                 } else if name == "files" {
                     let filename = part.filename ?? "file_\(filePaths.count)"
                     if part.data.count > maxFileSize {
@@ -413,7 +423,8 @@ public final class TaskRoutes: Sendable {
             priority: priority,
             filePaths: filePaths,
             outputDirectory: outputDirectory,
-            planFirst: planFirst
+            planFirst: planFirst,
+            mentionedSkillNames: mentionedSkillNames
         )
     }
 }

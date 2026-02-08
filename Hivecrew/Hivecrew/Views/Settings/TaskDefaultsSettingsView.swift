@@ -324,7 +324,7 @@ struct TaskDefaultsSettingsView: View {
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Automatic Skill Matching", isOn: $automaticSkillMatching)
-                    Text("Automatically match enabled skills to tasks using AI. When disabled, only explicitly mentioned skills (@skill-name) will be used.")
+                    Text("Automatically match enabled skills to tasks using AI when no skills are explicitly mentioned via @. When disabled, only explicitly mentioned skills will be used.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

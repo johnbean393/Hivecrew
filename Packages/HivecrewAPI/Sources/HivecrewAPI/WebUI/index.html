@@ -8,11 +8,11 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=30">
+    <link rel="stylesheet" href="/web/css/styles.css?v=32">
     <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=27"></script>
+    <script defer src="/web/js/app.js?v=29"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -198,21 +198,81 @@
                         @dragenter.prevent="isDraggingFiles = true"
                         @dragleave.self="isDraggingFiles = false"
                         @drop.prevent="handlePromptDrop($event)"
+                        @click.away="showMentionDropdown = false"
                     >
-                        <textarea
-                            class="prompt-input"
-                            x-model="quickTaskDescription"
-                            placeholder="Describe a task for the agent..."
-                            rows="1"
-                            @keydown.enter.meta.prevent="quickCreateTask()"
-                            @keydown.ctrl.enter.prevent="quickCreateTask()"
-                            @input="$el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"
-                            :disabled="quickCreating"
-                        ></textarea>
+                        <div class="prompt-input-wrapper">
+                            <div
+                                class="prompt-input"
+                                x-ref="promptTextarea"
+                                :contenteditable="!quickCreating"
+                                role="textbox"
+                                data-placeholder="Describe a task for the agent... (type @ to mention skills)"
+                                @keydown="handlePromptKeydown($event)"
+                                @keydown.enter.meta.prevent="if (!showMentionDropdown) quickCreateTask()"
+                                @keydown.ctrl.enter.prevent="if (!showMentionDropdown) quickCreateTask()"
+                                @input="handlePromptInput($event)"
+                                @paste.prevent="
+                                    const text = ($event.clipboardData || window.clipboardData).getData('text/plain');
+                                    document.execCommand('insertText', false, text);
+                                "
+                            ></div>
+
+                            <!-- @ Mention suggestions dropdown -->
+                            <div class="mention-dropdown" x-show="showMentionDropdown" x-cloak x-transition.opacity>
+                                <template x-if="mentionSuggestions.some(s => s.type === 'skill')">
+                                    <div class="mention-section-header">Skills</div>
+                                </template>
+                                <template x-for="(item, idx) in mentionSuggestions.filter(s => s.type === 'skill')" :key="'skill-' + item.name">
+                                    <button
+                                        type="button"
+                                        class="mention-item"
+                                        :class="{ selected: mentionSelectedIndex === mentionSuggestions.indexOf(item) }"
+                                        @mousedown.prevent="selectMention(item)"
+                                        @mouseenter="mentionSelectedIndex = mentionSuggestions.indexOf(item)"
+                                    >
+                                        <span class="mention-item-icon mention-icon-skill">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"></path>
+                                            </svg>
+                                        </span>
+                                        <span class="mention-item-text">
+                                            <span class="mention-item-name" x-text="item.name"></span>
+                                            <span class="mention-item-desc" x-text="item.description"></span>
+                                        </span>
+                                    </button>
+                                </template>
+                                <template x-if="mentionSuggestions.some(s => s.type === 'file')">
+                                    <div class="mention-section-header">Attachments</div>
+                                </template>
+                                <template x-for="(item, idx) in mentionSuggestions.filter(s => s.type === 'file')" :key="'file-' + item.name">
+                                    <button
+                                        type="button"
+                                        class="mention-item"
+                                        :class="{ selected: mentionSelectedIndex === mentionSuggestions.indexOf(item) }"
+                                        @mousedown.prevent="selectMention(item)"
+                                        @mouseenter="mentionSelectedIndex = mentionSuggestions.indexOf(item)"
+                                    >
+                                        <span class="mention-item-icon mention-icon-file">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                            </svg>
+                                        </span>
+                                        <span class="mention-item-text">
+                                            <span class="mention-item-name" x-text="item.name"></span>
+                                            <span class="mention-item-desc" x-text="item.description"></span>
+                                        </span>
+                                    </button>
+                                </template>
+                                <template x-if="mentionSuggestions.length === 0">
+                                    <div class="mention-empty">No matching skills or files</div>
+                                </template>
+                            </div>
+                        </div>
 
                         <!-- Attached file chips -->
                         <template x-if="quickFiles.length > 0">
-                            <div class="prompt-files">
+                            <div class="prompt-chips">
                                 <template x-for="(file, i) in quickFiles" :key="i">
                                     <span class="prompt-file-chip">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">

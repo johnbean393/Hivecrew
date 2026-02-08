@@ -33,7 +33,8 @@ public protocol APIServiceProvider: Sendable {
         modelId: String,
         attachedFilePaths: [String],
         outputDirectory: String?,
-        planFirst: Bool
+        planFirst: Bool,
+        mentionedSkillNames: [String]
     ) async throws -> APITask
     
     /// List tasks with optional status filtering, pagination, and sorting.
@@ -143,6 +144,11 @@ public protocol APIServiceProvider: Sendable {
     
     /// Retrieve a single template by its unique identifier.
     func getTemplate(id: String) async throws -> APITemplate
+    
+    // MARK: - Skill Operations
+    
+    /// List all available skills.
+    func getSkills() async throws -> [APISkill]
     
     // MARK: - System Operations
     

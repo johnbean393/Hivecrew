@@ -106,6 +106,14 @@ document.addEventListener('alpine:init', () => {
         toasts: [],
         toastId: 0,
         
+        // Skills & @ Mentions
+        skills: [],
+        mentionedSkills: [],
+        mentionQuery: null,
+        mentionSuggestions: [],
+        mentionSelectedIndex: 0,
+        showMentionDropdown: false,
+        
         // Auto-refresh & elapsed time
         refreshTimer: null,
         tickInterval: null,
@@ -433,7 +441,8 @@ document.addEventListener('alpine:init', () => {
             await Promise.all([
                 this.loadTasks(),
                 this.loadProviders(),
-                this.loadSystemStatus()
+                this.loadSystemStatus(),
+                this.loadSkills()
             ]);
         },
         
@@ -581,7 +590,255 @@ document.addEventListener('alpine:init', () => {
                 m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)
             );
         },
-        
+
+        // -------------------------------------------------------------------
+        // --- Skills & @ Mentions -------------------------------------------
+        // -------------------------------------------------------------------
+
+        async loadSkills() {
+            try {
+                const response = await this.apiFetch('/api/v1/skills');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.skills = (data.skills || []).filter(s => s.isEnabled);
+                }
+            } catch (error) {
+                console.error('Failed to load skills:', error);
+            }
+        },
+
+        /**
+         * Get the text content from the contentEditable prompt, reading
+         * inline mention chips as their @name form.
+         */
+        getPromptText() {
+            const el = this.$refs.promptTextarea;
+            if (!el) return '';
+            let text = '';
+            for (const node of el.childNodes) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    text += node.textContent;
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.hasAttribute('data-mention')) {
+                        text += '@' + node.getAttribute('data-mention');
+                    } else if (node.tagName === 'BR') {
+                        text += '\n';
+                    } else {
+                        text += node.textContent;
+                    }
+                }
+            }
+            return text;
+        },
+
+        /**
+         * Sync quickTaskDescription from the contentEditable div.
+         * Called on every input event.
+         */
+        syncPromptText() {
+            this.quickTaskDescription = this.getPromptText();
+
+            // Sync mentionedSkills from what's actually in the DOM
+            const el = this.$refs.promptTextarea;
+            if (!el) return;
+            const chips = el.querySelectorAll('[data-mention]');
+            const current = new Set();
+            chips.forEach(c => current.add(c.getAttribute('data-mention')));
+            this.mentionedSkills = [...current];
+        },
+
+        /**
+         * Handle input events on the contentEditable prompt.
+         * Detects @ mentions and shows the suggestion dropdown.
+         */
+        handlePromptInput(event) {
+            this.syncPromptText();
+
+            const sel = window.getSelection();
+            if (!sel.rangeCount) { this.showMentionDropdown = false; return; }
+
+            const range = sel.getRangeAt(0);
+            // Only look for @ in text nodes (not inside mention chips)
+            const textNode = range.startContainer;
+            if (textNode.nodeType !== Node.TEXT_NODE) {
+                this.showMentionDropdown = false;
+                this.mentionQuery = null;
+                return;
+            }
+
+            const text = textNode.textContent;
+            const cursorOffset = range.startOffset;
+
+            // Scan backwards from cursor to find @
+            let atIndex = -1;
+            for (let i = cursorOffset - 1; i >= 0; i--) {
+                const ch = text[i];
+                if (ch === '@') {
+                    if (i === 0 || /\s/.test(text[i - 1])) {
+                        atIndex = i;
+                    }
+                    break;
+                }
+                if (/\s/.test(ch)) break;
+            }
+
+            if (atIndex >= 0) {
+                const query = text.substring(atIndex + 1, cursorOffset).toLowerCase();
+                this.mentionQuery = query;
+                this._mentionTextNode = textNode;
+                this._mentionAtIndex = atIndex;
+                this.computeMentionSuggestions(query);
+                this.showMentionDropdown = this.mentionSuggestions.length > 0;
+                this.mentionSelectedIndex = 0;
+            } else {
+                this.showMentionDropdown = false;
+                this.mentionQuery = null;
+            }
+        },
+
+        computeMentionSuggestions(query) {
+            const suggestions = [];
+
+            // Add skills
+            for (const skill of this.skills) {
+                if (this.mentionedSkills.includes(skill.name)) continue;
+                if (!query || skill.name.toLowerCase().includes(query) || skill.description.toLowerCase().includes(query)) {
+                    suggestions.push({
+                        type: 'skill',
+                        name: skill.name,
+                        description: skill.description,
+                        display: skill.name
+                    });
+                }
+            }
+
+            // Add attached files
+            for (const file of this.quickFiles) {
+                const fileName = file.name.toLowerCase();
+                if (!query || fileName.includes(query)) {
+                    suggestions.push({
+                        type: 'file',
+                        name: file.name,
+                        description: this.formatFileSize(file.size),
+                        display: file.name
+                    });
+                }
+            }
+
+            this.mentionSuggestions = suggestions.slice(0, 10);
+        },
+
+        handlePromptKeydown(event) {
+            if (!this.showMentionDropdown) return;
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                this.mentionSelectedIndex = Math.min(
+                    this.mentionSelectedIndex + 1,
+                    this.mentionSuggestions.length - 1
+                );
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                this.mentionSelectedIndex = Math.max(this.mentionSelectedIndex - 1, 0);
+            } else if (event.key === 'Enter' || event.key === 'Tab') {
+                if (this.mentionSuggestions.length > 0) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.selectMention(this.mentionSuggestions[this.mentionSelectedIndex]);
+                }
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                this.showMentionDropdown = false;
+                this.mentionQuery = null;
+            }
+        },
+
+        /**
+         * Create an inline mention chip element.
+         */
+        _createMentionChip(type, name) {
+            const chip = document.createElement('span');
+            chip.setAttribute('data-mention', name);
+            chip.setAttribute('data-mention-type', type);
+            chip.setAttribute('contenteditable', 'false');
+            chip.className = 'inline-mention inline-mention-' + type;
+
+            if (type === 'skill') {
+                chip.innerHTML =
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">' +
+                    '<path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"></path>' +
+                    '</svg>' +
+                    '<span>' + name + '</span>';
+            } else {
+                chip.innerHTML =
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">' +
+                    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>' +
+                    '<polyline points="14 2 14 8 20 8"></polyline>' +
+                    '</svg>' +
+                    '<span>' + name + '</span>';
+            }
+            return chip;
+        },
+
+        selectMention(item) {
+            const el = this.$refs.promptTextarea;
+            if (!el) return;
+
+            const textNode = this._mentionTextNode;
+            const atIndex = this._mentionAtIndex;
+            if (!textNode || atIndex == null || textNode.nodeType !== Node.TEXT_NODE) return;
+
+            const text = textNode.textContent;
+            const sel = window.getSelection();
+            const cursorOffset = sel.rangeCount ? sel.getRangeAt(0).startOffset : text.length;
+
+            // Split text: before @, after query
+            const before = text.substring(0, atIndex);
+            const after = text.substring(cursorOffset);
+
+            // Create mention chip
+            const chip = this._createMentionChip(item.type, item.name);
+
+            // Replace textNode content: set to "before", insert chip + space after
+            textNode.textContent = before;
+            const afterNode = document.createTextNode('\u00A0' + after); // non-breaking space to ensure cursor lands after chip
+            const parent = textNode.parentNode;
+            parent.insertBefore(chip, textNode.nextSibling);
+            parent.insertBefore(afterNode, chip.nextSibling);
+
+            // Track mentioned skill
+            if (item.type === 'skill' && !this.mentionedSkills.includes(item.name)) {
+                this.mentionedSkills.push(item.name);
+            }
+
+            // Close dropdown
+            this.showMentionDropdown = false;
+            this.mentionQuery = null;
+            this._mentionTextNode = null;
+            this._mentionAtIndex = null;
+
+            // Place cursor after the chip
+            this.$nextTick(() => {
+                el.focus();
+                const range = document.createRange();
+                range.setStart(afterNode, 1); // after the nbsp
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                this.syncPromptText();
+            });
+        },
+
+        /**
+         * Clear the contentEditable prompt.
+         */
+        clearPrompt() {
+            const el = this.$refs.promptTextarea;
+            if (el) el.innerHTML = '';
+            this.quickTaskDescription = '';
+            this.mentionedSkills = [];
+        },
+
         async loadScheduledTasks() {
             this.loading = true;
             try {
@@ -821,7 +1078,7 @@ document.addEventListener('alpine:init', () => {
         
         async quickCreateTask() {
             if (this.quickCreating) return;
-            const description = this.quickTaskDescription.trim();
+            const description = this.getPromptText().trim();
             if (!description) return;
             
             // Resolve provider: persisted → default → first available
@@ -855,6 +1112,9 @@ document.addEventListener('alpine:init', () => {
                     if (this.quickPlanFirst) {
                         formData.append('planFirst', 'true');
                     }
+                    for (const skillName of this.mentionedSkills) {
+                        formData.append('mentionedSkillNames', skillName);
+                    }
                     for (const file of this.quickFiles) {
                         formData.append('files', file);
                     }
@@ -863,14 +1123,18 @@ document.addEventListener('alpine:init', () => {
                         body: formData
                     });
                 } else {
+                    const payload = {
+                        description,
+                        providerName,
+                        modelId,
+                        planFirst: this.quickPlanFirst
+                    };
+                    if (this.mentionedSkills.length > 0) {
+                        payload.mentionedSkillNames = this.mentionedSkills;
+                    }
                     response = await this.apiFetch('/api/v1/tasks', {
                         method: 'POST',
-                        body: JSON.stringify({
-                            description,
-                            providerName,
-                            modelId,
-                            planFirst: this.quickPlanFirst
-                        })
+                        body: JSON.stringify(payload)
                     });
                 }
                 
@@ -879,7 +1143,7 @@ document.addEventListener('alpine:init', () => {
                     throw new Error(errorData.error?.message || 'Failed to create task');
                 }
                 
-                this.quickTaskDescription = '';
+                this.clearPrompt();
                 this.quickFiles = [];
                 this.showToast('Task created', 'success');
                 await this.loadTasks();

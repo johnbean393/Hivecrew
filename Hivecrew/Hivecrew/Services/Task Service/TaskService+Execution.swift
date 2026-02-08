@@ -147,10 +147,12 @@ extension TaskService {
                     }
                 }
                 
-                // Then, auto-match additional skills from enabled skills (if automatic matching is enabled)
+                // Then, auto-match additional skills from enabled skills
+                // Only auto-match if the setting is enabled AND the user did not explicitly mention any skills
                 let automaticSkillMatching = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
+                let hasMentionedSkills = !(task.mentionedSkillNames ?? []).isEmpty
                 
-                if automaticSkillMatching {
+                if automaticSkillMatching && !hasMentionedSkills {
                     let enabledSkills = skillManager.enabledSkills
                     let alreadyIncluded = Set(skillsToUse.map { $0.name })
                     let availableForMatching = enabledSkills.filter { !alreadyIncluded.contains($0.name) }
@@ -178,6 +180,8 @@ extension TaskService {
                             print("TaskService: Skill matching failed (non-fatal): \(error.localizedDescription)")
                         }
                     }
+                } else if hasMentionedSkills {
+                    print("TaskService: Skipping auto-matching — user explicitly mentioned skill(s)")
                 }
                 
                 return skillsToUse

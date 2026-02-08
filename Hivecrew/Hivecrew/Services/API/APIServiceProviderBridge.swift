@@ -45,7 +45,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         modelId: String,
         attachedFilePaths: [String],
         outputDirectory: String?,
-        planFirst: Bool = false
+        planFirst: Bool = false,
+        mentionedSkillNames: [String] = []
     ) async throws -> APITask {
         // Find provider by name
         let providerId = try await findProviderIdByName(providerName)
@@ -57,6 +58,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             modelId: modelId,
             attachedFilePaths: attachedFilePaths,
             outputDirectory: outputDirectory,
+            mentionedSkillNames: mentionedSkillNames,
             planFirstEnabled: planFirst
         )
         
@@ -453,6 +455,19 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         
         let defaultId = UserDefaults.standard.string(forKey: "defaultTemplateId")
         return convertToAPITemplate(template, defaultId: defaultId)
+    }
+    
+    // MARK: - Skill Operations
+    
+    func getSkills() async throws -> [APISkill] {
+        let skills = taskService.skillManager.skills
+        return skills.map { skill in
+            APISkill(
+                name: skill.name,
+                description: skill.description,
+                isEnabled: skill.isEnabled
+            )
+        }
     }
     
     // MARK: - System Operations
