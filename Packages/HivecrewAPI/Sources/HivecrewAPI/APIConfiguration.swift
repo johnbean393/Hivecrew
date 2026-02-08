@@ -27,13 +27,17 @@ public struct APIConfiguration: Sendable {
     /// Maximum total upload size per task in bytes (default: 500MB)
     public var maxTotalUploadSize: Int
     
+    /// Session cookie max age in days (default: 180 = ~6 months)
+    public var sessionMaxAgeDays: Int
+    
     public init(
         isEnabled: Bool = true,
         port: Int = 5482,
         host: String = "127.0.0.1",
         apiKey: String? = nil,
         maxFileSize: Int = 100 * 1024 * 1024,
-        maxTotalUploadSize: Int = 500 * 1024 * 1024
+        maxTotalUploadSize: Int = 500 * 1024 * 1024,
+        sessionMaxAgeDays: Int = 180
     ) {
         self.isEnabled = isEnabled
         self.port = port
@@ -41,6 +45,7 @@ public struct APIConfiguration: Sendable {
         self.apiKey = apiKey
         self.maxFileSize = maxFileSize
         self.maxTotalUploadSize = maxTotalUploadSize
+        self.sessionMaxAgeDays = sessionMaxAgeDays
     }
     
     /// Load configuration from UserDefaults

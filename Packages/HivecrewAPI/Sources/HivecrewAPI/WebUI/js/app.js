@@ -14,9 +14,19 @@ document.addEventListener('alpine:init', () => {
         // -------------------------------------------------------------------
 
         // Authentication
+        authenticated: false,
+        authMode: 'pairing', // 'pairing' or 'apikey'
         apiKey: localStorage.getItem('hivecrew_api_key') || '',
         apiKeyInput: '',
         authError: '',
+        authMethod: null, // 'cookie', 'bearer', or null
+        
+        // Device Pairing
+        pairingId: null,
+        pairingCode: null,
+        pairingStatus: null, // 'pending', 'approved', 'rejected', 'expired'
+        pairingLoading: false,
+        pairingPollTimer: null,
         
         // Navigation
         view: 'tasks',
@@ -106,7 +116,7 @@ document.addEventListener('alpine:init', () => {
         // -------------------------------------------------------------------
 
         async init() {
-            console.log('[Hivecrew] Component init() called, apiKey:', this.apiKey ? 'present' : 'missing');
+            console.log('[Hivecrew] Component init() called');
             this.creating = false;
             
             // Initialize Mermaid for diagram rendering
@@ -131,12 +141,17 @@ document.addEventListener('alpine:init', () => {
                 };
                 marked.setOptions({ renderer, breaks: false, gfm: true });
             }
-            if (this.apiKey) {
+            
+            // Check if already authenticated (via cookie or stored API key)
+            await this.checkAuth();
+            
+            if (this.authenticated) {
                 await this.loadInitialData();
                 this.startAutoRefresh();
-                
-                // Restore persisted selections
                 this.restoreSelections();
+            } else {
+                // Auto-request pairing code on load
+                this.requestPairingCode();
             }
             
             // Set default schedule date to tomorrow
@@ -177,12 +192,129 @@ document.addEventListener('alpine:init', () => {
         // --- Authentication ------------------------------------------------
         // -------------------------------------------------------------------
 
+        /// Check if the current session is authenticated (cookie or Bearer)
+        async checkAuth() {
+            try {
+                const headers = {};
+                if (this.apiKey) {
+                    headers['Authorization'] = `Bearer ${this.apiKey}`;
+                }
+                const response = await fetch('/api/v1/auth/check', {
+                    credentials: 'include',
+                    headers
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.authenticated) {
+                        this.authenticated = true;
+                        this.authMethod = data.method;
+                        console.log('[Hivecrew] Authenticated via', data.method);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('[Hivecrew] Auth check failed:', error);
+            }
+            this.authenticated = false;
+            this.authMethod = null;
+        },
+        
+        /// Request a new pairing code from the server
+        async requestPairingCode() {
+            this.authError = '';
+            this.pairingLoading = true;
+            this.pairingCode = null;
+            this.pairingStatus = null;
+            this.stopPairingPoll();
+            
+            try {
+                const response = await fetch('/api/v1/auth/pair/request', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    this.authError = errorData.error?.message || 'Failed to request pairing code.';
+                    this.pairingLoading = false;
+                    return;
+                }
+                
+                const data = await response.json();
+                this.pairingId = data.pairingId;
+                this.pairingCode = data.code;
+                this.pairingStatus = 'pending';
+                this.pairingLoading = false;
+                
+                // Start polling for approval
+                this.startPairingPoll();
+                
+            } catch (error) {
+                this.authError = 'Connection failed. Is the server running?';
+                this.pairingLoading = false;
+            }
+        },
+        
+        /// Poll for pairing status
+        startPairingPoll() {
+            this.stopPairingPoll();
+            this.pairingPollTimer = setInterval(() => this.pollPairingStatus(), 2000);
+        },
+        
+        stopPairingPoll() {
+            if (this.pairingPollTimer) {
+                clearInterval(this.pairingPollTimer);
+                this.pairingPollTimer = null;
+            }
+        },
+        
+        async pollPairingStatus() {
+            if (!this.pairingId) return;
+            
+            try {
+                const response = await fetch(`/api/v1/auth/pair/status?id=${encodeURIComponent(this.pairingId)}`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    // Pairing may have expired
+                    this.pairingStatus = 'expired';
+                    this.stopPairingPoll();
+                    return;
+                }
+                
+                const data = await response.json();
+                this.pairingStatus = data.status;
+                
+                if (data.status === 'approved') {
+                    // Server set the cookie via Set-Cookie header
+                    this.stopPairingPoll();
+                    this.authenticated = true;
+                    this.authMethod = 'cookie';
+                    this.pairingCode = null;
+                    this.pairingId = null;
+                    
+                    // Load initial data
+                    await this.loadInitialData();
+                    this.startAutoRefresh();
+                    this.restoreSelections();
+                    
+                } else if (data.status === 'rejected' || data.status === 'expired') {
+                    this.stopPairingPoll();
+                }
+                
+            } catch (error) {
+                console.error('[Hivecrew] Pairing poll error:', error);
+            }
+        },
+
+        /// API key login (fallback mode)
         async saveApiKey() {
             if (!this.apiKeyInput) return;
             
             this.authError = '';
             
-            // Test the API key
             try {
                 const response = await fetch('/api/v1/system/status', {
                     headers: {
@@ -204,6 +336,8 @@ document.addEventListener('alpine:init', () => {
                 this.apiKey = this.apiKeyInput;
                 localStorage.setItem('hivecrew_api_key', this.apiKey);
                 this.apiKeyInput = '';
+                this.authenticated = true;
+                this.authMethod = 'bearer';
                 
                 // Load initial data
                 await this.loadInitialData();
@@ -214,14 +348,33 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        logout() {
+        async logout() {
+            // Clear session cookie via server
+            try {
+                await fetch('/api/v1/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: this.apiKey ? { 'Authorization': `Bearer ${this.apiKey}` } : {}
+                });
+            } catch (error) {
+                // Ignore errors during logout
+            }
+            
+            this.authenticated = false;
+            this.authMethod = null;
             this.apiKey = '';
             localStorage.removeItem('hivecrew_api_key');
             this.stopAutoRefresh();
+            this.stopPairingPoll();
             this.tasks = [];
             this.scheduledTasks = [];
             this.providers = [];
-            this.models = [];
+            this.pairingCode = null;
+            this.pairingId = null;
+            this.pairingStatus = null;
+            
+            // Request a new pairing code for the login screen
+            this.requestPairingCode();
         },
 
         // -------------------------------------------------------------------
@@ -240,9 +393,13 @@ document.addEventListener('alpine:init', () => {
             console.log('[Hivecrew] apiFetch:', options.method || 'GET', endpoint);
             
             const headers = {
-                'Authorization': `Bearer ${this.apiKey}`,
                 ...options.headers
             };
+            
+            // Add Bearer token if using API key auth
+            if (this.apiKey) {
+                headers['Authorization'] = `Bearer ${this.apiKey}`;
+            }
             
             // Only set Content-Type for non-FormData bodies
             const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
@@ -252,12 +409,16 @@ document.addEventListener('alpine:init', () => {
             
             const response = await fetch(endpoint, {
                 ...options,
-                headers
+                headers,
+                credentials: 'include'
             });
             
             console.log('[Hivecrew] apiFetch response:', response.status, endpoint);
             
             if (response.status === 401) {
+                // Session may have expired — show login
+                this.authenticated = false;
+                this.authMethod = null;
                 throw new Error('Unauthorized');
             }
             

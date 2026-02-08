@@ -8,40 +8,102 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=29">
+    <link rel="stylesheet" href="/web/css/styles.css?v=30">
     <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=26"></script>
+    <script defer src="/web/js/app.js?v=27"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
     <div id="app" x-data="hivecrew()" x-init="init()">
 
         <!-- ============================================================
-             Authentication Modal
+             Authentication Modal (Device Pairing + API Key fallback)
              ============================================================ -->
-        <div class="modal-overlay" x-show="!apiKey" x-cloak>
+        <div class="modal-overlay" x-show="!authenticated" x-cloak>
             <div class="modal auth-modal">
                 <div class="modal-header">
                     <h2>Welcome to Hivecrew</h2>
                 </div>
                 <div class="modal-body">
-                    <p class="auth-description">Enter your API key to connect to Hivecrew. You can find this in the Hivecrew app under Settings → API.</p>
-                    <div class="form-group">
-                        <label for="api-key-input">API Key</label>
-                        <input 
-                            type="password" 
-                            id="api-key-input" 
-                            x-model="apiKeyInput" 
-                            placeholder="hc_..."
-                            @keydown.enter="saveApiKey()"
-                        >
-                    </div>
-                    <p class="error-text" x-show="authError" x-text="authError"></p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-primary" @click="saveApiKey()" :disabled="!apiKeyInput">Connect</button>
+
+                    <!-- Device Pairing Mode (default) -->
+                    <template x-if="authMode === 'pairing'">
+                        <div class="auth-pairing">
+                            <template x-if="pairingCode">
+                                <div class="pairing-code-container">
+                                    <p class="auth-description">Verify this code matches the one shown in the Hivecrew app, then approve it there.</p>
+                                    <div class="pairing-code" x-text="pairingCode.slice(0,3) + ' ' + pairingCode.slice(3)"></div>
+                                    <div class="pairing-status">
+                                        <template x-if="pairingStatus === 'pending'">
+                                            <div class="pairing-waiting">
+                                                <div class="pairing-dots">
+                                                    <span class="pairing-dot"></span>
+                                                    <span class="pairing-dot"></span>
+                                                    <span class="pairing-dot"></span>
+                                                </div>
+                                                <span>Waiting for approval...</span>
+                                            </div>
+                                        </template>
+                                        <template x-if="pairingStatus === 'rejected'">
+                                            <div class="pairing-rejected">
+                                                <span>Pairing was rejected.</span>
+                                                <button class="btn btn-secondary btn-small" @click="requestPairingCode()">Try Again</button>
+                                            </div>
+                                        </template>
+                                        <template x-if="pairingStatus === 'expired'">
+                                            <div class="pairing-expired">
+                                                <span>Code expired.</span>
+                                                <button class="btn btn-secondary btn-small" @click="requestPairingCode()">Get New Code</button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="!pairingCode && !pairingLoading">
+                                <div class="pairing-init">
+                                    <p class="auth-description">Connect this device to your Hivecrew instance.</p>
+                                    <button class="btn btn-primary" @click="requestPairingCode()">Get Pairing Code</button>
+                                </div>
+                            </template>
+                            <template x-if="pairingLoading && !pairingCode">
+                                <div class="pairing-loading">
+                                    <div class="spinner"></div>
+                                    <span>Requesting pairing code...</span>
+                                </div>
+                            </template>
+                            <p class="error-text" x-show="authError" x-text="authError"></p>
+                            <div class="auth-mode-switch">
+                                <button class="btn-link" @click="authMode = 'apikey'">Use API key instead</button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- API Key Mode (fallback) -->
+                    <template x-if="authMode === 'apikey'">
+                        <div class="auth-apikey">
+                            <p class="auth-description">Enter your API key to connect to Hivecrew. You can find this in the Hivecrew app under Settings → API.</p>
+                            <div class="form-group">
+                                <label for="api-key-input">API Key</label>
+                                <input 
+                                    type="password" 
+                                    id="api-key-input" 
+                                    x-model="apiKeyInput" 
+                                    placeholder="hc_..."
+                                    @keydown.enter="saveApiKey()"
+                                >
+                            </div>
+                            <p class="error-text" x-show="authError" x-text="authError"></p>
+                            <div class="modal-footer">
+                                <button class="btn btn-primary" @click="saveApiKey()" :disabled="!apiKeyInput">Connect</button>
+                            </div>
+                            <div class="auth-mode-switch">
+                                <button class="btn-link" @click="authMode = 'pairing'; requestPairingCode()">Use device pairing instead</button>
+                            </div>
+                        </div>
+                    </template>
+
                 </div>
             </div>
         </div>
@@ -49,7 +111,7 @@
         <!-- ============================================================
              Main App (shown when authenticated)
              ============================================================ -->
-        <template x-if="apiKey">
+        <template x-if="authenticated">
             <div class="app-container">
 
                 <!-- ---- Navigation ---- -->

@@ -24,6 +24,9 @@ public actor HivecrewAPIServer {
     /// File storage for uploads and downloads
     private let fileStorage: TaskFileStorage
     
+    /// Device session manager for pairing-based authentication
+    private let deviceSessionManager: DeviceSessionManager?
+    
     /// Running server instance
     private var application: (any ApplicationProtocol)?
     
@@ -41,11 +44,13 @@ public actor HivecrewAPIServer {
     public init(
         configuration: APIConfiguration,
         serviceProvider: APIServiceProvider,
-        fileStorage: TaskFileStorage? = nil
+        fileStorage: TaskFileStorage? = nil,
+        deviceSessionManager: DeviceSessionManager? = nil
     ) {
         self.configuration = configuration
         self.serviceProvider = serviceProvider
         self.fileStorage = fileStorage ?? TaskFileStorage()
+        self.deviceSessionManager = deviceSessionManager
         
         var logger = Logger(label: "com.pattonium.api")
         logger.logLevel = .info
@@ -116,13 +121,27 @@ public actor HivecrewAPIServer {
         router.middlewares.add(CORSMiddleware())
         
         // Add authentication middleware for API routes
+        // Pairing and auth check endpoints are excluded from auth
         router.middlewares.add(AuthMiddleware<APIRequestContext>(
             apiKey: configuration.apiKey,
-            pathPrefix: "/api/"
+            pathPrefix: "/api/",
+            deviceSessionManager: deviceSessionManager,
+            unauthenticatedPrefixes: [
+                "/api/v1/auth/pair/",
+                "/api/v1/auth/check"
+            ]
         ))
         
         // Create API v1 group
         let apiV1 = router.group("api/v1")
+        
+        // Register device auth routes
+        if let deviceSessionManager = deviceSessionManager {
+            DeviceAuthRoutes(
+                deviceSessionManager: deviceSessionManager,
+                sessionMaxAgeDays: configuration.sessionMaxAgeDays
+            ).register(with: apiV1)
+        }
         
         // Register routes
         TaskRoutes(
@@ -197,19 +216,28 @@ struct ErrorMiddleware: RouterMiddleware {
 struct CORSMiddleware: RouterMiddleware {
     typealias Context = APIRequestContext
     
+    private static let accessControlAllowCredentials = HTTPField.Name("Access-Control-Allow-Credentials")!
+    private static let originHeaderName = HTTPField.Name("Origin")!
+    
     func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
+        // Determine origin for credentials support
+        let origin = request.headers[Self.originHeaderName] ?? "*"
+        let allowOrigin = origin.isEmpty ? "*" : origin
+        
         // Handle preflight requests
         if request.method == .options {
             var headers = HTTPFields()
-            headers[.accessControlAllowOrigin] = "*"
+            headers[.accessControlAllowOrigin] = allowOrigin
             headers[.accessControlAllowMethods] = "GET, POST, PATCH, DELETE, OPTIONS"
             headers[.accessControlAllowHeaders] = "Authorization, Content-Type"
+            headers[Self.accessControlAllowCredentials] = "true"
             headers[.accessControlMaxAge] = "86400"
             return Response(status: .noContent, headers: headers)
         }
         
         var response = try await next(request, context)
-        response.headers[.accessControlAllowOrigin] = "*"
+        response.headers[.accessControlAllowOrigin] = allowOrigin
+        response.headers[Self.accessControlAllowCredentials] = "true"
         return response
     }
 }

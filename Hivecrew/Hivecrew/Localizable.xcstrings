@@ -1481,10 +1481,28 @@
     },
     "6-digit code": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "6位验证码"
+            "value": "6-stelliger Code"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código de 6 dígitos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "code à 6 chiffres"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "codice a 6 cifre"
           }
         },
         "ja": {
@@ -1499,28 +1517,10 @@
             "value": "6자리 코드"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "code à 6 chiffres"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "6-stelliger Code"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "codice a 6 cifre"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Código de 6 dígitos"
+            "value": "6位验证码"
           }
         }
       }
@@ -1573,10 +1573,28 @@
     },
     "Access your Hivecrew instance from anywhere via a secure Cloudflare Tunnel. Requires email verification.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "通过安全的 Cloudflare Tunnel，您可以从任何地方访问您的 Hivecrew 实例。需要邮箱验证。"
+            "value": "Greifen Sie von überall auf Ihre Hivecrew-Instanz über einen sicheren Cloudflare-Tunnel zu. E-Mail-Verifizierung erforderlich."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Acceda a su instancia de Hivecrew desde cualquier lugar mediante un túnel seguro de Cloudflare. Requiere verificación de correo electrónico."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accédez à votre instance Hivecrew de n'importe où via un tunnel Cloudflare sécurisé. Vérification par e-mail requise."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accedi alla tua istanza di Hivecrew da qualsiasi luogo tramite un Cloudflare Tunnel sicuro. Richiede la verifica dell'email."
           }
         },
         "ja": {
@@ -1591,38 +1609,38 @@
             "value": "어디서든 보안 Cloudflare 터널을 통해 Hivecrew 인스턴스에 액세스하세요. 이메일 인증이 필요합니다."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accédez à votre instance Hivecrew de n'importe où via un tunnel Cloudflare sécurisé. Vérification par e-mail requise."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Greifen Sie von überall auf Ihre Hivecrew-Instanz über einen sicheren Cloudflare-Tunnel zu. E-Mail-Verifizierung erforderlich."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accedi alla tua istanza di Hivecrew da qualsiasi luogo tramite un Cloudflare Tunnel sicuro. Richiede la verifica dell'email."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Acceda a su instancia de Hivecrew desde cualquier lugar mediante un túnel seguro de Cloudflare. Requiere verificación de correo electrónico."
+            "value": "通过安全的 Cloudflare Tunnel，您可以从任何地方访问您的 Hivecrew 实例。需要邮箱验证。"
           }
         }
       }
     },
     "Account": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "账户"
+            "value": "Konto"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuenta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compte"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account"
           }
         },
         "ja": {
@@ -1637,28 +1655,10 @@
             "value": "계정"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Compte"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konto"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Account"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cuenta"
+            "value": "账户"
           }
         }
       }
@@ -3917,6 +3917,98 @@
         }
       }
     },
+    "Authorized %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授权 %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証済み %@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "승인됨 %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorisé %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorisiert %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorizzato %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorizado %@"
+          }
+        }
+      }
+    },
+    "Authorized Devices": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已授权设备"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証済みデバイス"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "승인된 기기"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appareils autorisés"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autorisierte Geräte"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivi autorizzati"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivos Autorizados"
+          }
+        }
+      }
+    },
     "Automate with the API": {
       "localizations": {
         "de": {
@@ -5069,10 +5161,28 @@
     },
     "Check your email for a 6-digit code.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "请查收邮件中的6位验证码。"
+            "value": "Überprüfen Sie Ihre E-Mail auf einen 6-stelligen Code."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifique su correo electrónico para un código de 6 dígitos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifiez votre e-mail pour obtenir un code à 6 chiffres."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlla la tua email per un codice a 6 cifre."
           }
         },
         "ja": {
@@ -5087,28 +5197,10 @@
             "value": "이메일에서 6자리 코드를 확인하세요."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérifiez votre e-mail pour obtenir un code à 6 chiffres."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Überprüfen Sie Ihre E-Mail auf einen 6-stelligen Code."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Controlla la tua email per un codice a 6 cifre."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verifique su correo electrónico para un código de 6 dígitos."
+            "value": "请查收邮件中的6位验证码。"
           }
         }
       }
@@ -5483,10 +5575,28 @@
     },
     "Code": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "验证码"
+            "value": "Code"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codice"
           }
         },
         "ja": {
@@ -5501,28 +5611,10 @@
             "value": "인증 코드"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Code"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Code"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Codice"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Código"
+            "value": "验证码"
           }
         }
       }
@@ -6449,10 +6541,28 @@
     },
     "Connecting tunnel...": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在连接隧道..."
+            "value": "Tunnelverbindung wird hergestellt…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectando túnel..."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexion du tunnel..."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connessione tunnel..."
           }
         },
         "ja": {
@@ -6467,28 +6577,10 @@
             "value": "터널 연결 중..."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connexion du tunnel..."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tunnelverbindung wird hergestellt…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connessione tunnel..."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectando túnel..."
+            "value": "正在连接隧道..."
           }
         }
       }
@@ -6909,10 +7001,28 @@
     },
     "Copy remote URL": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "复制远程 URL"
+            "value": "Remote-URL kopieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar URL remota"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier l'URL distante"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia URL remoto"
           }
         },
         "ja": {
@@ -6927,28 +7037,10 @@
             "value": "원격 URL 복사"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copier l'URL distante"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remote-URL kopieren"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copia URL remoto"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copiar URL remota"
+            "value": "复制远程 URL"
           }
         }
       }
@@ -7461,10 +7553,28 @@
     },
     "Creating your secure tunnel...": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在创建安全隧道..."
+            "value": "Einrichten Ihres sicheren Tunnels..."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creando su túnel seguro..."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Création de votre tunnel sécurisé..."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creando il tunnel sicuro..."
           }
         },
         "ja": {
@@ -7479,28 +7589,10 @@
             "value": "보안 터널 생성 중..."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Création de votre tunnel sécurisé..."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Einrichten Ihres sicheren Tunnels..."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Creando il tunnel sicuro..."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Creando su túnel seguro..."
+            "value": "正在创建安全隧道..."
           }
         }
       }
@@ -9069,6 +9161,190 @@
         }
       }
     },
+    "Device name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备名称"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デバイス名"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 이름"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom de l'appareil"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerätename"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nome dispositivo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombre del dispositivo"
+          }
+        }
+      }
+    },
+    "Device name:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备名称："
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デバイス名:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 이름:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nom de l'appareil :"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerätename:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nome dispositivo:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombre del dispositivo:"
+          }
+        }
+      }
+    },
+    "Device Pairing Request": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对请求"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デバイスペアリングリクエスト"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 페어링 요청"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demande d'appairage d'appareil"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geräte-Pairing-Anfrage"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Richiesta di abbinamento dispositivo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solicitud de Emparejamiento de Dispositivo"
+          }
+        }
+      }
+    },
+    "Devices that connect via the web UI pairing flow will appear here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 Web UI 配对流程连接的设备将显示在这里。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web UI ペアリングフローで接続したデバイスはこちらに表示されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "웹 UI 페어링을 통해 연결된 기기가 여기에 표시됩니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les appareils qui se connectent via le processus d'appairage de l'interface web s'afficheront ici."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geräte, die sich über den Web-UI-Pairing-Flow verbinden, werden hier angezeigt."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I dispositivi che si connettono tramite il flusso di abbinamento dell'interfaccia web UI appariranno qui."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los dispositivos que se conectan mediante el flujo de emparejamiento de la interfaz web aparecerán aquí."
+          }
+        }
+      }
+    },
     "Diagram": {
       "localizations": {
         "de": {
@@ -9301,10 +9577,28 @@
     },
     "Disconnect": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "断开连接"
+            "value": "Trennen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déconnecter"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnetti"
           }
         },
         "ja": {
@@ -9319,38 +9613,38 @@
             "value": "연결 해제"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Déconnecter"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trennen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnetti"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desconectar"
+            "value": "断开连接"
           }
         }
       }
     },
     "Disconnected": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "已断开"
+            "value": "Getrennt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déconnecté"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnesso"
           }
         },
         "ja": {
@@ -9365,28 +9659,10 @@
             "value": "연결 끊김"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Déconnecté"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Getrennt"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnesso"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desconectado"
+            "value": "已断开"
           }
         }
       }
@@ -10221,10 +10497,28 @@
     },
     "Email": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "邮箱"
+            "value": "E-Mail"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-mail"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email"
           }
         },
         "ja": {
@@ -10239,28 +10533,10 @@
             "value": "이메일"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "E-mail"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "E-Mail"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Email"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Correo"
+            "value": "邮箱"
           }
         }
       }
@@ -10497,10 +10773,28 @@
     },
     "Enable remote access to control Hivecrew from your phone or any device.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "启用远程访问，以便通过手机或任何设备控制 Hivecrew。"
+            "value": "Fernzugriff aktivieren, um Hivecrew von Ihrem Telefon oder einem anderen Gerät aus zu steuern."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Habilite el acceso remoto para controlar Hivecrew desde su teléfono o cualquier dispositivo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activez l'accès à distance pour contrôler Hivecrew depuis votre téléphone ou tout autre appareil."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configura l'accesso remoto per controllare Hivecrew dal tuo telefono o da qualsiasi dispositivo."
           }
         },
         "ja": {
@@ -10515,28 +10809,10 @@
             "value": "원격 액세스를 활성화하면 휴대전화나 기타 기기에서 Hivecrew를 제어할 수 있습니다."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Activez l'accès à distance pour contrôler Hivecrew depuis votre téléphone ou tout autre appareil."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fernzugriff aktivieren, um Hivecrew von Ihrem Telefon oder einem anderen Gerät aus zu steuern."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Configura l'accesso remoto per controllare Hivecrew dal tuo telefono o da qualsiasi dispositivo."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Habilite el acceso remoto para controlar Hivecrew desde su teléfono o cualquier dispositivo."
+            "value": "启用远程访问，以便通过手机或任何设备控制 Hivecrew。"
           }
         }
       }
@@ -10675,6 +10951,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "请输入信息。按 %@ 发送。"
+          }
+        }
+      }
+    },
+    "Enter a new name for this device.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入此设备的新名称。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このデバイスの新しい名前を入力してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 이름을 입력하세요."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entrez un nouveau nom pour cet appareil."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie einen neuen Namen für dieses Gerät ein."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Immettere un nuovo nome per questo dispositivo."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduzca un nuevo nombre para este dispositivo."
           }
         }
       }
@@ -12803,7 +13125,25 @@
     },
     "https://%@.hivecrew.org/web": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://%@.hivecrew.org/web"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://%@.hivecrew.org/web"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://%@.hivecrew.org/web"
+          }
+        },
+        "it": {
           "stringUnit": {
             "state": "translated",
             "value": "https://%@.hivecrew.org/web"
@@ -12821,25 +13161,7 @@
             "value": "https://%@.hivecrew.org/web"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "https://%@.hivecrew.org/web"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "https://%@.hivecrew.org/web"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "https://%@.hivecrew.org/web"
-          }
-        },
-        "es": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "https://%@.hivecrew.org/web"
@@ -16345,6 +16667,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无开发者虚拟机"
+          }
+        }
+      }
+    },
+    "No devices authorized": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无已授权设备"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "認証済みデバイスがありません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "승인된 기기 없음"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun appareil autorisé"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine autorisierten Geräte"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun dispositivo autorizzato"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin dispositivos autorizados"
           }
         }
       }
@@ -20075,12 +20443,76 @@
         }
       }
     },
-    "Remote Access": {
+    "Reject": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "远程访问"
+            "value": "拒绝"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拒否"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "거부"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejeter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ablehnen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rifiuta"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechazar"
+          }
+        }
+      }
+    },
+    "Remote Access": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fernzugriff"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso Remoto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accès distant"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accesso Remoto"
           }
         },
         "ja": {
@@ -20095,38 +20527,38 @@
             "value": "원격 접근"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Accès distant"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fernzugriff"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accesso Remoto"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Acceso Remoto"
+            "value": "远程访问"
           }
         }
       }
     },
     "Remote URL": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "远程 URL"
+            "value": "Remote-URL"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL remota"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL distante"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL remoto"
           }
         },
         "ja": {
@@ -20141,38 +20573,38 @@
             "value": "원격 URL"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "URL distante"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remote-URL"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "URL remoto"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "URL remota"
+            "value": "远程 URL"
           }
         }
       }
     },
     "Remove": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "移除"
+            "value": "Entfernen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi"
           }
         },
         "ja": {
@@ -20187,38 +20619,38 @@
             "value": "삭제"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supprimer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entfernen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rimuovi"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar"
+            "value": "移除"
           }
         }
       }
     },
     "Remove Remote Access": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "移除远程访问"
+            "value": "Fernzugriff entfernen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar acceso remoto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer l'accès distant"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi Accesso Remoto"
           }
         },
         "ja": {
@@ -20233,38 +20665,38 @@
             "value": "원격 접근 제거"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supprimer l'accès distant"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fernzugriff entfernen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rimuovi Accesso Remoto"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar acceso remoto"
+            "value": "移除远程访问"
           }
         }
       }
     },
     "Remove Remote Access?": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "移除远程访问？"
+            "value": "Fernzugriff entfernen?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Eliminar acceso remoto?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer l'accès distant ?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi l'accesso remoto?"
           }
         },
         "ja": {
@@ -20279,28 +20711,102 @@
             "value": "원격 액세스 제거?"
           }
         },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除远程访问？"
+          }
+        }
+      }
+    },
+    "Rename Device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名设备"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デバイスの名前を変更"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 이름 변경"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Supprimer l'accès distant ?"
+            "value": "Renommer l'appareil"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fernzugriff entfernen?"
+            "value": "Gerät umbenennen"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rimuovi l'accesso remoto?"
+            "value": "Rinomina dispositivo"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Eliminar acceso remoto?"
+            "value": "Renombrar dispositivo"
+          }
+        }
+      }
+    },
+    "Rename this device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名此设备"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このデバイスの名前を変更"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 기기 이름을 변경하세요"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renommer cet appareil"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Gerät umbenennen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rinomina questo dispositivo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renombrar este dispositivo"
           }
         }
       }
@@ -21451,6 +21957,144 @@
           "stringUnit": {
             "state": "translated",
             "value": "请在批准前仔细审核此操作。"
+          }
+        }
+      }
+    },
+    "Revoke": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無効化する"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해제"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Révoquer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Widerrufen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoca"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocar"
+          }
+        }
+      }
+    },
+    "Revoke Device?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销设备？"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デバイスを無効化しますか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 해제?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Révoquer l'appareil ?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerät widerrufen?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocare il dispositivo?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Revocar dispositivo?"
+          }
+        }
+      }
+    },
+    "Revoke this device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "撤销此设备"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このデバイスを無効にする"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 기기 해제"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Révoquer cet appareil"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Gerät widerrufen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revoca questo dispositivo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocar este dispositivo"
           }
         }
       }
@@ -23297,10 +23941,28 @@
     },
     "Send Code": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "发送验证码"
+            "value": "Code senden"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar código"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyer le code"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invia codice"
           }
         },
         "ja": {
@@ -23315,28 +23977,10 @@
             "value": "코드 전송"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Envoyer le code"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Code senden"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Invia codice"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviar código"
+            "value": "发送验证码"
           }
         }
       }
@@ -23849,10 +24493,28 @@
     },
     "Set Up Remote Access": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "设置远程访问"
+            "value": "Fernzugriff einrichten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurar acceso remoto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurer l'accès à distance"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configura accesso remoto"
           }
         },
         "ja": {
@@ -23867,28 +24529,10 @@
             "value": "원격 접근 설정"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Configurer l'accès à distance"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fernzugriff einrichten"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Configura accesso remoto"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Configurar acceso remoto"
+            "value": "设置远程访问"
           }
         }
       }
@@ -26839,10 +27483,28 @@
     },
     "This will delete your tunnel and remote URL.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "这将删除您的隧道和远程 URL。"
+            "value": "Dies wird Ihren Tunnel und Ihre Remote-URL löschen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto borrará su túnel y la URL remota."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ceci supprimera votre tunnel et l'URL distante."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo eliminerà il tuo tunnel e l'URL remoto."
           }
         },
         "ja": {
@@ -26857,38 +27519,38 @@
             "value": "이렇게 하면 터널과 원격 URL이 삭제됩니다."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ceci supprimera votre tunnel et l'URL distante."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dies wird Ihren Tunnel und Ihre Remote-URL löschen."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questo eliminerà il tuo tunnel e l'URL remoto."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esto borrará su túnel y la URL remota."
+            "value": "这将删除您的隧道和远程 URL。"
           }
         }
       }
     },
     "This will delete your tunnel and remote URL. You can set it up again later, but the URL will change.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "这将删除您的隧道和远程 URL。您可以稍后重新设置，但 URL 将会更改。"
+            "value": "Damit werden Ihr Tunnel und Ihre Remote-URL gelöscht. Sie können diese später erneut einrichten, aber die URL ändert sich."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto borrará su túnel y la URL remota. Podrá configurarlo de nuevo más tarde, pero la URL cambiará."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette action supprimera votre tunnel et votre URL distante. Vous pourrez le configurer à nouveau ultérieurement, mais l'URL sera modifiée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo eliminerà il tuo tunnel e l'URL remoto. Potrai configurarlo di nuovo in seguito, ma l'URL cambierà."
           }
         },
         "ja": {
@@ -26903,28 +27565,56 @@
             "value": "이 작업은 터널과 원격 URL을 삭제합니다. 나중에 다시 설정할 수 있지만 URL은 변경됩니다."
           }
         },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这将删除您的隧道和远程 URL。您可以稍后重新设置，但 URL 将会更改。"
+          }
+        }
+      }
+    },
+    "This will disconnect \"%@\" and require it to pair again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这将断开 \"%@\" 的连接，需要重新配对。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" の接続を切断し、再度ペアリングする必要があります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 작업은 \"%@\"의 연결을 해제하고 다시 페어링해야 합니다."
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette action supprimera votre tunnel et votre URL distante. Vous pourrez le configurer à nouveau ultérieurement, mais l'URL sera modifiée."
+            "value": "Cela va déconnecter « %@ » et nécessitera un nouveau couplage."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Damit werden Ihr Tunnel und Ihre Remote-URL gelöscht. Sie können diese später erneut einrichten, aber die URL ändert sich."
+            "value": "Dadurch wird \"%@\" getrennt und muss erneut gekoppelt werden."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Questo eliminerà il tuo tunnel e l'URL remoto. Potrai configurarlo di nuovo in seguito, ma l'URL cambierà."
+            "value": "Questo disconnetterà \"%@\" e richiederà di effettuare nuovamente l'abbinamento."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esto borrará su túnel y la URL remota. Podrá configurarlo de nuevo más tarde, pero la URL cambiará."
+            "value": "Esto desconectará \"%@\" y requerirá que se empareje de nuevo."
           }
         }
       }
@@ -27437,10 +28127,28 @@
     },
     "Try Again": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "重试"
+            "value": "Erneut versuchen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riprova"
           }
         },
         "ja": {
@@ -27455,28 +28163,10 @@
             "value": "다시 시도"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Réessayer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erneut versuchen"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Riprova"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reintentar"
+            "value": "重试"
           }
         }
       }
@@ -28265,10 +28955,28 @@
     },
     "Verify": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "验证"
+            "value": "Verifizieren"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verificar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vérifier"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifica"
           }
         },
         "ja": {
@@ -28283,28 +28991,56 @@
             "value": "확인"
           }
         },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证"
+          }
+        }
+      }
+    },
+    "Verify this code matches the one in the browser:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证此验证码与浏览器中显示的一致："
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブラウザのコードと一致するか確認してください:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "브라우저에 표시된 코드가 일치하는지 확인하세요:"
+          }
+        },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vérifier"
+            "value": "Vérifiez que ce code correspond à celui affiché dans le navigateur :"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verifizieren"
+            "value": "Überprüfen Sie, ob dieser Code mit dem im Browser übereinstimmt:"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verifica"
+            "value": "Verifica che questo codice corrisponda a quello nel browser:"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verificar"
+            "value": "Verifica que este código coincida con el del navegador:"
           }
         }
       }

@@ -31,6 +31,15 @@ struct APISettingsView: View {
     // Tips
     private let apiIntegrationTip = APIIntegrationTip()
     
+    // MARK: - Device Auth State
+    
+    @ObservedObject private var deviceAuth = DeviceAuthService.shared
+    @State private var showRevokeConfirmation = false
+    @State private var deviceToRevoke: APIDeviceSession?
+    @State private var deviceToRename: APIDeviceSession?
+    @State private var renameText = ""
+    @State private var showRenameAlert = false
+    
     // MARK: - Remote Access State
     
     @ObservedObject private var remoteStatus = RemoteAccessStatus.shared
@@ -183,6 +192,62 @@ struct APISettingsView: View {
                 Text("Authentication")
             }
             
+            // Authorized Devices Section
+            Section {
+                if deviceAuth.authorizedDevices.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("No devices authorized")
+                            .foregroundColor(.secondary)
+                        Text("Devices that connect via the web UI pairing flow will appear here.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ForEach(deviceAuth.authorizedDevices) { device in
+                        HStack(spacing: 12) {
+                            Image(systemName: deviceTypeIcon(device.deviceType))
+                                .font(.title2)
+                                .foregroundColor(.secondary)
+                                .frame(width: 28)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.name)
+                                    .font(.body)
+                                Text("Authorized \(formatDeviceDate(device.authorizedAt))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button {
+                                deviceToRename = device
+                                renameText = device.name
+                                showRenameAlert = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Rename this device")
+                            
+                            Button {
+                                deviceToRevoke = device
+                                showRevokeConfirmation = true
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(.red)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Revoke this device")
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            } header: {
+                Text("Authorized Devices")
+            }
+            
             // File Upload Limits Section
             Section {
                 HStack {
@@ -283,6 +348,8 @@ struct APISettingsView: View {
             loadAPIKey()
             // Refresh server status to sync with actual state
             APIServerManager.shared.refreshStatus()
+            // Refresh authorized devices
+            Task { await deviceAuth.refreshDevices() }
             // Track API settings opened for tips
             TipStore.shared.donateAPISettingsOpened()
         }
@@ -293,6 +360,38 @@ struct APISettingsView: View {
             }
         } message: {
             Text("This will invalidate the current API key. Any applications using the old key will stop working.")
+        }
+        .alert("Revoke Device?", isPresented: $showRevokeConfirmation) {
+            Button("Cancel", role: .cancel) {
+                deviceToRevoke = nil
+            }
+            Button("Revoke", role: .destructive) {
+                if let device = deviceToRevoke {
+                    Task { await deviceAuth.revokeDevice(id: device.id) }
+                }
+                deviceToRevoke = nil
+            }
+        } message: {
+            if let device = deviceToRevoke {
+                Text("This will disconnect \"\(device.name)\" and require it to pair again.")
+            }
+        }
+        .alert("Rename Device", isPresented: $showRenameAlert) {
+            TextField("Device name", text: $renameText)
+            Button("Cancel", role: .cancel) {
+                deviceToRename = nil
+                renameText = ""
+            }
+            Button("Save") {
+                if let device = deviceToRename {
+                    let newName = renameText
+                    Task { await deviceAuth.renameDevice(id: device.id, name: newName) }
+                }
+                deviceToRename = nil
+                renameText = ""
+            }
+        } message: {
+            Text("Enter a new name for this device.")
         }
     }
     
@@ -306,6 +405,7 @@ struct APISettingsView: View {
             
             Button("Set Up Remote Access") {
                 remoteStatus.update(state: .awaitingOTP)
+                self.apiServerEnabled = true
             }
         }
     }
@@ -680,6 +780,23 @@ struct APISettingsView: View {
         isRemoteLoading = false
         remoteStatus.update(state: .notConfigured)
         remoteStatus.errorMessage = nil
+    }
+    
+    // MARK: - Device Auth Helpers
+    
+    private func deviceTypeIcon(_ type: APIDeviceType) -> String {
+        switch type {
+        case .desktop: return "desktopcomputer"
+        case .mobile: return "iphone"
+        case .tablet: return "ipad"
+        }
+    }
+    
+    private func formatDeviceDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
     
     // MARK: - QR Code Generation

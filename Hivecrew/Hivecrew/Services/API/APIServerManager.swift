@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import Security
 import HivecrewAPI
 
 /// Manages the API server lifecycle
@@ -27,6 +28,9 @@ final class APIServerManager {
     
     /// The port the server was started on
     private var startedPort: Int?
+    
+    /// Device session manager for the current server
+    private var deviceSessionManager: DeviceSessionManager?
     
     /// Dependencies needed to create the server
     private var taskService: TaskService?
@@ -66,9 +70,11 @@ final class APIServerManager {
         serverTask?.cancel()
         serverTask = nil
         currentServer = nil
+        deviceSessionManager = nil
         serverSuccessfullyStarted = false
         startedPort = nil
         APIServerStatus.shared.serverStopped()
+        DeviceAuthService.shared.unconfigure()
         print("APIServerManager: Server stopped")
     }
     
@@ -146,11 +152,37 @@ final class APIServerManager {
             fileStorage: fileStorage
         )
         
+        // Create device session manager for pairing-based auth
+        // Load or generate signing key from Keychain
+        let signingKeyData = DeviceAuthKeychain.loadSigningKey() ?? {
+            // Generate a fresh 256-bit signing key and persist to Keychain
+            let newKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+            DeviceAuthKeychain.saveSigningKey(newKey)
+            return newKey
+        }()
+        
+        let sessionManager = DeviceSessionManager(
+            signingKeyData: signingKeyData,
+            sessionMaxAgeDays: config.sessionMaxAgeDays
+        )
+        self.deviceSessionManager = sessionManager
+        
+        // Configure the device auth service and set as delegate
+        let deviceAuthService = DeviceAuthService.shared
+        deviceAuthService.configure(with: sessionManager)
+        
+        // Start the session manager and set delegate (must be done from a Task since it's an actor)
+        Task {
+            await sessionManager.start()
+            await sessionManager.setDelegate(deviceAuthService)
+        }
+        
         // Create the server
         let server = HivecrewAPIServer(
             configuration: config,
             serviceProvider: serviceProvider,
-            fileStorage: fileStorage
+            fileStorage: fileStorage,
+            deviceSessionManager: sessionManager
         )
         
         self.currentServer = server
@@ -235,5 +267,65 @@ final class APIServerManager {
             return "Permission denied"
         }
         return error.localizedDescription
+    }
+}
+
+// MARK: - Device Auth Signing Key Keychain Helper
+
+/// Manages the HMAC signing key for device session tokens in the Keychain
+enum DeviceAuthKeychain {
+    
+    private static let service = "com.pattonium.device-auth"
+    private static let account = "signing-key"
+    
+    /// Load the signing key from Keychain
+    static func loadSigningKey() -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        guard status == errSecSuccess, let data = result as? Data else {
+            return nil
+        }
+        
+        return data
+    }
+    
+    /// Save the signing key to Keychain
+    @discardableResult
+    static func saveSigningKey(_ keyData: Data) -> Bool {
+        // Delete any existing key first
+        deleteSigningKey()
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: keyData,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        
+        let status = SecItemAdd(query as CFDictionary, nil)
+        return status == errSecSuccess
+    }
+    
+    /// Delete the signing key from Keychain
+    @discardableResult
+    static func deleteSigningKey() -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

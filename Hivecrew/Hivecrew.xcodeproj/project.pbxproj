@@ -46,6 +46,8 @@
 		20360DC32F38234300A9B998 /* CloudflaredManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBD2F38234300A9B998 /* CloudflaredManager.swift */; };
 		20360DC42F38234300A9B998 /* RemoteAccessKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBF2F38234300A9B998 /* RemoteAccessKeychain.swift */; };
 		20360DC52F38234300A9B998 /* RemoteAccessAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBE2F38234300A9B998 /* RemoteAccessAPIClient.swift */; };
+		203838DD2F3904440026DC9A /* DeviceAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203838DC2F3904440026DC9A /* DeviceAuthService.swift */; };
+		203838DF2F39066E0026DC9A /* PairingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203838DE2F39066E0026DC9A /* PairingWindowController.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
 		204963392F17DD9E007DD5FD /* TemplateUpdateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */; };
 		2049633D2F17E553007DD5FD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 2049633C2F17E553007DD5FD /* Sparkle */; };
@@ -258,6 +260,8 @@
 		20360DBE2F38234300A9B998 /* RemoteAccessAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessAPIClient.swift; sourceTree = "<group>"; };
 		20360DBF2F38234300A9B998 /* RemoteAccessKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessKeychain.swift; sourceTree = "<group>"; };
 		20360DC02F38234300A9B998 /* RemoteAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessManager.swift; sourceTree = "<group>"; };
+		203838DC2F3904440026DC9A /* DeviceAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAuthService.swift; sourceTree = "<group>"; };
+		203838DE2F39066E0026DC9A /* PairingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingWindowController.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
 		204963382F17DD9E007DD5FD /* TemplateUpdateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUpdateSheet.swift; sourceTree = "<group>"; };
 		2049633E2F1822A7007DD5FD /* HivecrewAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivecrewAppDelegate.swift; sourceTree = "<group>"; };
@@ -689,6 +693,7 @@
 		209C61932F12ABD700062D0E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				203838DE2F39066E0026DC9A /* PairingWindowController.swift */,
 				202F64E02F2FE30400F6F359 /* MCP */,
 				AAAA00072F1E200000000007 /* Credentials */,
 				AAAA00082F1E200000000008 /* Providers */,
@@ -868,6 +873,7 @@
 		AAAA00022F1E200000000002 /* API */ = {
 			isa = PBXGroup;
 			children = (
+				203838DC2F3904440026DC9A /* DeviceAuthService.swift */,
 				2052ACB32F1D1984007E4475 /* APIKeyManager.swift */,
 				2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */,
 				2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */,
@@ -1241,6 +1247,7 @@
 				202F64972F2E756700F6F359 /* AttachmentManager.swift in Sources */,
 				20A563992F1B74D200CA7546 /* CredentialManager.swift in Sources */,
 				209EB6F42F1E2BD800A7F13F /* SkillsWindow.swift in Sources */,
+				203838DD2F3904440026DC9A /* DeviceAuthService.swift in Sources */,
 				20A563972F1B74A300CA7546 /* CredentialsSettingsView.swift in Sources */,
 				209EB6EA2F1E26D000A7F13F /* SkillExtractor.swift in Sources */,
 				209EB6EB2F1E26D000A7F13F /* SkillMatcher.swift in Sources */,
@@ -1299,6 +1306,7 @@
 				202F646E2F2D26DE00F6F359 /* ImageGenerationAvailability.swift in Sources */,
 				204DF4422F15744D004AB99B /* AgentRunner+Loop.swift in Sources */,
 				204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */,
+				203838DF2F39066E0026DC9A /* PairingWindowController.swift in Sources */,
 				3001B0062F15000000000006 /* ToolExecutor.swift in Sources */,
 				3001B0072F15000000000007 /* TaskService.swift in Sources */,
 				209EB6CF2F1E17F000A7F13F /* PromptTextView.swift in Sources */,

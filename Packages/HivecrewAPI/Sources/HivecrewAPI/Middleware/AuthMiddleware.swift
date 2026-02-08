@@ -2,7 +2,7 @@
 //  AuthMiddleware.swift
 //  HivecrewAPI
 //
-//  API key authentication middleware with localhost bypass
+//  API key and device session authentication middleware
 //
 
 import Foundation
@@ -10,48 +10,77 @@ import Hummingbird
 import HTTPTypes
 import NIOCore
 
-/// Middleware for API key authentication
+/// Middleware for API key and session cookie authentication
 public struct AuthMiddleware<Context: RequestContext>: RouterMiddleware, Sendable {
     private let apiKey: String?
     private let pathPrefix: String?
+    private let deviceSessionManager: DeviceSessionManager?
     
-    public init(apiKey: String?, pathPrefix: String? = nil) {
+    /// Paths that bypass authentication entirely (pairing endpoints)
+    private let unauthenticatedPrefixes: [String]
+    
+    public init(
+        apiKey: String?,
+        pathPrefix: String? = nil,
+        deviceSessionManager: DeviceSessionManager? = nil,
+        unauthenticatedPrefixes: [String] = []
+    ) {
         self.apiKey = apiKey
         self.pathPrefix = pathPrefix
+        self.deviceSessionManager = deviceSessionManager
+        self.unauthenticatedPrefixes = unauthenticatedPrefixes
     }
     
     public func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
+        let path = request.uri.path
+        
         // Skip auth for paths that don't match the prefix
         if let prefix = pathPrefix {
-            let path = request.uri.path
             if !path.hasPrefix(prefix) {
                 return try await next(request, context)
             }
         }
         
-        // API key is always required
-        guard let expectedKey = apiKey, !expectedKey.isEmpty else {
-            throw APIError.unauthorized("API key not configured. Generate an API key in Settings → API.")
+        // Skip auth for explicitly unauthenticated paths (pairing, auth check)
+        for prefix in unauthenticatedPrefixes {
+            if path.hasPrefix(prefix) {
+                return try await next(request, context)
+            }
         }
         
-        // Check Authorization header
-        guard let authHeader = request.headers[.authorization] else {
-            throw APIError.unauthorized("Missing Authorization header. Use: Authorization: Bearer <api_key>")
+        // Method 1: Check Authorization header (Bearer token / API key)
+        if let authHeader = request.headers[.authorization] {
+            let headerValue = String(authHeader)
+            if headerValue.hasPrefix("Bearer ") {
+                let providedKey = String(headerValue.dropFirst(7))
+                
+                if let expectedKey = apiKey, !expectedKey.isEmpty, providedKey == expectedKey {
+                    return try await next(request, context)
+                }
+            }
         }
         
-        // Extract Bearer token
-        let headerValue = String(authHeader)
-        guard headerValue.hasPrefix("Bearer ") else {
-            throw APIError.unauthorized("Invalid Authorization header format. Expected: Bearer <api_key>")
+        // Method 2: Check session cookie
+        if let deviceSessionManager = deviceSessionManager,
+           let cookieHeader = request.headers[.cookie] {
+            let cookies = String(cookieHeader)
+            if let token = DeviceAuthRoutes.extractCookieValue(named: "hivecrew_session", from: cookies) {
+                if let device = await deviceSessionManager.validateSession(token: token) {
+                    // Valid session — update last seen timestamp
+                    await deviceSessionManager.updateLastSeen(deviceId: device.id)
+                    return try await next(request, context)
+                }
+            }
         }
         
-        let providedKey = String(headerValue.dropFirst(7))
-        
-        // Validate API key
-        guard providedKey == expectedKey else {
-            throw APIError.unauthorized("Invalid API key")
+        // Neither method succeeded — check if API key is even configured
+        if apiKey == nil || apiKey?.isEmpty == true {
+            // If no API key is configured and no session manager, require setup
+            if deviceSessionManager == nil {
+                throw APIError.unauthorized("API key not configured. Generate an API key in Settings → API.")
+            }
         }
         
-        return try await next(request, context)
+        throw APIError.unauthorized("Authentication required. Use a Bearer token or authorize this device via pairing.")
     }
 }

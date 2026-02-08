@@ -1028,6 +1028,134 @@ body {
     line-height: 1.5;
 }
 
+/* ====================================================================
+   Device Pairing Auth Styles
+   ==================================================================== */
+
+.auth-pairing,
+.auth-apikey {
+    text-align: center;
+}
+
+.auth-apikey {
+    text-align: left;
+}
+
+.pairing-code-container {
+    text-align: center;
+}
+
+.pairing-code {
+    font-family: var(--font-mono);
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: 8px;
+    color: var(--text-primary);
+    background: var(--bg-window);
+    border: 2px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 24px 32px;
+    margin: 20px auto;
+    display: inline-block;
+    user-select: all;
+}
+
+.pairing-status {
+    margin-top: 16px;
+}
+
+.pairing-waiting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.pairing-dots {
+    display: flex;
+    gap: 4px;
+}
+
+.pairing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pairingDotPulse 1.4s ease-in-out infinite;
+}
+
+.pairing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.pairing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes pairingDotPulse {
+    0%, 80%, 100% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+    40% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.pairing-rejected,
+.pairing-expired {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--status-failed);
+    font-size: 14px;
+}
+
+.pairing-expired {
+    color: var(--text-secondary);
+}
+
+.pairing-init {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.pairing-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.auth-mode-switch {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    padding: 4px 0;
+    text-decoration: none;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+}
+
 .error-text {
     color: var(--status-failed);
     font-size: 13px;
