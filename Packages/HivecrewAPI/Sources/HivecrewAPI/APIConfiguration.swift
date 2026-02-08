@@ -15,7 +15,7 @@ public struct APIConfiguration: Sendable {
     /// Port to listen on (default: 5482)
     public var port: Int
     
-    /// Host to bind to (default: 0.0.0.0 for all interfaces)
+    /// Host to bind to (default: 127.0.0.1 for localhost only)
     public var host: String
     
     /// API key for authentication (nil if not set)
@@ -30,7 +30,7 @@ public struct APIConfiguration: Sendable {
     public init(
         isEnabled: Bool = true,
         port: Int = 5482,
-        host: String = "0.0.0.0",
+        host: String = "127.0.0.1",
         apiKey: String? = nil,
         maxFileSize: Int = 100 * 1024 * 1024,
         maxTotalUploadSize: Int = 500 * 1024 * 1024
@@ -50,7 +50,7 @@ public struct APIConfiguration: Sendable {
         return APIConfiguration(
             isEnabled: defaults.bool(forKey: "apiServerEnabled"),
             port: defaults.integer(forKey: "apiServerPort").nonZeroOrDefault(5482),
-            host: defaults.string(forKey: "apiServerHost") ?? "0.0.0.0",
+            host: defaults.string(forKey: "apiServerHost") ?? "127.0.0.1",
             apiKey: nil, // Loaded from Keychain separately
             maxFileSize: defaults.integer(forKey: "apiMaxFileSize").nonZeroOrDefault(100 * 1024 * 1024),
             maxTotalUploadSize: defaults.integer(forKey: "apiMaxTotalUploadSize").nonZeroOrDefault(500 * 1024 * 1024)
