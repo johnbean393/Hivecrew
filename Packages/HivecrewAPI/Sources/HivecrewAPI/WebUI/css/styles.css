@@ -534,6 +534,16 @@ body {
     color: #007AFF;
 }
 
+.inline-mention-envvar {
+    background: rgba(52, 199, 89, 0.18);
+    color: #34C759;
+}
+
+.inline-mention-injectedfile {
+    background: rgba(255, 149, 0, 0.18);
+    color: #FF9500;
+}
+
 .prompt-files {
     display: flex;
     flex-wrap: wrap;
@@ -643,6 +653,16 @@ body {
 .mention-icon-file {
     background: rgba(0, 122, 255, 0.12);
     color: #007AFF;
+}
+
+.mention-icon-envvar {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34C759;
+}
+
+.mention-icon-injectedfile {
+    background: rgba(255, 149, 0, 0.15);
+    color: #FF9500;
 }
 
 .mention-item-text {

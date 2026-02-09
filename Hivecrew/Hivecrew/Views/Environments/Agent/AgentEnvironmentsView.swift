@@ -34,6 +34,7 @@ struct AgentEnvironmentsView: View {
     
     @Binding var selectedTaskId: String?
     @State private var selectedItem: EnvironmentItem?
+    @State private var showProvisioningSheet = false
     
     // Tips
     private let takeControlTip = TakeControlTip()
@@ -122,6 +123,22 @@ struct AgentEnvironmentsView: View {
         }
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                showProvisioningSheet = true
+            } label: {
+                Label("VM Configuration", systemImage: "gearshape")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.bar)
+        }
+        .sheet(isPresented: $showProvisioningSheet) {
+            VMProvisioningView()
+        }
     }
     
     private var emptyState: some View {

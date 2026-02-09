@@ -213,6 +213,23 @@ public enum AppPaths {
         skillsDirectory.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
     }
     
+    // MARK: - VM Provisioning Assets
+    
+    /// Directory for VM provisioning asset files (files to inject into VMs on startup)
+    /// Structure: Assets/VM/{filename}
+    public static let vmAssetsDirectory: URL = {
+        let url = appSupportDirectory
+            .appendingPathComponent("Assets", isDirectory: true)
+            .appendingPathComponent("VM", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+    
+    /// Path to the VM provisioning configuration file
+    public static let vmProvisioningConfigPath: URL = {
+        appSupportDirectory.appendingPathComponent("vm_provisioning.json")
+    }()
+    
     // MARK: - Logs
     
     /// Directory for application logs

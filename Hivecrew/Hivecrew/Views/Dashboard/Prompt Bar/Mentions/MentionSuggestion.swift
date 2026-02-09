@@ -20,6 +20,8 @@ struct MentionSuggestion: Identifiable, Equatable {
         case attachment
         case deliverable
         case skill
+        case environmentVariable
+        case injectedFile
     }
     
     let id: String
@@ -54,6 +56,36 @@ struct MentionSuggestion: Identifiable, Equatable {
         self.skillName = skill.name
     }
     
+    /// Initialize with an environment variable from VM provisioning config
+    init(environmentVariable: VMProvisioningConfig.EnvironmentVariable) {
+        self.id = "env:\(environmentVariable.id.uuidString)"
+        self.displayName = environmentVariable.key
+        self.detail = "Environment Variable"
+        self.url = nil
+        self.type = .environmentVariable
+        self.icon = nil
+        self.skillName = nil
+    }
+    
+    /// Initialize with an injected file from VM provisioning config
+    init(injectedFile: VMProvisioningConfig.FileInjection) {
+        self.id = "injectedfile:\(injectedFile.id.uuidString)"
+        self.displayName = injectedFile.fileName
+        self.detail = injectedFile.guestPath.isEmpty ? "No VM path set" : injectedFile.guestPath
+        self.type = .injectedFile
+        self.skillName = nil
+        
+        // Resolve icon from the asset file on the host
+        let assetURL = AppPaths.vmAssetsDirectory.appendingPathComponent(injectedFile.fileName)
+        if FileManager.default.fileExists(atPath: assetURL.path) {
+            self.url = assetURL
+            self.icon = NSWorkspace.shared.icon(forFile: assetURL.path)
+        } else {
+            self.url = nil
+            self.icon = nil
+        }
+    }
+    
     static func == (lhs: MentionSuggestion, rhs: MentionSuggestion) -> Bool {
         lhs.id == rhs.id
     }
@@ -76,6 +108,12 @@ final class MentionSuggestionsProvider: ObservableObject {
     /// Available skill suggestions
     private var skillSuggestions: [MentionSuggestion] = []
     
+    /// Environment variable suggestions from VM provisioning config
+    private var environmentVariableSuggestions: [MentionSuggestion] = []
+    
+    /// Injected file suggestions from VM provisioning config
+    private var injectedFileSuggestions: [MentionSuggestion] = []
+    
     /// Skill manager for loading skills
     private let skillManager = SkillManager()
     
@@ -90,7 +128,7 @@ final class MentionSuggestionsProvider: ObservableObject {
             return !attachmentURLs.contains(url)
         }
         
-        return attachmentSuggestions + filteredDeliverables + skillSuggestions
+        return attachmentSuggestions + filteredDeliverables + skillSuggestions + environmentVariableSuggestions + injectedFileSuggestions
     }
     
     /// The configured output directory for deliverables
@@ -106,6 +144,7 @@ final class MentionSuggestionsProvider: ObservableObject {
     init() {
         loadDeliverables()
         loadSkills()
+        loadProvisioningItems()
     }
     
     /// Update the current attachments to show in suggestions
@@ -223,10 +262,26 @@ final class MentionSuggestionsProvider: ObservableObject {
         suggestions = Array(filtered.prefix(8))
     }
     
-    /// Refresh the deliverables and skills cache
+    /// Load environment variables and injected files from VM provisioning config
+    func loadProvisioningItems() {
+        let config = VMProvisioningService.shared.config
+        
+        environmentVariableSuggestions = config.environmentVariables
+            .filter { !$0.key.isEmpty }
+            .map { MentionSuggestion(environmentVariable: $0) }
+        
+        injectedFileSuggestions = config.fileInjections
+            .filter { !$0.fileName.isEmpty }
+            .map { MentionSuggestion(injectedFile: $0) }
+        
+        updateSuggestions()
+    }
+    
+    /// Refresh the deliverables, skills, and provisioning cache
     func refresh() {
         loadDeliverables()
         loadSkills()
+        loadProvisioningItems()
     }
     
     /// Update displayed suggestions from current state

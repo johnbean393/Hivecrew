@@ -73,6 +73,21 @@ final class MentionInsertionController: ObservableObject {
                             resolvedText += "\(skillName) skill"
                         }
                     }
+                case .environmentVariable:
+                    // Replace env var mention with $KEY reference
+                    if let key = attachment.envKey {
+                        resolvedText += "$\(key)"
+                    }
+                case .injectedFile:
+                    // Replace injected file mention with the guest VM path
+                    if let guestPath = attachment.guestPath, !guestPath.isEmpty {
+                        let expandedPath = guestPath
+                            .replacingOccurrences(of: "~/", with: "/Users/hivecrew/")
+                            .replacingOccurrences(of: "$HOME/", with: "/Users/hivecrew/")
+                        resolvedText += "\"\(expandedPath)\""
+                    } else {
+                        resolvedText += attachment.displayName
+                    }
                 }
             } else {
                 // Regular text - extract from storage
@@ -391,6 +406,18 @@ struct PromptTextEditor: NSViewRepresentable {
                 attachment = MentionTextAttachment(
                     displayName: suggestion.displayName,
                     fileURL: url
+                )
+            case .environmentVariable:
+                attachment = MentionTextAttachment(
+                    displayName: suggestion.displayName,
+                    envKey: suggestion.displayName,
+                    envValue: suggestion.detail ?? ""
+                )
+            case .injectedFile:
+                attachment = MentionTextAttachment(
+                    displayName: suggestion.displayName,
+                    guestPath: suggestion.detail ?? "",
+                    assetFileURL: suggestion.url
                 )
             }
             

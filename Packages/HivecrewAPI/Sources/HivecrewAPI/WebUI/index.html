@@ -8,11 +8,11 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=32">
+    <link rel="stylesheet" href="/web/css/styles.css?v=33">
     <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=29"></script>
+    <script defer src="/web/js/app.js?v=30"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -206,7 +206,7 @@
                                 x-ref="promptTextarea"
                                 :contenteditable="!quickCreating"
                                 role="textbox"
-                                data-placeholder="Describe a task for the agent... (type @ to mention skills)"
+                                data-placeholder="Describe a task for the agent... (type @ to mention skills, files, or variables)"
                                 @keydown="handlePromptKeydown($event)"
                                 @keydown.enter.meta.prevent="if (!showMentionDropdown) quickCreateTask()"
                                 @keydown.ctrl.enter.prevent="if (!showMentionDropdown) quickCreateTask()"
@@ -264,8 +264,56 @@
                                         </span>
                                     </button>
                                 </template>
+                                <template x-if="mentionSuggestions.some(s => s.type === 'envvar')">
+                                    <div class="mention-section-header">Environment Variables</div>
+                                </template>
+                                <template x-for="(item, idx) in mentionSuggestions.filter(s => s.type === 'envvar')" :key="'envvar-' + item.name">
+                                    <button
+                                        type="button"
+                                        class="mention-item"
+                                        :class="{ selected: mentionSelectedIndex === mentionSuggestions.indexOf(item) }"
+                                        @mousedown.prevent="selectMention(item)"
+                                        @mouseenter="mentionSelectedIndex = mentionSuggestions.indexOf(item)"
+                                    >
+                                        <span class="mention-item-icon mention-icon-envvar">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <polyline points="4 17 10 11 4 5"></polyline>
+                                                <line x1="12" y1="19" x2="20" y2="19"></line>
+                                            </svg>
+                                        </span>
+                                        <span class="mention-item-text">
+                                            <span class="mention-item-name" x-text="item.name"></span>
+                                            <span class="mention-item-desc" x-text="item.description"></span>
+                                        </span>
+                                    </button>
+                                </template>
+                                <template x-if="mentionSuggestions.some(s => s.type === 'injectedfile')">
+                                    <div class="mention-section-header">Injected Files</div>
+                                </template>
+                                <template x-for="(item, idx) in mentionSuggestions.filter(s => s.type === 'injectedfile')" :key="'injfile-' + item.name">
+                                    <button
+                                        type="button"
+                                        class="mention-item"
+                                        :class="{ selected: mentionSelectedIndex === mentionSuggestions.indexOf(item) }"
+                                        @mousedown.prevent="selectMention(item)"
+                                        @mouseenter="mentionSelectedIndex = mentionSuggestions.indexOf(item)"
+                                    >
+                                        <span class="mention-item-icon mention-icon-injectedfile">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                            </svg>
+                                        </span>
+                                        <span class="mention-item-text">
+                                            <span class="mention-item-name" x-text="item.name"></span>
+                                            <span class="mention-item-desc" x-text="item.description"></span>
+                                        </span>
+                                    </button>
+                                </template>
                                 <template x-if="mentionSuggestions.length === 0">
-                                    <div class="mention-empty">No matching skills or files</div>
+                                    <div class="mention-empty">No matching skills, files, or variables</div>
                                 </template>
                             </div>
                         </div>

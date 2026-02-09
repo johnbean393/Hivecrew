@@ -150,6 +150,14 @@ public protocol APIServiceProvider: Sendable {
     /// List all available skills.
     func getSkills() async throws -> [APISkill]
     
+    // MARK: - Provisioning Operations
+    
+    /// Retrieve VM provisioning configuration (environment variables and injected files).
+    ///
+    /// Environment variable values are intentionally omitted from the response
+    /// because they typically contain sensitive information (API keys, tokens, etc.).
+    func getProvisioning() async throws -> APIProvisioningResponse
+    
     // MARK: - System Operations
     
     /// Retrieve current system status (running agents, queued tasks, VM counts, etc.).

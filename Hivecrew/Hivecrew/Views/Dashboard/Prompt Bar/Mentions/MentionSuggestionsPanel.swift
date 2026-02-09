@@ -196,6 +196,14 @@ struct MentionSuggestionsPanelContent: View {
         suggestions.filter { $0.type == .skill }
     }
     
+    private var environmentVariables: [MentionSuggestion] {
+        suggestions.filter { $0.type == .environmentVariable }
+    }
+    
+    private var injectedFiles: [MentionSuggestion] {
+        suggestions.filter { $0.type == .injectedFile }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Current Attachments section
@@ -270,6 +278,54 @@ struct MentionSuggestionsPanelContent: View {
                     }
                 }
             }
+            
+            // Environment Variables section
+            if !environmentVariables.isEmpty {
+                SectionHeader(title: "Environment Variables")
+                    .frame(height: sectionHeaderHeight)
+                
+                ForEach(Array(environmentVariables.enumerated()), id: \.element.id) { index, suggestion in
+                    let globalIndex = attachments.count + deliverables.count + skills.count + index
+                    MentionSuggestionPanelRow(
+                        suggestion: suggestion,
+                        isSelected: globalIndex == selectedIndex
+                    )
+                    .frame(height: itemHeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelect(suggestion)
+                    }
+                    .onHover { isHovering in
+                        if isHovering {
+                            onHover(globalIndex)
+                        }
+                    }
+                }
+            }
+            
+            // Injected Files section
+            if !injectedFiles.isEmpty {
+                SectionHeader(title: "Injected Files")
+                    .frame(height: sectionHeaderHeight)
+                
+                ForEach(Array(injectedFiles.enumerated()), id: \.element.id) { index, suggestion in
+                    let globalIndex = attachments.count + deliverables.count + skills.count + environmentVariables.count + index
+                    MentionSuggestionPanelRow(
+                        suggestion: suggestion,
+                        isSelected: globalIndex == selectedIndex
+                    )
+                    .frame(height: itemHeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelect(suggestion)
+                    }
+                    .onHover { isHovering in
+                        if isHovering {
+                            onHover(globalIndex)
+                        }
+                    }
+                }
+            }
         }
         .padding(.vertical, 4)
         .background(
@@ -306,19 +362,37 @@ struct MentionSuggestionPanelRow: View {
     var body: some View {
         HStack(spacing: 10) {
             // Icon based on type
-            if suggestion.type == .skill {
+            switch suggestion.type {
+            case .skill:
                 Image(systemName: "sparkles")
                     .frame(width: 22, height: 22)
                     .foregroundStyle(.purple)
-            } else if let icon = suggestion.icon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+            case .environmentVariable:
+                Image(systemName: "terminal")
                     .frame(width: 22, height: 22)
-            } else {
-                Image(systemName: "doc")
-                    .frame(width: 22, height: 22)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.green)
+            case .injectedFile:
+                if let icon = suggestion.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 22, height: 22)
+                } else {
+                    Image(systemName: "doc.on.doc")
+                        .frame(width: 22, height: 22)
+                        .foregroundStyle(.orange)
+                }
+            case .attachment, .deliverable:
+                if let icon = suggestion.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 22, height: 22)
+                } else {
+                    Image(systemName: "doc")
+                        .frame(width: 22, height: 22)
+                        .foregroundStyle(.secondary)
+                }
             }
             
             // Name and detail

@@ -94,6 +94,9 @@
 		2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */; };
 		2053666C2F2FE3F70097E3FE /* HivecrewMCP in Frameworks */ = {isa = PBXBuildFile; productRef = 2053666B2F2FE3F70097E3FE /* HivecrewMCP */; };
 		2053666E2F2FE4760097E3FE /* ToolExecutor+MCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */; };
+		207B73022F3A586900572AF5 /* VMProvisioningConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73012F3A586900572AF5 /* VMProvisioningConfig.swift */; };
+		207B73042F3A587700572AF5 /* VMProvisioningService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73032F3A587700572AF5 /* VMProvisioningService.swift */; };
+		207B73062F3A588D00572AF5 /* VMProvisioningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73052F3A588D00572AF5 /* VMProvisioningView.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -304,6 +307,9 @@
 		2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerStatus.swift; sourceTree = "<group>"; };
 		2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerManager.swift; sourceTree = "<group>"; };
 		2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+MCP.swift"; sourceTree = "<group>"; };
+		207B73012F3A586900572AF5 /* VMProvisioningConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningConfig.swift; sourceTree = "<group>"; };
+		207B73032F3A587700572AF5 /* VMProvisioningService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningService.swift; sourceTree = "<group>"; };
+		207B73052F3A588D00572AF5 /* VMProvisioningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningView.swift; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -634,6 +640,7 @@
 		209C61872F12ABD700062D0E /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				207B73012F3A586900572AF5 /* VMProvisioningConfig.swift */,
 				202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */,
 				202F64942F2E755A00F6F359 /* AttachmentInfo.swift */,
 				202F64892F2DB8A900F6F359 /* PlanTodoItem.swift */,
@@ -650,6 +657,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				207B73032F3A587700572AF5 /* VMProvisioningService.swift */,
 				20360DC12F38234300A9B998 /* RemoteAccess */,
 				202F64E42F2FE31500F6F359 /* MCP */,
 				202F64832F2DB88700F6F359 /* Planning */,
@@ -709,6 +717,7 @@
 		209C619F2F12ABD700062D0E /* Environments */ = {
 			isa = PBXGroup;
 			children = (
+				207B73052F3A588D00572AF5 /* VMProvisioningView.swift */,
 				AAAA00092F1E200000000009 /* Agent */,
 				AAAA000A2F1E20000000000A /* VM */,
 			);
@@ -1222,6 +1231,7 @@
 				204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */,
 				204DF4302F1571AB004AB99B /* PromptModelButton.swift in Sources */,
 				204DF4472F157508004AB99B /* GuestAgentTypes.swift in Sources */,
+				207B73062F3A588D00572AF5 /* VMProvisioningView.swift in Sources */,
 				204DF4312F1571AB004AB99B /* PromptAttachmentPreview.swift in Sources */,
 				204DF4322F1571AB004AB99B /* PromptBar.swift in Sources */,
 				204DF4332F1571AB004AB99B /* PromptTextEditor.swift in Sources */,
@@ -1290,6 +1300,7 @@
 				209EB6E22F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
 				202F64E12F2FE30400F6F359 /* MCPServerEditSheet.swift in Sources */,
+				207B73042F3A587700572AF5 /* VMProvisioningService.swift in Sources */,
 				202F64E22F2FE30400F6F359 /* MCPSettingsView.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
 				2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */,
@@ -1321,6 +1332,7 @@
 				3001B00D2F1500000000000D /* AgentQuestionSheet.swift in Sources */,
 				3001B00E2F1500000000000E /* AgentActivityStreamView.swift in Sources */,
 				204DF44D2F15A957004AB99B /* TemplateDownloadService.swift in Sources */,
+				207B73022F3A586900572AF5 /* VMProvisioningConfig.swift in Sources */,
 				3001B00F2F1500000000000F /* AgentStatusBar.swift in Sources */,
 				3001B0102F15000000000010 /* SessionTraceView.swift in Sources */,
 			);
@@ -1508,7 +1520,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1522,7 +1534,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.11;
+				MARKETING_VERSION = 1.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1544,7 +1556,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1558,7 +1570,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.11;
+				MARKETING_VERSION = 1.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

@@ -11,6 +11,8 @@ import AppKit
 enum MentionType {
     case file
     case skill
+    case environmentVariable
+    case injectedFile
 }
 
 /// Custom text attachment that renders a mention as a styled tag
@@ -21,12 +23,22 @@ class MentionTextAttachment: NSTextAttachment {
     let skillName: String?
     let mentionType: MentionType
     
+    /// The environment variable key (for .environmentVariable type)
+    let envKey: String?
+    /// The environment variable value (for .environmentVariable type)
+    let envValue: String?
+    /// The guest path for injected file (for .injectedFile type)
+    let guestPath: String?
+    
     /// Initialize with a file URL
     init(displayName: String, fileURL: URL) {
         self.displayName = displayName
         self.fileURL = fileURL
         self.skillName = nil
         self.mentionType = .file
+        self.envKey = nil
+        self.envValue = nil
+        self.guestPath = nil
         super.init(data: nil, ofType: nil)
         
         // Render and set the image immediately
@@ -39,9 +51,40 @@ class MentionTextAttachment: NSTextAttachment {
         self.fileURL = nil
         self.skillName = skillName
         self.mentionType = .skill
+        self.envKey = nil
+        self.envValue = nil
+        self.guestPath = nil
         super.init(data: nil, ofType: nil)
         
         // Render and set the image immediately
+        self.image = renderTagImage()
+    }
+    
+    /// Initialize with an environment variable
+    init(displayName: String, envKey: String, envValue: String) {
+        self.displayName = displayName
+        self.fileURL = nil
+        self.skillName = nil
+        self.mentionType = .environmentVariable
+        self.envKey = envKey
+        self.envValue = envValue
+        self.guestPath = nil
+        super.init(data: nil, ofType: nil)
+        
+        self.image = renderTagImage()
+    }
+    
+    /// Initialize with an injected file
+    init(displayName: String, guestPath: String, assetFileURL: URL? = nil) {
+        self.displayName = displayName
+        self.fileURL = assetFileURL
+        self.skillName = nil
+        self.mentionType = .injectedFile
+        self.envKey = nil
+        self.envValue = nil
+        self.guestPath = guestPath
+        super.init(data: nil, ofType: nil)
+        
         self.image = renderTagImage()
     }
     
@@ -98,6 +141,10 @@ class MentionTextAttachment: NSTextAttachment {
                 bgColor = NSColor.systemBlue.withAlphaComponent(0.4)
             case .skill:
                 bgColor = NSColor.systemPurple.withAlphaComponent(0.4)
+            case .environmentVariable:
+                bgColor = NSColor.systemGreen.withAlphaComponent(0.4)
+            case .injectedFile:
+                bgColor = NSColor.systemOrange.withAlphaComponent(0.4)
             }
             let bgPath = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
             bgColor.setFill()
@@ -111,26 +158,41 @@ class MentionTextAttachment: NSTextAttachment {
                 height: iconSize
             )
             
+            let symbolName: String
             switch self.mentionType {
-                case .file:
-                    // Get the actual file icon from the system
-                    if let url = self.fileURL {
-                        let fileIcon = NSWorkspace.shared.icon(forFile: url.path)
-                        fileIcon.draw(in: iconRect)
-                    }
-                case .skill:
-                    // Draw sparkles symbol for skills in text color
-                    let symbolConfig = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
-                        .applying(
-                            NSImage.SymbolConfiguration(
-                                paletteColors: [NSColor.textColor]
-                            )
+            case .file:
+                // Get the actual file icon from the system
+                if let url = self.fileURL {
+                    let fileIcon = NSWorkspace.shared.icon(forFile: url.path)
+                    fileIcon.draw(in: iconRect)
+                }
+                symbolName = ""
+            case .skill:
+                symbolName = "sparkles"
+            case .environmentVariable:
+                symbolName = "terminal"
+            case .injectedFile:
+                // Use the actual file icon if we have the asset file URL
+                if let url = self.fileURL {
+                    let fileIcon = NSWorkspace.shared.icon(forFile: url.path)
+                    fileIcon.draw(in: iconRect)
+                    symbolName = ""
+                } else {
+                    symbolName = "doc.on.doc"
+                }
+            }
+            
+            if !symbolName.isEmpty {
+                let symbolConfig = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
+                    .applying(
+                        NSImage.SymbolConfiguration(
+                            paletteColors: [NSColor.textColor]
                         )
-                    if let symbolImage = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)?
-                        .withSymbolConfiguration(symbolConfig) {
-                        symbolImage.draw(in: iconRect)
-                    }
-                    
+                    )
+                if let symbolImage = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(symbolConfig) {
+                    symbolImage.draw(in: iconRect)
+                }
             }
             
             // Draw text

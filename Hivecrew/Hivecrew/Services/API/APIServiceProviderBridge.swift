@@ -470,6 +470,25 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         }
     }
     
+    // MARK: - Provisioning Operations
+    
+    func getProvisioning() async throws -> APIProvisioningResponse {
+        let config = VMProvisioningService.shared.config
+        
+        let envVars = config.environmentVariables
+            .filter { !$0.key.isEmpty }
+            .map { APIEnvironmentVariable(key: $0.key) }
+        
+        let files = config.fileInjections
+            .filter { !$0.fileName.isEmpty }
+            .map { APIInjectedFile(fileName: $0.fileName, guestPath: $0.guestPath) }
+        
+        return APIProvisioningResponse(
+            environmentVariables: envVars,
+            injectedFiles: files
+        )
+    }
+    
     // MARK: - System Operations
     
     func getSystemStatus() async throws -> APISystemStatus {

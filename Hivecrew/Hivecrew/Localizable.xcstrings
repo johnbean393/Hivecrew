@@ -1093,6 +1093,52 @@
         }
       }
     },
+    "%lld.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld."
+          }
+        }
+      }
+    },
     "%lld. %@": {
       "localizations": {
         "de": {
@@ -1475,6 +1521,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "• 另有 %lld 项..."
+          }
+        }
+      }
+    },
+    "~/Documents/config.yaml": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/Documents/config.yaml"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/Documents/config.yaml"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/Documents/config.yaml"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/Documents/config.yaml"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/Documents/config.yaml"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/Documenti/config.yaml"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~/Documents/config.yaml"
           }
         }
       }
@@ -1985,6 +2077,98 @@
         }
       }
     },
+    "Add environment variable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加环境变量"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "環境変数を追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 변수 추가"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une variable d'environnement"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umgebungsvariable hinzufügen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi variabile d'ambiente"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir variable de entorno"
+          }
+        }
+      }
+    },
+    "Add File...": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加文件..."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルを追加..."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 추가..."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un fichier..."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei hinzufügen..."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi file..."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar archivo..."
+          }
+        }
+      }
+    },
     "Add Files": {
       "localizations": {
         "de": {
@@ -2257,6 +2441,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "添加服务器"
+          }
+        }
+      }
+    },
+    "Add setup command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加设置命令"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セットアップコマンドを追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 명령 추가"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter une commande de configuration"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup-Befehl hinzufügen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi comando di configurazione"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar comando de configuración"
           }
         }
       }
@@ -4149,10 +4379,28 @@
     },
     "Automatically match enabled skills to tasks using AI when no skills are explicitly mentioned via @. When disabled, only explicitly mentioned skills will be used.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "当未通过 @ 显式提及技能时，使用 AI 自动将已启用的技能匹配到任务。禁用时，仅使用显式提及的技能。"
+            "value": "Aktivierte Fähigkeiten werden automatisch mithilfe von KI an Aufgaben angepasst, wenn keine Fähigkeiten explizit über @ erwähnt werden. Bei Deaktivierung werden nur explizit erwähnte Fähigkeiten verwendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empareja automáticamente las habilidades habilitadas con las tareas mediante IA cuando no se mencionan habilidades explícitamente mediante @. Cuando está desactivado, solo se usarán las habilidades mencionadas explícitamente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correspondre automatiquement les compétences activées aux tâches à l'aide de l'IA lorsqu'aucune compétence n'est explicitement mentionnée via @. Lorsqu'elle est désactivée, seules les compétences explicitement mentionnées seront utilisées."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbina automaticamente le skill abilitate ai task usando l'AI quando nessuna skill viene menzionata esplicitamente tramite @. Quando disabilitata, verranno usate solo le skill menzionate esplicitamente."
           }
         },
         "ja": {
@@ -4167,28 +4415,10 @@
             "value": "@로 명시적으로 언급되지 않은 경우 AI를 사용하여 활성화된 스킬을 작업에 자동으로 매칭합니다. 비활성화하면 명시적으로 언급된 스킬만 사용됩니다."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Correspondre automatiquement les compétences activées aux tâches à l'aide de l'IA lorsqu'aucune compétence n'est explicitement mentionnée via @. Lorsqu'elle est désactivée, seules les compétences explicitement mentionnées seront utilisées."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktivierte Fähigkeiten werden automatisch mithilfe von KI an Aufgaben angepasst, wenn keine Fähigkeiten explizit über @ erwähnt werden. Bei Deaktivierung werden nur explizit erwähnte Fähigkeiten verwendet."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abbina automaticamente le skill abilitate ai task usando l'AI quando nessuna skill viene menzionata esplicitamente tramite @. Quando disabilitata, verranno usate solo le skill menzionate esplicitamente."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Empareja automáticamente las habilidades habilitadas con las tareas mediante IA cuando no se mencionan habilidades explícitamente mediante @. Cuando está desactivado, solo se usarán las habilidades mencionadas explícitamente."
+            "value": "当未通过 @ 显式提及技能时，使用 AI 自动将已启用的技能匹配到任务。禁用时，仅使用显式提及的技能。"
           }
         }
       }
@@ -6168,6 +6398,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "配置失败：%@"
+          }
+        }
+      }
+    },
+    "Configure environment variables, startup commands, and files injected into every new VM.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置环境变量、启动命令以及注入到每个新 VM 的文件。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい VM ごとに注入される環境変数、スタートアップコマンド、ファイルを構成します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "새 VM에 주입되는 환경 변수, 시작 명령어 및 파일을 구성합니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurer les variables d'environnement, les commandes de démarrage et les fichiers injectés dans chaque nouvelle VM."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konfiguration von Umgebungsvariablen, Startbefehlen und in jede neue VM injizierten Dateien."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configura variabili d'ambiente, comandi di avvio e file iniettati in ogni nuova VM."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurar variables de entorno, comandos de inicio y archivos inyectados en cada VM nueva."
           }
         }
       }
@@ -10358,6 +10634,52 @@
         }
       }
     },
+    "e.g. brew install jq": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如 brew install jq"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例: brew install jq"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "예: brew install jq"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ex. brew install jq"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "z. B. brew install jq"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "es. brew install jq"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ej. brew install jq"
+          }
+        }
+      }
+    },
     "e.g., OpenAI, Claude, Local LLM": {
       "localizations": {
         "de": {
@@ -11274,6 +11596,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "环境"
+          }
+        }
+      }
+    },
+    "Environment Variables": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "环境变量"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "環境変数"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 변수"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variables d'environnement"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umgebungsvariablen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variabili d'ambiente"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variables de entorno"
           }
         }
       }
@@ -12388,6 +12756,98 @@
         }
       }
     },
+    "File Injections": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件注入"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル注入"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 주입"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Injections de fichiers"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei-Injektionen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniezioni file"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inyecciones de Archivos"
+          }
+        }
+      }
+    },
+    "File missing from assets": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "资源文件缺失"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アセットにファイルがありません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "assets에 파일 없음"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fichier manquant des ressources"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei fehlt in Assets"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File mancante negli asset"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivo faltante en assets"
+          }
+        }
+      }
+    },
     "File Output": {
       "localizations": {
         "de": {
@@ -12568,6 +13028,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "代理保存到 ~/Desktop/outbox/ 的文件会在任务完成后自动传送到您的输出目录。"
+          }
+        }
+      }
+    },
+    "Files copied from your Mac into each new VM at the specified path. Files are stored in the app's Assets folder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件将从您的 Mac 复制到每个新 VM 的指定路径。文件存储在应用的 Assets 文件夹中。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Macのファイルは、指定されたパスにコピーされ、各新しいVMに配置されます。ファイルはアプリの「アセット」フォルダに保存されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지정된 경로의 파일이 Mac에서 각 새 VM으로 복사됩니다. 파일은 앱의 Assets 폴더에 저장됩니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fichiers copiés de votre Mac dans chaque nouvelle VM au chemin spécifié. Les fichiers sont stockés dans le dossier Assets de l'application."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien werden von Ihrem Mac in jede neue VM am angegebenen Pfad kopiert. Die Dateien werden im Assets-Ordner der App gespeichert."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File copiati dal Mac in ogni nuova VM nel percorso specificato. I file sono memorizzati nella cartella Assets dell'app."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos copiados desde tu Mac en cada nueva VM en la ruta especificada. Los archivos se almacenan en la carpeta Assets de la aplicación."
           }
         }
       }
@@ -14454,6 +14960,144 @@
           "stringUnit": {
             "state": "translated",
             "value": "保留全部"
+          }
+        }
+      }
+    },
+    "Key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clé"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüssel"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiave"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clave"
+          }
+        }
+      }
+    },
+    "KEY": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KEY"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "키"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clé"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüssel"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CHIAVE"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clave"
+          }
+        }
+      }
+    },
+    "Key-value pairs exported into the shell environment for every command run in the VM.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键值对将导出到 VM 中运行的每个命令的 Shell 环境中。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VMで実行されるコマンドごとに、キーと値のペアがシェル環境に出力されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM에서 실행되는 모든 명령에 대해 쉘 환경으로 내보내는 키-값 쌍입니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paires clé-valeur exportées dans l'environnement shell pour chaque commande exécutée dans la VM."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüssel-Wert-Paare, die bei jedem in der VM ausgeführten Befehl in die Shell-Umgebung exportiert werden."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coppie chiave-valore esportate nell'ambiente shell per ogni comando eseguito nella VM."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pares clave-valor exportados al entorno de shell para cada comando ejecutado en la VM."
           }
         }
       }
@@ -16902,6 +17546,52 @@
         }
       }
     },
+    "No environment variables defined.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未定义任何环境变量"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "環境変数が設定されていません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 변수가 없습니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune variable d'environnement définie."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Umgebungsvariablen definiert."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessuna variabile d'ambiente definita."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay variables de entorno definidas."
+          }
+        }
+      }
+    },
     "No files attached. Files will be available in the agent's inbox when the task runs.": {
       "localizations": {
         "de": {
@@ -16944,6 +17634,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "未附加任何文件。任务运行时，文件将可用。"
+          }
+        }
+      }
+    },
+    "No files configured for injection.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未配置任何注入文件"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インジェクション用のファイルが設定されていません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "주입할 파일이 구성되지 않았습니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun fichier configuré pour l'injection."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Dateien für Injektion konfiguriert."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun file configurato per l'iniezione."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay archivos configurados para inyección."
           }
         }
       }
@@ -17542,6 +18278,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "未捕获任何截屏"
+          }
+        }
+      }
+    },
+    "No setup commands defined.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无设置命令"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セットアップコマンドが設定されていません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 명령이 정의되지 않았습니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune commande de configuration définie."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Setup-Befehle definiert."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun comando di setup definito."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay comandos de configuración definidos."
           }
         }
       }
@@ -20858,6 +21640,98 @@
         }
       }
     },
+    "Remove command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除命令"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コマンドを削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "명령 제거"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer la commande"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Befehl entfernen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi comando"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar comando"
+          }
+        }
+      }
+    },
+    "Remove file": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除文件"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルを削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 삭제"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer le fichier"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei entfernen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi file"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar archivo"
+          }
+        }
+      }
+    },
     "Remove Remote Access": {
       "localizations": {
         "de": {
@@ -20946,6 +21820,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除远程访问？"
+          }
+        }
+      }
+    },
+    "Remove variable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除变量"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変数を削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변수 삭제"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer la variable"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Variable entfernen"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi variabile"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar variable"
           }
         }
       }
@@ -23664,6 +24584,52 @@
         }
       }
     },
+    "Select a file from your Mac to inject into VMs": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要注入到 VM 中的文件"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VMに注入するファイルをMacから選択"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac에서 VM에 주입할 파일을 선택하세요"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sélectionner un fichier depuis votre Mac à injecter dans les VM"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie eine Datei von Ihrem Mac aus, um sie in VMs zu injizieren."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleziona un file dal tuo Mac da iniettare nelle VM"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleccione un archivo de su Mac para inyectar en VMs"
+          }
+        }
+      }
+    },
     "Select a skill to view details": {
       "localizations": {
         "de": {
@@ -24810,6 +25776,98 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置远程访问，即可通过手机或任意浏览器使用 Web UI。设备配对采用一次性验证码，安全无忧，无需密码。"
+          }
+        }
+      }
+    },
+    "Setup Commands": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置命令"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セットアップコマンド"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 명령"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commandes de configuration"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einrichtungsbefehle"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comandi di Configurazione"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comandos de configuración"
+          }
+        }
+      }
+    },
+    "Shell commands executed in order after the VM boots, before the agent starts working.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell 命令在 VM 启动后、代理开始工作前按顺序执行。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VMが起動した後、エージェントが作業を開始する前、シェルコマンドが順序立てて実行されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM이 부팅된 후 에이전트가 작업을 시작하기 전에 순서대로 실행되는 Shell 명령입니다."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commandes shell exécutées dans l'ordre après le démarrage de la VM, avant le début du travail de l'agent."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shell-Befehle, die der Reihe nach ausgeführt werden, nachdem die VM gestartet wurde, bevor der Agent mit der Arbeit beginnt."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comandi shell eseguiti in sequenza dopo l'avvio della VM, prima che l'agente inizi a lavorare."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comandos de shell ejecutados en secuencia tras el inicio de la VM, antes de que el agente comience a trabajar."
           }
         }
       }
@@ -29184,6 +30242,98 @@
         }
       }
     },
+    "value": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "值"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "値"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "valeur"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wert"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valore"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "valor"
+          }
+        }
+      }
+    },
+    "Value": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "值"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "値"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "값"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valeur"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wert"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valore"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valor"
+          }
+        }
+      }
+    },
     "Verification Tries:": {
       "localizations": {
         "de": {
@@ -29598,6 +30748,52 @@
         }
       }
     },
+    "VM Configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM 配置"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM 構成"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM 구성"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration VM"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM-Konfiguration"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurazione VM"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuración de VM"
+          }
+        }
+      }
+    },
     "VM Name": {
       "localizations": {
         "de": {
@@ -29640,6 +30836,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "VM 名称"
+          }
+        }
+      }
+    },
+    "VM path:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM 路径："
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM パス:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM 경로:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chemin VM :"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VM-Pfad:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Percorso VM:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruta de VM:"
           }
         }
       }

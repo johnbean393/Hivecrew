@@ -161,6 +161,7 @@ public actor HivecrewAPIServer {
         ProviderRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         TemplateRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         SkillRoutes(serviceProvider: serviceProvider).register(with: apiV1)
+        ProvisioningRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         SystemRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         EventRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         

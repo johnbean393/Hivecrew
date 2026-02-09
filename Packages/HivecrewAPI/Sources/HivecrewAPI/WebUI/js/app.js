@@ -114,6 +114,10 @@ document.addEventListener('alpine:init', () => {
         mentionSelectedIndex: 0,
         showMentionDropdown: false,
         
+        // VM Provisioning (env vars & injected files for @ mentions)
+        provisioningEnvVars: [],
+        provisioningFiles: [],
+        
         // Auto-refresh & elapsed time
         refreshTimer: null,
         tickInterval: null,
@@ -442,7 +446,8 @@ document.addEventListener('alpine:init', () => {
                 this.loadTasks(),
                 this.loadProviders(),
                 this.loadSystemStatus(),
-                this.loadSkills()
+                this.loadSkills(),
+                this.loadProvisioning()
             ]);
         },
         
@@ -607,6 +612,19 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        async loadProvisioning() {
+            try {
+                const response = await this.apiFetch('/api/v1/provisioning');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.provisioningEnvVars = data.environmentVariables || [];
+                    this.provisioningFiles = data.injectedFiles || [];
+                }
+            } catch (error) {
+                console.error('Failed to load provisioning:', error);
+            }
+        },
+
         /**
          * Get the text content from the contentEditable prompt, reading
          * inline mention chips as their @name form.
@@ -620,7 +638,25 @@ document.addEventListener('alpine:init', () => {
                     text += node.textContent;
                 } else if (node.nodeType === Node.ELEMENT_NODE) {
                     if (node.hasAttribute('data-mention')) {
-                        text += '@' + node.getAttribute('data-mention');
+                        const mentionType = node.getAttribute('data-mention-type');
+                        const mentionName = node.getAttribute('data-mention');
+                        if (mentionType === 'envvar') {
+                            // Resolve env var mention to $KEY
+                            text += '$' + mentionName;
+                        } else if (mentionType === 'injectedfile') {
+                            // Resolve injected file to its guest VM path
+                            const guestPath = node.getAttribute('data-guest-path') || '';
+                            if (guestPath) {
+                                const expanded = guestPath
+                                    .replace(/^~\//, '/Users/hivecrew/')
+                                    .replace(/^\$HOME\//, '/Users/hivecrew/');
+                                text += '"' + expanded + '"';
+                            } else {
+                                text += mentionName;
+                            }
+                        } else {
+                            text += '@' + mentionName;
+                        }
                     } else if (node.tagName === 'BR') {
                         text += '\n';
                     } else {
@@ -638,10 +674,10 @@ document.addEventListener('alpine:init', () => {
         syncPromptText() {
             this.quickTaskDescription = this.getPromptText();
 
-            // Sync mentionedSkills from what's actually in the DOM
+            // Sync mentionedSkills from what's actually in the DOM (only skill type)
             const el = this.$refs.promptTextarea;
             if (!el) return;
-            const chips = el.querySelectorAll('[data-mention]');
+            const chips = el.querySelectorAll('[data-mention-type="skill"]');
             const current = new Set();
             chips.forEach(c => current.add(c.getAttribute('data-mention')));
             this.mentionedSkills = [...current];
@@ -725,6 +761,33 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
+            // Add environment variables
+            for (const envVar of this.provisioningEnvVars) {
+                if (!query || envVar.key.toLowerCase().includes(query)) {
+                    suggestions.push({
+                        type: 'envvar',
+                        name: envVar.key,
+                        description: 'Environment Variable',
+                        display: envVar.key
+                    });
+                }
+            }
+
+            // Add injected files
+            for (const injFile of this.provisioningFiles) {
+                const fileName = injFile.fileName.toLowerCase();
+                const guestPath = (injFile.guestPath || '').toLowerCase();
+                if (!query || fileName.includes(query) || guestPath.includes(query)) {
+                    suggestions.push({
+                        type: 'injectedfile',
+                        name: injFile.fileName,
+                        description: injFile.guestPath || 'No VM path set',
+                        display: injFile.fileName,
+                        guestPath: injFile.guestPath
+                    });
+                }
+            }
+
             this.mentionSuggestions = suggestions.slice(0, 10);
         },
 
@@ -756,17 +819,38 @@ document.addEventListener('alpine:init', () => {
         /**
          * Create an inline mention chip element.
          */
-        _createMentionChip(type, name) {
+        _createMentionChip(type, name, extraData) {
             const chip = document.createElement('span');
             chip.setAttribute('data-mention', name);
             chip.setAttribute('data-mention-type', type);
             chip.setAttribute('contenteditable', 'false');
             chip.className = 'inline-mention inline-mention-' + type;
 
+            // Store extra data for resolution
+            if (extraData) {
+                if (extraData.guestPath) chip.setAttribute('data-guest-path', extraData.guestPath);
+            }
+
             if (type === 'skill') {
                 chip.innerHTML =
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">' +
                     '<path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 16.4 5.7 21l2.3-7L2 9.4h7.6z"></path>' +
+                    '</svg>' +
+                    '<span>' + name + '</span>';
+            } else if (type === 'envvar') {
+                chip.innerHTML =
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">' +
+                    '<polyline points="4 17 10 11 4 5"></polyline>' +
+                    '<line x1="12" y1="19" x2="20" y2="19"></line>' +
+                    '</svg>' +
+                    '<span>$' + name + '</span>';
+            } else if (type === 'injectedfile') {
+                chip.innerHTML =
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">' +
+                    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>' +
+                    '<polyline points="14 2 14 8 20 8"></polyline>' +
+                    '<line x1="16" y1="13" x2="8" y2="13"></line>' +
+                    '<line x1="16" y1="17" x2="8" y2="17"></line>' +
                     '</svg>' +
                     '<span>' + name + '</span>';
             } else {
@@ -796,8 +880,10 @@ document.addEventListener('alpine:init', () => {
             const before = text.substring(0, atIndex);
             const after = text.substring(cursorOffset);
 
-            // Create mention chip
-            const chip = this._createMentionChip(item.type, item.name);
+            // Create mention chip with extra data
+            const extraData = {};
+            if (item.guestPath) extraData.guestPath = item.guestPath;
+            const chip = this._createMentionChip(item.type, item.name, extraData);
 
             // Replace textNode content: set to "before", insert chip + space after
             textNode.textContent = before;

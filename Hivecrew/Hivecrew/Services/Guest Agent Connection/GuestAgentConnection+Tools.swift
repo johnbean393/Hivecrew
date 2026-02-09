@@ -138,7 +138,12 @@ extension GuestAgentConnection {
             fi
             export PATH PYTHONPATH 2>/dev/null
             """
-        let wrappedCommand = "\(envSetup); \(expandedCommand)"
+        
+        // Append user-defined environment variables from VM provisioning config
+        let userEnvExports = VMProvisioningService.shared.environmentExportString
+        let fullEnvSetup = userEnvExports.isEmpty ? envSetup : "\(envSetup); \(userEnvExports)"
+        
+        let wrappedCommand = "\(fullEnvSetup); \(expandedCommand)"
         
         var params: [String: Any] = ["command": wrappedCommand]
         if let timeout = timeout { params["timeout"] = timeout }

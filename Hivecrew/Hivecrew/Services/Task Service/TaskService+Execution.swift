@@ -5,6 +5,7 @@
 //  Task execution, cancellation, pause/resume functionality
 //
 
+import Combine
 import Foundation
 import SwiftData
 import TipKit
@@ -236,6 +237,73 @@ extension TaskService {
                 print("TaskService: Failed to setup guest inbox/outbox (non-fatal): \(error)")
             }
             if await abortIfInactive(stage: "guest setup") { return }
+            
+            // MARK: VM Provisioning (user-defined files and setup commands)
+            let provisioningConfig = VMProvisioningService.shared.config
+            
+            // Write environment variables to ~/.zshenv so they are available in
+            // Terminal.app and all other zsh sessions (not just runShell calls)
+            if let zshenvContents = VMProvisioningService.shared.zshenvContents {
+                do {
+                    // Escape single quotes in the content for the heredoc
+                    let escapedContents = zshenvContents.replacingOccurrences(of: "'", with: "'\\''")
+                    let writeResult = try await connection.runShell(command: """
+                        printf '%s' '\(escapedContents)' > ~/.zshenv
+                        """, timeout: 10)
+                    print("TaskService: Wrote \(provisioningConfig.environmentVariables.count) env var(s) to ~/.zshenv")
+                    if !writeResult.stderr.isEmpty {
+                        print("TaskService: zshenv write stderr: \(writeResult.stderr)")
+                    }
+                } catch {
+                    print("TaskService: Failed to write ~/.zshenv (non-fatal): \(error)")
+                }
+            }
+            
+            // Copy provisioned files into the VM
+            if !provisioningConfig.fileInjections.isEmpty {
+                print("TaskService: Injecting provisioned files into VM...")
+                let inboxPath = AppPaths.vmInboxDirectory(id: vmId!)
+                let copiedFiles = VMProvisioningService.shared.copyProvisionedFiles(toSharedInbox: inboxPath)
+                
+                if !copiedFiles.isEmpty {
+                    let injectionScript = VMProvisioningService.shared.generateFileInjectionScript(for: copiedFiles)
+                    if !injectionScript.isEmpty {
+                        do {
+                            let injectionResult = try await connection.runShell(command: injectionScript, timeout: 30)
+                            print("TaskService: File injection result:\n\(injectionResult.stdout)")
+                            if !injectionResult.stderr.isEmpty {
+                                print("TaskService: File injection stderr: \(injectionResult.stderr)")
+                            }
+                        } catch {
+                            print("TaskService: File injection failed (non-fatal): \(error)")
+                        }
+                    }
+                }
+            }
+            
+            // Run user-defined setup commands
+            if !provisioningConfig.setupCommands.isEmpty {
+                let validCommands = provisioningConfig.setupCommands.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                if !validCommands.isEmpty {
+                    print("TaskService: Running \(validCommands.count) provisioning setup command(s)...")
+                    for (index, command) in validCommands.enumerated() {
+                        do {
+                            print("TaskService: Setup command \(index + 1)/\(validCommands.count): \(command.prefix(100))...")
+                            let cmdResult = try await connection.runShell(command: command, timeout: 120)
+                            print("TaskService: Setup command \(index + 1) stdout: \(cmdResult.stdout.prefix(500))")
+                            if !cmdResult.stderr.isEmpty {
+                                print("TaskService: Setup command \(index + 1) stderr: \(cmdResult.stderr.prefix(500))")
+                            }
+                            if cmdResult.exitCode != 0 {
+                                print("TaskService: Setup command \(index + 1) exited with code \(cmdResult.exitCode) (non-fatal)")
+                            }
+                        } catch {
+                            print("TaskService: Setup command \(index + 1) failed (non-fatal): \(error)")
+                        }
+                    }
+                }
+            }
+            if await abortIfInactive(stage: "VM provisioning") { return }
             
             // Update task status to running
             task.status = .running
