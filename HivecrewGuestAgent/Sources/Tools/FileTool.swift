@@ -42,49 +42,48 @@ final class FileTool {
             env["PATH"] = (missingPaths + pathComponents).joined(separator: ":")
         }
         
-        // Add Python user site-packages to PYTHONPATH and user bin dirs to PATH.
-        // On macOS, pip --user installs packages to ~/Library/Python/<version>/lib/python/site-packages/
-        // and scripts to ~/Library/Python/<version>/bin/. When multiple Python versions are present
-        // (e.g. system 3.9 + Homebrew 3.12), packages installed by one version's pip are invisible
-        // to the other. Adding all versions' site-packages to PYTHONPATH fixes this.
+        // Add the active Python version's user site-packages to PYTHONPATH and bin to PATH.
+        // We detect the running python3's version by resolving the Homebrew symlink chain
+        // and ONLY add that version's directories — adding all versions causes ImportErrors
+        // when compiled C extensions (e.g. Pillow's _imaging.cpython-39-darwin.so) are loaded
+        // by a different Python version.
         let homeDir = env["HOME"] ?? NSHomeDirectory()
-        let pythonLibDir = "\(homeDir)/Library/Python"
-        if let pythonVersions = try? FileManager.default.contentsOfDirectory(atPath: pythonLibDir) {
-            var sitePackagePaths: [String] = []
-            var binPaths: [String] = []
-            for version in pythonVersions {
-                let sitePkgs = "\(pythonLibDir)/\(version)/lib/python/site-packages"
-                var isDir: ObjCBool = false
-                if FileManager.default.fileExists(atPath: sitePkgs, isDirectory: &isDir), isDir.boolValue {
-                    sitePackagePaths.append(sitePkgs)
-                }
-                let binDir = "\(pythonLibDir)/\(version)/bin"
-                isDir = false
-                if FileManager.default.fileExists(atPath: binDir, isDirectory: &isDir), isDir.boolValue {
-                    binPaths.append(binDir)
+        let activePythonVersion: String? = {
+            for candidate in ["/opt/homebrew/bin/python3", "/usr/local/bin/python3"] {
+                guard FileManager.default.fileExists(atPath: candidate) else { continue }
+                // Resolve the full symlink chain; the final binary is typically
+                // named "python3.13" (or similar) which encodes the version.
+                let resolved = URL(fileURLWithPath: candidate).resolvingSymlinksInPath().lastPathComponent
+                guard resolved.hasPrefix("python") else { continue }
+                let version = String(resolved.dropFirst("python".count))
+                let parts = version.split(separator: ".")
+                if parts.count == 2, parts.allSatisfy({ $0.allSatisfy(\.isNumber) }) {
+                    return version
                 }
             }
-            if !sitePackagePaths.isEmpty {
+            return nil
+        }()
+        if let pyVer = activePythonVersion {
+            let userSitePkgs = "\(homeDir)/Library/Python/\(pyVer)/lib/python/site-packages"
+            let userBin = "\(homeDir)/Library/Python/\(pyVer)/bin"
+            let brewSitePkgs = "/opt/homebrew/lib/python\(pyVer)/site-packages"
+            
+            var sitePaths: [String] = []
+            for path in [userSitePkgs, brewSitePkgs] {
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
+                    sitePaths.append(path)
+                }
+            }
+            if !sitePaths.isEmpty {
                 let existing = env["PYTHONPATH"] ?? ""
-                let all = sitePackagePaths + (existing.isEmpty ? [] : [existing])
+                let all = sitePaths + (existing.isEmpty ? [] : [existing])
                 env["PYTHONPATH"] = all.joined(separator: ":")
             }
-            if !binPaths.isEmpty {
-                env["PATH"] = (binPaths + [env["PATH"] ?? ""]).joined(separator: ":")
-            }
-        }
-        
-        // Also check Homebrew Python site-packages
-        let brewPythonBase = "/opt/homebrew/lib"
-        if let brewContents = try? FileManager.default.contentsOfDirectory(atPath: brewPythonBase) {
-            let pythonDirs = brewContents.filter { $0.hasPrefix("python") }
-            for pyDir in pythonDirs {
-                let sitePkgs = "\(brewPythonBase)/\(pyDir)/site-packages"
-                var isDir: ObjCBool = false
-                if FileManager.default.fileExists(atPath: sitePkgs, isDirectory: &isDir), isDir.boolValue {
-                    let existing = env["PYTHONPATH"] ?? ""
-                    env["PYTHONPATH"] = existing.isEmpty ? sitePkgs : "\(existing):\(sitePkgs)"
-                }
+            
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: userBin, isDirectory: &isDir), isDir.boolValue {
+                env["PATH"] = "\(userBin):\(env["PATH"] ?? "")"
             }
         }
         

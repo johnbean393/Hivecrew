@@ -121,17 +121,22 @@ extension GuestAgentConnection {
         // The GuestAgent runs /bin/zsh -c which doesn't source ~/.zshrc or ~/.zprofile,
         // so tools installed via package managers won't be in PATH by default.
         //
-        // Python fix: Also add user site-packages to PYTHONPATH and user bin dirs to PATH.
-        // Without this, packages installed via pip for one Python version (e.g. system 3.9)
-        // are invisible to another version (e.g. Homebrew 3.12) since each version has its
-        // own user site-packages directory under ~/Library/Python/<version>/.
-        // Use zsh's (N) glob qualifier so unmatched patterns silently expand to
-        // nothing instead of triggering a fatal NOMATCH error that aborts the
-        // entire script in non-interactive zsh -c mode.
+        // Python fix: Detect the active python3 version and ONLY add that version's
+        // user site-packages to PYTHONPATH and bin dir to PATH. Adding all versions'
+        // directories causes ImportErrors when compiled C extensions (e.g. Pillow's
+        // _imaging.cpython-39-darwin.so) are loaded by a different Python version.
+        // All Python setup is guarded with `if` so a missing/broken Python install
+        // cannot affect the exit status of the actual command that follows.
         let envSetup = """
             export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:/Library/TeX/texbin:$PATH" 2>/dev/null
-            for _d in "$HOME/Library/Python"/*/bin(N); do [ -d "$_d" ] && PATH="$_d:$PATH"; done 2>/dev/null; export PATH
-            for _d in "$HOME/Library/Python"/*/lib/python/site-packages(N) "$HOME/.local/lib/python"*/site-packages(N) /opt/homebrew/lib/python*/site-packages(N); do [ -d "$_d" ] && PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$_d"; done 2>/dev/null; export PYTHONPATH
+            _pyver=$(python3 -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)
+            if [ -n "$_pyver" ]; then
+                [ -d "$HOME/Library/Python/$_pyver/bin" ] && PATH="$HOME/Library/Python/$_pyver/bin:$PATH"
+                for _d in "$HOME/Library/Python/$_pyver/lib/python/site-packages" "$HOME/.local/lib/python$_pyver/site-packages" "/opt/homebrew/lib/python$_pyver/site-packages"; do
+                    [ -d "$_d" ] && PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$_d"
+                done
+            fi
+            export PATH PYTHONPATH 2>/dev/null
             """
         let wrappedCommand = "\(envSetup); \(expandedCommand)"
         
