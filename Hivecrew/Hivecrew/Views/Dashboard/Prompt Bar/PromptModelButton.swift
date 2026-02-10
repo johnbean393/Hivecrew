@@ -329,7 +329,7 @@ struct PromptModelPopover: View {
                     displayName: provider.displayName,
                     baseURL: provider.parsedBaseURL,
                     apiKey: apiKey,
-                    model: "gpt-5.2", // Placeholder, not used for listing
+                    model: "moonshotai/kimi-k2.5", // Placeholder, not used for listing
                     organizationId: provider.organizationId,
                     timeoutInterval: provider.timeoutInterval
                 )
@@ -351,7 +351,7 @@ struct PromptModelPopover: View {
                     self.isLoading = false
                     
                     // Fallback to hardcoded models on error
-                    self.availableModels = ["gpt-5.2"]
+                    self.availableModels = ["moonshotai/kimi-k2.5"]
                 }
             }
         }
@@ -363,7 +363,7 @@ struct PromptModelPopover: View {
 #Preview {
     PromptModelButton(
         selectedProviderId: .constant("test"),
-        selectedModelId: .constant("gpt-5.2"),
+        selectedModelId: .constant("moonshotai/kimi-k2.5"),
         providers: []
     )
     .padding()

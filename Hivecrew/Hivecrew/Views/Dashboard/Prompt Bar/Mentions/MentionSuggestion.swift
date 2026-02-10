@@ -70,16 +70,16 @@ struct MentionSuggestion: Identifiable, Equatable {
     /// Initialize with an injected file from VM provisioning config
     init(injectedFile: VMProvisioningConfig.FileInjection) {
         self.id = "injectedfile:\(injectedFile.id.uuidString)"
-        self.displayName = injectedFile.fileName
+        self.displayName = injectedFile.resolvedFileName
         self.detail = injectedFile.guestPath.isEmpty ? "No VM path set" : injectedFile.guestPath
         self.type = .injectedFile
         self.skillName = nil
         
-        // Resolve icon from the asset file on the host
-        let assetURL = AppPaths.vmAssetsDirectory.appendingPathComponent(injectedFile.fileName)
-        if FileManager.default.fileExists(atPath: assetURL.path) {
-            self.url = assetURL
-            self.icon = NSWorkspace.shared.icon(forFile: assetURL.path)
+        // Resolve icon from live source first, then legacy asset fallback
+        let sourceURL = VMProvisioningService.shared.hostFileURL(for: injectedFile)
+        if let sourceURL {
+            self.url = sourceURL
+            self.icon = NSWorkspace.shared.icon(forFile: sourceURL.path)
         } else {
             self.url = nil
             self.icon = nil
@@ -271,7 +271,7 @@ final class MentionSuggestionsProvider: ObservableObject {
             .map { MentionSuggestion(environmentVariable: $0) }
         
         injectedFileSuggestions = config.fileInjections
-            .filter { !$0.fileName.isEmpty }
+            .filter { !$0.resolvedFileName.isEmpty }
             .map { MentionSuggestion(injectedFile: $0) }
         
         updateSuggestions()

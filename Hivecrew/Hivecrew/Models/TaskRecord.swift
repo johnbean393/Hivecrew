@@ -95,7 +95,7 @@ final class TaskRecord {
     /// ID of the LLM provider to use
     var providerId: String
     
-    /// Model ID to use (e.g., "gpt-5.2", "claude-3-opus")
+    /// Model ID to use (e.g., "moonshotai/kimi-k2.5", "claude-3-opus")
     var modelId: String
     
     /// Summary of the task result (on completion)

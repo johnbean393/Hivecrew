@@ -247,7 +247,7 @@ final class ToolCallingTests: XCTestCase {
         
         let response = LLMResponse(
             id: "resp_123",
-            model: "gpt-5.2",
+            model: "moonshotai/kimi-k2.5",
             created: Date(),
             choices: [choice],
             usage: nil
@@ -310,11 +310,11 @@ final class ToolCallingTests: XCTestCase {
         
         let client = service.createClient(
             apiKey: "test-key",
-            model: "gpt-5.2"
+            model: "moonshotai/kimi-k2.5"
         )
         
         XCTAssertEqual(client.configuration.apiKey, "test-key")
-        XCTAssertEqual(client.configuration.model, "gpt-5.2")
+        XCTAssertEqual(client.configuration.model, "moonshotai/kimi-k2.5")
         XCTAssertNil(client.configuration.baseURL)
     }
     

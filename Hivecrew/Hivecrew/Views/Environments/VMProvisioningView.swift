@@ -248,7 +248,7 @@ struct VMProvisioningView: View {
                 .help("Select a file from your Mac to inject into VMs")
             }
             
-            Text("Files copied from your Mac into each new VM at the specified path. Files are stored in the app's Assets folder.")
+            Text("Files are copied into each new VM at the specified path. Source files are referenced directly, so updates on your Mac are picked up automatically.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
@@ -273,12 +273,20 @@ struct VMProvisioningView: View {
                                     .foregroundStyle(.secondary)
                                 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(injection.fileName)
+                                    Text(injection.resolvedFileName)
                                         .font(.system(.body, design: .monospaced))
                                         .lineLimit(1)
                                     
-                                    if !provisioningService.assetFileExists(named: injection.fileName) {
-                                        Text("File missing from assets")
+                                    if let sourceFilePath = injection.sourceFilePath, !sourceFilePath.isEmpty {
+                                        Text(sourceFilePath)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
+                                    
+                                    if !provisioningService.fileInjectionSourceExists(injection) {
+                                        Text(injection.hasLiveSourceReference ? "Source file unavailable" : "File missing from assets")
                                             .font(.caption2)
                                             .foregroundStyle(.red)
                                     }
@@ -287,8 +295,10 @@ struct VMProvisioningView: View {
                                 Spacer()
                                 
                                 Button {
-                                    // Remove asset file and config entry
-                                    provisioningService.removeFile(named: injection.fileName)
+                                    // For legacy snapshot-based entries, also remove the stored asset copy.
+                                    if !injection.hasLiveSourceReference {
+                                        provisioningService.removeFile(named: injection.fileName)
+                                    }
                                     config.fileInjections.removeAll { $0.id == injection.id }
                                 } label: {
                                     Image(systemName: "minus.circle.fill")
@@ -330,13 +340,7 @@ struct VMProvisioningView: View {
             guard let url = urls.first else { return }
             
             do {
-                let fileName = try provisioningService.importFile(from: url)
-                
-                // Add a file injection entry with the imported file name
-                let injection = VMProvisioningConfig.FileInjection(
-                    fileName: fileName,
-                    guestPath: "~/Desktop/\(fileName)"
-                )
+                let injection = try provisioningService.createFileInjection(from: url)
                 config.fileInjections.append(injection)
             } catch {
                 importError = "Failed to import file: \(error.localizedDescription)"

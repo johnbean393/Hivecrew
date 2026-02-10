@@ -516,6 +516,6 @@ struct SessionTraceView: View {
         taskDescription: "Navigate to Google homepage using Firefox browser",
         status: .completed,
         providerId: "openai",
-        modelId: "gpt-5.2"
+        modelId: "moonshotai/kimi-k2.5"
     ))
 }

@@ -9,7 +9,7 @@ import Combine
 import Foundation
 import HivecrewShared
 
-/// Manages the global VM provisioning configuration and asset files
+/// Manages the global VM provisioning configuration and file injection sources
 class VMProvisioningService: ObservableObject {
     
     static let shared = VMProvisioningService()
@@ -97,6 +97,32 @@ class VMProvisioningService: ObservableObject {
     }
     
     // MARK: - File Management
+
+    /// Create a file injection that references the original host file directly.
+    /// The returned injection stores both the file path and (when possible) a
+    /// security-scoped bookmark so updates to the source file are picked up on each VM startup.
+    func createFileInjection(from sourceURL: URL) throws -> VMProvisioningConfig.FileInjection {
+        let accessing = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if accessing {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        let fileName = sourceURL.lastPathComponent
+        let bookmarkData = try? sourceURL.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+
+        return VMProvisioningConfig.FileInjection(
+            fileName: fileName,
+            guestPath: "~/Desktop/\(fileName)",
+            sourceFilePath: sourceURL.path,
+            sourceBookmarkData: bookmarkData
+        )
+    }
     
     /// Import a file from a source URL into the Assets/VM/ directory
     /// - Parameter sourceURL: The file to import (may be a security-scoped URL)
@@ -126,6 +152,7 @@ class VMProvisioningService: ObservableObject {
     
     /// Remove a file from the Assets/VM/ directory
     func removeFile(named fileName: String) {
+        guard !fileName.isEmpty else { return }
         let fileURL = AppPaths.vmAssetsDirectory.appendingPathComponent(fileName)
         
         do {
@@ -143,15 +170,57 @@ class VMProvisioningService: ObservableObject {
         let fileURL = AppPaths.vmAssetsDirectory.appendingPathComponent(fileName)
         return fileManager.fileExists(atPath: fileURL.path)
     }
+
+    /// Resolve the configured source URL for a file injection (bookmark first, then raw path).
+    func sourceFileURL(for injection: VMProvisioningConfig.FileInjection) -> URL? {
+        if let bookmarkData = injection.sourceBookmarkData {
+            var isStale = false
+            if let url = try? URL(
+                resolvingBookmarkData: bookmarkData,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ) {
+                return url
+            }
+        }
+
+        if let sourceFilePath = injection.sourceFilePath, !sourceFilePath.isEmpty {
+            return URL(fileURLWithPath: sourceFilePath)
+        }
+
+        return nil
+    }
+
+    /// Resolve the best host file URL to use for an injection.
+    /// Prefers live source references and falls back to legacy assets for backward compatibility.
+    func hostFileURL(for injection: VMProvisioningConfig.FileInjection) -> URL? {
+        if let sourceURL = sourceFileURL(for: injection) {
+            return sourceURL
+        }
+
+        let legacyAssetURL = AppPaths.vmAssetsDirectory.appendingPathComponent(injection.resolvedFileName)
+        if fileManager.fileExists(atPath: legacyAssetURL.path) {
+            return legacyAssetURL
+        }
+
+        return nil
+    }
+
+    /// Whether the injection currently resolves to an existing host file.
+    func fileInjectionSourceExists(_ injection: VMProvisioningConfig.FileInjection) -> Bool {
+        guard let sourceURL = hostFileURL(for: injection) else { return false }
+        return fileManager.fileExists(atPath: sourceURL.path)
+    }
     
     // MARK: - VM Provisioning
     
-    /// Copy all provisioned files into a VM's shared inbox directory
-    /// Files are placed in a `_provisioning/` subdirectory to avoid conflicts with task attachments
+    /// Copy all provisioned files into a VM's shared inbox directory.
+    /// Files are placed in a `_provisioning/` subdirectory to avoid conflicts with task attachments.
     /// - Parameter inboxURL: The VM's shared inbox directory URL
-    /// - Returns: Array of (fileName, guestPath) tuples for files that were successfully copied
+    /// - Returns: Array of (stagedFileName, guestPath) tuples for files that were successfully copied
     func copyProvisionedFiles(toSharedInbox inboxURL: URL) -> [(fileName: String, guestPath: String)] {
-        let validInjections = config.fileInjections.filter { !$0.fileName.isEmpty && !$0.guestPath.isEmpty }
+        let validInjections = config.fileInjections.filter { !$0.guestPath.isEmpty }
         guard !validInjections.isEmpty else { return [] }
         
         // Create provisioning subdirectory in inbox
@@ -161,25 +230,38 @@ class VMProvisioningService: ObservableObject {
         var copiedFiles: [(fileName: String, guestPath: String)] = []
         
         for injection in validInjections {
-            let sourceURL = AppPaths.vmAssetsDirectory.appendingPathComponent(injection.fileName)
-            let destURL = provisioningDir.appendingPathComponent(injection.fileName)
-            
-            guard fileManager.fileExists(atPath: sourceURL.path) else {
-                print("VMProvisioningService: Asset file '\(injection.fileName)' not found, skipping")
+            guard let sourceURL = hostFileURL(for: injection) else {
+                print("VMProvisioningService: No source found for injection '\(injection.resolvedFileName)', skipping")
                 continue
             }
-            
+
+            guard fileManager.fileExists(atPath: sourceURL.path) else {
+                print("VMProvisioningService: Source file '\(sourceURL.path)' not found, skipping")
+                continue
+            }
+
+            let safeBaseName = injection.resolvedFileName.replacingOccurrences(of: "/", with: "_")
+            let stagedFileName = "\(injection.id.uuidString)-\(safeBaseName)"
+            let destURL = provisioningDir.appendingPathComponent(stagedFileName)
+
+            let accessing = sourceURL.startAccessingSecurityScopedResource()
+            defer {
+                if accessing {
+                    sourceURL.stopAccessingSecurityScopedResource()
+                }
+            }
+
             do {
                 // Remove existing copy if present
                 if fileManager.fileExists(atPath: destURL.path) {
                     try fileManager.removeItem(at: destURL)
                 }
-                
+
                 try fileManager.copyItem(at: sourceURL, to: destURL)
-                copiedFiles.append((fileName: injection.fileName, guestPath: injection.guestPath))
-                print("VMProvisioningService: Copied '\(injection.fileName)' to shared inbox for injection to '\(injection.guestPath)'")
+                copiedFiles.append((fileName: stagedFileName, guestPath: injection.guestPath))
+                print("VMProvisioningService: Copied '\(sourceURL.lastPathComponent)' to shared inbox for injection to '\(injection.guestPath)'")
             } catch {
-                print("VMProvisioningService: Failed to copy '\(injection.fileName)': \(error)")
+                print("VMProvisioningService: Failed to copy '\(sourceURL.lastPathComponent)': \(error)")
             }
         }
         

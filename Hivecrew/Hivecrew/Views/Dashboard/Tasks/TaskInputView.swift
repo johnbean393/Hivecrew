@@ -74,7 +74,7 @@ struct TaskInputView: View {
         let currentModelId = UserDefaults.standard.string(forKey: "lastSelectedModelId") ?? selectedModelId
         let currentProviderId = UserDefaults.standard.string(forKey: "lastSelectedProviderId") ?? selectedProviderId
         
-        let effectiveModelId = currentModelId.isEmpty ? "gpt-5.2" : currentModelId
+        let effectiveModelId = currentModelId.isEmpty ? "moonshotai/kimi-k2.5" : currentModelId
         let effectiveProviderId = currentProviderId.isEmpty ? selectedProviderId : currentProviderId
         
         let taskCount = copyCount.rawValue

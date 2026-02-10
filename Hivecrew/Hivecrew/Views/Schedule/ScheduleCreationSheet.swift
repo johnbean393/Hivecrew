@@ -662,7 +662,7 @@ struct ScheduleCreationSheet: View {
         
         // Set default model from last used
         if selectedModelId.isEmpty {
-            selectedModelId = UserDefaults.standard.string(forKey: "lastSelectedModelId") ?? "gpt-4o"
+            selectedModelId = UserDefaults.standard.string(forKey: "lastSelectedModelId") ?? "moonshotai/kimi-k2.5"
         }
     }
     

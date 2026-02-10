@@ -234,7 +234,7 @@ struct ScheduledTaskRowView: View {
                 title: "Daily Research Task",
                 taskDescription: "Research the latest AI developments",
                 providerId: "provider-1",
-                modelId: "gpt-5.2",
+                modelId: "moonshotai/kimi-k2.5",
                 scheduleType: .recurring,
                 recurrenceRule: .daily(at: 9, minute: 0)
             ),
@@ -247,7 +247,7 @@ struct ScheduledTaskRowView: View {
                 title: "Weekly Report",
                 taskDescription: "Generate weekly report",
                 providerId: "provider-1",
-                modelId: "gpt-5.2",
+                modelId: "moonshotai/kimi-k2.5",
                 scheduleType: .recurring,
                 recurrenceRule: .weekly(on: [2, 4, 6], at: 10, minute: 30)
             ),

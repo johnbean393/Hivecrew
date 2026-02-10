@@ -54,20 +54,53 @@ extension VMProvisioningConfig {
 
 extension VMProvisioningConfig {
     
-    /// A file to copy from the host Assets/VM/ directory into the guest VM
+    /// A file to copy from the host into the guest VM
     struct FileInjection: Codable, Identifiable, Equatable {
         var id: UUID
         
-        /// Name of the file stored in ~/Library/Application Support/Hivecrew/Assets/VM/
+        /// Display filename for this injection (used in UI and mentions)
         var fileName: String
         
         /// Destination path inside the VM (e.g. ~/Documents/config.yaml)
         var guestPath: String
+
+        /// Optional absolute path to the original host source file.
+        /// When set, the latest file contents are copied on each VM startup.
+        var sourceFilePath: String?
+
+        /// Optional security-scoped bookmark for sourceFilePath.
+        /// Used to retain read access across app launches.
+        var sourceBookmarkData: Data?
+
+        /// Returns the best available name for display and file staging.
+        var resolvedFileName: String {
+            if !fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return fileName
+            }
+            if let sourceFilePath, !sourceFilePath.isEmpty {
+                return URL(fileURLWithPath: sourceFilePath).lastPathComponent
+            }
+            return "injected-file"
+        }
+
+        /// Indicates whether this injection is configured with a live host source reference.
+        var hasLiveSourceReference: Bool {
+            let hasPath = !(sourceFilePath?.isEmpty ?? true)
+            return hasPath || sourceBookmarkData != nil
+        }
         
-        init(id: UUID = UUID(), fileName: String = "", guestPath: String = "") {
+        init(
+            id: UUID = UUID(),
+            fileName: String = "",
+            guestPath: String = "",
+            sourceFilePath: String? = nil,
+            sourceBookmarkData: Data? = nil
+        ) {
             self.id = id
             self.fileName = fileName
             self.guestPath = guestPath
+            self.sourceFilePath = sourceFilePath
+            self.sourceBookmarkData = sourceBookmarkData
         }
     }
 }

@@ -23,7 +23,13 @@ class TaskTitleGenerator {
     func generateTitle(from description: String, using client: any LLMClientProtocol) async throws -> String {
         let prompt = """
         Generate a concise task title (max 6 words) for this task.
-        If it involves creating a file, include the file type in backticks (e.g., `docx`, `pdf`, `xlsx`).
+        
+        Examples:
+        Buy new MacBook
+        Complete Homework Assignment
+        Produce `xlsx` valuation
+        
+        If it explicitly involves creating a file, include the file type in backticks (e.g., `docx`, `pdf`, `xlsx`).
         Only respond with the title, nothing else.
         
         Task: \(description)

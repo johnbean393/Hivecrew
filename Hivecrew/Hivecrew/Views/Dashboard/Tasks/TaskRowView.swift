@@ -441,7 +441,7 @@ extension Notification.Name {
             taskDescription: "Research places to visit in Paris",
             status: .waitingForVM,
             providerId: "test",
-            modelId: "gpt-5.2"
+            modelId: "moonshotai/kimi-k2.5"
         ))
         
         TaskRowView(task: TaskRecord(
@@ -450,7 +450,7 @@ extension Notification.Name {
             status: .running,
             startedAt: Date().addingTimeInterval(-125),
             providerId: "test",
-            modelId: "gpt-5.2"
+            modelId: "moonshotai/kimi-k2.5"
         ))
         
         TaskRowView(task: TaskRecord(
@@ -459,7 +459,7 @@ extension Notification.Name {
             status: .failed,
             completedAt: Date(),
             providerId: "test",
-            modelId: "gpt-5.2",
+            modelId: "moonshotai/kimi-k2.5",
             errorMessage: "Task is impossible"
         ))
     }

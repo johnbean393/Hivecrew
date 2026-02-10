@@ -480,8 +480,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             .map { APIEnvironmentVariable(key: $0.key) }
         
         let files = config.fileInjections
-            .filter { !$0.fileName.isEmpty }
-            .map { APIInjectedFile(fileName: $0.fileName, guestPath: $0.guestPath) }
+            .map { APIInjectedFile(fileName: $0.resolvedFileName, guestPath: $0.guestPath) }
         
         return APIProvisioningResponse(
             environmentVariables: envVars,
