@@ -36,7 +36,7 @@ struct TaskDefaultsSettingsView: View {
     // Image generation
     @AppStorage("imageGenerationEnabled") private var imageGenerationEnabled = false
     @AppStorage("imageGenerationProvider") private var imageGenerationProvider: String = "openRouter"
-    @AppStorage("imageGenerationModel") private var imageGenerationModel: String = "google/gemini-3-pro-image-preview"
+    @AppStorage("imageGenerationModel") private var imageGenerationModel: String = ImageGenerationAvailability.defaultOpenRouterModel
     
     // Notification settings
     @AppStorage("notifyTaskCompleted") private var notifyTaskCompleted = true
@@ -73,12 +73,19 @@ struct TaskDefaultsSettingsView: View {
         .padding()
         .onAppear {
             loadSearchProviderKeys()
+            syncImageGenerationDefaults()
         }
         .onChange(of: searchAPIKey) { _, newValue in
             updateSearchAPIKey(newValue)
         }
         .onChange(of: serpAPIKey) { _, newValue in
             updateSerpAPIKey(newValue)
+        }
+        .onChange(of: imageGenerationProvider) { _, _ in
+            syncImageGenerationDefaults(forceModelReset: true)
+        }
+        .onChange(of: providers.count) { _, _ in
+            syncImageGenerationDefaults()
         }
         .fileImporter(
             isPresented: $showingFolderPicker,
@@ -442,17 +449,11 @@ struct TaskDefaultsSettingsView: View {
     }
     
     private var hasOpenRouterProvider: Bool {
-        providers.contains { provider in
-            guard let baseURL = provider.baseURL else { return false }
-            return baseURL.lowercased().contains("openrouter.ai") && provider.hasAPIKey
-        }
+        ImageGenerationAvailability.hasConfiguredProvider(type: .openRouter, providers: providers)
     }
     
     private var hasGeminiProvider: Bool {
-        providers.contains { provider in
-            guard let baseURL = provider.baseURL else { return false }
-            return baseURL.lowercased().contains("generativelanguage.googleapis.com") && provider.hasAPIKey
-        }
+        ImageGenerationAvailability.hasConfiguredProvider(type: .gemini, providers: providers)
     }
     
     private var isProviderConfigured: Bool {
@@ -501,6 +502,24 @@ struct TaskDefaultsSettingsView: View {
             SearchProviderKeychain.deleteSerpAPIKey()
         } else {
             SearchProviderKeychain.storeSerpAPIKey(key)
+        }
+    }
+    
+    private func syncImageGenerationDefaults(forceModelReset: Bool = false) {
+        ImageGenerationAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+        
+        guard let provider = ImageGenerationProvider(rawValue: imageGenerationProvider) else {
+            return
+        }
+        
+        let normalizedModel = imageGenerationModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if forceModelReset || normalizedModel.isEmpty {
+            imageGenerationModel = ImageGenerationAvailability.defaultModel(for: provider)
+        }
+        
+        let hasExplicitEnablePreference = UserDefaults.standard.object(forKey: "imageGenerationEnabled") != nil
+        if isProviderConfigured && (forceModelReset || !hasExplicitEnablePreference) {
+            imageGenerationEnabled = true
         }
     }
 }

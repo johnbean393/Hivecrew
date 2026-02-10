@@ -83,24 +83,30 @@ extension ToolExecutor {
     // MARK: - Configuration
     
     private func getImageGenerationConfig(aspectRatio: String?) async throws -> ImageGenerationConfiguration? {
+        // Need model context to fetch providers and auto-configure defaults
+        guard let modelContext = self.modelContext else {
+            return nil
+        }
+        
+        ImageGenerationAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+        
         // Check if enabled
         guard UserDefaults.standard.bool(forKey: "imageGenerationEnabled") else {
             return nil
         }
         
         let providerString = UserDefaults.standard.string(forKey: "imageGenerationProvider") ?? "openRouter"
-        let model = UserDefaults.standard.string(forKey: "imageGenerationModel") ?? ""
-        
-        guard !model.isEmpty else {
-            return nil
-        }
-        
-        // Need model context to fetch provider credentials
-        guard let modelContext = self.modelContext else {
-            return nil
-        }
-        
         let provider = ImageGenerationProvider(rawValue: providerString) ?? .openRouter
+        
+        let configuredModel = (UserDefaults.standard.string(forKey: "imageGenerationModel") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = configuredModel.isEmpty
+            ? ImageGenerationAvailability.defaultModel(for: provider)
+            : configuredModel
+        
+        if configuredModel.isEmpty {
+            UserDefaults.standard.set(model, forKey: "imageGenerationModel")
+        }
         
         // Get credentials using the shared helper
         guard let (apiKey, baseURL) = ImageGenerationAvailability.getCredentials(modelContext: modelContext) else {

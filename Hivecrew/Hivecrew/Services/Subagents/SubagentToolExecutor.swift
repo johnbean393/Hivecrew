@@ -659,22 +659,28 @@ final class SubagentToolExecutor {
     }
     
     private func getImageGenerationConfig(aspectRatio: String?) async throws -> ImageGenerationConfiguration? {
+        guard let modelContext = self.modelContext else {
+            return nil
+        }
+        
+        ImageGenerationAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+        
         guard UserDefaults.standard.bool(forKey: "imageGenerationEnabled") else {
             return nil
         }
         
         let providerString = UserDefaults.standard.string(forKey: "imageGenerationProvider") ?? "openRouter"
-        let model = UserDefaults.standard.string(forKey: "imageGenerationModel") ?? ""
-        
-        guard !model.isEmpty else {
-            return nil
-        }
-        
-        guard let modelContext = self.modelContext else {
-            return nil
-        }
-        
         let provider = ImageGenerationProvider(rawValue: providerString) ?? .openRouter
+        
+        let configuredModel = (UserDefaults.standard.string(forKey: "imageGenerationModel") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = configuredModel.isEmpty
+            ? ImageGenerationAvailability.defaultModel(for: provider)
+            : configuredModel
+        
+        if configuredModel.isEmpty {
+            UserDefaults.standard.set(model, forKey: "imageGenerationModel")
+        }
         
         guard let (apiKey, baseURL) = ImageGenerationAvailability.getCredentials(modelContext: modelContext) else {
             return nil
