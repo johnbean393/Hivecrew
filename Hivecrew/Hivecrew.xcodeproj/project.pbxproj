@@ -63,7 +63,6 @@
 		204DF4222F14DEEF004AB99B /* DeveloperSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */; };
 		204DF4242F150CB4004AB99B /* DebugMenuCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4232F150CB4004AB99B /* DebugMenuCommands.swift */; };
 		204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */; };
-		204DF4302F1571AB004AB99B /* PromptModelButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42C2F1571AB004AB99B /* PromptModelButton.swift */; };
 		204DF4312F1571AB004AB99B /* PromptAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */; };
 		204DF4322F1571AB004AB99B /* PromptBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42B2F1571AB004AB99B /* PromptBar.swift */; };
 		204DF4332F1571AB004AB99B /* PromptTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF42D2F1571AB004AB99B /* PromptTextEditor.swift */; };
@@ -165,6 +164,9 @@
 		20C413F62F14302F00C6E8A9 /* Hivecrew.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20C413F52F14302F00C6E8A9 /* Hivecrew.icon */; };
 		20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 20C413F82F143BAA00C6E8A9 /* MarkdownView */; };
 		20F1A7B12F40C9A800B1D2C3 /* AgentPreviewStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */; };
+		20F9A1E32F70000100ABCDEF /* PromptModelPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */; };
+		20F9A1E42F70000100ABCDEF /* PromptModelHoverPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */; };
+		20F9A1E62F70000100ABCDEF /* PromptModelButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E52F70000100ABCDEF /* PromptModelButton.swift */; };
 		3001B0012F15000000000001 /* TaskRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0012F15000000000001 /* TaskRecord.swift */; };
 		3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0022F15000000000002 /* AgentSessionRecord.swift */; };
 		3001B0032F15000000000003 /* AgentQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0032F15000000000003 /* AgentQuestion.swift */; };
@@ -281,7 +283,6 @@
 		204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptAttachmentButton.swift; sourceTree = "<group>"; };
 		204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptAttachmentPreview.swift; sourceTree = "<group>"; };
 		204DF42B2F1571AB004AB99B /* PromptBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBar.swift; sourceTree = "<group>"; };
-		204DF42C2F1571AB004AB99B /* PromptModelButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelButton.swift; sourceTree = "<group>"; };
 		204DF42D2F1571AB004AB99B /* PromptTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTextEditor.swift; sourceTree = "<group>"; };
 		204DF4342F157397004AB99B /* TaskService+Execution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+Execution.swift"; sourceTree = "<group>"; };
 		204DF4352F157397004AB99B /* TaskService+VMManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+VMManagement.swift"; sourceTree = "<group>"; };
@@ -378,6 +379,9 @@
 		20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminationConfirmationSheet.swift; sourceTree = "<group>"; };
 		20C413F52F14302F00C6E8A9 /* Hivecrew.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Hivecrew.icon; sourceTree = "<group>"; };
 		20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewStripView.swift; sourceTree = "<group>"; };
+		20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelPopover.swift; sourceTree = "<group>"; };
+		20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelHoverPanel.swift; sourceTree = "<group>"; };
+		20F9A1E52F70000100ABCDEF /* PromptModelButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelButton.swift; sourceTree = "<group>"; };
 		3001A0012F15000000000001 /* TaskRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRecord.swift; sourceTree = "<group>"; };
 		3001A0022F15000000000002 /* AgentSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionRecord.swift; sourceTree = "<group>"; };
 		3001A0032F15000000000003 /* AgentQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentQuestion.swift; sourceTree = "<group>"; };
@@ -554,7 +558,9 @@
 				204DF4292F1571AB004AB99B /* PromptAttachmentButton.swift */,
 				204DF42A2F1571AB004AB99B /* PromptAttachmentPreview.swift */,
 				204DF42B2F1571AB004AB99B /* PromptBar.swift */,
-				204DF42C2F1571AB004AB99B /* PromptModelButton.swift */,
+				20F9A1E52F70000100ABCDEF /* PromptModelButton.swift */,
+				20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */,
+				20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */,
 				204DF42D2F1571AB004AB99B /* PromptTextEditor.swift */,
 				AAAA00012F1E200000000001 /* Mentions */,
 			);
@@ -1229,7 +1235,9 @@
 				30A1F0A32F61000100000003 /* SubagentToolExecutor.swift in Sources */,
 				30A1F0A42F61000100000004 /* VMToolScheduler.swift in Sources */,
 				204DF42F2F1571AB004AB99B /* PromptAttachmentButton.swift in Sources */,
-				204DF4302F1571AB004AB99B /* PromptModelButton.swift in Sources */,
+				20F9A1E62F70000100ABCDEF /* PromptModelButton.swift in Sources */,
+				20F9A1E32F70000100ABCDEF /* PromptModelPopover.swift in Sources */,
+				20F9A1E42F70000100ABCDEF /* PromptModelHoverPanel.swift in Sources */,
 				204DF4472F157508004AB99B /* GuestAgentTypes.swift in Sources */,
 				207B73062F3A588D00572AF5 /* VMProvisioningView.swift in Sources */,
 				204DF4312F1571AB004AB99B /* PromptAttachmentPreview.swift in Sources */,

@@ -74,6 +74,15 @@ public protocol LLMClientProtocol: Sendable {
     /// - Returns: List of model IDs
     /// - Throws: LLMError if the request fails
     func listModels() async throws -> [String]
+    
+    /// List available models with metadata from the provider.
+    ///
+    /// Providers that only expose model IDs may return minimal values where
+    /// optional fields are nil.
+    ///
+    /// - Returns: List of normalized provider models
+    /// - Throws: LLMError if the request fails
+    func listModelsDetailed() async throws -> [LLMProviderModel]
 }
 
 // MARK: - Default Implementations
@@ -121,5 +130,11 @@ extension LLMClientProtocol {
     /// Default implementation returns empty list (providers can override)
     public func listModels() async throws -> [String] {
         return []
+    }
+    
+    /// Default implementation maps plain IDs into minimal model descriptors.
+    public func listModelsDetailed() async throws -> [LLMProviderModel] {
+        let ids = try await listModels()
+        return ids.map { LLMProviderModel(id: $0) }
     }
 }

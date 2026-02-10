@@ -14,6 +14,40 @@ private struct ModelsResponse: Decodable {
     
     struct ModelInfo: Decodable {
         let id: String
+        let name: String?
+        let description: String?
+        let created: Int?
+        let contextLength: Int?
+        let architecture: Architecture?
+        let topProvider: TopProvider?
+        
+        enum CodingKeys: String, CodingKey {
+            case id
+            case name
+            case description
+            case created
+            case contextLength = "context_length"
+            case architecture
+            case topProvider = "top_provider"
+        }
+        
+        struct Architecture: Decodable {
+            let inputModalities: [String]?
+            let outputModalities: [String]?
+            
+            enum CodingKeys: String, CodingKey {
+                case inputModalities = "input_modalities"
+                case outputModalities = "output_modalities"
+            }
+        }
+        
+        struct TopProvider: Decodable {
+            let contextLength: Int?
+            
+            enum CodingKeys: String, CodingKey {
+                case contextLength = "context_length"
+            }
+        }
     }
 }
 
@@ -168,6 +202,31 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     }
     
     public func listModels() async throws -> [String] {
+        let models = try await listModelsDetailed()
+        return models.map(\.id)
+    }
+    
+    public func listModelsDetailed() async throws -> [LLMProviderModel] {
+        let modelsResponse = try await fetchModelsResponse()
+        
+        return modelsResponse.data
+            .map { model in
+                LLMProviderModel(
+                    id: model.id,
+                    name: model.name,
+                    description: model.description,
+                    contextLength: model.contextLength ?? model.topProvider?.contextLength,
+                    createdAt: model.created.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                    inputModalities: model.architecture?.inputModalities,
+                    outputModalities: model.architecture?.outputModalities
+                )
+            }
+            .sorted {
+                $0.id.localizedStandardCompare($1.id) == .orderedAscending
+            }
+    }
+    
+    private func fetchModelsResponse() async throws -> ModelsResponse {
         // Build the models endpoint URL manually to handle base URLs ending with /v1
         let modelsURL = buildModelsURL()
         
@@ -193,10 +252,7 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
             }
             
             // Parse the response
-            let modelsResponse = try JSONDecoder().decode(ModelsResponse.self, from: data)
-            return modelsResponse.data
-                .map { $0.id }
-                .sorted()
+            return try JSONDecoder().decode(ModelsResponse.self, from: data)
         } catch let error as LLMError {
             throw error
         } catch let error as URLError {

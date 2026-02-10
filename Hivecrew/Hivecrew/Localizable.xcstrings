@@ -551,6 +551,52 @@
         }
       }
     },
+    "%@:": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@："
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:"
+          }
+        }
+      }
+    },
     "%lld": {
       "localizations": {
         "de": {
@@ -13034,10 +13080,28 @@
     },
     "Files are copied into each new VM at the specified path. Source files are referenced directly, so updates on your Mac are picked up automatically.": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "文件会复制到每台新虚拟机的指定路径。源文件采用直接引用方式，因此您在 Mac 上对源文件的更新会自动同步。"
+            "value": "Dateien werden in jede neue VM am angegebenen Pfad kopiert. Quelldateien werden direkt referenziert, sodass Änderungen auf Ihrem Mac automatisch übernommen werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los archivos se copian en cada nueva VM en la ruta especificada. Los archivos de origen se referencian directamente, por lo que los cambios en tu Mac se reflejan automáticamente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les fichiers sont copiés dans chaque nouvelle VM au chemin spécifié. Les fichiers sources sont référencés directement, donc les mises à jour sur votre Mac sont prises en compte automatiquement."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I file vengono copiati in ogni nuova VM nel percorso specificato. I file sorgente vengono referenziati direttamente, quindi gli aggiornamenti sul tuo Mac vengono rilevati automaticamente."
           }
         },
         "ja": {
@@ -13052,28 +13116,10 @@
             "value": "지정된 경로에 각 새 VM으로 파일이 복사됩니다. 소스 파일은 직접 참조되므로 Mac에서 업데이트하면 자동으로 반영됩니다."
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les fichiers sont copiés dans chaque nouvelle VM au chemin spécifié. Les fichiers sources sont référencés directement, donc les mises à jour sur votre Mac sont prises en compte automatiquement."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dateien werden in jede neue VM am angegebenen Pfad kopiert. Quelldateien werden direkt referenziert, sodass Änderungen auf Ihrem Mac automatisch übernommen werden."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "I file vengono copiati in ogni nuova VM nel percorso specificato. I file sorgente vengono referenziati direttamente, quindi gli aggiornamenti sul tuo Mac vengono rilevati automaticamente."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los archivos se copian en cada nueva VM en la ruta especificada. Los archivos de origen se referencian directamente, por lo que los cambios en tu Mac se reflejan automáticamente."
+            "value": "文件会复制到每台新虚拟机的指定路径。源文件采用直接引用方式，因此您在 Mac 上对源文件的更新会自动同步。"
           }
         }
       }
@@ -16805,6 +16851,52 @@
         }
       }
     },
+    "Models (%lld)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型 (%lld)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "モデル（%lld）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모델 (%lld)"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modèles (%lld)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelle (%lld)"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelli (%lld)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelos (%lld)"
+          }
+        }
+      }
+    },
     "Monthly": {
       "localizations": {
         "de": {
@@ -18831,6 +18923,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂无追踪数据"
+          }
+        }
+      }
+    },
+    "No vision models available": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无可用视觉模型"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ビジョン対応モデルがありません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사용 가능한 비전 모델이 없습니다"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun modèle de vision disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Vision-Modelle verfügbar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun modello di visione disponibile"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay modelos de visión"
           }
         }
       }
@@ -26657,10 +26795,28 @@
     },
     "Source file unavailable": {
       "localizations": {
-        "zh-Hans": {
+        "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "源文件不可用"
+            "value": "Quelldatei nicht verfügbar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivo de origen no disponible"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fichier source indisponible"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File sorgente non disponibile"
           }
         },
         "ja": {
@@ -26675,28 +26831,10 @@
             "value": "소스 파일 없음"
           }
         },
-        "fr": {
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fichier source indisponible"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quelldatei nicht verfügbar"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "File sorgente non disponibile"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Archivo de origen no disponible"
+            "value": "源文件不可用"
           }
         }
       }
