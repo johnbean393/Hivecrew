@@ -96,6 +96,7 @@
 		207B73022F3A586900572AF5 /* VMProvisioningConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73012F3A586900572AF5 /* VMProvisioningConfig.swift */; };
 		207B73042F3A587700572AF5 /* VMProvisioningService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73032F3A587700572AF5 /* VMProvisioningService.swift */; };
 		207B73062F3A588D00572AF5 /* VMProvisioningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73052F3A588D00572AF5 /* VMProvisioningView.swift */; };
+		207B73082F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -311,6 +312,7 @@
 		207B73012F3A586900572AF5 /* VMProvisioningConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningConfig.swift; sourceTree = "<group>"; };
 		207B73032F3A587700572AF5 /* VMProvisioningService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningService.swift; sourceTree = "<group>"; };
 		207B73052F3A588D00572AF5 /* VMProvisioningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningView.swift; sourceTree = "<group>"; };
+		207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+ModelCapabilities.swift"; sourceTree = "<group>"; };
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -574,6 +576,7 @@
 				204DF4342F157397004AB99B /* TaskService+Execution.swift */,
 				204DF4352F157397004AB99B /* TaskService+VMManagement.swift */,
 				204DF4372F157398004AB99B /* TaskService+VMCleanup.swift */,
+				207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */,
 				204DF4362F157397004AB99B /* TaskServiceError.swift */,
 			);
 			path = "Task Service";
@@ -1205,6 +1208,7 @@
 				209C61A82F12ABD700062D0E /* VMServiceClient.swift in Sources */,
 				202F64722F2D6BFD00F6F359 /* ImageDownscaler.swift in Sources */,
 				202F64E72F2FE35300F6F359 /* MCPServerRecord.swift in Sources */,
+				207B73082F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift in Sources */,
 				209EB6DA2F1E18F800A7F13F /* APIServiceProviderBridge+Conversions.swift in Sources */,
 				209C61A92F12ABD700062D0E /* DashboardView.swift in Sources */,
 				20F1A7B12F40C9A800B1D2C3 /* AgentPreviewStripView.swift in Sources */,

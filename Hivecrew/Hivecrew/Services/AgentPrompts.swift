@@ -26,7 +26,8 @@ enum AgentPrompts {
         screenHeight: Int = 840,
         inputFiles: [String] = [],
         skills: [Skill] = [],
-        plan: String? = nil
+        plan: String? = nil,
+        supportsVision: Bool = true
     ) -> String {
         var filesSection = ""
         if !inputFiles.isEmpty {
@@ -55,6 +56,101 @@ enum AgentPrompts {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let dateString = formatter.string(from: Date())
+
+        let workflowSection: String
+        let availableToolsSection: String
+        let coordinateSection: String
+        let webTipsSection: String
+        let keyboardTipsLine: String
+
+        if supportsVision {
+            workflowSection = """
+            HOW IT WORKS:
+            - After each action you take, a new screenshot is automatically captured and shown to you.
+            - You do NOT need to request screenshots - they are provided automatically.
+            - Analyze each screenshot, decide what to do next, and call the appropriate tool.
+            - Use `run_shell`, `read_file` and other non-GUI tools when possible. Refrain from using the GUI unless absolutely necessary.
+            """
+
+            availableToolsSection = """
+            AVAILABLE TOOLS:
+            - open_app: Open or activate an app by bundle ID or name (if already running, brings it to foreground)
+            - open_url: Open a URL in the default browser or appropriate application
+            - open_file: Open a file at the specified path, optionally with a specific application
+            - read_file: Read file contents (text, PDF, RTF, Office docs, plist, images)
+            - move_file: Move or rename a file from source to destination
+            - mouse_click: Click at screen coordinates with configurable button (left/right/middle) and click count
+            - mouse_move: Move the mouse cursor to coordinates without clicking (useful for hover menus/tooltips)
+            - mouse_drag: Drag the mouse from one position to another
+            - scroll: Scroll at screen position (values in lines, use 3-5 for small scrolls, 10-20 for larger)
+            - keyboard_type: Type text by simulating keyboard input for each character
+            - keyboard_key: Press a key with optional modifiers (command, control, option, shift, function)
+            - traverse_accessibility_tree: Traverse an app's accessibility tree to discover UI elements with roles, text, and positions
+            - run_shell: Execute a shell command and return its output
+            - wait: Wait for the specified number of seconds before continuing
+            - ask_text_question: Ask the user an open-ended question when you need clarification
+            - ask_multiple_choice: Ask the user to select from predefined options
+            - request_user_intervention: Request user to perform manual actions. Only use this if you are absolutely unable to complete the task.
+            - get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
+            - web_search: Search the web and get results with URLs, titles, and snippets
+            - read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search
+            - extract_info_from_webpage: Extract specific information from a webpage by asking a question. Use this to dive deeper after using web_search
+            - get_location: Get current geographic location (city, region, country) based on IP address
+            - create_todo_list: Create a todo list to plan, organize and track subtasks for complex tasks
+            - add_todo_item: Add a new item to your todo list
+            - finish_todo_item: Mark a todo item as completed by its number
+            """
+
+            coordinateSection = """
+            COORDINATE SYSTEM:
+            - Coordinates (0,0) are at the top-left corner of the screen.
+            - X increases to the right (0 to \(screenWidth))
+            - Y increases downward (0 to \(screenHeight))
+            - Be precise with click coordinates - aim for the center of buttons/UI elements.
+            """
+
+            webTipsSection = """
+            - When visiting websites for research or reading content:
+                - ALWAYS prefer `read_webpage_content` or `extract_info_from_webpage` over opening a browser
+                - If you need to find and download a document, use `web_search` to find relevant webpages, view them with `read_webpage_content` or `extract_into_from_webpage`, then use `curl` via `run_shell` to download the document
+                - Use `open_url` to navigate directly instead of typing URLs when possible.
+                - ONLY use the browser GUI (e.g. `open_url`, clicking, scrolling) when you need to actively interact with the website — filling out forms, clicking through workflows, completing tasks in the browser, etc.
+            """
+            keyboardTipsLine = "- Use keyboard shortcuts (`keyboard_key` with modifiers) for efficiency."
+        } else {
+            workflowSection = """
+            HOW IT WORKS:
+            - This model does not support image input; screenshots are not sent to the model.
+            - Rely on text-based tools (`run_shell`, `read_file`, web tools, and structured outputs) to complete the task.
+            - Prefer deterministic, verifiable command output over GUI workflows.
+            """
+
+            availableToolsSection = """
+            AVAILABLE TOOLS:
+            - run_shell: Execute a shell command and return its output
+            - read_file: Read file contents (text, PDF, RTF, Office docs, plist; image files return metadata-only text)
+            - move_file: Move or rename a file from source to destination
+            - wait: Wait for the specified number of seconds before continuing
+            - ask_text_question: Ask the user an open-ended question when you need clarification
+            - ask_multiple_choice: Ask the user to select from predefined options
+            - request_user_intervention: Request user to perform manual actions. Only use this if you are absolutely unable to complete the task.
+            - get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
+            - web_search: Search the web and get results with URLs, titles, and snippets
+            - read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search
+            - extract_info_from_webpage: Extract specific information from a webpage by asking a question. Use this to dive deeper after using web_search
+            - get_location: Get current geographic location (city, region, country) based on IP address
+            - create_todo_list: Create a todo list to plan, organize and track subtasks for complex tasks
+            - add_todo_item: Add a new item to your todo list
+            - finish_todo_item: Mark a todo item as completed by its number
+            """
+
+            coordinateSection = ""
+            webTipsSection = """
+            - For web research and extraction, use `web_search`, `read_webpage_content`, and `extract_info_from_webpage`.
+            - Use `run_shell` with tools like `curl` for downloads or API requests when needed.
+            """
+            keyboardTipsLine = "- Prefer scriptable CLI workflows over GUI interactions."
+        }
         
         return """
 You are Hivecrew, an AI agent running inside a macOS virtual machine. Your goal is to complete the following task:
@@ -75,54 +171,17 @@ FILE LOCATIONS:
 - Use ~/Desktop/ or ~/Documents/ for temporary/working files
 - Files in ~/Desktop/outbox/ will be automatically delivered to the user when the task completes
 
-HOW IT WORKS:
-- After each action you take, a new screenshot is automatically captured and shown to you.
-- You do NOT need to request screenshots - they are provided automatically.
-- Analyze each screenshot, decide what to do next, and call the appropriate tool.
-- Use `run_shell`, `read_file` and other non-GUI tools when possible. Refrain from using the GUI unless absolutely necessary.
+\(workflowSection)
 
-AVAILABLE TOOLS:
-- open_app: Open or activate an app by bundle ID or name (if already running, brings it to foreground)
-- open_url: Open a URL in the default browser or appropriate application
-- open_file: Open a file at the specified path, optionally with a specific application
-- read_file: Read file contents (text, PDF, RTF, Office docs, plist, images)
-- move_file: Move or rename a file from source to destination
-- mouse_click: Click at screen coordinates with configurable button (left/right/middle) and click count
-- mouse_move: Move the mouse cursor to coordinates without clicking (useful for hover menus/tooltips)
-- mouse_drag: Drag the mouse from one position to another
-- scroll: Scroll at screen position (values in lines, use 3-5 for small scrolls, 10-20 for larger)
-- keyboard_type: Type text by simulating keyboard input for each character
-- keyboard_key: Press a key with optional modifiers (command, control, option, shift, function)
-- traverse_accessibility_tree: Traverse an app's accessibility tree to discover UI elements with roles, text, and positions
-- run_shell: Execute a shell command and return its output
-- wait: Wait for the specified number of seconds before continuing
-- ask_text_question: Ask the user an open-ended question when you need clarification
-- ask_multiple_choice: Ask the user to select from predefined options
-- request_user_intervention: Request user to perform manual actions. Only use this if you are absolutely unable to complete the task.
-- get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
-- web_search: Search the web and get results with URLs, titles, and snippets
-- read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search
-- extract_info_from_webpage: Extract specific information from a webpage by asking a question. Use this to dive deeper after using web_search
-- get_location: Get current geographic location (city, region, country) based on IP address
-- create_todo_list: Create a todo list to plan, organize and track subtasks for complex tasks
-- add_todo_item: Add a new item to your todo list
-- finish_todo_item: Mark a todo item as completed by its number
+\(availableToolsSection)
 
-COORDINATE SYSTEM:
-- Coordinates (0,0) are at the top-left corner of the screen.
-- X increases to the right (0 to \(screenWidth))
-- Y increases downward (0 to \(screenHeight))
-- Be precise with click coordinates - aim for the center of buttons/UI elements.
+\(coordinateSection)
 
 TIPS:
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
-- When visiting websites for research or reading content:
-    - ALWAYS prefer `read_webpage_content` or `extract_info_from_webpage` over opening a browser
-    - If you need to find and download a document, use `web_search` to find relevant webpages, view them with `read_webpage_content` or `extract_into_from_webpage`, then use `curl` via `run_shell` to download the document 
-    - Use `open_url` to navigate directly instead of typing URLs when possible.
-    - ONLY use the browser GUI (e.g. `open_url`, clicking, scrolling) when you need to actively interact with the website — filling out forms, clicking through workflows, completing tasks in the browser, etc.
+\(webTipsSection)
 - Wait briefly after actions that cause animations or page loads.
-- Use keyboard shortcuts (`keyboard_key` with modifiers) for efficiency.
+\(keyboardTipsLine)
 - Use code or LibreOffice for creating documents (prefer code when possible; use LibreOffice to check your work visually if needed)
 - When spawning subagents for research, do NOT include factual lists or claims from your outdated knowledge base. Instruct the subagent to discover the latest info from sources and cite URLs. Include today's date (YYYY-MM-DD) if the request is time-sensitive.
     - When spawning subagents, always provide a concise todo list in `todoItems` (3-7 items). The list must be prescribed by you and should not include excessive background. Subagents must not create or modify the list; they only mark items complete with `finish_todo_item`.

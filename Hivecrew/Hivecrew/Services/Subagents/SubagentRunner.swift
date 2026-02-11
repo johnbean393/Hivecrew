@@ -51,6 +51,7 @@ final class SubagentRunner {
     private let tracer: AgentTracer
     private let toolExecutor: SubagentToolExecutor
     private let tools: [LLMToolDefinition]
+    private let supportsVision: Bool
     private let maxIterations: Int
     private let maxLLMRetries = 3
     private let onActionUpdate: (@MainActor (String) -> Void)?
@@ -72,6 +73,7 @@ final class SubagentRunner {
         tracer: AgentTracer,
         toolExecutor: SubagentToolExecutor,
         tools: [LLMToolDefinition],
+        supportsVision: Bool,
         maxIterations: Int = 50,
         onActionUpdate: (@MainActor (String) -> Void)? = nil,
         onLine: (@MainActor (ProgressLine) -> Void)? = nil,
@@ -86,6 +88,7 @@ final class SubagentRunner {
         self.tracer = tracer
         self.toolExecutor = toolExecutor
         self.tools = Self.withFinalReportTool(tools)
+        self.supportsVision = supportsVision
         self.maxIterations = maxIterations
         self.onActionUpdate = onActionUpdate
         self.onLine = onLine
@@ -270,10 +273,14 @@ final class SubagentRunner {
                             toolCallId: toolCall.id,
                             content: description
                         ))
-                        messages.append(.user(
-                            text: "Here is the image from the \(toolCall.function.name) tool result:",
-                            images: [.imageBase64(data: base64, mimeType: mimeType)]
-                        ))
+                        if supportsVision {
+                            messages.append(.user(
+                                text: "Here is the image from the \(toolCall.function.name) tool result:",
+                                images: [.imageBase64(data: base64, mimeType: mimeType)]
+                            ))
+                        } else {
+                            messages.append(.user("An image was produced by \(toolCall.function.name), but this model does not support vision input. Continue with text-only tools."))
+                        }
                     }
                 }
                 
@@ -325,6 +332,9 @@ final class SubagentRunner {
         let allowedTools = Array(Set(toolAllowlist + [Self.finalReportToolName])).sorted()
         let allowed = allowedTools.isEmpty ? "none" : allowedTools.joined(separator: ", ")
         let todoListSection = formatTodoListSection()
+        let visionLine = supportsVision
+            ? "Model vision input: enabled."
+            : "Model vision input: disabled. Do not rely on image content."
         return """
         You are a Hivecrew subagent. You operate asynchronously and must stay within the allowed tools.
         
@@ -332,6 +342,7 @@ final class SubagentRunner {
         
         Goal: \(goal)
         Domain: \(domain.rawValue)
+        \(visionLine)
         Allowed tools: \(allowed)
         
         TODO LIST (prescribed by the main agent):

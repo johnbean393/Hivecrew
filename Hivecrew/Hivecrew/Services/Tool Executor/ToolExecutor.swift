@@ -35,6 +35,7 @@ class ToolExecutor {
     weak var taskService: (any CreateWorkerClientProtocol)?
     let modelContext: ModelContext?
     weak var subagentManager: SubagentManager?
+    let supportsVision: Bool
     
     init(
         connection: GuestAgentConnection,
@@ -43,7 +44,8 @@ class ToolExecutor {
         taskModelId: String,
         taskService: (any CreateWorkerClientProtocol)?,
         modelContext: ModelContext?,
-        vmId: String
+        vmId: String,
+        supportsVision: Bool
     ) {
         self.connection = connection
         self.todoManager = todoManager
@@ -52,6 +54,7 @@ class ToolExecutor {
         self.taskService = taskService
         self.modelContext = modelContext
         self.vmId = vmId
+        self.supportsVision = supportsVision
     }
     
     func execute(toolCall: LLMToolCall) async -> ToolExecutionResult {
@@ -222,7 +225,10 @@ class ToolExecutor {
             case .image(let base64, let mimeType, let w, let h):
                 var desc = "Image file read successfully"
                 if let w = w, let h = h { desc += " (\(w)x\(h) pixels)" }
-                return .image(description: desc, base64: base64, mimeType: mimeType)
+                if supportsVision {
+                    return .image(description: desc, base64: base64, mimeType: mimeType)
+                }
+                return .text("\(desc). Image content omitted because the active model does not support vision input.")
             }
             
         case "move_file":

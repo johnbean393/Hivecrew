@@ -169,36 +169,42 @@ extension AgentRunner {
                     // as a user message with the image so the model can see it
                     // Non-screenshot images (from read_file) are downscaled to reduce payload size
                     if result.hasImage, let imageBase64 = result.imageBase64, let mimeType = result.imageMimeType {
-                        let isScreenshot = result.toolName == "take_screenshot"
-                        
-                        // Downscale non-screenshot images
-                        let (finalBase64, finalMimeType): (String, String)
-                        if isScreenshot {
-                            // Screenshots are kept at original resolution
-                            finalBase64 = imageBase64
-                            finalMimeType = mimeType
-                        } else if let downscaled = ImageDownscaler.downscale(
-                            base64Data: imageBase64,
-                            mimeType: mimeType,
-                            to: currentImageScaleLevel
-                        ) {
-                            finalBase64 = downscaled.data
-                            finalMimeType = downscaled.mimeType
-                            let originalSize = ImageDownscaler.estimateSize(base64Data: imageBase64)
-                            let newSize = ImageDownscaler.estimateSize(base64Data: downscaled.data)
-                            print("[AgentRunner] Downscaled image from \(originalSize / 1024)KB to \(newSize / 1024)KB (scale: \(currentImageScaleLevel))")
-                        } else {
-                            // Fallback to original if downscaling fails
-                            finalBase64 = imageBase64
-                            finalMimeType = mimeType
-                        }
-                        
-                        conversationHistory.append(
-                            LLMMessage.user(
-                                text: "Here is the image from the \(result.toolName) tool result:",
-                                images: [.imageBase64(data: finalBase64, mimeType: finalMimeType)]
+                        if supportsVision {
+                            let isScreenshot = result.toolName == "take_screenshot"
+                            
+                            // Downscale non-screenshot images
+                            let (finalBase64, finalMimeType): (String, String)
+                            if isScreenshot {
+                                // Screenshots are kept at original resolution
+                                finalBase64 = imageBase64
+                                finalMimeType = mimeType
+                            } else if let downscaled = ImageDownscaler.downscale(
+                                base64Data: imageBase64,
+                                mimeType: mimeType,
+                                to: currentImageScaleLevel
+                            ) {
+                                finalBase64 = downscaled.data
+                                finalMimeType = downscaled.mimeType
+                                let originalSize = ImageDownscaler.estimateSize(base64Data: imageBase64)
+                                let newSize = ImageDownscaler.estimateSize(base64Data: downscaled.data)
+                                print("[AgentRunner] Downscaled image from \(originalSize / 1024)KB to \(newSize / 1024)KB (scale: \(currentImageScaleLevel))")
+                            } else {
+                                // Fallback to original if downscaling fails
+                                finalBase64 = imageBase64
+                                finalMimeType = mimeType
+                            }
+                            
+                            conversationHistory.append(
+                                LLMMessage.user(
+                                    text: "Here is the image from the \(result.toolName) tool result:",
+                                    images: [.imageBase64(data: finalBase64, mimeType: finalMimeType)]
+                                )
                             )
-                        )
+                        } else {
+                            conversationHistory.append(.user(
+                                "The \(result.toolName) tool returned an image, but this model does not support vision input. Continue with text-only tools."
+                            ))
+                        }
                     }
                 }
                 
@@ -405,9 +411,15 @@ extension AgentRunner {
         
         // Build user message with screenshot (or reuse last one if host-side tools only)
         let userMessage: LLMMessage
-        if observation.imageBase64.isEmpty {
+        if observation.imageBase64.isEmpty || !supportsVision {
             // Host-side tools only - no new screenshot, just add text message
-            userMessage = LLMMessage.user("Tool results above (step \(stepCount)). Continue with the task.")
+            if supportsVision {
+                userMessage = LLMMessage.user("Tool results above (step \(stepCount)). Continue with the task.")
+            } else {
+                userMessage = LLMMessage.user(
+                    "Tool results above (step \(stepCount)). This model does not support image input; continue using text-based tools."
+                )
+            }
         } else {
             // New screenshot available
             userMessage = LLMMessage.user(

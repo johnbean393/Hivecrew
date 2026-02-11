@@ -72,9 +72,6 @@ struct PromptModelPopover: View {
     }
     
     var providerScopedModels: [LLMProviderModel] {
-        if isOpenRouterProvider {
-            return availableModels.filter(\.isVisionCapable)
-        }
         return availableModels
     }
     
@@ -265,7 +262,7 @@ struct PromptModelPopover: View {
     private var emptyView: some View {
         VStack {
             Spacer()
-            Text(searchText.isEmpty ? (isOpenRouterProvider ? "No vision models available" : "No models available") : "No matching models")
+            Text(searchText.isEmpty ? "No models available" : "No matching models")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()

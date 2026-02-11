@@ -29,6 +29,8 @@ final class SubagentToolExecutor {
     private let todoManager: TodoManager
     private let modelContext: ModelContext?
     private var todoManagers: [String: TodoManager] = [:]
+    private var subagentVisionSupport: [String: Bool] = [:]
+    private let mainModelSupportsVision: Bool
     
     weak var subagentManager: SubagentManager?
     var onAskQuestion: ((AgentQuestion) async -> String)?
@@ -43,7 +45,8 @@ final class SubagentToolExecutor {
         taskModelId: String,
         taskService: (any CreateWorkerClientProtocol)?,
         todoManager: TodoManager,
-        modelContext: ModelContext?
+        modelContext: ModelContext?,
+        mainModelSupportsVision: Bool
     ) {
         self.connection = connection
         self.vmScheduler = vmScheduler
@@ -54,6 +57,7 @@ final class SubagentToolExecutor {
         self.taskService = taskService
         self.todoManager = todoManager
         self.modelContext = modelContext
+        self.mainModelSupportsVision = mainModelSupportsVision
     }
     
     func execute(toolCall: LLMToolCall, subagentId: String?) async throws -> ToolResult {
@@ -88,7 +92,7 @@ final class SubagentToolExecutor {
         case "run_shell":
             return try await executeRunShell(args: args)
         case "read_file":
-            return try await executeReadFile(args: args)
+            return try await executeReadFile(args: args, subagentId: subagentId)
         case "move_file":
             return try await executeMoveFile(args: args)
         case "wait":
@@ -146,8 +150,13 @@ final class SubagentToolExecutor {
         todoManagers[subagentId] = manager
     }
 
+    func registerVisionCapability(subagentId: String, supportsVision: Bool) {
+        subagentVisionSupport[subagentId] = supportsVision
+    }
+
     func clearTodoList(subagentId: String) {
         todoManagers.removeValue(forKey: subagentId)
+        subagentVisionSupport.removeValue(forKey: subagentId)
     }
     
     // MARK: - VM Tools
@@ -288,7 +297,7 @@ final class SubagentToolExecutor {
         return .text(output)
     }
     
-    private func executeReadFile(args: [String: Any]) async throws -> ToolResult {
+    private func executeReadFile(args: [String: Any], subagentId: String?) async throws -> ToolResult {
         let path = args["path"] as? String ?? ""
         let result = try await vmScheduler.run {
             try await self.connection.readFile(path: path)
@@ -299,7 +308,10 @@ final class SubagentToolExecutor {
         case .image(let base64, let mimeType, let w, let h):
             var desc = "Image file read successfully"
             if let w = w, let h = h { desc += " (\(w)x\(h) pixels)" }
-            return .image(description: desc, base64: base64, mimeType: mimeType)
+            if supportsVision(for: subagentId) {
+                return .image(description: desc, base64: base64, mimeType: mimeType)
+            }
+            return .text("\(desc). Image content omitted because the active model does not support vision input.")
         }
     }
     
@@ -948,6 +960,11 @@ final class SubagentToolExecutor {
             return manager
         }
         return todoManager
+    }
+
+    private func supportsVision(for subagentId: String?) -> Bool {
+        guard let subagentId else { return mainModelSupportsVision }
+        return subagentVisionSupport[subagentId] ?? mainModelSupportsVision
     }
 }
 

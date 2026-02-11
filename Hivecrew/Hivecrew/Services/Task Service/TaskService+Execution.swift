@@ -359,6 +359,16 @@ extension TaskService {
             }
             let llmClient = try await llmClientTask.value
             if await abortIfInactive(stage: "LLM client creation") { return }
+
+            let visionCapability = await resolveVisionCapability(
+                providerId: task.providerId,
+                modelId: task.modelId,
+                using: llmClient
+            )
+            statePublisher.logInfo(
+                "Model capability: \(visionCapability.supportsVision ? "vision" : "non-vision") (\(visionCapability.source.rawValue))"
+            )
+            statePublisher.logInfo("Vision detection details: \(visionCapability.details)")
             
             // Wait for skill matching to complete (should be done by now since VM boot takes longer)
             let skillsToUse = await (skillMatchingTask?.value ?? [])
@@ -423,7 +433,8 @@ extension TaskService {
                 matchedSkills: skillsToUse,
                 maxSteps: maxIterations > 0 ? maxIterations : 100,
                 timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 30,
-                taskService: self
+                taskService: self,
+                supportsVision: visionCapability.supportsVision
             )
             runningAgents[task.id] = agent
             

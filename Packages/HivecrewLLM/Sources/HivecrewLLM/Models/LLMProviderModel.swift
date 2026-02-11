@@ -34,6 +34,10 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
     /// Supported output modalities, e.g. ["text"].
     public let outputModalities: [String]?
 
+    /// Optional provider-supplied signal indicating whether image input is supported.
+    /// When present, this takes precedence over inferred modality parsing.
+    public let supportsVisionInput: Bool?
+
     public init(
         id: String,
         name: String? = nil,
@@ -41,7 +45,8 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         contextLength: Int? = nil,
         createdAt: Date? = nil,
         inputModalities: [String]? = nil,
-        outputModalities: [String]? = nil
+        outputModalities: [String]? = nil,
+        supportsVisionInput: Bool? = nil
     ) {
         self.id = id
         self.name = name
@@ -50,6 +55,7 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         self.createdAt = createdAt
         self.inputModalities = inputModalities
         self.outputModalities = outputModalities
+        self.supportsVisionInput = supportsVisionInput
     }
 
     /// Fallback-safe display title for UI surfaces.
@@ -60,10 +66,25 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
 
     /// Best-effort signal for image/vision input support.
     public var isVisionCapable: Bool {
+        if let supportsVisionInput {
+            return supportsVisionInput
+        }
         guard let inputModalities else { return false }
-        let normalized = inputModalities.map { $0.lowercased() }
-        return normalized.contains { modality in
-            modality == "image" || modality == "vision"
+        return inputModalities.contains { modality in
+            Self.isVisionModality(modality)
+        }
+    }
+
+    private static func isVisionModality(_ rawValue: String) -> Bool {
+        let normalized = rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        switch normalized {
+        case "image", "images", "vision", "image_url", "imageurl", "multimodal":
+            return true
+        default:
+            return false
         }
     }
 }

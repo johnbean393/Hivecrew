@@ -105,6 +105,9 @@ final class AgentRunner {
     /// Current image scale level for non-screenshot images
     /// Starts at medium (1024px max) and can be reduced on payload too large errors
     var currentImageScaleLevel: ImageDownscaler.ScaleLevel = .medium
+
+    /// Whether the active model supports image input.
+    let supportsVision: Bool
     
     // MARK: - Initialization
     
@@ -119,7 +122,8 @@ final class AgentRunner {
         matchedSkills: [Skill] = [],
         maxSteps: Int = 100,
         timeoutMinutes: Int = 30,
-        taskService: TaskService
+        taskService: TaskService,
+        supportsVision: Bool = true
     ) throws {
         self.task = task
         self.vmId = vmId
@@ -133,6 +137,7 @@ final class AgentRunner {
         self.timeoutMinutes = timeoutMinutes
         self.todoManager = TodoManager()
         self.vmToolScheduler = VMToolScheduler()
+        self.supportsVision = supportsVision
         
         // Create screenshots directory
         self.screenshotsPath = sessionPath.appendingPathComponent("screenshots")
@@ -149,7 +154,8 @@ final class AgentRunner {
             taskModelId: task.modelId,
             taskService: taskService,
             modelContext: taskService.modelContext,
-            vmId: vmId
+            vmId: vmId,
+            supportsVision: supportsVision
         )
         self.toolExecutor.taskId = task.id
         
@@ -162,7 +168,8 @@ final class AgentRunner {
             taskModelId: task.modelId,
             taskService: taskService,
             todoManager: TodoManager(),
-            modelContext: taskService.modelContext
+            modelContext: taskService.modelContext,
+            mainModelSupportsVision: supportsVision
         )
         self.subagentManager = SubagentManager(
             taskId: task.id,
@@ -180,6 +187,14 @@ final class AgentRunner {
                     providerId: task.providerId,
                     modelId: task.modelId
                 )
+            },
+            visionCapabilityResolver: { modelId, client in
+                let capability = await taskService.resolveVisionCapability(
+                    providerId: task.providerId,
+                    modelId: modelId,
+                    using: client
+                )
+                return capability.supportsVision
             }
         )
         self.toolExecutor.subagentManager = self.subagentManager
@@ -220,6 +235,11 @@ final class AgentRunner {
         } else {
             // No model context available, exclude image generation
             excludedTools.insert(.generateImage)
+        }
+
+        if !supportsVision {
+            let visionDependentTools = AgentMethod.allCases.filter(\.isVisionDependentTool)
+            excludedTools.formUnion(visionDependentTools)
         }
         
         if excludedTools.isEmpty {
@@ -303,7 +323,8 @@ final class AgentRunner {
             screenHeight: screenHeight,
             inputFiles: inputFileNames,
             skills: matchedSkills,
-            plan: task.planMarkdown
+            plan: task.planMarkdown,
+            supportsVision: supportsVision
         )
         conversationHistory = [.system(systemPrompt)]
         

@@ -69,6 +69,7 @@ final class SubagentManager {
     private weak var statePublisher: AgentStatePublisher?
     private let toolExecutor: SubagentToolExecutor
     private let llmClientFactory: @Sendable (String?) async throws -> any LLMClientProtocol
+    private let visionCapabilityResolver: @Sendable (String, any LLMClientProtocol) async -> Bool
     private let vmScheduler: VMToolScheduler
     
     init(
@@ -79,7 +80,8 @@ final class SubagentManager {
         statePublisher: AgentStatePublisher,
         toolExecutor: SubagentToolExecutor,
         vmScheduler: VMToolScheduler,
-        llmClientFactory: @escaping @Sendable (String?) async throws -> any LLMClientProtocol
+        llmClientFactory: @escaping @Sendable (String?) async throws -> any LLMClientProtocol,
+        visionCapabilityResolver: @escaping @Sendable (String, any LLMClientProtocol) async -> Bool
     ) {
         self.taskId = taskId
         self.vmId = vmId
@@ -88,6 +90,7 @@ final class SubagentManager {
         self.statePublisher = statePublisher
         self.toolExecutor = toolExecutor
         self.llmClientFactory = llmClientFactory
+        self.visionCapabilityResolver = visionCapabilityResolver
         self.vmScheduler = vmScheduler
     }
     
@@ -161,7 +164,11 @@ final class SubagentManager {
         let task = Task { @MainActor [weak self] () -> SubagentRunner.Result in
             guard let self = self else { throw CancellationError() }
             let client = try await self.llmClientFactory(modelOverride)
-            let tools = try await self.buildTools(for: allowlist)
+            let resolvedModelId = client.configuration.model
+            let supportsVision = await self.visionCapabilityResolver(resolvedModelId, client)
+            self.toolExecutor.registerVisionCapability(subagentId: id, supportsVision: supportsVision)
+
+            let tools = try await self.buildTools(for: allowlist, supportsVision: supportsVision)
             let tracer = try AgentTracer(sessionId: id, outputDirectory: subagentDir)
             
             try? await tracer.logSessionStart(
@@ -181,6 +188,7 @@ final class SubagentManager {
                 tracer: tracer,
                 toolExecutor: self.toolExecutor,
                 tools: tools,
+                supportsVision: supportsVision,
                 onActionUpdate: { [weak self] action in
                     self?.statePublisher?.subagentSetAction(id: id, action: action)
                 },
@@ -460,14 +468,17 @@ final class SubagentManager {
         return extensions.contains(where: { lowered.contains($0) })
     }
     
-    private func buildTools(for allowlist: [String]) async throws -> [LLMToolDefinition] {
+    private func buildTools(for allowlist: [String], supportsVision: Bool) async throws -> [LLMToolDefinition] {
         let schemaBuilder = ToolSchemaBuilder()
         var tools: [LLMToolDefinition] = []
         
         let methodNames = Set(AgentMethod.allCases.map(\.rawValue))
         let allowedBuiltins = allowlist.filter { methodNames.contains($0) }
         let allowedMethods = allowedBuiltins.compactMap { AgentMethod(rawValue: $0) }
-        tools.append(contentsOf: schemaBuilder.buildTools(for: allowedMethods))
+        let filteredMethods = supportsVision
+            ? allowedMethods
+            : allowedMethods.filter { !$0.isVisionDependentTool }
+        tools.append(contentsOf: schemaBuilder.buildTools(for: filteredMethods))
         
         let allowAllMCP = allowlist.contains("mcp_*")
         if allowAllMCP || allowlist.contains(where: { $0.hasPrefix("mcp_") }) {

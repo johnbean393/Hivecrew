@@ -82,6 +82,21 @@ public enum AgentMethod: String, CaseIterable, Sendable {
             return false
         }
     }
+
+    /// Returns true when the tool fundamentally depends on visual perception.
+    /// Non-vision models should not be offered these tools.
+    public var isVisionDependentTool: Bool {
+        switch self {
+        case .screenshot,
+             .traverseAccessibilityTree,
+             .openApp, .openFile, .openUrl,
+             .mouseMove, .mouseClick, .mouseDrag,
+             .keyboardType, .keyboardKey, .scroll:
+            return true
+        default:
+            return false
+        }
+    }
     
     /// Returns true if this tool should be excluded from the LLM tool list
     /// These are internal tools used by the host, not called by the LLM
