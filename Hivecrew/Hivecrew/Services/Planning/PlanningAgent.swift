@@ -370,7 +370,19 @@ class PlanningAgent {
         onContentUpdate: @escaping ContentStreamCallback
     ) async throws -> LLMResponse {
         var lastError: Error?
-        var payloadCompactions = 0
+        var contextCompactions = 0
+        let maxContextCompactions = 3
+        let initialBudget = await ContextBudgetResolver.shared.resolve(using: llmClient)
+        var maxInputTokens = initialBudget.maxInputTokens
+
+        if let maxInputTokens {
+            await proactivelyCompactMessagesIfNeeded(
+                messages: &messages,
+                tools: tools,
+                maxInputTokens: maxInputTokens,
+                statePublisher: statePublisher
+            )
+        }
         
         for attempt in 1...maxLLMRetries {
             do {
@@ -388,11 +400,24 @@ class PlanningAgent {
                 return response
             } catch {
                 lastError = error
-                
-                if isPayloadTooLargeError(error) && payloadCompactions < 2 {
-                    payloadCompactions += 1
-                    statePublisher.setStatus("Payload too large. Reducing context and retrying...")
-                    messages = compactMessagesForLargePayload(messages)
+
+                if let learnedBudget = await learnContextBudget(from: error, statePublisher: statePublisher) {
+                    maxInputTokens = learnedBudget.maxInputTokens ?? maxInputTokens
+                }
+
+                if let reason = ContextCompactionPolicy.compactionReason(for: error),
+                   contextCompactions < maxContextCompactions {
+                    contextCompactions += 1
+                    statePublisher.setStatus("Context compaction triggered (\(reason.rawValue)). Reducing context and retrying...")
+                    messages = await compactMessagesForLargePayloadWithLLM(messages, statePublisher: statePublisher)
+                    if let maxInputTokens {
+                        await proactivelyCompactMessagesIfNeeded(
+                            messages: &messages,
+                            tools: tools,
+                            maxInputTokens: maxInputTokens,
+                            statePublisher: statePublisher
+                        )
+                    }
                     continue
                 }
                 
@@ -408,6 +433,184 @@ class PlanningAgent {
         }
         
         throw lastError ?? PlanningError.noResponseGenerated
+    }
+
+    private func proactivelyCompactMessagesIfNeeded(
+        messages: inout [LLMMessage],
+        tools: [LLMToolDefinition],
+        maxInputTokens: Int,
+        statePublisher: PlanningStatePublisher
+    ) async {
+        guard maxInputTokens > 0 else {
+            return
+        }
+
+        let maxPasses = 3
+        for pass in 1...maxPasses {
+            let estimated = PromptUsageEstimator.estimatePromptTokens(messages: messages, tools: tools)
+            let decision = ContextCompactionPolicy.proactiveDecision(
+                estimatedPromptTokens: estimated,
+                maxInputTokens: maxInputTokens
+            )
+            guard decision.shouldCompact else {
+                return
+            }
+
+            let fillPercent = Int(((decision.fillRatio ?? 0) * 100).rounded())
+            statePublisher.setStatus("Context compaction triggered (threshold85): \(fillPercent)% full. Reducing context...")
+
+            let compacted = await compactMessagesForLargePayloadWithLLM(
+                messages,
+                statePublisher: statePublisher
+            )
+            if compacted == messages {
+                statePublisher.setStatus("Context exceeded threshold but no additional compaction was possible.")
+                return
+            }
+            messages = compacted
+
+            let afterEstimate = PromptUsageEstimator.estimatePromptTokens(messages: messages, tools: tools)
+            let afterFill = Int(
+                (PromptUsageEstimator.fillRatio(
+                    estimatedPromptTokens: afterEstimate,
+                    maxInputTokens: maxInputTokens
+                ) * 100).rounded()
+            )
+            statePublisher.setStatus("Context compaction pass \(pass) -> \(afterFill)% full.")
+        }
+    }
+
+    private func learnContextBudget(
+        from error: Error,
+        statePublisher: PlanningStatePublisher
+    ) async -> ContextBudget? {
+        guard let info = ContextLimitErrorParser.parse(error: error) else {
+            return nil
+        }
+
+        let learned = await ContextBudgetResolver.shared.learnContextLimit(
+            providerBaseURL: llmClient.configuration.baseURL,
+            modelId: llmClient.configuration.model,
+            maxInputTokens: info.maxInputTokens,
+            requestedTokens: info.requestedTokens
+        )
+
+        if let learnedLimit = learned?.maxInputTokens {
+            statePublisher.setStatus("Learned provider context limit (\(learnedLimit) tokens). Applying stricter compaction.")
+        }
+
+        return learned
+    }
+
+    private func compactMessagesForLargePayloadWithLLM(
+        _ messages: [LLMMessage],
+        statePublisher: PlanningStatePublisher
+    ) async -> [LLMMessage] {
+        var working = messages
+        if await summarizeOlderMessagesWithLLM(&working) {
+            statePublisher.setStatus("Applied model-based context summary compaction.")
+        }
+        return compactMessagesForLargePayload(working)
+    }
+
+    private func summarizeOlderMessagesWithLLM(
+        _ messages: inout [LLMMessage]
+    ) async -> Bool {
+        let startIndex = messages.first?.role == .system ? 1 : 0
+        let keepRecentCount = 6
+        let endIndexExclusive = max(startIndex, messages.count - keepRecentCount)
+        guard endIndexExclusive - startIndex >= 3 else {
+            return false
+        }
+
+        let olderMessages = Array(messages[startIndex..<endIndexExclusive])
+        guard let summary = await generateCompactionSummaryUsingLLM(for: olderMessages) else {
+            return false
+        }
+
+        let summaryMessage = LLMMessage.assistant(
+            """
+            [Compacted context summary generated by the model]
+            \(summary)
+            """
+        )
+        messages.replaceSubrange(startIndex..<endIndexExclusive, with: [summaryMessage])
+        return true
+    }
+
+    private func generateCompactionSummaryUsingLLM(
+        for messages: [LLMMessage]
+    ) async -> String? {
+        let transcript = buildCompactionTranscript(from: messages, maxCharacters: 24_000)
+        guard !transcript.isEmpty else {
+            return nil
+        }
+
+        let compactionMessages: [LLMMessage] = [
+            .system(
+                """
+                You are compacting prior planner context for future turns.
+                Preserve all task requirements, constraints, decisions, tool outputs, unresolved issues,
+                and critical file paths. Do not invent facts. Return only the compacted summary.
+                """
+            ),
+            .user(
+                """
+                Compact this prior planning context:
+
+                \(transcript)
+                """
+            )
+        ]
+
+        do {
+            let response = try await llmClient.chat(messages: compactionMessages, tools: nil)
+            guard let text = response.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else {
+                return nil
+            }
+            return String(text.prefix(8000))
+        } catch {
+            return nil
+        }
+    }
+
+    private func buildCompactionTranscript(
+        from messages: [LLMMessage],
+        maxCharacters: Int
+    ) -> String {
+        guard maxCharacters > 0 else { return "" }
+        var parts: [String] = []
+        var totalCount = 0
+
+        for message in messages {
+            let roleLabel = message.role.rawValue.uppercased()
+            var body = message.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+            let imageCount = message.content.reduce(into: 0) { partial, content in
+                switch content {
+                case .imageBase64, .imageURL:
+                    partial += 1
+                default:
+                    break
+                }
+            }
+            if imageCount > 0 {
+                body += "\n[Images omitted: \(imageCount)]"
+            }
+            let candidate = "[\(roleLabel)] \(body)"
+            if totalCount + candidate.count > maxCharacters {
+                let remaining = max(0, maxCharacters - totalCount)
+                if remaining > 64 {
+                    parts.append(String(candidate.prefix(remaining)))
+                }
+                parts.append("[TRUNCATED]")
+                break
+            }
+            parts.append(candidate)
+            totalCount += candidate.count
+        }
+
+        return parts.joined(separator: "\n\n")
     }
     
     /// Determine whether an error is retryable
@@ -440,19 +643,6 @@ class PlanningAgent {
         }
         
         return false
-    }
-    
-    /// Detect payload too large errors (413)
-    private func isPayloadTooLargeError(_ error: Error) -> Bool {
-        if let llmError = error as? LLMError, llmError.isPayloadTooLarge {
-            return true
-        }
-        
-        let errorString = error.localizedDescription.lowercased()
-        return errorString.contains("413") ||
-               errorString.contains("oversized payload") ||
-               errorString.contains("payload too large") ||
-               errorString.contains("request entity too large")
     }
     
     /// Compact messages when payload is too large by trimming tool output and removing images

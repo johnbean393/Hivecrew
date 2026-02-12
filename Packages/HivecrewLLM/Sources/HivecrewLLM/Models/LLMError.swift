@@ -47,6 +47,9 @@ public enum LLMError: Error, Sendable, LocalizedError {
     
     /// Payload too large (413 error) - images should be downscaled
     case payloadTooLarge(message: String)
+
+    /// Prompt/context exceeded model or provider limits
+    case contextLimitExceeded(message: String, maxInputTokens: Int?, requestedTokens: Int?)
     
     public var errorDescription: String? {
         switch self {
@@ -79,6 +82,16 @@ public enum LLMError: Error, Sendable, LocalizedError {
             return "Unknown Error: \(message)"
         case .payloadTooLarge(let message):
             return "Payload Too Large: \(message)"
+        case .contextLimitExceeded(let message, let maxInputTokens, let requestedTokens):
+            var details: [String] = []
+            if let maxInputTokens {
+                details.append("max=\(maxInputTokens)")
+            }
+            if let requestedTokens {
+                details.append("requested=\(requestedTokens)")
+            }
+            let suffix = details.isEmpty ? "" : " (\(details.joined(separator: ", ")))"
+            return "Context Limit Exceeded\(suffix): \(message)"
         }
     }
     
@@ -93,6 +106,9 @@ public enum LLMError: Error, Sendable, LocalizedError {
         case .payloadTooLarge:
             // Not directly retryable - requires image downscaling first
             return false
+        case .contextLimitExceeded:
+            // Requires compaction before retry
+            return false
         default:
             return false
         }
@@ -102,6 +118,16 @@ public enum LLMError: Error, Sendable, LocalizedError {
     public var isPayloadTooLarge: Bool {
         switch self {
         case .payloadTooLarge:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether this error indicates the model/context limit was exceeded
+    public var isContextLimitExceeded: Bool {
+        switch self {
+        case .contextLimitExceeded:
             return true
         default:
             return false

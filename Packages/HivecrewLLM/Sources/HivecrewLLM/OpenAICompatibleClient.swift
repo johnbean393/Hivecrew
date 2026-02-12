@@ -35,6 +35,12 @@ private struct ModelsResponse: Decodable {
             case description
             case created
             case contextLength = "context_length"
+            case contextLengthCamel = "contextLength"
+            case maxContextLength = "max_context_length"
+            case maxInputTokens = "max_input_tokens"
+            case inputTokenLimit = "input_token_limit"
+            case inputTokenLimitCamel = "inputTokenLimit"
+            case tokenLimit = "token_limit"
             case architecture
             case topProvider = "top_provider"
             case topLevelInputModalities = "input_modalities"
@@ -67,6 +73,46 @@ private struct ModelsResponse: Decodable {
             
             enum CodingKeys: String, CodingKey {
                 case contextLength = "context_length"
+                case contextLengthCamel = "contextLength"
+                case maxContextLength = "max_context_length"
+                case maxInputTokens = "max_input_tokens"
+                case inputTokenLimit = "input_token_limit"
+                case inputTokenLimitCamel = "inputTokenLimit"
+                case tokenLimit = "token_limit"
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.contextLength = Self.decodeInt(
+                    from: container,
+                    keys: [
+                        .contextLength,
+                        .contextLengthCamel,
+                        .maxContextLength,
+                        .maxInputTokens,
+                        .inputTokenLimit,
+                        .inputTokenLimitCamel,
+                        .tokenLimit
+                    ]
+                )
+            }
+
+            private static func decodeInt(
+                from container: KeyedDecodingContainer<CodingKeys>,
+                keys: [CodingKeys]
+            ) -> Int? {
+                for key in keys {
+                    if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+                        return value
+                    }
+                    if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+                        let normalized = value.replacingOccurrences(of: ",", with: "")
+                        if let parsed = Int(normalized) {
+                            return parsed
+                        }
+                    }
+                }
+                return nil
             }
         }
 
@@ -162,7 +208,18 @@ private struct ModelsResponse: Decodable {
             self.name = try? container.decodeIfPresent(String.self, forKey: .name)
             self.description = try? container.decodeIfPresent(String.self, forKey: .description)
             self.created = try? container.decodeIfPresent(Int.self, forKey: .created)
-            self.contextLength = try? container.decodeIfPresent(Int.self, forKey: .contextLength)
+            self.contextLength = Self.decodeInt(
+                from: container,
+                keys: [
+                    .contextLength,
+                    .contextLengthCamel,
+                    .maxContextLength,
+                    .maxInputTokens,
+                    .inputTokenLimit,
+                    .inputTokenLimitCamel,
+                    .tokenLimit
+                ]
+            )
             self.architecture = try? container.decodeIfPresent(Architecture.self, forKey: .architecture)
             self.topProvider = try? container.decodeIfPresent(TopProvider.self, forKey: .topProvider)
             self.topLevelInputModalities = Self.decodeModalities(
@@ -261,6 +318,24 @@ private struct ModelsResponse: Decodable {
             for key in keys {
                 if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
                     return value
+                }
+            }
+            return nil
+        }
+
+        private static func decodeInt(
+            from container: KeyedDecodingContainer<CodingKeys>,
+            keys: [CodingKeys]
+        ) -> Int? {
+            for key in keys {
+                if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+                    return value
+                }
+                if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+                    let normalized = value.replacingOccurrences(of: ",", with: "")
+                    if let parsed = Int(normalized) {
+                        return parsed
+                    }
                 }
             }
             return nil
@@ -371,6 +446,18 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
                 throw LLMError.authenticationError(message: errorMessage)
             } else if errorMessage.contains("429") || errorMessage.contains("rate limit") {
                 throw LLMError.rateLimitError(retryAfter: nil)
+            }
+            if errorMessage.lowercased().contains("oversized payload") ||
+                errorMessage.lowercased().contains("payload too large") ||
+                errorMessage.lowercased().contains("request entity too large") {
+                throw LLMError.payloadTooLarge(message: errorMessage)
+            }
+            if let contextInfo = ContextLimitErrorParser.parse(message: errorMessage) {
+                throw LLMError.contextLimitExceeded(
+                    message: errorMessage,
+                    maxInputTokens: contextInfo.maxInputTokens,
+                    requestedTokens: contextInfo.requestedTokens
+                )
             }
             throw LLMError.unknown(message: errorMessage)
         }

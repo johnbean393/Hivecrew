@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import HivecrewAPI
 import HivecrewShared
+import HivecrewLLM
 
 // MARK: - Status Conversions
 
@@ -366,36 +367,28 @@ extension APIServiceProviderBridge {
 
 extension APIServiceProviderBridge {
     
-    func fetchModelsFromProvider(baseURL: URL, apiKey: String) async throws -> [APIModel] {
-        let modelsURL = baseURL.appendingPathComponent("models")
-        var request = URLRequest(url: modelsURL)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 30
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw NSError(domain: "HivecrewAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch models"])
-        }
-        
-        struct ModelsResponse: Decodable {
-            let data: [ModelData]
-        }
-        
-        struct ModelData: Decodable {
-            let id: String
-            let context_length: Int?
-        }
-        
-        let decoder = JSONDecoder()
-        let modelsResponse = try decoder.decode(ModelsResponse.self, from: data)
-        
-        return modelsResponse.data.map { model in
+    func fetchModelsFromProvider(
+        baseURL: URL,
+        apiKey: String,
+        organizationId: String? = nil,
+        timeoutInterval: TimeInterval = 30
+    ) async throws -> [APIModel] {
+        let config = LLMConfiguration(
+            displayName: "Provider API Models",
+            baseURL: baseURL,
+            apiKey: apiKey,
+            model: "model-listing-placeholder",
+            organizationId: organizationId,
+            timeoutInterval: timeoutInterval
+        )
+        let client = LLMService.shared.createClient(from: config)
+        let providerModels = try await client.listModelsDetailed()
+
+        return providerModels.map { model in
             APIModel(
                 id: model.id,
-                name: model.id,
-                contextLength: model.context_length
+                name: model.displayName,
+                contextLength: model.contextLength
             )
         }
     }

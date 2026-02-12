@@ -427,7 +427,9 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         do {
             let models = try await fetchModelsFromProvider(
                 baseURL: provider.effectiveBaseURL,
-                apiKey: apiKey
+                apiKey: apiKey,
+                organizationId: provider.organizationId,
+                timeoutInterval: provider.timeoutInterval
             )
             return APIModelListResponse(models: models)
         } catch {

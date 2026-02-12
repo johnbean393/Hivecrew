@@ -61,13 +61,8 @@ extension OpenAICompatibleClient {
                 errorData.append(byte)
             }
             let errorBody = String(data: errorData, encoding: .utf8) ?? "No response body"
-            
-            // Check for payload too large (413) errors
-            if httpResponse.statusCode == 413 || errorBody.lowercased().contains("oversized payload") {
-                throw LLMError.payloadTooLarge(message: errorBody)
-            }
-            
-            throw LLMError.unknown(message: "HTTP \(httpResponse.statusCode): \(errorBody)")
+
+            throw classifyHTTPError(statusCode: httpResponse.statusCode, body: errorBody)
         }
         
         // Parse SSE stream
@@ -132,7 +127,11 @@ extension OpenAICompatibleClient {
                             }
                             let payloadNote = payloadPreview.isEmpty ? "" : " | raw_payload: \(payloadPreview)"
                             print("[HivecrewLLM] SSE stream error: \(errorType) - \(errorMessage)\(payloadNote)")
-                            throw LLMError.apiError(statusCode: 0, message: "\(errorType): \(errorMessage)\(payloadNote)")
+                            let mergedMessage = "\(errorType): \(errorMessage)\(payloadNote)"
+                            if let classified = classifyContextOrPayloadError(message: mergedMessage) {
+                                throw classified
+                            }
+                            throw LLMError.apiError(statusCode: 0, message: mergedMessage)
                         }
                         
                         // Extract response metadata
@@ -300,13 +299,8 @@ extension OpenAICompatibleClient {
         
         guard httpResponse.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8) ?? "No response body"
-            
-            // Check for payload too large (413) errors
-            if httpResponse.statusCode == 413 || body.lowercased().contains("oversized payload") {
-                throw LLMError.payloadTooLarge(message: body)
-            }
-            
-            throw LLMError.unknown(message: "HTTP \(httpResponse.statusCode): \(body)")
+
+            throw classifyHTTPError(statusCode: httpResponse.statusCode, body: body)
         }
         
         return try parseRawChatResponse(data)
@@ -318,6 +312,35 @@ extension OpenAICompatibleClient {
         } else {
             return defaultLLMProviderBaseURL.appendingPathComponent("chat/completions")
         }
+    }
+
+    private func classifyHTTPError(statusCode: Int, body: String) -> LLMError {
+        if statusCode == 413 {
+            return .payloadTooLarge(message: body)
+        }
+        if let classified = classifyContextOrPayloadError(message: body) {
+            return classified
+        }
+        return .unknown(message: "HTTP \(statusCode): \(body)")
+    }
+
+    private func classifyContextOrPayloadError(message: String) -> LLMError? {
+        let normalized = message.lowercased()
+        if normalized.contains("oversized payload") ||
+            normalized.contains("payload too large") ||
+            normalized.contains("request entity too large") {
+            return .payloadTooLarge(message: message)
+        }
+
+        if let contextInfo = ContextLimitErrorParser.parse(message: message) {
+            return .contextLimitExceeded(
+                message: message,
+                maxInputTokens: contextInfo.maxInputTokens,
+                requestedTokens: contextInfo.requestedTokens
+            )
+        }
+
+        return nil
     }
     
     func convertMessageToDict(_ message: LLMMessage) throws -> [String: Any] {
