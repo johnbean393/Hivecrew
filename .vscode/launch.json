@@ -17,6 +17,26 @@
             "name": "Release HivecrewGuestAgent (HivecrewGuestAgent)",
             "program": "${workspaceFolder:Hivecrew}/HivecrewGuestAgent/.build/release/HivecrewGuestAgent",
             "preLaunchTask": "swift: Build Release HivecrewGuestAgent (HivecrewGuestAgent)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Hivecrew}/Packages/HivecrewRetrievalSystem",
+            "name": "Debug hivecrew-retrieval-daemon (Packages/HivecrewRetrievalSystem)",
+            "target": "hivecrew-retrieval-daemon",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug hivecrew-retrieval-daemon (Packages/HivecrewRetrievalSystem)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:Hivecrew}/Packages/HivecrewRetrievalSystem",
+            "name": "Release hivecrew-retrieval-daemon (Packages/HivecrewRetrievalSystem)",
+            "target": "hivecrew-retrieval-daemon",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release hivecrew-retrieval-daemon (Packages/HivecrewRetrievalSystem)"
         }
     ]
 }

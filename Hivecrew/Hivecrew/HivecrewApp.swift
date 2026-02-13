@@ -126,6 +126,7 @@ struct HivecrewApp: App {
         .commands {
             CheckForUpdatesCommand(updater: appDelegate.updaterController.updater)
             SkillsMenuCommand()
+            RetrievalIndexMenuCommand()
             DevicesMenuCommand()
             DebugMenuCommands()
         }
@@ -142,6 +143,11 @@ struct HivecrewApp: App {
             SkillsWindow()
         }
         .defaultSize(width: 900, height: 600)
+
+        Window("Retrieval Index", id: "retrieval-index-window") {
+            RetrievalIndexWindow()
+        }
+        .defaultSize(width: 760, height: 560)
         
     }
     
@@ -165,10 +171,24 @@ struct HivecrewApp: App {
         
         // Configure and start API server if enabled
         APIServerManager.shared.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
-        APIServerManager.shared.startIfEnabled()
+        Task.detached(priority: .utility) {
+            try? await Task.sleep(for: .milliseconds(200))
+            await MainActor.run {
+                APIServerManager.shared.startIfEnabled()
+            }
+        }
+
+        // Install/start retrieval daemon LaunchAgent off the immediate launch path
+        // so daemon readiness never delays first-frame responsiveness.
+        Task.detached(priority: .utility) {
+            try? await Task.sleep(for: .milliseconds(300))
+            RetrievalDaemonManager.shared.startIfEnabled()
+        }
         
-        // Reconnect remote access tunnel if previously enabled
-        Task {
+        // Reconnect remote access tunnel after first-frame startup work.
+        // This keeps keychain/process work off the immediate launch path.
+        Task.detached(priority: .utility) {
+            try? await Task.sleep(for: .milliseconds(350))
             await RemoteAccessManager.shared.reconnectIfNeeded()
         }
         

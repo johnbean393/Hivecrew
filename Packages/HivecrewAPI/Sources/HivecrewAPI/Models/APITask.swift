@@ -115,6 +115,9 @@ public struct APITask: Codable, Sendable {
     public let tokenUsage: APITokenUsage?
     public let planMarkdown: String?
     public let planFirst: Bool?
+    public let contextPackId: String?
+    public let contextItemCount: Int?
+    public let contextAttachmentCount: Int?
     public let pendingQuestion: APIAgentQuestion?
     public let pendingPermission: APIPermissionRequest?
     
@@ -139,6 +142,9 @@ public struct APITask: Codable, Sendable {
         tokenUsage: APITokenUsage? = nil,
         planMarkdown: String? = nil,
         planFirst: Bool? = nil,
+        contextPackId: String? = nil,
+        contextItemCount: Int? = nil,
+        contextAttachmentCount: Int? = nil,
         pendingQuestion: APIAgentQuestion? = nil,
         pendingPermission: APIPermissionRequest? = nil
     ) {
@@ -162,6 +168,9 @@ public struct APITask: Codable, Sendable {
         self.tokenUsage = tokenUsage
         self.planMarkdown = planMarkdown
         self.planFirst = planFirst
+        self.contextPackId = contextPackId
+        self.contextItemCount = contextItemCount
+        self.contextAttachmentCount = contextAttachmentCount
         self.pendingQuestion = pendingQuestion
         self.pendingPermission = pendingPermission
     }

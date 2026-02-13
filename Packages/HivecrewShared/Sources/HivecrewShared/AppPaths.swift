@@ -13,7 +13,7 @@ public enum AppPaths {
     // MARK: - Base Directories
     
     /// The real (non-sandboxed) home directory
-    private static let realHomeDirectory: URL = {
+    public static let realHomeDirectory: URL = {
         // Get the real home directory from the passwd database
         // This bypasses sandbox container remapping
         if let pw = getpwuid(getuid()), let home = pw.pointee.pw_dir {
@@ -235,6 +235,50 @@ public enum AppPaths {
     /// Directory for application logs
     public static let logsDirectory: URL = {
         let url = appSupportDirectory.appendingPathComponent("Logs", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    // MARK: - Retrieval Storage
+
+    /// Root retrieval directory.
+    public static let retrievalDirectory: URL = {
+        let url = appSupportDirectory.appendingPathComponent("Retrieval", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    /// Retrieval daemon runtime files.
+    public static let retrievalDaemonDirectory: URL = {
+        let url = retrievalDirectory.appendingPathComponent("daemon", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    /// Retrieval index files (SQLite/vector/graph).
+    public static let retrievalIndexDirectory: URL = {
+        let url = retrievalDirectory.appendingPathComponent("index", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    /// Retrieval cache directory.
+    public static let retrievalCacheDirectory: URL = {
+        let url = retrievalDirectory.appendingPathComponent("cache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    /// Context pack persistence directory.
+    public static let retrievalContextPacksDirectory: URL = {
+        let url = retrievalDirectory.appendingPathComponent("contextpacks", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    /// Retrieval logs directory.
+    public static let retrievalLogsDirectory: URL = {
+        let url = retrievalDirectory.appendingPathComponent("logs", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()

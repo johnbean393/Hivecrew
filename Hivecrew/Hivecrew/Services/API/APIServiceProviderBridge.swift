@@ -46,7 +46,12 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         attachedFilePaths: [String],
         outputDirectory: String?,
         planFirst: Bool = false,
-        mentionedSkillNames: [String] = []
+        mentionedSkillNames: [String] = [],
+        contextPackId: String? = nil,
+        contextSuggestionIds: [String] = [],
+        contextModeOverrides: [String: String] = [:],
+        contextInlineBlocks: [String] = [],
+        contextAttachmentPaths: [String] = []
     ) async throws -> APITask {
         // Find provider by name
         let providerId = try await findProviderIdByName(providerName)
@@ -59,6 +64,11 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             attachedFilePaths: attachedFilePaths,
             outputDirectory: outputDirectory,
             mentionedSkillNames: mentionedSkillNames,
+            retrievalContextPackId: contextPackId,
+            retrievalInlineContextBlocks: contextInlineBlocks,
+            retrievalContextAttachmentPaths: contextAttachmentPaths,
+            retrievalSelectedSuggestionIds: contextSuggestionIds,
+            retrievalModeOverrides: contextModeOverrides,
             planFirstEnabled: planFirst
         )
         

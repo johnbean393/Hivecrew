@@ -8150,6 +8150,9 @@
         }
       }
     },
+    "Current Activity" : {
+
+    },
     "Daily" : {
       "localizations" : {
         "de" : {
@@ -9805,6 +9808,9 @@
           }
         }
       }
+    },
+    "Diagnostics" : {
+
     },
     "Diagram" : {
       "localizations" : {
@@ -12434,6 +12440,9 @@
         }
       }
     },
+    "Extraction Diagnostics" : {
+
+    },
     "Extraction failed: %@" : {
       "localizations" : {
         "de" : {
@@ -12479,6 +12488,9 @@
           }
         }
       }
+    },
+    "Extraction Totals" : {
+
     },
     "Failed" : {
       "localizations" : {
@@ -12939,6 +12951,9 @@
           }
         }
       }
+    },
+    "File Scan Diagnostics" : {
+
     },
     "File system error: %@" : {
       "localizations" : {
@@ -13676,6 +13691,9 @@
           }
         }
       }
+    },
+    "High-level indexing state across all sources." : {
+
     },
     "Hivecrew can automatically match relevant skills to your tasks. Enable this in Settings → Tasks → Automatic Skill Matching." : {
       "localizations" : {
@@ -15792,6 +15810,9 @@
           }
         }
       }
+    },
+    "Manage retrieval indexing in a dedicated window, including per-source indexing progress and readiness." : {
+
     },
     "Manage Skills..." : {
       "localizations" : {
@@ -19434,6 +19455,9 @@
         }
       }
     },
+    "Open Retrieval Index…" : {
+
+    },
     "Open Skills folder" : {
       "localizations" : {
         "de" : {
@@ -20262,6 +20286,12 @@
         }
       }
     },
+    "Personal Context" : {
+
+    },
+    "Personal Context Index" : {
+
+    },
     "Plan" : {
       "localizations" : {
         "de" : {
@@ -20675,6 +20705,9 @@
           }
         }
       }
+    },
+    "Progress" : {
+
     },
     "Provider" : {
       "localizations" : {
@@ -21550,6 +21583,9 @@
         }
       }
     },
+    "Refresh" : {
+
+    },
     "Regenerate" : {
       "localizations" : {
         "de" : {
@@ -22378,6 +22414,9 @@
         }
       }
     },
+    "Restart Daemon" : {
+
+    },
     "Restore" : {
       "localizations" : {
         "de" : {
@@ -22883,6 +22922,9 @@
           }
         }
       }
+    },
+    "Retrieval Index" : {
+
     },
     "Retry" : {
       "localizations" : {
@@ -26840,6 +26882,12 @@
         }
       }
     },
+    "Source-level indexing diagnostics and live activity." : {
+
+    },
+    "Sources" : {
+
+    },
     "Space-separated arguments passed to the command" : {
       "localizations" : {
         "de" : {
@@ -27667,6 +27715,9 @@
           }
         }
       }
+    },
+    "Suggested Context" : {
+
     },
     "Suspending" : {
       "localizations" : {

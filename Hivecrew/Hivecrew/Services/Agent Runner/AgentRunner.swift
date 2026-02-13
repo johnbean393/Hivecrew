@@ -324,6 +324,7 @@ final class AgentRunner {
             inputFiles: inputFileNames,
             skills: matchedSkills,
             plan: task.planMarkdown,
+            approvedContextBlocks: task.retrievalInlineContextBlocks,
             supportsVision: supportsVision
         )
         conversationHistory = [.system(systemPrompt)]

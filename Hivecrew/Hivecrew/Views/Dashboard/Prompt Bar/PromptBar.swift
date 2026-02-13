@@ -39,6 +39,7 @@ struct PromptBar: View {
     
     // Attachments state
     @Binding var attachments: [PromptAttachment]
+    var onRemoveAttachment: ((PromptAttachment) -> Void)? = nil
     
     // Model selection state
     @Binding var selectedProviderId: String
@@ -127,7 +128,10 @@ struct PromptBar: View {
             mainInputContainer
             // Attachment previews (shown above the input if there are attachments)
             if hasAttachments {
-                PromptAttachmentPreviewList(attachments: $attachments)
+                PromptAttachmentPreviewList(
+                    attachments: $attachments,
+                    onRemoveAttachment: onRemoveAttachment
+                )
                     .padding(.top, 6)
             }
         }

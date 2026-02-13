@@ -86,6 +86,11 @@ public final class TaskRoutes: Sendable {
         var outputDirectory: String?
         var planFirst: Bool = false
         var mentionedSkillNames: [String] = []
+        var contextPackId: String?
+        var contextSuggestionIds: [String] = []
+        var contextModeOverrides: [String: String] = [:]
+        var contextInlineBlocks: [String] = []
+        var contextAttachmentPaths: [String] = []
         
         if contentType.contains("multipart/form-data") {
             let result = try await parseTaskMultipartForm(request: request)
@@ -106,6 +111,11 @@ public final class TaskRoutes: Sendable {
             outputDirectory = createRequest.outputDirectory
             planFirst = createRequest.planFirst ?? false
             mentionedSkillNames = createRequest.mentionedSkillNames ?? []
+            contextPackId = createRequest.contextPackId
+            contextSuggestionIds = createRequest.contextSuggestionIds ?? []
+            contextModeOverrides = createRequest.contextModeOverrides ?? [:]
+            contextInlineBlocks = createRequest.contextInlineBlocks ?? []
+            contextAttachmentPaths = createRequest.contextAttachmentPaths ?? []
         }
         
         // Validate required fields
@@ -126,7 +136,12 @@ public final class TaskRoutes: Sendable {
             attachedFilePaths: uploadedFilePaths,
             outputDirectory: outputDirectory,
             planFirst: planFirst,
-            mentionedSkillNames: mentionedSkillNames
+            mentionedSkillNames: mentionedSkillNames,
+            contextPackId: contextPackId,
+            contextSuggestionIds: contextSuggestionIds,
+            contextModeOverrides: contextModeOverrides,
+            contextInlineBlocks: contextInlineBlocks,
+            contextAttachmentPaths: contextAttachmentPaths
         )
         
         return try createJSONResponse(task, status: .created)

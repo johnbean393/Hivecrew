@@ -124,6 +124,21 @@ final class TaskRecord {
     /// Names of skills explicitly mentioned by the user via @skill-name
     /// These skills will be force-included in addition to auto-matched skills
     var mentionedSkillNames: [String]?
+
+    /// Approved retrieval context pack ID used for this task (if any).
+    var retrievalContextPackId: String?
+
+    /// Additional file paths materialized by retrieval context packing.
+    var retrievalContextAttachmentPaths: [String]?
+
+    /// Suggestion IDs selected by the user during context approval.
+    var retrievalSelectedSuggestionIds: [String]?
+
+    /// JSON-encoded inline context blocks to inject into the system prompt.
+    private var retrievalInlineContextData: Data?
+
+    /// JSON-encoded per-suggestion mode overrides at pack creation time.
+    private var retrievalModeOverridesData: Data?
     
     /// Whether the task was verified as successful by the completion check
     /// nil = not yet checked, true = verified success, false = verified failure
@@ -144,6 +159,38 @@ final class TaskRecord {
     var planFirstEnabled: Bool {
         get { planFirstEnabledRaw ?? false }
         set { planFirstEnabledRaw = newValue }
+    }
+
+    // MARK: - Retrieval Context Properties
+
+    var retrievalInlineContextBlocks: [String] {
+        get {
+            guard
+                let retrievalInlineContextData,
+                let decoded = try? JSONDecoder().decode([String].self, from: retrievalInlineContextData)
+            else {
+                return []
+            }
+            return decoded
+        }
+        set {
+            retrievalInlineContextData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    var retrievalModeOverrides: [String: String] {
+        get {
+            guard
+                let retrievalModeOverridesData,
+                let decoded = try? JSONDecoder().decode([String: String].self, from: retrievalModeOverridesData)
+            else {
+                return [:]
+            }
+            return decoded
+        }
+        set {
+            retrievalModeOverridesData = try? JSONEncoder().encode(newValue)
+        }
     }
     
     // MARK: - Attachment Properties
@@ -202,6 +249,11 @@ final class TaskRecord {
         outputFilePaths: [String]? = nil,
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
+        retrievalContextPackId: String? = nil,
+        retrievalInlineContextBlocks: [String] = [],
+        retrievalContextAttachmentPaths: [String]? = nil,
+        retrievalSelectedSuggestionIds: [String]? = nil,
+        retrievalModeOverrides: [String: String]? = nil,
         planFirstEnabled: Bool = false,
         planMarkdown: String? = nil,
         planSelectedSkillNames: [String]? = nil
@@ -222,6 +274,11 @@ final class TaskRecord {
         self.outputFilePaths = outputFilePaths
         self.outputDirectory = outputDirectory
         self.mentionedSkillNames = mentionedSkillNames
+        self.retrievalContextPackId = retrievalContextPackId
+        self.retrievalContextAttachmentPaths = retrievalContextAttachmentPaths
+        self.retrievalSelectedSuggestionIds = retrievalSelectedSuggestionIds
+        self.retrievalInlineContextData = try? JSONEncoder().encode(retrievalInlineContextBlocks)
+        self.retrievalModeOverridesData = try? JSONEncoder().encode(retrievalModeOverrides ?? [:])
         self.planFirstEnabledRaw = planFirstEnabled
         self.planMarkdown = planMarkdown
         self.planSelectedSkillNames = planSelectedSkillNames

@@ -103,6 +103,9 @@ extension APIServiceProviderBridge {
             tokenUsage: tokenUsage,
             planMarkdown: task.planMarkdown,
             planFirst: task.planFirstEnabled,
+            contextPackId: task.retrievalContextPackId,
+            contextItemCount: task.retrievalSelectedSuggestionIds?.count,
+            contextAttachmentCount: task.retrievalContextAttachmentPaths?.count,
             pendingQuestion: pendingQuestion,
             pendingPermission: pendingPermission
         )

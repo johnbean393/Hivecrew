@@ -34,7 +34,12 @@ public protocol APIServiceProvider: Sendable {
         attachedFilePaths: [String],
         outputDirectory: String?,
         planFirst: Bool,
-        mentionedSkillNames: [String]
+        mentionedSkillNames: [String],
+        contextPackId: String?,
+        contextSuggestionIds: [String],
+        contextModeOverrides: [String: String],
+        contextInlineBlocks: [String],
+        contextAttachmentPaths: [String]
     ) async throws -> APITask
     
     /// List tasks with optional status filtering, pagination, and sorting.

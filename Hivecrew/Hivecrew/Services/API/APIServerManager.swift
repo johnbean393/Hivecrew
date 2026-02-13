@@ -8,7 +8,9 @@
 import Foundation
 import SwiftData
 import Security
+import CryptoKit
 import HivecrewAPI
+import HivecrewShared
 
 /// Manages the API server lifecycle
 @MainActor
@@ -327,5 +329,547 @@ enum DeviceAuthKeychain {
         
         let status = SecItemDelete(query as CFDictionary)
         return status == errSecSuccess || status == errSecItemNotFound
+    }
+}
+
+// MARK: - Retrieval Daemon Lifecycle
+
+/// Installs and supervises the standalone retrieval daemon.
+final class RetrievalDaemonManager {
+    static let shared = RetrievalDaemonManager()
+
+    private struct DaemonInstallResult {
+        let expectedVersion: String
+        let binaryWasUpdated: Bool
+    }
+
+    private let launchAgentLabel = "com.hivecrew.retrievald"
+    private let daemonPort = 46299
+    private let daemonHost = "127.0.0.1"
+    private let configFileName = "retrieval-daemon.json"
+    private let binaryName = "hivecrew-retrieval-daemon"
+    private let plistFileName = "com.hivecrew.retrievald.plist"
+    private let tokenDefaultsKey = "retrievalDaemonAuthToken"
+    private let launchAgentPathDefaultsKey = "retrievalDaemonLaunchAgentPath"
+    private let expectedVersionDefaultsKey = "retrievalDaemonExpectedVersion"
+    private let enabledDefaultsKey = "retrievalDaemonEnabled"
+    private let healthCheckTimeout: TimeInterval = 0.7
+
+    private init() {}
+
+    func startIfEnabled() {
+        if !UserDefaults.standard.bool(forKey: enabledDefaultsKey) && UserDefaults.standard.object(forKey: enabledDefaultsKey) != nil {
+            return
+        }
+
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            do {
+                let install = try installOrUpdate()
+                if install.binaryWasUpdated {
+                    try unloadLaunchAgentIfPresent()
+                }
+                try loadLaunchAgent()
+                // Never probe daemon health on app launch path.
+                // Startup should stay responsive even if daemon takes time to come up.
+                UserDefaults.standard.set(install.expectedVersion, forKey: expectedVersionDefaultsKey)
+            } catch {
+                print("RetrievalDaemonManager: Failed to start retrieval daemon: \(error)")
+            }
+        }
+    }
+
+    func restart() {
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            do {
+                let install = try installOrUpdate()
+                try unloadLaunchAgentIfPresent()
+                try loadLaunchAgent()
+                _ = await waitForHealthyState(maxAttempts: 8)
+                try await ensureExpectedDaemonVersion(install.expectedVersion)
+            } catch {
+                print("RetrievalDaemonManager: Failed to restart retrieval daemon: \(error)")
+            }
+        }
+    }
+
+    func stop() {
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            do {
+                try unloadLaunchAgentIfPresent()
+            } catch {
+                print("RetrievalDaemonManager: Failed to unload launch agent: \(error)")
+            }
+        }
+    }
+
+    func daemonBaseURL() -> URL {
+        URL(string: "http://\(daemonHost):\(daemonPort)")!
+    }
+
+    func daemonAuthToken() throws -> String {
+        let token = UserDefaults.standard.string(forKey: tokenDefaultsKey)
+        if let token, !token.isEmpty {
+            return token
+        }
+        let configURL = daemonConfigURL()
+        guard
+            let data = try? Data(contentsOf: configURL),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let token = json["authToken"] as? String,
+            !token.isEmpty
+        else {
+            throw NSError(domain: "RetrievalDaemonManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing retrieval daemon auth token"])
+        }
+        UserDefaults.standard.set(token, forKey: tokenDefaultsKey)
+        return token
+    }
+
+    private func installOrUpdate() throws -> DaemonInstallResult {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: daemonDirectory(), withIntermediateDirectories: true)
+
+        let sourceBinary = try resolveSourceBinary()
+        let destinationBinary = daemonBinaryURL()
+        let expectedVersion = try daemonBinaryVersion(at: sourceBinary)
+        let binaryWasUpdated: Bool
+        if fileManager.fileExists(atPath: destinationBinary.path) {
+            let currentVersion = try? daemonBinaryVersion(at: destinationBinary)
+            binaryWasUpdated = currentVersion != expectedVersion
+        } else {
+            binaryWasUpdated = true
+        }
+
+        if binaryWasUpdated {
+            if fileManager.fileExists(atPath: destinationBinary.path) {
+                try fileManager.removeItem(at: destinationBinary)
+            }
+            try fileManager.copyItem(at: sourceBinary, to: destinationBinary)
+        }
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destinationBinary.path)
+
+        let token = UserDefaults.standard.string(forKey: tokenDefaultsKey) ?? UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        UserDefaults.standard.set(token, forKey: tokenDefaultsKey)
+
+        let config: [String: Any] = [
+            "host": daemonHost,
+            "port": daemonPort,
+            "authToken": token,
+            "daemonVersion": expectedVersion,
+            "indexingProfile": UserDefaults.standard.string(forKey: "retrievalIndexingProfile") ?? "balanced",
+            "startupAllowlistRoots": retrievalAllowlistRoots(),
+            "queueBatchSize": 24,
+        ]
+        let configData = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted])
+        try configData.write(to: daemonConfigURL(), options: .atomic)
+
+        let launchPlist = launchAgentPlistContents(binaryPath: destinationBinary.path, configPath: daemonConfigURL().path)
+        let launchAgentPlistURL = try writeLaunchAgentPlist(launchPlist)
+        UserDefaults.standard.set(launchAgentPlistURL.path, forKey: launchAgentPathDefaultsKey)
+        UserDefaults.standard.set(expectedVersion, forKey: expectedVersionDefaultsKey)
+        return DaemonInstallResult(expectedVersion: expectedVersion, binaryWasUpdated: binaryWasUpdated)
+    }
+
+    private func loadLaunchAgent() throws {
+        let uid = getuid()
+        let serviceTarget = "gui/\(uid)/\(launchAgentLabel)"
+
+        // If a matching service is already loaded, skip bootstrap and just kickstart it.
+        if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+            try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
+            return
+        }
+
+        do {
+            try runLaunchctl(["bootstrap", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
+        } catch {
+            // launchctl can report EIO for bootstrap while the service is already present.
+            if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+                try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
+                return
+            }
+            throw error
+        }
+        try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
+    }
+
+    private func unloadLaunchAgentIfPresent() throws {
+        let uid = getuid()
+        try runLaunchctl(["bootout", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
+        // Try by label as a fallback in case the plist path changed.
+        try runLaunchctl(["bootout", "gui/\(uid)/\(launchAgentLabel)"], allowAlreadyLoaded: true)
+    }
+
+    private func runLaunchctl(_ arguments: [String], allowAlreadyLoaded: Bool) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+        let stderr = Pipe()
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let errorOutput = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            if allowAlreadyLoaded,
+               errorOutput.localizedCaseInsensitiveContains("already")
+                || errorOutput.localizedCaseInsensitiveContains("not loaded")
+                || errorOutput.localizedCaseInsensitiveContains("could not find service")
+                || errorOutput.localizedCaseInsensitiveContains("service not found")
+                || errorOutput.localizedCaseInsensitiveContains("no such process")
+            {
+                return
+            }
+            throw NSError(
+                domain: "RetrievalDaemonManager",
+                code: Int(process.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: errorOutput.isEmpty ? "launchctl command failed: \(arguments.joined(separator: " "))" : errorOutput]
+            )
+        }
+    }
+
+    private func isLaunchAgentLoaded(serviceTarget: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["print", serviceTarget]
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    private func waitForHealthyState(maxAttempts: Int) async -> Bool {
+        for attempt in 0..<maxAttempts {
+            if await isHealthy() { return true }
+            let delayMs = min(1200, 150 * (attempt + 1))
+            try? await Task.sleep(for: .milliseconds(delayMs))
+        }
+        return false
+    }
+
+    private func isHealthy() async -> Bool {
+        var request = URLRequest(url: daemonBaseURL().appending(path: "/health"))
+        request.timeoutInterval = healthCheckTimeout
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            return (200...299).contains(http.statusCode)
+        } catch {
+            return false
+        }
+    }
+
+    private func runningDaemonVersion() async -> String? {
+        struct HealthPayload: Decodable {
+            let daemonVersion: String
+        }
+
+        var request = URLRequest(url: daemonBaseURL().appending(path: "/health"))
+        request.timeoutInterval = healthCheckTimeout
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                return nil
+            }
+            let payload = try JSONDecoder().decode(HealthPayload.self, from: data)
+            return payload.daemonVersion
+        } catch {
+            return nil
+        }
+    }
+
+    private func ensureExpectedDaemonVersion(_ expectedVersion: String) async throws {
+        guard !expectedVersion.isEmpty else { return }
+        guard let runningVersion = await runningDaemonVersion() else { return }
+        guard runningVersion != expectedVersion else { return }
+        if shouldTreatLegacyHealthVersionAsCurrent(runningVersion: runningVersion, expectedVersion: expectedVersion) {
+            return
+        }
+
+        print("RetrievalDaemonManager: Detected daemon version mismatch (running \(runningVersion), expected \(expectedVersion)). Restarting daemon.")
+        _ = try installOrUpdate()
+        try await forceRestartLaunchAgent()
+        if let refreshed = await runningDaemonVersion(), refreshed == expectedVersion {
+            return
+        }
+        if let refreshed = await runningDaemonVersion(),
+           shouldTreatLegacyHealthVersionAsCurrent(runningVersion: refreshed, expectedVersion: expectedVersion) {
+            return
+        }
+
+        print("RetrievalDaemonManager: Daemon still on old version after hard restart, retrying once.")
+        _ = try installOrUpdate()
+        try await forceRestartLaunchAgent()
+        if let refreshed = await runningDaemonVersion(), refreshed == expectedVersion {
+            return
+        }
+        if let refreshed = await runningDaemonVersion(),
+           shouldTreatLegacyHealthVersionAsCurrent(runningVersion: refreshed, expectedVersion: expectedVersion) {
+            return
+        }
+
+        throw NSError(
+            domain: "RetrievalDaemonManager",
+            code: 6,
+            userInfo: [NSLocalizedDescriptionKey: "Daemon version mismatch after restart."]
+        )
+    }
+
+    private func forceRestartLaunchAgent() async throws {
+        let uid = getuid()
+        let serviceTarget = "gui/\(uid)/\(launchAgentLabel)"
+
+        // Aggressively tear down any existing daemon instance first.
+        try runLaunchctl(["kill", "SIGKILL", serviceTarget], allowAlreadyLoaded: true)
+        do {
+            try runLaunchctl(["bootout", serviceTarget], allowAlreadyLoaded: true)
+        } catch {
+            if !isIgnorableBootoutFailure(error, serviceTarget: serviceTarget) {
+                throw error
+            }
+            print("RetrievalDaemonManager: Ignoring label bootout failure: \(error.localizedDescription)")
+        }
+        do {
+            try runLaunchctl(["bootout", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
+        } catch {
+            if !isIgnorableBootoutFailure(error, serviceTarget: serviceTarget) {
+                throw error
+            }
+            print("RetrievalDaemonManager: Ignoring path bootout failure: \(error.localizedDescription)")
+        }
+        try? await Task.sleep(for: .milliseconds(250))
+
+        // If launchd still thinks the service is loaded, kickstart in-place. Otherwise bootstrap it.
+        if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+            try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
+        } else {
+            try loadLaunchAgent()
+        }
+        _ = await waitForHealthyState(maxAttempts: 8)
+    }
+
+    private func isIgnorableBootoutFailure(_ error: Error, serviceTarget: String) -> Bool {
+        let message = (error as NSError).localizedDescription.lowercased()
+        if message.contains("input/output error") || message.contains("boot-out failed: 5") {
+            // launchctl can emit EIO during transitional states; proceed to kickstart/load path.
+            return true
+        }
+        // If launchd no longer reports the service, the bootout failure is effectively harmless.
+        return !isLaunchAgentLoaded(serviceTarget: serviceTarget)
+    }
+
+    private func shouldTreatLegacyHealthVersionAsCurrent(runningVersion: String, expectedVersion: String) -> Bool {
+        guard !isHashVersion(runningVersion) else { return false }
+        guard let binaryVersion = runningDaemonBinaryVersion(), binaryVersion == expectedVersion else { return false }
+        print(
+            "RetrievalDaemonManager: Health reported legacy daemon version '\(runningVersion)', " +
+            "but running binary hash matches expected '\(expectedVersion)'."
+        )
+        return true
+    }
+
+    private func runningDaemonBinaryVersion() -> String? {
+        let uid = getuid()
+        let serviceTarget = "gui/\(uid)/\(launchAgentLabel)"
+        let programPath = launchAgentProgramPath(serviceTarget: serviceTarget) ?? daemonBinaryURL().path
+        let url = URL(fileURLWithPath: programPath)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try? daemonBinaryVersion(at: url)
+    }
+
+    private func launchAgentProgramPath(serviceTarget: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["print", serviceTarget]
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            guard let text = String(data: data, encoding: .utf8) else { return nil }
+            for line in text.split(separator: "\n") {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("program = ") {
+                    return String(trimmed.dropFirst("program = ".count))
+                }
+            }
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
+    private func isHashVersion(_ value: String) -> Bool {
+        let regex = try? NSRegularExpression(pattern: "^[0-9a-f]{16}$")
+        let range = NSRange(value.startIndex..<value.endIndex, in: value)
+        return regex?.firstMatch(in: value, options: [], range: range) != nil
+    }
+
+    private func retrievalAllowlistRoots() -> [String] {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.array(forKey: "retrievalAllowlistRoots") as? [String], !raw.isEmpty {
+            return raw
+        }
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return [
+            home.appendingPathComponent("Desktop").path,
+            home.appendingPathComponent("Documents").path,
+        ]
+    }
+
+    private func launchAgentPlistContents(binaryPath: String, configPath: String) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>\(launchAgentLabel)</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>\(binaryPath)</string>
+                <string>--config</string>
+                <string>\(configPath)</string>
+            </array>
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <true/>
+            <key>WorkingDirectory</key>
+            <string>\(daemonDirectory().path)</string>
+            <key>StandardOutPath</key>
+            <string>\(AppPaths.retrievalLogsDirectory.appendingPathComponent("daemon.stdout.log").path)</string>
+            <key>StandardErrorPath</key>
+            <string>\(AppPaths.retrievalLogsDirectory.appendingPathComponent("daemon.stderr.log").path)</string>
+        </dict>
+        </plist>
+        """
+    }
+
+    private func daemonDirectory() -> URL {
+        AppPaths.retrievalDaemonDirectory
+    }
+
+    private func daemonBinaryURL() -> URL {
+        daemonDirectory().appendingPathComponent(binaryName)
+    }
+
+    private func daemonConfigURL() -> URL {
+        daemonDirectory().appendingPathComponent(configFileName)
+    }
+
+    private func resolvedLaunchAgentURL() -> URL {
+        let defaults = UserDefaults.standard
+        if let savedPath = defaults.string(forKey: launchAgentPathDefaultsKey), !savedPath.isEmpty {
+            return URL(fileURLWithPath: savedPath)
+        }
+        let homeAgentURL = launchAgentURLInHomeLibrary()
+        if FileManager.default.fileExists(atPath: homeAgentURL.path) {
+            return homeAgentURL
+        }
+        return launchAgentURLInDaemonDirectory()
+    }
+
+    private func launchAgentURLInHomeLibrary() -> URL {
+        AppPaths.realHomeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("LaunchAgents", isDirectory: true)
+            .appendingPathComponent(plistFileName)
+    }
+
+    private func launchAgentURLInDaemonDirectory() -> URL {
+        daemonDirectory().appendingPathComponent(plistFileName)
+    }
+
+    private func writeLaunchAgentPlist(_ contents: String) throws -> URL {
+        let fileManager = FileManager.default
+        let candidateURLs = [
+            launchAgentURLInHomeLibrary(),
+            launchAgentURLInDaemonDirectory(),
+        ]
+
+        var lastPermissionError: Error?
+        for candidateURL in candidateURLs {
+            do {
+                try fileManager.createDirectory(
+                    at: candidateURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try contents.write(to: candidateURL, atomically: true, encoding: .utf8)
+                return candidateURL
+            } catch {
+                if isPermissionDenied(error) {
+                    lastPermissionError = error
+                    continue
+                }
+                throw error
+            }
+        }
+
+        if let lastPermissionError {
+            throw lastPermissionError
+        }
+        throw NSError(
+            domain: "RetrievalDaemonManager",
+            code: 4,
+            userInfo: [NSLocalizedDescriptionKey: "Could not write retrieval launch agent plist to any supported location."]
+        )
+    }
+
+    private func isPermissionDenied(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileWriteNoPermissionError {
+            return true
+        }
+        if nsError.domain == NSPOSIXErrorDomain && nsError.code == Int(EACCES) {
+            return true
+        }
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+            if underlying.domain == NSCocoaErrorDomain && underlying.code == NSFileWriteNoPermissionError {
+                return true
+            }
+            if underlying.domain == NSPOSIXErrorDomain && underlying.code == Int(EACCES) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func resolveSourceBinary() throws -> URL {
+        if let auxiliary = Bundle.main.url(forAuxiliaryExecutable: binaryName) {
+            return auxiliary
+        }
+        if let bundled = Bundle.main.url(forResource: binaryName, withExtension: nil) {
+            return bundled
+        }
+        if let overridePath = ProcessInfo.processInfo.environment["HIVECREW_RETRIEVAL_DAEMON_PATH"] {
+            let url = URL(fileURLWithPath: overridePath)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+        throw NSError(
+            domain: "RetrievalDaemonManager",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "Could not locate bundled retrieval daemon binary."]
+        )
+    }
+
+    private func daemonBinaryVersion(at url: URL) throws -> String {
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        let digest = SHA256.hash(data: data)
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return String(hex.prefix(16))
     }
 }

@@ -35,6 +35,16 @@ public struct CreateTaskRequest: Codable, Sendable {
     public let planFirst: Bool?
     /// Names of skills explicitly mentioned by the user via @skill-name
     public let mentionedSkillNames: [String]?
+    /// Optional retrieval context pack id approved by the user.
+    public let contextPackId: String?
+    /// Optional selected retrieval suggestion IDs used for context pack creation.
+    public let contextSuggestionIds: [String]?
+    /// Optional mode overrides by suggestion ID (`file_ref`, `inline_snippet`, `structured_summary`).
+    public let contextModeOverrides: [String: String]?
+    /// Optional inline context blocks to inject into the system prompt.
+    public let contextInlineBlocks: [String]?
+    /// Optional attachment paths from retrieval context pack materialization.
+    public let contextAttachmentPaths: [String]?
     
     public init(
         description: String,
@@ -43,7 +53,12 @@ public struct CreateTaskRequest: Codable, Sendable {
         priority: APITaskPriority? = nil,
         outputDirectory: String? = nil,
         planFirst: Bool? = nil,
-        mentionedSkillNames: [String]? = nil
+        mentionedSkillNames: [String]? = nil,
+        contextPackId: String? = nil,
+        contextSuggestionIds: [String]? = nil,
+        contextModeOverrides: [String: String]? = nil,
+        contextInlineBlocks: [String]? = nil,
+        contextAttachmentPaths: [String]? = nil
     ) {
         self.description = description
         self.providerName = providerName
@@ -52,6 +67,11 @@ public struct CreateTaskRequest: Codable, Sendable {
         self.outputDirectory = outputDirectory
         self.planFirst = planFirst
         self.mentionedSkillNames = mentionedSkillNames
+        self.contextPackId = contextPackId
+        self.contextSuggestionIds = contextSuggestionIds
+        self.contextModeOverrides = contextModeOverrides
+        self.contextInlineBlocks = contextInlineBlocks
+        self.contextAttachmentPaths = contextAttachmentPaths
     }
 }
 

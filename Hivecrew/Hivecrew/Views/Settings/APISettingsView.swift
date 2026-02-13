@@ -15,6 +15,7 @@ struct APISettingsView: View {
     
     // MARK: - API Server State
     
+    @SwiftUI.Environment(\.openWindow) private var openWindow
     @AppStorage("apiServerEnabled") private var apiServerEnabled = false
     @AppStorage("apiServerPort") private var apiServerPort = 5482
     @AppStorage("apiMaxFileSize") private var apiMaxFileSize = 100 // MB
@@ -50,7 +51,7 @@ struct APISettingsView: View {
     @State private var isRemoteLoading = false
     @State private var showRemoveConfirmation = false
     @State private var urlCopyFeedback = false
-    
+
     // MARK: - Body
     
     var body: some View {
@@ -230,6 +231,21 @@ struct APISettingsView: View {
                 }
             } header: {
                 Text("Server")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Personal Context Index")
+                        .font(.headline)
+                    Text("Manage retrieval indexing in a dedicated window, including per-source indexing progress and readiness.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Open Retrieval Index…") {
+                        openWindow(id: "retrieval-index-window")
+                    }
+                }
+            } header: {
+                Text("Personal Context")
             }
             
             // Authentication Section
@@ -826,6 +842,143 @@ struct APISettingsView: View {
         
         let nsImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
         return Image(nsImage: nsImage)
+    }
+
+}
+
+private struct RetrievalHealthPayload: Decodable {
+    let daemonVersion: String?
+    let running: Bool?
+    let queueDepth: Int?
+    let lastError: String?
+}
+
+private struct RetrievalProgressRow: Decodable, Identifiable {
+    let sourceType: String
+    let scopeLabel: String
+    let status: String
+    let itemsProcessed: Int
+    let itemsSkipped: Int?
+    let estimatedTotal: Int
+    let percentComplete: Double
+    let etaSeconds: Int?
+    let checkpointUpdatedAt: Date?
+
+    var id: String { "\(sourceType)|\(scopeLabel)" }
+}
+
+private struct RetrievalSourceStatsRow: Decodable {
+    let sourceType: String
+    let documentCount: Int
+    let lastDocumentUpdatedAt: Date?
+}
+
+private struct RetrievalIndexStatsPayload: Decodable {
+    let totalDocumentCount: Int
+    let sources: [RetrievalSourceStatsRow]
+}
+
+private struct RetrievalQueueSourceActivityRow: Decodable {
+    let sourceType: String
+    let queuedItemCount: Int
+}
+
+private struct RetrievalQueueActivityPayload: Decodable {
+    let queueDepth: Int
+    let sources: [RetrievalQueueSourceActivityRow]
+}
+
+private struct RetrievalIndexSourceState: Identifiable {
+    enum StatusKind {
+        case notStarted
+        case indexing
+        case ready
+        case paused
+        case needsAttention
+
+        var label: String {
+            switch self {
+            case .notStarted:
+                return "Not Started"
+            case .indexing:
+                return "Indexing"
+            case .ready:
+                return "Ready"
+            case .paused:
+                return "Paused"
+            case .needsAttention:
+                return "Needs Attention"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .notStarted:
+                return .secondary
+            case .indexing:
+                return .blue
+            case .ready:
+                return .green
+            case .paused:
+                return .orange
+            case .needsAttention:
+                return .red
+            }
+        }
+    }
+
+    let sourceType: String
+    let status: StatusKind
+    let progress: Double
+    let indexedItems: Int
+    let queuedItems: Int
+    let etaSeconds: Int?
+    let lastUpdatedAt: Date?
+    let scopeCount: Int
+
+    var id: String { sourceType }
+}
+
+private enum RetrievalIndexOverallState {
+    case disabled
+    case unavailable
+    case indexing
+    case ready
+    case noData
+    case needsAttention
+
+    var title: String {
+        switch self {
+        case .disabled:
+            return "Off"
+        case .unavailable:
+            return "Unavailable"
+        case .indexing:
+            return "Indexing"
+        case .ready:
+            return "Ready"
+        case .noData:
+            return "No Data Yet"
+        case .needsAttention:
+            return "Needs Attention"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .disabled:
+            return .secondary
+        case .unavailable:
+            return .orange
+        case .indexing:
+            return .blue
+        case .ready:
+            return .green
+        case .noData:
+            return .secondary
+        case .needsAttention:
+            return .red
+        }
     }
 }
 

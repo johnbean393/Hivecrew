@@ -9,10 +9,23 @@ import SwiftUI
 import UniformTypeIdentifiers
 import QuickLookThumbnailing
 
+enum PromptAttachmentOrigin: Equatable {
+    case userSelection
+    case indexedContext(suggestionID: String)
+
+    var indexedSuggestionID: String? {
+        if case .indexedContext(let suggestionID) = self {
+            return suggestionID
+        }
+        return nil
+    }
+}
+
 /// A model representing an attached file
 struct PromptAttachment: Identifiable, Equatable {
     let id: UUID
     let url: URL
+    let origin: PromptAttachmentOrigin
     var thumbnail: NSImage?
     
     var fileName: String {
@@ -24,9 +37,10 @@ struct PromptAttachment: Identifiable, Equatable {
         return uti.conforms(to: .image)
     }
     
-    init(url: URL) {
+    init(url: URL, origin: PromptAttachmentOrigin = .userSelection) {
         self.id = UUID()
         self.url = url
+        self.origin = origin
         self.thumbnail = nil
     }
     
@@ -39,6 +53,7 @@ struct PromptAttachment: Identifiable, Equatable {
 struct PromptAttachmentPreviewList: View {
     
     @Binding var attachments: [PromptAttachment]
+    var onRemoveAttachment: ((PromptAttachment) -> Void)? = nil
     
     var body: some View {
         if !attachments.isEmpty {
@@ -51,6 +66,7 @@ struct PromptAttachmentPreviewList: View {
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     attachments.removeAll { $0.id == attachment.id }
                                 }
+                                onRemoveAttachment?(attachment)
                             }
                         )
                     }

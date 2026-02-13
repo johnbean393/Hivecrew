@@ -89,6 +89,11 @@
 		2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */; };
 		2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB32F1D1984007E4475 /* APIKeyManager.swift */; };
 		2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB72F1D19B0007E4475 /* APISettingsView.swift */; };
+		30B2A2012F81000100000001 /* RetrievalIndexWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */; };
+		30B2A2022F81000100000002 /* RetrievalIndexViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */; };
+		30B2A2032F81000100000003 /* RetrievalIndexSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */; };
+		30B2A2042F81000100000004 /* RetrievalIndexOverallDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */; };
+		30B2A2052F81000100000005 /* RetrievalIndexSourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */; };
 		2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */; };
 		2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */; };
 		2053666C2F2FE3F70097E3FE /* HivecrewMCP in Frameworks */ = {isa = PBXBuildFile; productRef = 2053666B2F2FE3F70097E3FE /* HivecrewMCP */; };
@@ -306,6 +311,11 @@
 		2052ACB32F1D1984007E4475 /* APIKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyManager.swift; sourceTree = "<group>"; };
 		2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceProviderBridge.swift; sourceTree = "<group>"; };
 		2052ACB72F1D19B0007E4475 /* APISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsView.swift; sourceTree = "<group>"; };
+		30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexWindow.swift; sourceTree = "<group>"; };
+		30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexViewModel.swift; sourceTree = "<group>"; };
+		30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSidebarView.swift; sourceTree = "<group>"; };
+		30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexOverallDetailView.swift; sourceTree = "<group>"; };
+		30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSourceDetailView.swift; sourceTree = "<group>"; };
 		2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerStatus.swift; sourceTree = "<group>"; };
 		2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerManager.swift; sourceTree = "<group>"; };
 		2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+MCP.swift"; sourceTree = "<group>"; };
@@ -715,6 +725,11 @@
 				AAAA00072F1E200000000007 /* Credentials */,
 				AAAA00082F1E200000000008 /* Providers */,
 				2052ACB72F1D19B0007E4475 /* APISettingsView.swift */,
+				30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */,
+				30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */,
+				30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */,
+				30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */,
+				30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */,
 				204DF4212F14DEEF004AB99B /* DeveloperSettingsView.swift */,
 				204DF4122F145F94004AB99B /* EnvironmentSettingsView.swift */,
 				209C618F2F12ABD700062D0E /* SettingsView.swift */,
@@ -1000,6 +1015,7 @@
 				209C5F902F12947F00062D0E /* Sources */,
 				209C5F912F12947F00062D0E /* Frameworks */,
 				209C5F922F12947F00062D0E /* Resources */,
+				30B100032F72000100000003 /* Build Retrieval Daemon */,
 				209C5FED2F12973D00062D0E /* Embed XPC Services */,
 			);
 			buildRules = (
@@ -1130,11 +1146,13 @@
 				209C604C2F129A7200062D0E /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */,
 				2019E33E2F139C0000041819 /* XCLocalSwiftPackageReference "../Packages/HivecrewLLM" */,
 				20A0FC082F1D1707000A066A /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */,
+				30B100022F72000100000002 /* XCLocalSwiftPackageReference "../Packages/HivecrewMCP" */,
 				2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */,
 				20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */,
 				204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */,
 				204DF44F2F16274B004AB99B /* XCRemoteSwiftPackageReference "GoogleSearch" */,
 				2049633B2F17E553007DD5FD /* XCRemoteSwiftPackageReference "Sparkle" */,
+				206C85822F3E2B7E00941285 /* XCLocalSwiftPackageReference "../Packages/HivecrewRetrievalSystem" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 209C5F952F12947F00062D0E /* Products */;
@@ -1186,6 +1204,30 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		30B100032F72000100000003 /* Build Retrieval Daemon */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Retrieval Daemon";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/hivecrew-retrieval-daemon",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "set -euo pipefail\n\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  SWIFT_CONFIG=\"debug\"\nelse\n  SWIFT_CONFIG=\"release\"\nfi\n\nPKG_PATH=\"${SRCROOT}/../Packages/HivecrewRetrievalSystem\"\nTOOLCHAIN=\"${TOOLCHAINS:-XcodeDefault}\"\n\n# Force an actual build so we never copy a stale daemon binary.\nxcrun --toolchain \"$TOOLCHAIN\" swift build --package-path \"$PKG_PATH\" --product hivecrew-retrieval-daemon --configuration \"$SWIFT_CONFIG\"\nBIN_DIR=\"$(xcrun --toolchain \"$TOOLCHAIN\" swift build --package-path \"$PKG_PATH\" --product hivecrew-retrieval-daemon --configuration \"$SWIFT_CONFIG\" --show-bin-path)\"\nBIN_PATH=\"$BIN_DIR/hivecrew-retrieval-daemon\"\n\nDEST=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/hivecrew-retrieval-daemon\"\nmkdir -p \"$(dirname \"$DEST\")\"\ncp \"$BIN_PATH\" \"$DEST\"\nchmod +x \"$DEST\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		209C5F902F12947F00062D0E /* Sources */ = {
@@ -1319,6 +1361,11 @@
 				204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */,
 				204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */,
 				2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */,
+				30B2A2012F81000100000001 /* RetrievalIndexWindow.swift in Sources */,
+				30B2A2022F81000100000002 /* RetrievalIndexViewModel.swift in Sources */,
+				30B2A2032F81000100000003 /* RetrievalIndexSidebarView.swift in Sources */,
+				30B2A2042F81000100000004 /* RetrievalIndexOverallDetailView.swift in Sources */,
+				30B2A2052F81000100000005 /* RetrievalIndexSourceDetailView.swift in Sources */,
 				204DF43C2F157398004AB99B /* TaskService+VMCleanup.swift in Sources */,
 				20B899482F1FAEC4003887A3 /* SchedulerService.swift in Sources */,
 				20B899452F1FAEB5003887A3 /* ScheduledTask.swift in Sources */,
@@ -1535,6 +1582,7 @@
 				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1571,6 +1619,7 @@
 				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1790,6 +1839,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewLLM;
 		};
+		206C85822F3E2B7E00941285 /* XCLocalSwiftPackageReference "../Packages/HivecrewRetrievalSystem" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewRetrievalSystem;
+		};
 		209C604C2F129A7200062D0E /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewShared;
@@ -1797,6 +1850,10 @@
 		20A0FC082F1D1707000A066A /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewAPI;
+		};
+		30B100022F72000100000002 /* XCLocalSwiftPackageReference "../Packages/HivecrewMCP" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewMCP;
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -1870,7 +1927,24 @@
 		};
 		2053666B2F2FE3F70097E3FE /* HivecrewMCP */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 30B100022F72000100000002 /* XCLocalSwiftPackageReference "../Packages/HivecrewMCP" */;
 			productName = HivecrewMCP;
+		};
+		206C85832F3E2B7E00941285 /* HivecrewRetrievalClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewRetrievalClient;
+		};
+		206C85852F3E2B7E00941285 /* HivecrewRetrievalCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewRetrievalCore;
+		};
+		206C85872F3E2B7E00941285 /* HivecrewRetrievalProtocol */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewRetrievalProtocol;
+		};
+		206C85892F3E2B7E00941285 /* hivecrew-retrieval-daemon */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = "hivecrew-retrieval-daemon";
 		};
 		209C604A2F129A6400062D0E /* HivecrewShared */ = {
 			isa = XCSwiftPackageProductDependency;

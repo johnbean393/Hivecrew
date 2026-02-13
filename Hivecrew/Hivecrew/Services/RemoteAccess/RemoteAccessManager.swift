@@ -60,10 +60,17 @@ enum RemoteAccessState: Equatable {
 
 // MARK: - Remote Access Manager
 
-@MainActor
-final class RemoteAccessManager {
+actor RemoteAccessManager {
     
     static let shared = RemoteAccessManager()
+
+    private struct RemoteReconnectSnapshot {
+        let enabled: Bool
+        let isConfigured: Bool
+        let email: String?
+        let subdomain: String?
+        let tunnelToken: String?
+    }
     
     private let apiClient = RemoteAccessAPIClient()
     private let cloudflaredManager = CloudflaredManager()
@@ -71,31 +78,25 @@ final class RemoteAccessManager {
     private var heartbeatTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     
-    private var status: RemoteAccessStatus { RemoteAccessStatus.shared }
-    
     private init() {}
     
     // MARK: - Setup Flow
     
     /// Step 1: Request OTP for the given email
     func requestOTP(email: String) async {
-        status.update(state: .authenticating, email: email)
+        await updateStatus(state: .authenticating, email: email)
         
         do {
             try await apiClient.register(email: email)
-            await MainActor.run {
-                status.update(state: .awaitingOTP, email: email)
-            }
+            await updateStatus(state: .awaitingOTP, email: email)
         } catch {
-            await MainActor.run {
-                status.update(state: .failed, error: error.localizedDescription)
-            }
+            await updateStatus(state: .failed, error: error.localizedDescription)
         }
     }
     
     /// Step 2: Verify OTP code
     func verifyOTP(email: String, code: String) async {
-        status.update(state: .authenticating)
+        await updateStatus(state: .authenticating)
         
         do {
             let sessionToken = try await apiClient.verify(email: email, code: code)
@@ -107,15 +108,13 @@ final class RemoteAccessManager {
             // Proceed to create tunnel
             await createTunnel(sessionToken: sessionToken)
         } catch {
-            await MainActor.run {
-                status.update(state: .awaitingOTP, error: error.localizedDescription)
-            }
+            await updateStatus(state: .awaitingOTP, error: error.localizedDescription)
         }
     }
     
     /// Step 3: Create tunnel via the Worker API
     private func createTunnel(sessionToken: String) async {
-        status.update(state: .provisioning)
+        await updateStatus(state: .provisioning)
         
         do {
             let response = try await apiClient.createTunnel(sessionToken: sessionToken)
@@ -132,9 +131,7 @@ final class RemoteAccessManager {
             // Start cloudflared
             await startCloudflared(tunnelToken: response.tunnelToken, subdomain: response.subdomain)
         } catch {
-            await MainActor.run {
-                status.update(state: .failed, error: error.localizedDescription)
-            }
+            await updateStatus(state: .failed, error: error.localizedDescription)
         }
     }
     
@@ -142,12 +139,13 @@ final class RemoteAccessManager {
     
     /// Start cloudflared and connect the tunnel
     private func startCloudflared(tunnelToken: String, subdomain: String) async {
-        status.update(state: .connecting)
+        await updateStatus(state: .connecting)
         
         // Set up crash handler
         await cloudflaredManager.setOnUnexpectedTermination { [weak self] code in
-            Task { @MainActor in
-                self?.handleCloudflaredCrash(code: code)
+            guard let self else { return }
+            Task {
+                await self.handleCloudflaredCrash(code: code)
             }
         }
         
@@ -155,26 +153,23 @@ final class RemoteAccessManager {
             try await cloudflaredManager.start(token: tunnelToken)
             
             let url = "https://\(subdomain).hivecrew.org"
-            await MainActor.run {
-                status.update(state: .connected, url: url, subdomain: subdomain)
-            }
+            await updateStatus(state: .connected, url: url, subdomain: subdomain)
             
             // Start heartbeat
             startHeartbeat()
             
             print("RemoteAccessManager: Connected at \(url)")
         } catch {
-            await MainActor.run {
-                status.update(state: .failed, error: error.localizedDescription)
-            }
+            await updateStatus(state: .failed, error: error.localizedDescription)
         }
     }
     
     /// Reconnect using stored credentials
     func reconnect() async {
-        guard let tunnelToken = RemoteAccessKeychain.retrieveTunnelToken(),
-              let subdomain = RemoteAccessKeychain.retrieveSubdomain() else {
-            status.update(state: .notConfigured, error: "No tunnel credentials found")
+        let credentials = await loadReconnectSnapshot()
+        guard let tunnelToken = credentials.tunnelToken,
+              let subdomain = credentials.subdomain else {
+            await updateStatus(state: .notConfigured, error: "No tunnel credentials found")
             return
         }
         
@@ -183,25 +178,28 @@ final class RemoteAccessManager {
     
     /// Auto-reconnect on startup if remote access was previously enabled
     func reconnectIfNeeded() async {
-        let enabled = UserDefaults.standard.bool(forKey: "remoteAccessEnabled")
-        guard enabled else { return }
-        
-        guard RemoteAccessKeychain.isConfigured else {
+        let snapshot = await loadReconnectSnapshot()
+        guard snapshot.enabled else { return }
+
+        guard snapshot.isConfigured else {
             // Credentials were cleared but flag wasn't — clean up
             UserDefaults.standard.set(false, forKey: "remoteAccessEnabled")
             return
         }
-        
-        // Load stored info for display
-        let email = RemoteAccessKeychain.retrieveEmail()
-        let subdomain = RemoteAccessKeychain.retrieveSubdomain()
-        status.update(
+
+        // Load stored info for display without blocking the main actor.
+        await updateStatus(
             state: .disconnected,
-            subdomain: subdomain,
-            email: email
+            subdomain: snapshot.subdomain,
+            email: snapshot.email
         )
-        
-        await reconnect()
+
+        guard let tunnelToken = snapshot.tunnelToken,
+              let subdomain = snapshot.subdomain else {
+            await updateStatus(state: .notConfigured, error: "No tunnel credentials found")
+            return
+        }
+        await startCloudflared(tunnelToken: tunnelToken, subdomain: subdomain)
     }
     
     /// Disconnect (stop cloudflared but keep credentials)
@@ -213,9 +211,8 @@ final class RemoteAccessManager {
         
         await cloudflaredManager.stop()
         
-        let subdomain = RemoteAccessKeychain.retrieveSubdomain()
-        let email = RemoteAccessKeychain.retrieveEmail()
-        status.update(state: .disconnected, subdomain: subdomain, email: email)
+        let snapshot = await loadReconnectSnapshot()
+        await updateStatus(state: .disconnected, subdomain: snapshot.subdomain, email: snapshot.email)
     }
     
     /// Remove remote access completely (delete tunnel, clear credentials)
@@ -223,7 +220,7 @@ final class RemoteAccessManager {
         // Stop cloudflared
         await disconnect()
         
-        status.update(state: .notConfigured)
+        await updateStatus(state: .notConfigured)
         
         // Delete tunnel via Worker API
         if let sessionToken = RemoteAccessKeychain.retrieveSessionToken(),
@@ -242,7 +239,7 @@ final class RemoteAccessManager {
         UserDefaults.standard.removeObject(forKey: "remoteAccessSubdomain")
         UserDefaults.standard.removeObject(forKey: "remoteAccessEmail")
         
-        status.reset()
+        await resetStatus()
     }
     
     /// Graceful shutdown (called on app termination)
@@ -278,26 +275,62 @@ final class RemoteAccessManager {
     
     // MARK: - Crash Recovery
     
-    private func handleCloudflaredCrash(code: Int32) {
+    private func handleCloudflaredCrash(code: Int32) async {
         print("RemoteAccessManager: cloudflared crashed with code \(code)")
-        
-        let subdomain = RemoteAccessKeychain.retrieveSubdomain()
-        let email = RemoteAccessKeychain.retrieveEmail()
-        status.update(
+
+        let snapshot = await loadReconnectSnapshot()
+        await updateStatus(
             state: .disconnected,
-            subdomain: subdomain,
-            email: email,
+            subdomain: snapshot.subdomain,
+            email: snapshot.email,
             error: "Tunnel disconnected unexpectedly (code \(code))"
         )
         
         // Auto-reconnect after a brief delay
         reconnectTask?.cancel()
-        reconnectTask = Task {
+        reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled else { return }
+            guard let self else { return }
             
             print("RemoteAccessManager: Attempting auto-reconnect...")
-            await reconnect()
+            await self.reconnect()
+        }
+    }
+
+    private func loadReconnectSnapshot() async -> RemoteReconnectSnapshot {
+        await Task.detached(priority: .utility) {
+            RemoteReconnectSnapshot(
+                enabled: UserDefaults.standard.bool(forKey: "remoteAccessEnabled"),
+                isConfigured: RemoteAccessKeychain.isConfigured,
+                email: RemoteAccessKeychain.retrieveEmail(),
+                subdomain: RemoteAccessKeychain.retrieveSubdomain(),
+                tunnelToken: RemoteAccessKeychain.retrieveTunnelToken()
+            )
+        }.value
+    }
+
+    private func updateStatus(
+        state: RemoteAccessState,
+        url: String? = nil,
+        subdomain: String? = nil,
+        email: String? = nil,
+        error: String? = nil
+    ) async {
+        await MainActor.run {
+            RemoteAccessStatus.shared.update(
+                state: state,
+                url: url,
+                subdomain: subdomain,
+                email: email,
+                error: error
+            )
+        }
+    }
+
+    private func resetStatus() async {
+        await MainActor.run {
+            RemoteAccessStatus.shared.reset()
         }
     }
 }

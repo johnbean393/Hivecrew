@@ -39,6 +39,22 @@ struct SkillsMenuCommand: Commands {
     }
 }
 
+// MARK: - Retrieval Index Menu Command
+
+/// Menu command for opening the Retrieval Index window - placed in View menu
+struct RetrievalIndexMenuCommand: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Button("Retrieval Index") {
+                openWindow(id: "retrieval-index-window")
+            }
+            .keyboardShortcut("i", modifiers: [.command, .shift])
+        }
+    }
+}
+
 // MARK: - Manage Devices Command
 
 /// Menu command for opening Settings → Connect tab to manage devices

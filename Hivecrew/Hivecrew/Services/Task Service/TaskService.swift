@@ -96,6 +96,11 @@ class TaskService: ObservableObject {
         attachmentInfos: [AttachmentInfo]? = nil,
         outputDirectory: String? = nil,
         mentionedSkillNames: [String] = [],
+        retrievalContextPackId: String? = nil,
+        retrievalInlineContextBlocks: [String] = [],
+        retrievalContextAttachmentPaths: [String] = [],
+        retrievalSelectedSuggestionIds: [String] = [],
+        retrievalModeOverrides: [String: String] = [:],
         planFirstEnabled: Bool = false,
         planMarkdown: String? = nil,
         planSelectedSkillNames: [String]? = nil
@@ -107,14 +112,19 @@ class TaskService: ObservableObject {
         // Use quick fallback title immediately for instant UI feedback
         let quickTitle = titleGenerator.generateQuickTitle(from: description)
         
+        // Combine explicit user attachments with retrieval-derived file refs.
+        let mergedAttachedFilePaths = Array(
+            Set(attachedFilePaths + retrievalContextAttachmentPaths)
+        ).sorted()
+
         // Prepare attachment metadata (files are copied later when session starts)
         let preparedInfos: [AttachmentInfo]?
         if let existingInfos = attachmentInfos {
             // Use pre-processed infos (from rerun)
             preparedInfos = existingInfos
-        } else if !attachedFilePaths.isEmpty {
+        } else if !mergedAttachedFilePaths.isEmpty {
             // Prepare metadata for new file paths (no copying yet)
-            preparedInfos = AttachmentManager.prepareAttachmentInfos(filePaths: attachedFilePaths)
+            preparedInfos = AttachmentManager.prepareAttachmentInfos(filePaths: mergedAttachedFilePaths)
         } else {
             preparedInfos = nil
         }
@@ -129,6 +139,11 @@ class TaskService: ObservableObject {
             attachmentInfos: preparedInfos,
             outputDirectory: outputDirectory,
             mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames,
+            retrievalContextPackId: retrievalContextPackId,
+            retrievalInlineContextBlocks: retrievalInlineContextBlocks,
+            retrievalContextAttachmentPaths: retrievalContextAttachmentPaths.isEmpty ? nil : retrievalContextAttachmentPaths,
+            retrievalSelectedSuggestionIds: retrievalSelectedSuggestionIds.isEmpty ? nil : retrievalSelectedSuggestionIds,
+            retrievalModeOverrides: retrievalModeOverrides.isEmpty ? nil : retrievalModeOverrides,
             planFirstEnabled: planFirstEnabled
         )
         
@@ -185,6 +200,11 @@ class TaskService: ObservableObject {
             attachmentInfos: newInfos.isEmpty ? nil : newInfos,
             outputDirectory: originalTask.outputDirectory,
             mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
+            retrievalContextPackId: originalTask.retrievalContextPackId,
+            retrievalInlineContextBlocks: originalTask.retrievalInlineContextBlocks,
+            retrievalContextAttachmentPaths: originalTask.retrievalContextAttachmentPaths ?? [],
+            retrievalSelectedSuggestionIds: originalTask.retrievalSelectedSuggestionIds ?? [],
+            retrievalModeOverrides: originalTask.retrievalModeOverrides,
             planFirstEnabled: originalTask.planFirstEnabled,
             planMarkdown: originalTask.planMarkdown,
             planSelectedSkillNames: originalTask.planSelectedSkillNames
@@ -207,6 +227,11 @@ class TaskService: ObservableObject {
             attachmentInfos: resolvedAttachments.isEmpty ? nil : resolvedAttachments,
             outputDirectory: originalTask.outputDirectory,
             mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
+            retrievalContextPackId: originalTask.retrievalContextPackId,
+            retrievalInlineContextBlocks: originalTask.retrievalInlineContextBlocks,
+            retrievalContextAttachmentPaths: originalTask.retrievalContextAttachmentPaths ?? [],
+            retrievalSelectedSuggestionIds: originalTask.retrievalSelectedSuggestionIds ?? [],
+            retrievalModeOverrides: originalTask.retrievalModeOverrides,
             planFirstEnabled: originalTask.planFirstEnabled,
             planMarkdown: originalTask.planMarkdown,
             planSelectedSkillNames: originalTask.planSelectedSkillNames
