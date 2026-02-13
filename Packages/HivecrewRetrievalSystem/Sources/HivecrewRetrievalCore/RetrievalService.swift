@@ -41,7 +41,7 @@ public actor RetrievalService {
         // Fallback: assume a heterogeneous split if perflevel counters are unavailable.
         return max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
     }()
-    private static let ingestionWorkerMultiplier = 3
+    private static let ingestionWorkerMultiplier = 1
 
     public init(configuration: RetrievalDaemonConfiguration, paths: RetrievalPaths) throws {
         self.daemonVersion = Self.computeDaemonVersion()

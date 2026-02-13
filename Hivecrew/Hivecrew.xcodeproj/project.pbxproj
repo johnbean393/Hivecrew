@@ -89,11 +89,6 @@
 		2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */; };
 		2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB32F1D1984007E4475 /* APIKeyManager.swift */; };
 		2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB72F1D19B0007E4475 /* APISettingsView.swift */; };
-		30B2A2012F81000100000001 /* RetrievalIndexWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */; };
-		30B2A2022F81000100000002 /* RetrievalIndexViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */; };
-		30B2A2032F81000100000003 /* RetrievalIndexSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */; };
-		30B2A2042F81000100000004 /* RetrievalIndexOverallDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */; };
-		30B2A2052F81000100000005 /* RetrievalIndexSourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */; };
 		2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */; };
 		2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */; };
 		2053666C2F2FE3F70097E3FE /* HivecrewMCP in Frameworks */ = {isa = PBXBuildFile; productRef = 2053666B2F2FE3F70097E3FE /* HivecrewMCP */; };
@@ -169,6 +164,21 @@
 		20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */; };
 		20C413F62F14302F00C6E8A9 /* Hivecrew.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20C413F52F14302F00C6E8A9 /* Hivecrew.icon */; };
 		20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */ = {isa = PBXBuildFile; productRef = 20C413F82F143BAA00C6E8A9 /* MarkdownView */; };
+		20E22DFF2F3EC818003EFCE4 /* ElapsedTimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22DFE2F3EC818003EFCE4 /* ElapsedTimeView.swift */; };
+		20E22E012F3EC845003EFCE4 /* ContextSuggestionDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E002F3EC845003EFCE4 /* ContextSuggestionDrawerView.swift */; };
+		20E22E042F3EC85E003EFCE4 /* PlanProgressSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E032F3EC85E003EFCE4 /* PlanProgressSectionView.swift */; };
+		20E22E052F3EC85E003EFCE4 /* ActivityEntryRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E022F3EC85E003EFCE4 /* ActivityEntryRowView.swift */; };
+		20E22E082F3EC873003EFCE4 /* ActiveTaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E062F3EC873003EFCE4 /* ActiveTaskRowView.swift */; };
+		20E22E092F3EC873003EFCE4 /* DeveloperVMRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E072F3EC873003EFCE4 /* DeveloperVMRowView.swift */; };
+		20E22E0C2F3EC88B003EFCE4 /* UsernameRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E0B2F3EC88B003EFCE4 /* UsernameRowView.swift */; };
+		20E22E0D2F3EC88B003EFCE4 /* TokenCopyRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E0A2F3EC88B003EFCE4 /* TokenCopyRowView.swift */; };
+		20E22E102F3EC89F003EFCE4 /* MCPServerRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E0E2F3EC89F003EFCE4 /* MCPServerRowView.swift */; };
+		20E22E112F3EC89F003EFCE4 /* PresetButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E0F2F3EC89F003EFCE4 /* PresetButtonView.swift */; };
+		20E22E132F3EC8AD003EFCE4 /* ProviderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E122F3EC8AD003EFCE4 /* ProviderRowView.swift */; };
+		20E22E162F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E152F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift */; };
+		20E22E172F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E142F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift */; };
+		20E22E1A2F3EC8FE003EFCE4 /* StatusPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E192F3EC8FE003EFCE4 /* StatusPillView.swift */; };
+		20E22E1B2F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E182F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift */; };
 		20F1A7B12F40C9A800B1D2C3 /* AgentPreviewStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */; };
 		20F9A1E32F70000100ABCDEF /* PromptModelPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */; };
 		20F9A1E42F70000100ABCDEF /* PromptModelHoverPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */; };
@@ -193,6 +203,11 @@
 		30A1F0A22F61000100000002 /* SubagentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B22F61000100000002 /* SubagentRunner.swift */; };
 		30A1F0A32F61000100000003 /* SubagentToolExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B32F61000100000003 /* SubagentToolExecutor.swift */; };
 		30A1F0A42F61000100000004 /* VMToolScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B42F61000100000004 /* VMToolScheduler.swift */; };
+		30B2A2012F81000100000001 /* RetrievalIndexWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */; };
+		30B2A2022F81000100000002 /* RetrievalIndexViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */; };
+		30B2A2032F81000100000003 /* RetrievalIndexSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */; };
+		30B2A2042F81000100000004 /* RetrievalIndexOverallDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */; };
+		30B2A2052F81000100000005 /* RetrievalIndexSourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -311,11 +326,6 @@
 		2052ACB32F1D1984007E4475 /* APIKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyManager.swift; sourceTree = "<group>"; };
 		2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceProviderBridge.swift; sourceTree = "<group>"; };
 		2052ACB72F1D19B0007E4475 /* APISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsView.swift; sourceTree = "<group>"; };
-		30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexWindow.swift; sourceTree = "<group>"; };
-		30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexViewModel.swift; sourceTree = "<group>"; };
-		30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSidebarView.swift; sourceTree = "<group>"; };
-		30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexOverallDetailView.swift; sourceTree = "<group>"; };
-		30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSourceDetailView.swift; sourceTree = "<group>"; };
 		2052ACB92F1D1C71007E4475 /* APIServerStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerStatus.swift; sourceTree = "<group>"; };
 		2052ACBB2F1D1E39007E4475 /* APIServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServerManager.swift; sourceTree = "<group>"; };
 		2053666D2F2FE4760097E3FE /* ToolExecutor+MCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ToolExecutor+MCP.swift"; sourceTree = "<group>"; };
@@ -390,6 +400,21 @@
 		20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedTasksStartupSheet.swift; sourceTree = "<group>"; };
 		20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminationConfirmationSheet.swift; sourceTree = "<group>"; };
 		20C413F52F14302F00C6E8A9 /* Hivecrew.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Hivecrew.icon; sourceTree = "<group>"; };
+		20E22DFE2F3EC818003EFCE4 /* ElapsedTimeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElapsedTimeView.swift; sourceTree = "<group>"; };
+		20E22E002F3EC845003EFCE4 /* ContextSuggestionDrawerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSuggestionDrawerView.swift; sourceTree = "<group>"; };
+		20E22E022F3EC85E003EFCE4 /* ActivityEntryRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEntryRowView.swift; sourceTree = "<group>"; };
+		20E22E032F3EC85E003EFCE4 /* PlanProgressSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanProgressSectionView.swift; sourceTree = "<group>"; };
+		20E22E062F3EC873003EFCE4 /* ActiveTaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveTaskRowView.swift; sourceTree = "<group>"; };
+		20E22E072F3EC873003EFCE4 /* DeveloperVMRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperVMRowView.swift; sourceTree = "<group>"; };
+		20E22E0A2F3EC88B003EFCE4 /* TokenCopyRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCopyRowView.swift; sourceTree = "<group>"; };
+		20E22E0B2F3EC88B003EFCE4 /* UsernameRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsernameRowView.swift; sourceTree = "<group>"; };
+		20E22E0E2F3EC89F003EFCE4 /* MCPServerRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerRowView.swift; sourceTree = "<group>"; };
+		20E22E0F2F3EC89F003EFCE4 /* PresetButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetButtonView.swift; sourceTree = "<group>"; };
+		20E22E122F3EC8AD003EFCE4 /* ProviderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRowView.swift; sourceTree = "<group>"; };
+		20E22E142F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardObservedView.swift; sourceTree = "<group>"; };
+		20E22E152F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardStaticView.swift; sourceTree = "<group>"; };
+		20E22E182F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardContentView.swift; sourceTree = "<group>"; };
+		20E22E192F3EC8FE003EFCE4 /* StatusPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPillView.swift; sourceTree = "<group>"; };
 		20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewStripView.swift; sourceTree = "<group>"; };
 		20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelPopover.swift; sourceTree = "<group>"; };
 		20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelHoverPanel.swift; sourceTree = "<group>"; };
@@ -414,6 +439,11 @@
 		30A1F0B22F61000100000002 /* SubagentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentRunner.swift; sourceTree = "<group>"; };
 		30A1F0B32F61000100000003 /* SubagentToolExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentToolExecutor.swift; sourceTree = "<group>"; };
 		30A1F0B42F61000100000004 /* VMToolScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMToolScheduler.swift; sourceTree = "<group>"; };
+		30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexWindow.swift; sourceTree = "<group>"; };
+		30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexViewModel.swift; sourceTree = "<group>"; };
+		30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSidebarView.swift; sourceTree = "<group>"; };
+		30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexOverallDetailView.swift; sourceTree = "<group>"; };
+		30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSourceDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -504,6 +534,8 @@
 		202F64E02F2FE30400F6F359 /* MCP */ = {
 			isa = PBXGroup;
 			children = (
+				20E22E0E2F3EC89F003EFCE4 /* MCPServerRowView.swift */,
+				20E22E0F2F3EC89F003EFCE4 /* PresetButtonView.swift */,
 				202F64DE2F2FE30400F6F359 /* MCPServerEditSheet.swift */,
 				202F64DF2F2FE30400F6F359 /* MCPSettingsView.swift */,
 			);
@@ -707,11 +739,15 @@
 		209C618C2F12ABD700062D0E /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
+				20E22E142F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift */,
+				20E22E152F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift */,
+				20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */,
+				20E22E182F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift */,
+				20E22E192F3EC8FE003EFCE4 /* StatusPillView.swift */,
 				AAAA00052F1E200000000005 /* Session Trace */,
 				AAAA00062F1E200000000006 /* Tasks */,
 				204DF42E2F1571AB004AB99B /* Prompt Bar */,
 				209C618A2F12ABD700062D0E /* DashboardView.swift */,
-				20F1A7B02F40C9A800B1D2C3 /* AgentPreviewStripView.swift */,
 				209C618B2F12ABD700062D0E /* StatCard.swift */,
 			);
 			path = Dashboard;
@@ -953,6 +989,8 @@
 		AAAA00062F1E200000000006 /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
+				20E22E002F3EC845003EFCE4 /* ContextSuggestionDrawerView.swift */,
+				20E22DFE2F3EC818003EFCE4 /* ElapsedTimeView.swift */,
 				202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */,
 				3001A00A2F1500000000000A /* TaskInputView.swift */,
 				3001A00B2F1500000000000B /* TaskListView.swift */,
@@ -964,6 +1002,8 @@
 		AAAA00072F1E200000000007 /* Credentials */ = {
 			isa = PBXGroup;
 			children = (
+				20E22E0A2F3EC88B003EFCE4 /* TokenCopyRowView.swift */,
+				20E22E0B2F3EC88B003EFCE4 /* UsernameRowView.swift */,
 				209EB6D12F1E188400A7F13F /* CredentialImportSheet.swift */,
 				209EB6D22F1E188400A7F13F /* CredentialRowView.swift */,
 				209EB6D32F1E188400A7F13F /* CredentialSheets.swift */,
@@ -975,6 +1015,7 @@
 		AAAA00082F1E200000000008 /* Providers */ = {
 			isa = PBXGroup;
 			children = (
+				20E22E122F3EC8AD003EFCE4 /* ProviderRowView.swift */,
 				202F64DC2F2FCA1400F6F359 /* ProviderUtilities.swift */,
 				209EB6DB2F1E194800A7F13F /* ProviderEditSheet.swift */,
 				209C618D2F12ABD700062D0E /* ProvidersSettingsView.swift */,
@@ -985,6 +1026,10 @@
 		AAAA00092F1E200000000009 /* Agent */ = {
 			isa = PBXGroup;
 			children = (
+				20E22E022F3EC85E003EFCE4 /* ActivityEntryRowView.swift */,
+				20E22E062F3EC873003EFCE4 /* ActiveTaskRowView.swift */,
+				20E22E072F3EC873003EFCE4 /* DeveloperVMRowView.swift */,
+				20E22E032F3EC85E003EFCE4 /* PlanProgressSectionView.swift */,
 				3001A00E2F1500000000000E /* AgentActivityStreamView.swift */,
 				209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */,
 				3001A00F2F1500000000000F /* AgentStatusBar.swift */,
@@ -1237,6 +1282,8 @@
 				204DF41A2F14D5E7004AB99B /* OnboardingTemplateStep.swift in Sources */,
 				204DF41B2F14D5E7004AB99B /* OnboardingView.swift in Sources */,
 				20B8994D2F1FAEE1003887A3 /* ScheduledTaskRowView.swift in Sources */,
+				20E22E082F3EC873003EFCE4 /* ActiveTaskRowView.swift in Sources */,
+				20E22E092F3EC873003EFCE4 /* DeveloperVMRowView.swift in Sources */,
 				20B8994E2F1FAEE1003887A3 /* ScheduleCreationSheet.swift in Sources */,
 				20B8994F2F1FAEE1003887A3 /* ScheduledTasksView.swift in Sources */,
 				204DF41C2F14D5E7004AB99B /* OnboardingWelcomeStep.swift in Sources */,
@@ -1264,6 +1311,8 @@
 				209EB6F22F1E284700A7F13F /* SkillExtractionSheet.swift in Sources */,
 				20C413ED2F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift in Sources */,
 				202F64842F2DB88700F6F359 /* PlanningTools.swift in Sources */,
+				20E22E1A2F3EC8FE003EFCE4 /* StatusPillView.swift in Sources */,
+				20E22E1B2F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift in Sources */,
 				202F64852F2DB88700F6F359 /* PlanningStatePublisher.swift in Sources */,
 				202F64862F2DB88700F6F359 /* PlanParser.swift in Sources */,
 				202F64872F2DB88700F6F359 /* PlanningPrompts.swift in Sources */,
@@ -1331,13 +1380,17 @@
 				202F648C2F2DB8BD00F6F359 /* PlanFirstToggle.swift in Sources */,
 				204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */,
 				204DF4132F145F94004AB99B /* EnvironmentSettingsView.swift in Sources */,
+				20E22E132F3EC8AD003EFCE4 /* ProviderRowView.swift in Sources */,
 				202F64692F2BD82A00F6F359 /* PromptCopyCountButton.swift in Sources */,
 				20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */,
 				209C62002F12C00000062D0E /* GuestAgentConnection.swift in Sources */,
 				209C61BC2F12ABD700062D0E /* ContentView.swift in Sources */,
+				20E22E012F3EC845003EFCE4 /* ContextSuggestionDrawerView.swift in Sources */,
 				204DF4452F157492004AB99B /* GuestAgentConnection+Tools.swift in Sources */,
 				202F64952F2E755A00F6F359 /* AttachmentInfo.swift in Sources */,
 				209C61BD2F12ABD700062D0E /* HivecrewApp.swift in Sources */,
+				20E22E102F3EC89F003EFCE4 /* MCPServerRowView.swift in Sources */,
+				20E22E112F3EC89F003EFCE4 /* PresetButtonView.swift in Sources */,
 				202F648F2F2DB9E300F6F359 /* PlanReviewWindow.swift in Sources */,
 				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
 				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
@@ -1353,6 +1406,8 @@
 				20360DC52F38234300A9B998 /* RemoteAccessAPIClient.swift in Sources */,
 				209EB6E22F1E1A0E00A7F13F /* TemplateDownloadService+Extraction.swift in Sources */,
 				3001B0042F15000000000004 /* AgentRunner.swift in Sources */,
+				20E22E042F3EC85E003EFCE4 /* PlanProgressSectionView.swift in Sources */,
+				20E22E052F3EC85E003EFCE4 /* ActivityEntryRowView.swift in Sources */,
 				202F64E12F2FE30400F6F359 /* MCPServerEditSheet.swift in Sources */,
 				207B73042F3A587700572AF5 /* VMProvisioningService.swift in Sources */,
 				202F64E22F2FE30400F6F359 /* MCPSettingsView.swift in Sources */,
@@ -1373,11 +1428,15 @@
 				204DF43D2F157424004AB99B /* SessionTraceModels.swift in Sources */,
 				204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */,
 				202F646D2F2D26DE00F6F359 /* ImageGenerationService.swift in Sources */,
+				20E22E162F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift in Sources */,
+				20E22E172F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift in Sources */,
 				202F646E2F2D26DE00F6F359 /* ImageGenerationAvailability.swift in Sources */,
 				204DF4422F15744D004AB99B /* AgentRunner+Loop.swift in Sources */,
 				204DF43B2F1573C0004AB99B /* SessionTraceView+Panels.swift in Sources */,
 				203838DF2F39066E0026DC9A /* PairingWindowController.swift in Sources */,
 				3001B0062F15000000000006 /* ToolExecutor.swift in Sources */,
+				20E22E0C2F3EC88B003EFCE4 /* UsernameRowView.swift in Sources */,
+				20E22E0D2F3EC88B003EFCE4 /* TokenCopyRowView.swift in Sources */,
 				3001B0072F15000000000007 /* TaskService.swift in Sources */,
 				209EB6CF2F1E17F000A7F13F /* PromptTextView.swift in Sources */,
 				209EB6D02F1E17F000A7F13F /* MentionTextAttachment.swift in Sources */,
@@ -1389,6 +1448,7 @@
 				3001B00B2F1500000000000B /* TaskListView.swift in Sources */,
 				3001B00C2F1500000000000C /* TaskRowView.swift in Sources */,
 				3001B00D2F1500000000000D /* AgentQuestionSheet.swift in Sources */,
+				20E22DFF2F3EC818003EFCE4 /* ElapsedTimeView.swift in Sources */,
 				3001B00E2F1500000000000E /* AgentActivityStreamView.swift in Sources */,
 				204DF44D2F15A957004AB99B /* TemplateDownloadService.swift in Sources */,
 				207B73022F3A586900572AF5 /* VMProvisioningConfig.swift in Sources */,
@@ -1582,9 +1642,9 @@
 				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hivecrew/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1619,9 +1679,9 @@
 				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hivecrew/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -1929,22 +1989,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 30B100022F72000100000002 /* XCLocalSwiftPackageReference "../Packages/HivecrewMCP" */;
 			productName = HivecrewMCP;
-		};
-		206C85832F3E2B7E00941285 /* HivecrewRetrievalClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = HivecrewRetrievalClient;
-		};
-		206C85852F3E2B7E00941285 /* HivecrewRetrievalCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = HivecrewRetrievalCore;
-		};
-		206C85872F3E2B7E00941285 /* HivecrewRetrievalProtocol */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = HivecrewRetrievalProtocol;
-		};
-		206C85892F3E2B7E00941285 /* hivecrew-retrieval-daemon */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = "hivecrew-retrieval-daemon";
 		};
 		209C604A2F129A6400062D0E /* HivecrewShared */ = {
 			isa = XCSwiftPackageProductDependency;

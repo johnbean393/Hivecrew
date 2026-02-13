@@ -162,8 +162,10 @@ final class RetrievalExtractionTests: XCTestCase {
         let result = await extractionService.extract(fileURL: fileURL, policy: policy)
         let elapsed = Date().timeIntervalSince(start)
 
-        XCTAssertEqual(result.telemetry.outcome, .failed)
+        XCTAssertEqual(result.telemetry.outcome, .partial)
         XCTAssertEqual(result.telemetry.detail, "timeout")
+        XCTAssertEqual(result.content?.title, "timeout-test.bin")
+        XCTAssertTrue(result.content?.warnings.contains("extraction_timeout_metadata_only") == true)
         XCTAssertLessThan(elapsed, 0.8)
     }
 
@@ -212,8 +214,42 @@ final class RetrievalExtractionTests: XCTestCase {
         let elapsed = Date().timeIntervalSince(start)
 
         XCTAssertEqual(results.count, 24)
-        XCTAssertTrue(results.allSatisfy { $0.telemetry.outcome == .failed && $0.telemetry.detail == "timeout" })
+        XCTAssertTrue(results.allSatisfy { $0.telemetry.outcome == .partial && $0.telemetry.detail == "timeout" })
+        XCTAssertTrue(results.allSatisfy { $0.content?.warnings.contains("extraction_timeout_metadata_only") == true })
         XCTAssertLessThan(elapsed, 1.2)
+    }
+
+    func testWarningOnlyNoTextExtractionIsClassifiedUnsupported() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let fileURL = scratch.appendingPathComponent("warning-only.png")
+        try Data("placeholder".utf8).write(to: fileURL)
+
+        let extractionService = ContentExtractionService(
+            extractors: [WarningOnlyTestExtractor(name: "image_ocr", warning: "image_ocr_empty")],
+            scheduleExtraction: { work in
+                work()
+            },
+            scheduleTimeout: { timeoutSeconds, timeout in
+                Thread.detachNewThread {
+                    Thread.sleep(forTimeInterval: timeoutSeconds)
+                    timeout()
+                }
+            }
+        )
+        let policy = IndexingPolicy(
+            allowlistRoots: [scratch.path],
+            excludes: [],
+            allowedFileExtensions: ["png"],
+            skipUnknownMime: false,
+            maxExtractionSecondsPerFile: 0.3
+        )
+
+        let result = await extractionService.extract(fileURL: fileURL, policy: policy)
+        XCTAssertEqual(result.telemetry.outcome, .unsupported)
+        XCTAssertEqual(result.telemetry.detail, "image_ocr_empty")
+        XCTAssertNil(result.content)
     }
 
     func testRetrievalServiceIndexesExtractedFormats() async throws {
@@ -700,5 +736,24 @@ private struct BlockingTimeoutTestExtractor: FileContentExtractor {
     func extract(fileURL _: URL, contentType _: UTType?, policy _: IndexingPolicy) throws -> ExtractedContent? {
         Thread.sleep(forTimeInterval: delaySeconds)
         return nil
+    }
+}
+
+private struct WarningOnlyTestExtractor: FileContentExtractor {
+    let name: String
+    let warning: String
+
+    func canHandle(fileURL _: URL, contentType _: UTType?) -> Bool {
+        true
+    }
+
+    func extract(fileURL _: URL, contentType _: UTType?, policy _: IndexingPolicy) throws -> ExtractedContent? {
+        ExtractedContent(
+            text: "",
+            title: nil,
+            metadata: ["synthetic": "true"],
+            warnings: [warning],
+            wasOCRUsed: name == "image_ocr"
+        )
     }
 }

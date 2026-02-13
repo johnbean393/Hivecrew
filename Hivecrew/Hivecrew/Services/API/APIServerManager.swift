@@ -476,9 +476,10 @@ final class RetrievalDaemonManager {
         let uid = getuid()
         let serviceTarget = "gui/\(uid)/\(launchAgentLabel)"
 
-        // If a matching service is already loaded, skip bootstrap and just kickstart it.
+        // If the service is already loaded, keep it running as-is.
+        // Repeated startIfEnabled() calls can happen when app windows re-appear;
+        // forcing kickstart here resets in-memory daemon indexing state.
         if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
-            try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
             return
         }
 
@@ -487,7 +488,6 @@ final class RetrievalDaemonManager {
         } catch {
             // launchctl can report EIO for bootstrap while the service is already present.
             if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
-                try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
                 return
             }
             throw error
