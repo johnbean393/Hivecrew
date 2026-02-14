@@ -5,9 +5,6 @@ import Combine
 enum RetrievalSidebarEntry: String, CaseIterable, Identifiable {
     case overall
     case file
-    case calendar
-    case email
-    case message
 
     var id: String { rawValue }
 
@@ -17,12 +14,6 @@ enum RetrievalSidebarEntry: String, CaseIterable, Identifiable {
             return "Overall"
         case .file:
             return "Files"
-        case .calendar:
-            return "Calendar"
-        case .email:
-            return "Emails"
-        case .message:
-            return "Messages"
         }
     }
 
@@ -32,12 +23,6 @@ enum RetrievalSidebarEntry: String, CaseIterable, Identifiable {
             return "rectangle.stack"
         case .file:
             return "doc.text"
-        case .calendar:
-            return "calendar"
-        case .email:
-            return "envelope"
-        case .message:
-            return "message"
         }
     }
 
@@ -45,7 +30,7 @@ enum RetrievalSidebarEntry: String, CaseIterable, Identifiable {
         switch self {
         case .overall:
             return nil
-        case .file, .calendar, .email, .message:
+        case .file:
             return rawValue
         }
     }
@@ -147,6 +132,7 @@ final class RetrievalIndexViewModel: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var fetchError: String?
     @Published private(set) var lastRefreshAt: Date?
+    @Published private(set) var allowlistRoots: [RetrievalAllowlistRoot] = RetrievalDaemonManager.shared.allowlistRootsForDisplay()
 
     private var pollingTask: Task<Void, Never>?
     private var pollingEnabled = false
@@ -171,6 +157,30 @@ final class RetrievalIndexViewModel: ObservableObject {
 
     func refreshNow() async {
         await refreshState()
+    }
+
+    @discardableResult
+    func addAllowlistRoot(path: String) async -> Bool {
+        let added = RetrievalDaemonManager.shared.addAllowlistRoot(path)
+        reloadAllowlistRoots()
+        guard added else { return false }
+        await RetrievalDaemonManager.shared.applyAllowlistRootsToRunningDaemon(triggerBackfill: false)
+        await refreshState()
+        return true
+    }
+
+    @discardableResult
+    func removeAllowlistRoot(path: String) async -> Bool {
+        let removed = RetrievalDaemonManager.shared.removeAllowlistRoot(path)
+        reloadAllowlistRoots()
+        guard removed else { return false }
+        await RetrievalDaemonManager.shared.applyAllowlistRootsToRunningDaemon(triggerBackfill: false)
+        await refreshState()
+        return true
+    }
+
+    func reloadAllowlistRoots() {
+        allowlistRoots = RetrievalDaemonManager.shared.allowlistRootsForDisplay()
     }
 
     func sidebarRows(enabled: Bool) -> [RetrievalSidebarRowModel] {
@@ -273,7 +283,7 @@ final class RetrievalIndexViewModel: ObservableObject {
             return min(20, pow(2, Double(consecutiveErrorCount)) * 1.2)
         }
         if isIndexingNow {
-            return 1.5
+            return 3
         }
         return 4
     }
@@ -293,7 +303,7 @@ final class RetrievalIndexViewModel: ObservableObject {
 
     private func refreshState() async {
         guard pollingEnabled else { return }
-        guard !isRefreshing else { return }
+        guard !isRefreshing else { return } 
         isRefreshing = true
         defer { isRefreshing = false }
 
@@ -302,7 +312,7 @@ final class RetrievalIndexViewModel: ObservableObject {
             let baseURL = RetrievalDaemonManager.shared.daemonBaseURL()
             var request = URLRequest(url: baseURL.appending(path: "api/v1/retrieval/state"))
             request.setValue(token, forHTTPHeaderField: "X-Retrieval-Token")
-            request.timeoutInterval = 1.5
+            request.timeoutInterval = 3
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 throw NSError(
@@ -317,10 +327,12 @@ final class RetrievalIndexViewModel: ObservableObject {
             fetchError = nil
             lastRefreshAt = Date()
             consecutiveErrorCount = 0
+            allowlistRoots = RetrievalDaemonManager.shared.allowlistRootsForDisplay()
         } catch {
             fetchError = error.localizedDescription
             lastRefreshAt = Date()
             consecutiveErrorCount += 1
+            allowlistRoots = RetrievalDaemonManager.shared.allowlistRootsForDisplay()
         }
     }
 
@@ -338,7 +350,7 @@ final class RetrievalIndexViewModel: ObservableObject {
         if snapshot.health.inFlightCount > 0 || snapshot.queueActivity.queueDepth > 0 {
             return .indexing
         }
-        if snapshot.sourceRuntime.contains(where: { $0.currentOperation != RetrievalOperationPayload.idle.rawValue }) {
+        if snapshot.sourceRuntime.contains(where: { $0.inFlightCount > 0 || $0.queueDepth > 0 }) {
             return .indexing
         }
         if snapshot.indexStats.totalDocumentCount == 0 {
@@ -359,9 +371,6 @@ final class RetrievalIndexViewModel: ObservableObject {
         let checkpointTerminal = progressRows.allSatisfy { isTerminalCheckpointStatus($0.status) }
         let indexed = statsRow(for: sourceKey)?.documentCount ?? 0
         if (runtime?.inFlightCount ?? 0) > 0 || (runtime?.queueDepth ?? 0) > 0 {
-            return .indexing
-        }
-        if let operation = runtime?.currentOperation, operation != RetrievalOperationPayload.idle.rawValue {
             return .indexing
         }
         if !checkpointTerminal && !progressRows.isEmpty {

@@ -21,7 +21,7 @@ public actor HybridSearchEngine {
 
     public func suggest(request: RetrievalSuggestRequest) async throws -> RetrievalSuggestResponse {
         let start = Date()
-        let sourceFilters = Set(request.sourceFilters ?? RetrievalSourceType.allCases)
+        let sourceFilters = Set(request.sourceFilters ?? [.file])
         let partitionFilter: Set<String> = request.typingMode ? ["hot", "warm"] : ["hot", "warm", "cold"]
         let lexical = try await store.lexicalSearch(
             queryText: request.query,

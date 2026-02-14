@@ -115,6 +115,20 @@ public actor RetrievalStore {
                 created_at REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_audit_kind_created ON audit_events(kind, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS ingestion_attempts (
+                source_type TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                source_path_or_handle TEXT NOT NULL,
+                updated_at REAL NOT NULL,
+                outcome TEXT NOT NULL,
+                attempted_at REAL NOT NULL,
+                PRIMARY KEY(source_type, source_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_ingestion_attempts_outcome_updated
+            ON ingestion_attempts(outcome, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_ingestion_attempts_path
+            ON ingestion_attempts(source_type, source_path_or_handle);
         """)
         // Backward-compatible migration for existing databases created before `searchable`.
         try? exec("ALTER TABLE documents ADD COLUMN searchable INTEGER NOT NULL DEFAULT 1;")
@@ -240,6 +254,158 @@ public actor RetrievalStore {
             bindText(stmt, at: 9, value: document.partition)
             sqlite3_bind_int(stmt, 10, document.searchable ? 1 : 0)
         })
+    }
+
+    public func recordIngestionAttempt(
+        sourceType: RetrievalSourceType,
+        sourceId: String,
+        sourcePathOrHandle: String,
+        updatedAt: Date,
+        outcome: ExtractionOutcomeKind
+    ) throws {
+        try execPrepared("""
+            INSERT INTO ingestion_attempts (
+                source_type,
+                source_id,
+                source_path_or_handle,
+                updated_at,
+                outcome,
+                attempted_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_type, source_id) DO UPDATE SET
+                source_path_or_handle=excluded.source_path_or_handle,
+                updated_at=excluded.updated_at,
+                outcome=excluded.outcome,
+                attempted_at=excluded.attempted_at;
+        """, bind: { stmt in
+            bindText(stmt, at: 1, value: sourceType.rawValue)
+            bindText(stmt, at: 2, value: sourceId)
+            bindText(stmt, at: 3, value: sourcePathOrHandle)
+            sqlite3_bind_double(stmt, 4, updatedAt.timeIntervalSince1970)
+            bindText(stmt, at: 5, value: outcome.rawValue)
+            sqlite3_bind_double(stmt, 6, Date().timeIntervalSince1970)
+        })
+    }
+
+    public func isIngestionAttemptCurrent(
+        sourceType: RetrievalSourceType,
+        sourceId: String,
+        updatedAt: Date
+    ) throws -> Bool {
+        let currentTimestamp = updatedAt.timeIntervalSince1970
+        let existingTimestamp = try querySingle("""
+            SELECT updated_at
+            FROM ingestion_attempts
+            WHERE source_type = ?
+              AND source_id = ?
+              AND outcome IN (?, ?)
+            LIMIT 1;
+        """, bind: { stmt in
+            bindText(stmt, at: 1, value: sourceType.rawValue)
+            bindText(stmt, at: 2, value: sourceId)
+            bindText(stmt, at: 3, value: ExtractionOutcomeKind.failed.rawValue)
+            bindText(stmt, at: 4, value: ExtractionOutcomeKind.unsupported.rawValue)
+        }, map: { stmt in
+            sqlite3_column_double(stmt, 0)
+        })
+        guard let existingTimestamp else {
+            return false
+        }
+        return existingTimestamp >= currentTimestamp
+    }
+
+    @discardableResult
+    public func deleteDocumentsForPath(sourceType: RetrievalSourceType, sourcePathOrHandle: String) throws -> Int {
+        let rawPath = sourcePathOrHandle
+        let normalizedPath = URL(fileURLWithPath: sourcePathOrHandle).standardizedFileURL.resolvingSymlinksInPath().path
+        let rawPrefixPattern = rawPath.hasSuffix("/") ? "\(rawPath)%" : "\(rawPath)/%"
+        let prefixPattern = normalizedPath.hasSuffix("/") ? "\(normalizedPath)%" : "\(normalizedPath)/%"
+        let documentIDs: [String] = try query("""
+            SELECT id
+            FROM documents
+            WHERE source_type = ?
+              AND (
+                    source_id = ?
+                 OR source_id = ?
+                 OR source_path_or_handle = ?
+                 OR source_path_or_handle = ?
+                 OR source_path_or_handle LIKE ?
+                 OR source_path_or_handle LIKE ?
+              );
+        """, bind: { stmt in
+            bindText(stmt, at: 1, value: sourceType.rawValue)
+            bindText(stmt, at: 2, value: rawPath)
+            bindText(stmt, at: 3, value: normalizedPath)
+            bindText(stmt, at: 4, value: rawPath)
+            bindText(stmt, at: 5, value: normalizedPath)
+            bindText(stmt, at: 6, value: rawPrefixPattern)
+            bindText(stmt, at: 7, value: prefixPattern)
+        }, map: { stmt in
+            stringValue(stmt, at: 0)
+        })
+        try inTransaction {
+            try execPrepared("""
+                DELETE FROM ingestion_attempts
+                WHERE source_type = ?
+                  AND (
+                        source_id = ?
+                     OR source_id = ?
+                     OR source_path_or_handle = ?
+                     OR source_path_or_handle = ?
+                     OR source_path_or_handle LIKE ?
+                     OR source_path_or_handle LIKE ?
+                  );
+            """, bind: { stmt in
+                bindText(stmt, at: 1, value: sourceType.rawValue)
+                bindText(stmt, at: 2, value: rawPath)
+                bindText(stmt, at: 3, value: normalizedPath)
+                bindText(stmt, at: 4, value: rawPath)
+                bindText(stmt, at: 5, value: normalizedPath)
+                bindText(stmt, at: 6, value: rawPrefixPattern)
+                bindText(stmt, at: 7, value: prefixPattern)
+            })
+
+            guard !documentIDs.isEmpty else {
+                return
+            }
+
+            let batchSize = 300
+            var index = 0
+            while index < documentIDs.count {
+                let upperBound = min(index + batchSize, documentIDs.count)
+                let batch = Array(documentIDs[index..<upperBound])
+                let placeholders = Array(repeating: "?", count: batch.count).joined(separator: ",")
+
+                try execPrepared("DELETE FROM chunks_fts WHERE document_id IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM chunk_vectors WHERE document_id IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM graph_edges WHERE source_node IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM graph_edges WHERE target_node IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM documents WHERE id IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                index = upperBound
+            }
+        }
+        return documentIDs.count
     }
 
     private func persistedDocumentID(for document: RetrievalDocument) throws -> String {

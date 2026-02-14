@@ -2,7 +2,10 @@ import SwiftUI
 
 struct RetrievalIndexSourceDetailView: View {
     let model: RetrievalSourceDetailModel
+    let allowlistRoots: [RetrievalAllowlistRoot]
     let lastRefreshAt: Date?
+    let onAddFolder: () -> Void
+    let onRemoveFolder: (String) -> Void
     let onRefresh: () -> Void
     let onRestartDaemon: () -> Void
 
@@ -62,6 +65,38 @@ struct RetrievalIndexSourceDetailView: View {
                         }
                         .padding(.top, 4)
                     }
+
+                    GroupBox("Indexed Folders") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(allowlistRoots) { root in
+                                HStack(spacing: 10) {
+                                    Image(systemName: "folder")
+                                        .foregroundStyle(.secondary)
+                                    Text(root.path)
+                                        .font(.callout)
+                                        .textSelection(.enabled)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Spacer()
+                                    if root.isDefault {
+                                        Text("Default")
+                                            .font(.caption2.weight(.semibold))
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 4)
+                                            .background(Color.secondary.opacity(0.14), in: Capsule())
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Button("Remove") {
+                                            onRemoveFolder(root.path)
+                                        }
+                                        .buttonStyle(.borderless)
+                                        .foregroundStyle(.red)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                 }
 
                 GroupBox("Extraction Diagnostics") {
@@ -76,6 +111,10 @@ struct RetrievalIndexSourceDetailView: View {
                 }
 
                 HStack(spacing: 10) {
+                    if model.entry == .file {
+                        Button("Add Folder...") { onAddFolder() }
+                            .buttonStyle(.bordered)
+                    }
                     Button("Refresh") { onRefresh() }
                         .buttonStyle(.borderedProminent)
                     Button("Restart Daemon") { onRestartDaemon() }

@@ -32,12 +32,11 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     public let sourceType: RetrievalSourceType = .file
     private let policy: IndexingPolicy
     private let scanStatsHandler: (@Sendable (ScanBatchStats) async -> Void)?
-    private var streamTask: Task<Void, Never>?
     private var eventStream: FSEventStreamRef?
     private let callbackQueue = DispatchQueue(label: "com.hivecrew.retrieval.file-events", qos: .utility)
     private let stateQueue = DispatchQueue(label: "com.hivecrew.retrieval.file-events.state")
     private var pendingChangedPaths: Set<String> = []
-    private var lastPeriodicScanAt: Date?
+    private var lastSeenEventID: FSEventStreamEventId?
     private var quietWindowTask: Task<Void, Never>?
     private var liveHandler: (@Sendable ([IngestionEvent]) async -> Void)?
     private static let packageDirectoryExtensions: Set<String> = ["rtfd", "pages", "key", "numbers"]
@@ -62,40 +61,11 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
         stop()
         liveHandler = handler
 
-        // FSEvents for near-real-time updates.
+        // FSEvents for near-real-time updates and event-log reconciliation.
         startFSEvents()
-
-        // Periodic reconciliation to avoid missing events and to catch edge cases.
-        streamTask = Task.detached(priority: .background) { [weak self] in
-            guard let self else { return }
-            // Reconciliation should only cover changes since the previous pass.
-            // Scanning without a moving cursor re-enqueues the same files forever.
-            var since = self.stateQueue.sync { self.lastPeriodicScanAt ?? Date() }
-            while !Task.isCancelled {
-                do {
-                    let scanOutput = try await self.scanRecent(policy: self.policy, since: since, mode: .changesSince)
-                    since = Date()
-                    self.stateQueue.sync {
-                        self.lastPeriodicScanAt = since
-                    }
-                    if !scanOutput.events.isEmpty {
-                        await handler(scanOutput.events)
-                    }
-                } catch {
-                    // Ignore transient scan errors and continue polling.
-                    since = Date()
-                    self.stateQueue.sync {
-                        self.lastPeriodicScanAt = since
-                    }
-                }
-                try? await Task.sleep(for: .seconds(15))
-            }
-        }
     }
 
     public func stop() {
-        streamTask?.cancel()
-        streamTask = nil
         quietWindowTask?.cancel()
         quietWindowTask = nil
         stopFSEvents()
@@ -147,6 +117,14 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     private func startFSEvents() {
         stopFSEvents()
         guard !policy.allowlistRoots.isEmpty else { return }
+        let sinceWhen = stateQueue.sync { () -> FSEventStreamEventId in
+            if let lastSeenEventID {
+                return lastSeenEventID
+            }
+            let baseline = FSEventsGetCurrentEventId()
+            lastSeenEventID = baseline
+            return baseline
+        }
 
         var context = FSEventStreamContext(
             version: 0,
@@ -156,14 +134,20 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
             copyDescription: nil
         )
 
-        let callback: FSEventStreamCallback = { _, info, eventCount, eventPathsPointer, _, _ in
+        let callback: FSEventStreamCallback = { _, info, eventCount, eventPathsPointer, _, eventIDsPointer in
             guard let info else {
                 return
             }
 
             let connector = Unmanaged<FileConnector>.fromOpaque(info).takeUnretainedValue()
             let paths = unsafeBitCast(eventPathsPointer, to: NSArray.self) as? [String] ?? []
-            connector.enqueueChanged(paths: Array(paths.prefix(Int(eventCount))))
+            let latestEventID: FSEventStreamEventId? = eventCount > 0
+                ? UnsafeBufferPointer(start: eventIDsPointer, count: Int(eventCount)).max()
+                : nil
+            connector.enqueueChanged(
+                paths: Array(paths.prefix(Int(eventCount))),
+                latestEventID: latestEventID
+            )
         }
 
         let roots = policy.allowlistRoots as CFArray
@@ -173,7 +157,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
             callback,
             &context,
             roots,
-            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            sinceWhen,
             latency,
             FSEventStreamCreateFlags(
                 kFSEventStreamCreateFlagFileEvents |
@@ -195,8 +179,11 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
         eventStream = nil
     }
 
-    private func enqueueChanged(paths: [String]) {
+    private func enqueueChanged(paths: [String], latestEventID: FSEventStreamEventId? = nil) {
         stateQueue.sync {
+            if let latestEventID {
+                lastSeenEventID = max(lastSeenEventID ?? latestEventID, latestEventID)
+            }
             for path in paths {
                 pendingChangedPaths.insert(path)
             }
@@ -223,6 +210,22 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
         events.reserveCapacity(changed.count)
 
         for path in changed {
+            let scope = scopeLabel(for: path)
+            if !fm.fileExists(atPath: path) {
+                events.append(
+                    IngestionEvent(
+                        operation: .delete,
+                        sourceType: .file,
+                        scopeLabel: scope,
+                        sourceId: path,
+                        title: URL(fileURLWithPath: path).lastPathComponent,
+                        body: "",
+                        sourcePathOrHandle: path,
+                        occurredAt: Date()
+                    )
+                )
+                continue
+            }
             let url = URL(fileURLWithPath: path)
             let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey])
             guard isIndexableNode(url: url, values: values) else {
@@ -235,7 +238,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
                 url: url,
                 modifiedAt: modifiedAt,
                 fileSize: size,
-                scope: scopeLabel(for: path),
+                scope: scope,
                 policy: policy
             ) {
                 events.append(event)
@@ -453,14 +456,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     }
 
     private func shouldSkipExcludedPath(_ path: String, policy: IndexingPolicy) -> Bool {
-        let normalized = path.lowercased()
-        for excluded in policy.excludes {
-            let needle = "/\(excluded.lowercased())/"
-            if normalized.contains(needle) || normalized.hasSuffix("/\(excluded.lowercased())") {
-                return true
-            }
-        }
-        return false
+        policy.shouldSkipPath(path)
     }
 
     private func modeString(_ mode: ScanMode) -> String {

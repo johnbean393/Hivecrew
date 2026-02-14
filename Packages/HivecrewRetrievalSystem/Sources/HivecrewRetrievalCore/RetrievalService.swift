@@ -10,7 +10,7 @@ public actor RetrievalService {
     private let daemonVersion: String
     private let configuration: RetrievalDaemonConfiguration
     private let store: RetrievalStore
-    private let policy: IndexingPolicy
+    private var policy: IndexingPolicy
     private let connectorHub: ConnectorHub
     private let extractionService: ContentExtractionService
     private let queryEmbeddingRuntime: EmbeddingRuntime
@@ -23,11 +23,13 @@ public actor RetrievalService {
 
     private var queue: [IngestionEvent] = []
     private var queueCounts: [RetrievalSourceType: Int] = [:]
+    private var queueWaiters: [CheckedContinuation<Void, Never>] = []
     private var queueTask: Task<Void, Never>?
     private var ingestionWorkerTasks: [UUID: Task<Void, Never>] = [:]
     private var ingestionWorkerPriority: TaskPriority = .utility
     private var compactTask: Task<Void, Never>?
     private var startupBackfillTask: Task<Void, Never>?
+    private var connectorEventHandler: (@Sendable ([IngestionEvent]) async -> Void)?
     private var suggestCache: [String: (Date, RetrievalSuggestResponse)] = [:]
     private var lastSuggestionsByQuery: [String: [RetrievalSuggestion]] = [:]
     private var connectorsRegistered = false
@@ -41,6 +43,8 @@ public actor RetrievalService {
         // Fallback: assume a heterogeneous split if perflevel counters are unavailable.
         return max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
     }()
+    private static let activeSourceTypes: [RetrievalSourceType] = [.file]
+    private static let activeSourceTypeSet: Set<RetrievalSourceType> = Set(activeSourceTypes)
     private static let ingestionWorkerMultiplier = 1
 
     public init(configuration: RetrievalDaemonConfiguration, paths: RetrievalPaths) throws {
@@ -168,21 +172,26 @@ public actor RetrievalService {
 
     public func health() async -> RetrievalHealth {
         await metrics.setQueueState(totalDepth: queue.count, bySource: queueCounts)
-        return await metrics.health(version: daemonVersion)
+        let health = await metrics.health(version: daemonVersion)
+        return filterHealthToActiveSources(health)
     }
 
     public func stateSnapshot() async throws -> RetrievalStateSnapshot {
         let bySource = queueCounts
         await metrics.setQueueState(totalDepth: queue.count, bySource: bySource)
-        let health = await metrics.health(version: daemonVersion)
-        let progress = try await store.allProgressStates()
-        let stats = try await store.indexStats()
-        let activitySources = RetrievalSourceType.allCases.map { sourceType in
+        let health = filterHealthToActiveSources(await metrics.health(version: daemonVersion))
+        let progress = try await store.allProgressStates().filter { Self.activeSourceTypeSet.contains($0.sourceType) }
+        let stats = filterIndexStatsToActiveSources(try await store.indexStats())
+        let activitySources = Self.activeSourceTypes.map { sourceType in
             RetrievalQueueSourceActivity(sourceType: sourceType, queuedItemCount: bySource[sourceType] ?? 0)
         }
         let activity = RetrievalQueueActivity(queueDepth: queue.count, sources: activitySources)
-        let runtime = await metrics.sourceRuntimeStates()
+        let runtime = await metrics.sourceRuntimeStates().filter { Self.activeSourceTypeSet.contains($0.sourceType) }
         let operation = await metrics.operationContext()
+        let operationSource: RetrievalSourceType? = {
+            guard let source = operation.sourceType else { return nil }
+            return Self.activeSourceTypeSet.contains(source) ? source : nil
+        }()
         return RetrievalStateSnapshot(
             health: health,
             progress: progress,
@@ -190,22 +199,22 @@ public actor RetrievalService {
             queueActivity: activity,
             sourceRuntime: runtime,
             currentOperation: operation.phase,
-            currentOperationSourceType: operation.sourceType,
+            currentOperationSourceType: operationSource,
             currentItemPath: operation.path
         )
     }
 
     public func indexingProgress() async throws -> [RetrievalProgressState] {
-        try await store.allProgressStates()
+        try await store.allProgressStates().filter { Self.activeSourceTypeSet.contains($0.sourceType) }
     }
 
     public func indexStats() async throws -> RetrievalIndexStats {
-        try await store.indexStats()
+        filterIndexStatsToActiveSources(try await store.indexStats())
     }
 
     public func queueActivity() async -> RetrievalQueueActivity {
         let counts = queueCounts
-        let sources = RetrievalSourceType.allCases.map { sourceType in
+        let sources = Self.activeSourceTypes.map { sourceType in
             RetrievalQueueSourceActivity(
                 sourceType: sourceType,
                 queuedItemCount: counts[sourceType] ?? 0
@@ -218,7 +227,7 @@ public actor RetrievalService {
     }
 
     public func listBackfillJobs() async throws -> [RetrievalBackfillJob] {
-        try await store.listBackfillJobs()
+        try await store.listBackfillJobs().filter { Self.activeSourceTypeSet.contains($0.sourceType) }
     }
 
     public func pauseBackfill(jobId: String) async {
@@ -230,7 +239,8 @@ public actor RetrievalService {
     }
 
     public func configureScopes(_ request: RetrievalConfigureScopesRequest) async throws {
-        let payload = request.scopes.map {
+        let activeScopes = request.scopes.filter { Self.activeSourceTypeSet.contains($0.sourceType) }
+        let payload = activeScopes.map {
             [
                 "sourceType": $0.sourceType.rawValue,
                 "enabled": $0.enabled.description,
@@ -241,12 +251,33 @@ public actor RetrievalService {
         for entry in payload {
             try await store.appendAudit(kind: "scope_configured", payload: entry)
         }
+        guard !activeScopes.isEmpty else {
+            return
+        }
+
+        let fileIncludes = activeScopes
+            .filter { $0.sourceType == .file && $0.enabled }
+            .flatMap(\.includePathsOrHandles)
+        let nextPolicy = IndexingPolicy.preset(
+            profile: configuration.indexingProfile,
+            startupAllowlistRoots: normalizedScopeRoots(fileIncludes)
+        )
+        guard normalizedPathSet(nextPolicy.allowlistRoots) != normalizedPathSet(policy.allowlistRoots) else {
+            return
+        }
+        policy = nextPolicy
+
+        if isRunning && !isSleepPaused {
+            await reloadConnectorsForPolicyChange()
+            // Reconcile new roots immediately without requiring daemon restart.
+            scheduleStartupBackfill()
+        }
     }
 
     public func triggerBackfill(limit: Int = 50_000) async throws -> [BackfillCheckpoint] {
         await ensureConnectorsRegistered()
         var checkpoints: [BackfillCheckpoint] = []
-        for source in RetrievalSourceType.allCases {
+        for source in Self.activeSourceTypes {
             await metrics.beginBackfill(sourceType: source)
             do {
                 let key = "\(source.rawValue):default"
@@ -320,7 +351,7 @@ public actor RetrievalService {
             guard let self else { return }
             while !Task.isCancelled {
                 await self.reconcileIngestionWorkers()
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: .seconds(2))
             }
             await self.stopIngestionWorkers()
         }
@@ -333,9 +364,11 @@ public actor RetrievalService {
             }
         }
 
-        await connectorHub.startAll { [weak self] events in
+        let handler: @Sendable ([IngestionEvent]) async -> Void = { [weak self] events in
             await self?.enqueue(events: events)
         }
+        connectorEventHandler = handler
+        await connectorHub.startAll(handler: handler)
 
         if triggerStartupBackfill {
             scheduleStartupBackfill()
@@ -381,10 +414,17 @@ public actor RetrievalService {
             }
         )
         await connectorHub.register(fileConnector)
-        await connectorHub.register(StubDeltaConnector(sourceType: .email))
-        await connectorHub.register(StubDeltaConnector(sourceType: .message))
-        await connectorHub.register(StubDeltaConnector(sourceType: .calendar))
         connectorsRegistered = true
+    }
+
+    private func reloadConnectorsForPolicyChange() async {
+        guard let connectorEventHandler else {
+            return
+        }
+        await connectorHub.stopAll()
+        connectorsRegistered = false
+        await ensureConnectorsRegistered()
+        await connectorHub.startAll(handler: connectorEventHandler)
     }
 
     private func handleScanBatchStats(_ stats: FileConnector.ScanBatchStats) async {
@@ -417,11 +457,25 @@ public actor RetrievalService {
 
     private func enqueue(events: [IngestionEvent]) async {
         guard !events.isEmpty else { return }
-        queue.append(contentsOf: events)
-        for event in events {
+        let eligible = events.filter { event in
+            guard event.sourceType == .file else {
+                return true
+            }
+            if event.operation == .delete {
+                return !policy.shouldSkipPath(event.sourcePathOrHandle)
+            }
+            let fileURL = URL(fileURLWithPath: event.sourcePathOrHandle)
+            return policy.shouldAttemptFileIngestion(fileURL: fileURL)
+        }
+        guard !eligible.isEmpty else {
+            return
+        }
+        queue.append(contentsOf: eligible)
+        for event in eligible {
             queueCounts[event.sourceType, default: 0] += 1
         }
         await metrics.setQueueState(totalDepth: queue.count, bySource: queueCounts)
+        signalQueueWaiters(maxCount: eligible.count)
     }
 
     private func reconcileIngestionWorkers() async {
@@ -443,6 +497,7 @@ public actor RetrievalService {
                 ingestionWorkerTasks[id]?.cancel()
                 ingestionWorkerTasks.removeValue(forKey: id)
             }
+            signalQueueWaiters()
         }
     }
 
@@ -456,15 +511,26 @@ public actor RetrievalService {
                 }
             }
             while !Task.isCancelled {
-                guard let event = await self.dequeueNextEvent() else {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    continue
+                guard let event = await self.awaitNextEvent() else {
+                    return
                 }
                 let activeWorkerCount = await self.currentIngestionWorkerCount()
                 await self.ingestSingleEvent(event, activeWorkerCount: activeWorkerCount)
             }
         }
         ingestionWorkerTasks[workerID] = task
+    }
+
+    private func awaitNextEvent() async -> IngestionEvent? {
+        while !Task.isCancelled {
+            if let event = await dequeueNextEvent() {
+                return event
+            }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                queueWaiters.append(continuation)
+            }
+        }
+        return nil
     }
 
     private func dequeueNextEvent() async -> IngestionEvent? {
@@ -497,10 +563,53 @@ public actor RetrievalService {
             task.cancel()
         }
         ingestionWorkerTasks.removeAll()
+        signalQueueWaiters()
+    }
+
+    private func signalQueueWaiters(maxCount: Int? = nil) {
+        guard !queueWaiters.isEmpty else { return }
+        let count = maxCount.map { max(0, min($0, queueWaiters.count)) } ?? queueWaiters.count
+        guard count > 0 else { return }
+        let waiting = Array(queueWaiters.prefix(count))
+        queueWaiters.removeFirst(count)
+        for continuation in waiting {
+            continuation.resume()
+        }
     }
 
     private func ingestSingleEvent(_ event: IngestionEvent, activeWorkerCount: Int) async {
         await metrics.beginIngestion(sourceType: event.sourceType, path: event.sourcePathOrHandle)
+        if event.operation == .delete {
+            do {
+                if event.sourceType == .file {
+                    let deletedCount = try await store.deleteDocumentsForPath(
+                        sourceType: event.sourceType,
+                        sourcePathOrHandle: event.sourcePathOrHandle
+                    )
+                    if deletedCount > 0 {
+                        try? await store.appendAudit(
+                            kind: "file_document_deleted",
+                            payload: [
+                                "path": event.sourcePathOrHandle,
+                                "deletedCount": "\(deletedCount)",
+                            ]
+                        )
+                    }
+                }
+                await metrics.endIngestion(sourceType: event.sourceType, path: event.sourcePathOrHandle, success: true)
+            } catch {
+                await metrics.endIngestion(sourceType: event.sourceType, path: event.sourcePathOrHandle, success: false)
+                await metrics.recordError(error)
+            }
+            return
+        }
+        if event.sourceType == .file {
+            let fileURL = URL(fileURLWithPath: event.sourcePathOrHandle)
+            guard policy.shouldAttemptFileIngestion(fileURL: fileURL) else {
+                await metrics.endIngestion(sourceType: event.sourceType, path: event.sourcePathOrHandle, success: true)
+                return
+            }
+        }
         do {
             let isCurrent = try await store.isDocumentCurrent(
                 sourceType: event.sourceType,
@@ -508,6 +617,15 @@ public actor RetrievalService {
                 updatedAt: event.occurredAt
             )
             if isCurrent {
+                await metrics.endIngestion(sourceType: event.sourceType, path: event.sourcePathOrHandle, success: true)
+                return
+            }
+            let shouldSkipRetry = try await store.isIngestionAttemptCurrent(
+                sourceType: event.sourceType,
+                sourceId: event.sourceId,
+                updatedAt: event.occurredAt
+            )
+            if shouldSkipRetry {
                 await metrics.endIngestion(sourceType: event.sourceType, path: event.sourcePathOrHandle, success: true)
                 return
             }
@@ -587,6 +705,15 @@ public actor RetrievalService {
             let url = URL(fileURLWithPath: event.sourcePathOrHandle)
             let result = await extractionService.extract(fileURL: url, policy: policy)
             await handleExtractionTelemetry(path: event.sourcePathOrHandle, telemetry: result.telemetry)
+            if result.telemetry.outcome == .failed || result.telemetry.outcome == .unsupported {
+                try? await store.recordIngestionAttempt(
+                    sourceType: event.sourceType,
+                    sourceId: event.sourceId,
+                    sourcePathOrHandle: event.sourcePathOrHandle,
+                    updatedAt: event.occurredAt,
+                    outcome: result.telemetry.outcome
+                )
+            }
             guard let content = result.content else {
                 return nil
             }
@@ -705,6 +832,63 @@ public actor RetrievalService {
         let digest = SHA256.hash(data: data)
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         return String(hex.prefix(16))
+    }
+
+    private func filterIndexStatsToActiveSources(_ stats: RetrievalIndexStats) -> RetrievalIndexStats {
+        let filteredSources = stats.sources.filter { Self.activeSourceTypeSet.contains($0.sourceType) }
+        let totalDocumentCount = filteredSources.reduce(0) { $0 + $1.documentCount }
+        return RetrievalIndexStats(totalDocumentCount: totalDocumentCount, sources: filteredSources)
+    }
+
+    private func filterHealthToActiveSources(_ health: RetrievalHealth) -> RetrievalHealth {
+        let filteredSource: RetrievalSourceType? = {
+            guard let source = health.currentOperationSourceType else { return nil }
+            return Self.activeSourceTypeSet.contains(source) ? source : nil
+        }()
+        return RetrievalHealth(
+            daemonVersion: health.daemonVersion,
+            running: health.running,
+            queueDepth: health.queueDepth,
+            inFlightCount: health.inFlightCount,
+            lastError: health.lastError,
+            latencyP50Ms: health.latencyP50Ms,
+            latencyP95Ms: health.latencyP95Ms,
+            currentOperation: health.currentOperation,
+            currentOperationSourceType: filteredSource,
+            currentItemPath: health.currentItemPath,
+            extractionSuccessCount: health.extractionSuccessCount,
+            extractionPartialCount: health.extractionPartialCount,
+            extractionFailedCount: health.extractionFailedCount,
+            extractionUnsupportedCount: health.extractionUnsupportedCount,
+            extractionOCRCount: health.extractionOCRCount
+        )
+    }
+
+    private func normalizedScopeRoots(_ roots: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalizedRoots: [String] = []
+        for root in roots {
+            let normalized = URL(fileURLWithPath: root)
+                .standardizedFileURL
+                .resolvingSymlinksInPath()
+                .path
+            guard !normalized.isEmpty else { continue }
+            guard !seen.contains(normalized) else { continue }
+            seen.insert(normalized)
+            normalizedRoots.append(normalized)
+        }
+        return normalizedRoots
+    }
+
+    private func normalizedPathSet(_ roots: [String]) -> Set<String> {
+        Set(
+            roots.map {
+                URL(fileURLWithPath: $0)
+                    .standardizedFileURL
+                    .resolvingSymlinksInPath()
+                    .path
+            }
+        )
     }
 
     private func inferPartition(for updatedAt: Date) -> String {

@@ -335,6 +335,13 @@ enum DeviceAuthKeychain {
 // MARK: - Retrieval Daemon Lifecycle
 
 /// Installs and supervises the standalone retrieval daemon.
+struct RetrievalAllowlistRoot: Identifiable, Hashable {
+    let path: String
+    let isDefault: Bool
+
+    var id: String { path }
+}
+
 final class RetrievalDaemonManager {
     static let shared = RetrievalDaemonManager()
 
@@ -352,8 +359,12 @@ final class RetrievalDaemonManager {
     private let tokenDefaultsKey = "retrievalDaemonAuthToken"
     private let launchAgentPathDefaultsKey = "retrievalDaemonLaunchAgentPath"
     private let expectedVersionDefaultsKey = "retrievalDaemonExpectedVersion"
+    private let sourceMarkerDefaultsKey = "retrievalDaemonSourceMarker"
     private let enabledDefaultsKey = "retrievalDaemonEnabled"
+    private let allowlistRootsDefaultsKey = "retrievalAllowlistRoots"
     private let healthCheckTimeout: TimeInterval = 0.7
+    private let lifecycleStateQueue = DispatchQueue(label: "com.hivecrew.retrievald.lifecycle-state")
+    private var startupTask: Task<Void, Never>?
 
     private init() {}
 
@@ -362,20 +373,39 @@ final class RetrievalDaemonManager {
             return
         }
 
-        Task.detached(priority: .utility) { [weak self] in
-            guard let self else { return }
-            do {
-                let install = try installOrUpdate()
-                if install.binaryWasUpdated {
-                    try unloadLaunchAgentIfPresent()
-                }
-                try loadLaunchAgent()
-                // Never probe daemon health on app launch path.
-                // Startup should stay responsive even if daemon takes time to come up.
-                UserDefaults.standard.set(install.expectedVersion, forKey: expectedVersionDefaultsKey)
-            } catch {
-                print("RetrievalDaemonManager: Failed to start retrieval daemon: \(error)")
+        let startedTask = lifecycleStateQueue.sync { () -> Task<Void, Never>? in
+            guard startupTask == nil else {
+                return nil
             }
+
+            let task = Task.detached(priority: .background) { [weak self] in
+                guard let self else { return }
+                defer {
+                    self.lifecycleStateQueue.async {
+                        self.startupTask = nil
+                    }
+                }
+
+                do {
+                    let install = try self.installOrUpdate()
+                    if install.binaryWasUpdated {
+                        try self.unloadLaunchAgentIfPresent()
+                    }
+                    try self.loadLaunchAgent()
+                    // Never probe daemon health on app launch path.
+                    // Startup should stay responsive even if daemon takes time to come up.
+                    UserDefaults.standard.set(install.expectedVersion, forKey: self.expectedVersionDefaultsKey)
+                } catch {
+                    print("RetrievalDaemonManager: Failed to start retrieval daemon: \(error)")
+                }
+            }
+
+            startupTask = task
+            return task
+        }
+
+        guard startedTask != nil else {
+            return
         }
     }
 
@@ -409,6 +439,87 @@ final class RetrievalDaemonManager {
         URL(string: "http://\(daemonHost):\(daemonPort)")!
     }
 
+    func allowlistRootsForDisplay() -> [RetrievalAllowlistRoot] {
+        let defaults = defaultAllowlistRoots()
+        let defaultSet = Set(defaults.map(canonicalizedDirectoryPath(_:)))
+        return retrievalAllowlistRoots().map { path in
+            RetrievalAllowlistRoot(
+                path: path,
+                isDefault: defaultSet.contains(canonicalizedDirectoryPath(path))
+            )
+        }
+    }
+
+    @discardableResult
+    func addAllowlistRoot(_ rawPath: String) -> Bool {
+        let normalized = canonicalizedDirectoryPath(rawPath)
+        guard !normalized.isEmpty else { return false }
+
+        var current = retrievalAllowlistRoots()
+        let existing = Set(current.map(canonicalizedDirectoryPath(_:)))
+        guard !existing.contains(normalized) else { return false }
+
+        current.append(normalized)
+        persistAllowlistRoots(current)
+        return true
+    }
+
+    @discardableResult
+    func removeAllowlistRoot(_ rawPath: String) -> Bool {
+        let normalized = canonicalizedDirectoryPath(rawPath)
+        guard !normalized.isEmpty else { return false }
+
+        let defaultSet = Set(defaultAllowlistRoots().map(canonicalizedDirectoryPath(_:)))
+        // Keep Desktop/Documents/Downloads always enabled by default.
+        guard !defaultSet.contains(normalized) else { return false }
+
+        let current = retrievalAllowlistRoots()
+        let filtered = current.filter { canonicalizedDirectoryPath($0) != normalized }
+        guard filtered.count != current.count else { return false }
+
+        persistAllowlistRoots(filtered)
+        return true
+    }
+
+    /// Push current allowlist roots into the running daemon without restarting it.
+    /// This applies new scopes immediately and optionally schedules a backfill pass.
+    func applyAllowlistRootsToRunningDaemon(triggerBackfill: Bool = true) async {
+        let roots = retrievalAllowlistRoots()
+        updateDaemonConfigAllowlistRootsIfPresent(roots)
+        do {
+            let token = try daemonAuthToken()
+            let configurePayload: [String: Any] = [
+                "scopes": [[
+                    "sourceType": "file",
+                    "includePathsOrHandles": roots,
+                    "excludePathsOrHandles": [],
+                    "enabled": true,
+                ]]
+            ]
+            let configureBody = try JSONSerialization.data(withJSONObject: configurePayload, options: [])
+
+            var configureRequest = URLRequest(url: daemonBaseURL().appending(path: "/api/v1/retrieval/scopes"))
+            configureRequest.httpMethod = "POST"
+            configureRequest.setValue(token, forHTTPHeaderField: "X-Retrieval-Token")
+            configureRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            configureRequest.httpBody = configureBody
+            _ = try await performDaemonRequest(configureRequest)
+
+            if triggerBackfill {
+                var triggerRequest = URLRequest(url: daemonBaseURL().appending(path: "/api/v1/retrieval/backfill/trigger"))
+                triggerRequest.httpMethod = "POST"
+                triggerRequest.setValue(token, forHTTPHeaderField: "X-Retrieval-Token")
+                triggerRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                triggerRequest.httpBody = Data("{}".utf8)
+                _ = try await performDaemonRequest(triggerRequest)
+            }
+        } catch {
+            // Best effort: roots are persisted and daemon config is updated.
+            // Live application may fail if daemon is still booting or unavailable.
+            print("RetrievalDaemonManager: Failed to apply allowlist roots live: \(error)")
+        }
+    }
+
     func daemonAuthToken() throws -> String {
         let token = UserDefaults.standard.string(forKey: tokenDefaultsKey)
         if let token, !token.isEmpty {
@@ -433,14 +544,10 @@ final class RetrievalDaemonManager {
 
         let sourceBinary = try resolveSourceBinary()
         let destinationBinary = daemonBinaryURL()
-        let expectedVersion = try daemonBinaryVersion(at: sourceBinary)
-        let binaryWasUpdated: Bool
-        if fileManager.fileExists(atPath: destinationBinary.path) {
-            let currentVersion = try? daemonBinaryVersion(at: destinationBinary)
-            binaryWasUpdated = currentVersion != expectedVersion
-        } else {
-            binaryWasUpdated = true
-        }
+        let sourceBinaryVersion = try daemonBinaryVersion(at: sourceBinary)
+        let sourceMarker = deterministicDaemonSourceMarker() ?? sourceBinaryVersion
+        let previousSourceMarker = persistedDaemonSourceMarker()
+        let binaryWasUpdated = previousSourceMarker != sourceMarker || !fileManager.fileExists(atPath: destinationBinary.path)
 
         if binaryWasUpdated {
             if fileManager.fileExists(atPath: destinationBinary.path) {
@@ -449,6 +556,9 @@ final class RetrievalDaemonManager {
             try fileManager.copyItem(at: sourceBinary, to: destinationBinary)
         }
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destinationBinary.path)
+        let expectedVersion = (try? daemonBinaryVersion(at: destinationBinary))
+            ?? UserDefaults.standard.string(forKey: expectedVersionDefaultsKey)
+            ?? sourceBinaryVersion
 
         let token = UserDefaults.standard.string(forKey: tokenDefaultsKey) ?? UUID().uuidString.replacingOccurrences(of: "-", with: "")
         UserDefaults.standard.set(token, forKey: tokenDefaultsKey)
@@ -458,6 +568,7 @@ final class RetrievalDaemonManager {
             "port": daemonPort,
             "authToken": token,
             "daemonVersion": expectedVersion,
+            "sourceMarker": sourceMarker,
             "indexingProfile": UserDefaults.standard.string(forKey: "retrievalIndexingProfile") ?? "balanced",
             "startupAllowlistRoots": retrievalAllowlistRoots(),
             "queueBatchSize": 24,
@@ -468,8 +579,25 @@ final class RetrievalDaemonManager {
         let launchPlist = launchAgentPlistContents(binaryPath: destinationBinary.path, configPath: daemonConfigURL().path)
         let launchAgentPlistURL = try writeLaunchAgentPlist(launchPlist)
         UserDefaults.standard.set(launchAgentPlistURL.path, forKey: launchAgentPathDefaultsKey)
+        UserDefaults.standard.set(sourceMarker, forKey: sourceMarkerDefaultsKey)
         UserDefaults.standard.set(expectedVersion, forKey: expectedVersionDefaultsKey)
         return DaemonInstallResult(expectedVersion: expectedVersion, binaryWasUpdated: binaryWasUpdated)
+    }
+
+    private func persistedDaemonSourceMarker() -> String? {
+        if let marker = UserDefaults.standard.string(forKey: sourceMarkerDefaultsKey), !marker.isEmpty {
+            return marker
+        }
+        let configURL = daemonConfigURL()
+        guard
+            let data = try? Data(contentsOf: configURL),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let marker = json["sourceMarker"] as? String,
+            !marker.isEmpty
+        else {
+            return nil
+        }
+        return marker
     }
 
     private func loadLaunchAgent() throws {
@@ -717,15 +845,130 @@ final class RetrievalDaemonManager {
     }
 
     private func retrievalAllowlistRoots() -> [String] {
-        let defaults = UserDefaults.standard
-        if let raw = defaults.array(forKey: "retrievalAllowlistRoots") as? [String], !raw.isEmpty {
-            return raw
+        let defaults = defaultAllowlistRoots()
+        let stored = (UserDefaults.standard.array(forKey: allowlistRootsDefaultsKey) as? [String]) ?? []
+        let merged = deduplicatedCanonicalPaths(defaults + stored)
+        if merged.isEmpty {
+            return defaults
         }
+        return merged
+    }
+
+    private func persistAllowlistRoots(_ roots: [String]) {
+        let normalized = deduplicatedCanonicalPaths(roots)
+        UserDefaults.standard.set(normalized, forKey: allowlistRootsDefaultsKey)
+        updateDaemonConfigAllowlistRootsIfPresent(normalized)
+    }
+
+    private func updateDaemonConfigAllowlistRootsIfPresent(_ roots: [String]) {
+        let configURL = daemonConfigURL()
+        guard let data = try? Data(contentsOf: configURL) else { return }
+        guard var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        json["startupAllowlistRoots"] = roots
+        guard let updated = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted]) else { return }
+        try? updated.write(to: configURL, options: .atomic)
+    }
+
+    private func performDaemonRequest(_ request: URLRequest) async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw NSError(
+                domain: "RetrievalDaemonManager",
+                code: 7,
+                userInfo: [NSLocalizedDescriptionKey: "Daemon request failed for \(request.url?.absoluteString ?? "unknown URL")"]
+            )
+        }
+        return data
+    }
+
+    private func defaultAllowlistRoots() -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return [
+        return deduplicatedCanonicalPaths([
             home.appendingPathComponent("Desktop").path,
             home.appendingPathComponent("Documents").path,
+            home.appendingPathComponent("Downloads").path,
+        ])
+    }
+
+    private func deduplicatedCanonicalPaths(_ roots: [String]) -> [String] {
+        var seen = Set<String>()
+        var output: [String] = []
+        for root in roots {
+            let normalized = canonicalizedDirectoryPath(root)
+            guard !normalized.isEmpty else { continue }
+            guard !seen.contains(normalized) else { continue }
+            seen.insert(normalized)
+            output.append(normalized)
+        }
+        return output
+    }
+
+    private func canonicalizedDirectoryPath(_ rawPath: String) -> String {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return URL(fileURLWithPath: trimmed).standardizedFileURL.path
+    }
+
+    private func deterministicDaemonSourceMarker() -> String? {
+        guard let repositoryRoot = resolveRepositoryRootFromSourcePath() else {
+            return nil
+        }
+        let sourceRoots = [
+            "Packages/HivecrewRetrievalSystem/Sources/HivecrewRetrievalDaemon",
+            "Packages/HivecrewRetrievalSystem/Sources/HivecrewRetrievalCore",
+            "Packages/HivecrewRetrievalSystem/Sources/HivecrewRetrievalProtocol",
         ]
+        let fileManager = FileManager.default
+        var manifestLines: [String] = []
+
+        for relativeRoot in sourceRoots {
+            let rootURL = repositoryRoot.appendingPathComponent(relativeRoot, isDirectory: true)
+            guard fileManager.fileExists(atPath: rootURL.path) else { continue }
+            guard let enumerator = fileManager.enumerator(
+                at: rootURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                continue
+            }
+            for case let fileURL as URL in enumerator {
+                guard fileURL.pathExtension.lowercased() == "swift" else { continue }
+                let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
+                guard values?.isRegularFile == true else { continue }
+                guard let data = try? Data(contentsOf: fileURL, options: .mappedIfSafe) else { continue }
+                let relativePath = fileURL.path.replacingOccurrences(of: repositoryRoot.path + "/", with: "")
+                let fileDigest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+                manifestLines.append("\(relativePath)|\(fileDigest)")
+            }
+        }
+
+        guard !manifestLines.isEmpty else {
+            return nil
+        }
+        let manifest = manifestLines.sorted().joined(separator: "\n")
+        let digest = SHA256.hash(data: Data(manifest.utf8)).map { String(format: "%02x", $0) }.joined()
+        return String(digest.prefix(16))
+    }
+
+    private func resolveRepositoryRootFromSourcePath() -> URL? {
+        let fileURL = URL(fileURLWithPath: #filePath)
+        var candidate = fileURL.deletingLastPathComponent()
+        for _ in 0..<12 {
+            let marker = candidate
+                .appendingPathComponent("Packages", isDirectory: true)
+                .appendingPathComponent("HivecrewRetrievalSystem", isDirectory: true)
+                .appendingPathComponent("Sources", isDirectory: true)
+                .appendingPathComponent("HivecrewRetrievalDaemon", isDirectory: true)
+            if FileManager.default.fileExists(atPath: marker.path) {
+                return candidate
+            }
+            let parent = candidate.deletingLastPathComponent()
+            if parent.path == candidate.path {
+                break
+            }
+            candidate = parent
+        }
+        return nil
     }
 
     private func launchAgentPlistContents(binaryPath: String, configPath: String) -> String {

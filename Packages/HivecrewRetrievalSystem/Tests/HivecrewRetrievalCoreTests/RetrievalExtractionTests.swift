@@ -8,6 +8,67 @@ import ZIPFoundation
 import HivecrewRetrievalProtocol
 
 final class RetrievalExtractionTests: XCTestCase {
+    func testIndexingPolicySkipsCodeAndDependencyDirectories() throws {
+        let root = URL(fileURLWithPath: "/tmp/hivecrew-policy-root", isDirectory: true)
+        let policy = IndexingPolicy.preset(profile: "developer", startupAllowlistRoots: [root.path])
+        let now = Date()
+
+        let codeEval = policy.evaluate(
+            fileURL: root.appendingPathComponent("src/app.swift"),
+            fileSize: 128,
+            modifiedAt: now
+        )
+        if case .skip(let reason) = codeEval {
+            XCTAssertEqual(reason, "unsupported_file_type")
+        } else {
+            XCTFail("Expected code file to be skipped")
+        }
+
+        let dependencyEval = policy.evaluate(
+            fileURL: root.appendingPathComponent("lib/python3.11/site-packages/demo/readme.txt"),
+            fileSize: 128,
+            modifiedAt: now
+        )
+        if case .skip(let reason) = dependencyEval {
+            XCTAssertEqual(reason, "excluded_path")
+        } else {
+            XCTFail("Expected dependency path to be excluded")
+        }
+
+        let javaTargetEval = policy.evaluate(
+            fileURL: root.appendingPathComponent("service/target/classes/report.txt"),
+            fileSize: 128,
+            modifiedAt: now
+        )
+        if case .skip(let reason) = javaTargetEval {
+            XCTAssertEqual(reason, "excluded_path")
+        } else {
+            XCTFail("Expected Java target output path to be excluded")
+        }
+
+        let tsBuildEval = policy.evaluate(
+            fileURL: root.appendingPathComponent("frontend/.next/server/chunk.txt"),
+            fileSize: 128,
+            modifiedAt: now
+        )
+        if case .skip(let reason) = tsBuildEval {
+            XCTAssertEqual(reason, "excluded_path")
+        } else {
+            XCTFail("Expected TypeScript/Web build output path to be excluded")
+        }
+
+        let cmakeEval = policy.evaluate(
+            fileURL: root.appendingPathComponent("native/cmake-build-debug/compile_commands.json"),
+            fileSize: 128,
+            modifiedAt: now
+        )
+        if case .skip(let reason) = cmakeEval {
+            XCTAssertEqual(reason, "excluded_path")
+        } else {
+            XCTFail("Expected CMake build output path to be excluded")
+        }
+    }
+
     func testFileConnectorBackfillReportsScanDiagnosticsAndPrunesExcludedSubtrees() async throws {
         let scratch = try makeScratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
@@ -412,6 +473,202 @@ final class RetrievalExtractionTests: XCTestCase {
         XCTAssertEqual(secondFileRuntime.extractionSuccessCount, firstFileRuntime.extractionSuccessCount)
     }
 
+    func testRetrievalServiceSkipsUnchangedUnsupportedDocumentsOnRebackfill() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let corpusRoot = scratch.appendingPathComponent("corpus", isDirectory: true)
+        try FileManager.default.createDirectory(at: corpusRoot, withIntermediateDirectories: true)
+        let unsupportedURL = corpusRoot.appendingPathComponent("broken.png")
+        try Data("not-a-real-png".utf8).write(to: unsupportedURL)
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let service = try RetrievalService(
+            configuration: RetrievalDaemonConfiguration(
+                authToken: "test-token",
+                indexingProfile: "developer",
+                startupAllowlistRoots: [corpusRoot.path]
+            ),
+            paths: paths
+        )
+
+        await service.start()
+        defer { Task { await service.stop() } }
+
+        _ = try await service.triggerBackfill(limit: 500)
+        let firstIdle = try await waitForIdleState(service: service)
+        let firstFileRuntime = try XCTUnwrap(firstIdle.sourceRuntime.first(where: { $0.sourceType == .file }))
+        XCTAssertGreaterThanOrEqual(firstFileRuntime.extractionUnsupportedCount, 1)
+
+        _ = try await service.triggerBackfill(limit: 500)
+        let secondIdle = try await waitForIdleState(service: service)
+        let secondFileRuntime = try XCTUnwrap(secondIdle.sourceRuntime.first(where: { $0.sourceType == .file }))
+        XCTAssertEqual(secondFileRuntime.extractionUnsupportedCount, firstFileRuntime.extractionUnsupportedCount)
+    }
+
+    func testRetrievalServiceSkipsUnsupportedFileFormatsWithoutExtraction() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let corpusRoot = scratch.appendingPathComponent("corpus", isDirectory: true)
+        try FileManager.default.createDirectory(at: corpusRoot, withIntermediateDirectories: true)
+        let unsupportedURL = corpusRoot.appendingPathComponent("artifact.dat.nosyncABC")
+        try Data("unsupported format content".utf8).write(to: unsupportedURL)
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let service = try RetrievalService(
+            configuration: RetrievalDaemonConfiguration(
+                authToken: "test-token",
+                indexingProfile: "developer",
+                startupAllowlistRoots: [corpusRoot.path]
+            ),
+            paths: paths
+        )
+
+        await service.start()
+        defer { Task { await service.stop() } }
+
+        _ = try await service.triggerBackfill(limit: 500)
+        let idle = try await waitForIdleState(service: service)
+        let fileRuntime = try XCTUnwrap(idle.sourceRuntime.first(where: { $0.sourceType == .file }))
+        XCTAssertEqual(fileRuntime.extractionUnsupportedCount, 0)
+        let unsupportedRunDocCount = try await service.indexStats().totalDocumentCount
+        XCTAssertEqual(unsupportedRunDocCount, 0)
+    }
+
+    func testRetrievalServiceSkipsConfigurationBuildDirectories() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let corpusRoot = scratch.appendingPathComponent("corpus", isDirectory: true)
+        try FileManager.default.createDirectory(at: corpusRoot, withIntermediateDirectories: true)
+        let normalFile = corpusRoot.appendingPathComponent("note.txt")
+        try "normal index token".write(to: normalFile, atomically: true, encoding: .utf8)
+
+        let buildDir = corpusRoot
+            .appendingPathComponent("arm64-apple-macosx", isDirectory: true)
+            .appendingPathComponent("debug", isDirectory: true)
+            .appendingPathComponent("Configuration.build", isDirectory: true)
+        try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+        let buildArtifact = buildDir.appendingPathComponent("artifact.txt")
+        try "build artifact token".write(to: buildArtifact, atomically: true, encoding: .utf8)
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let service = try RetrievalService(
+            configuration: RetrievalDaemonConfiguration(
+                authToken: "test-token",
+                indexingProfile: "developer",
+                startupAllowlistRoots: [corpusRoot.path]
+            ),
+            paths: paths
+        )
+
+        await service.start()
+        defer { Task { await service.stop() } }
+
+        _ = try await service.triggerBackfill(limit: 500)
+        try await waitForIndexedDocumentCount(service: service, minimum: 1)
+        let idle = try await waitForIdleState(service: service)
+        let fileRuntime = try XCTUnwrap(idle.sourceRuntime.first(where: { $0.sourceType == .file }))
+        XCTAssertEqual(fileRuntime.extractionUnsupportedCount, 0)
+        let buildFilteredDocCount = try await service.indexStats().totalDocumentCount
+        XCTAssertEqual(buildFilteredDocCount, 1)
+
+        let normalSuggest = try await service.suggest(
+            request: RetrievalSuggestRequest(
+                query: "normal index token",
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+        XCTAssertTrue(normalSuggest.suggestions.contains(where: { $0.title.contains("note.txt") }))
+
+        let buildSuggest = try await service.suggest(
+            request: RetrievalSuggestRequest(
+                query: "build artifact token",
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+        XCTAssertFalse(buildSuggest.suggestions.contains(where: { $0.title.contains("artifact.txt") }))
+    }
+
+    func testRetrievalServiceSkipsCodeFilesCompletely() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let corpusRoot = scratch.appendingPathComponent("corpus", isDirectory: true)
+        try FileManager.default.createDirectory(at: corpusRoot, withIntermediateDirectories: true)
+        let codeFile = corpusRoot.appendingPathComponent("source.swift")
+        let textFile = corpusRoot.appendingPathComponent("note.txt")
+        try "code only token retrieval mismatch".write(to: codeFile, atomically: true, encoding: .utf8)
+        try "plain text retrieval token".write(to: textFile, atomically: true, encoding: .utf8)
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let service = try RetrievalService(
+            configuration: RetrievalDaemonConfiguration(
+                authToken: "test-token",
+                indexingProfile: "developer",
+                startupAllowlistRoots: [corpusRoot.path]
+            ),
+            paths: paths
+        )
+
+        await service.start()
+        defer { Task { await service.stop() } }
+
+        _ = try await service.triggerBackfill(limit: 500)
+        try await waitForIndexedDocumentCount(service: service, minimum: 1)
+        let idle = try await waitForIdleState(service: service)
+
+        let stats = try await service.indexStats()
+        XCTAssertEqual(stats.totalDocumentCount, 1)
+        let fileRuntime = try XCTUnwrap(idle.sourceRuntime.first(where: { $0.sourceType == .file }))
+        XCTAssertEqual(fileRuntime.extractionUnsupportedCount, 0)
+
+        let codeSuggest = try await service.suggest(
+            request: RetrievalSuggestRequest(
+                query: "code only token retrieval mismatch",
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+        XCTAssertFalse(codeSuggest.suggestions.contains(where: { $0.title.contains("source.swift") }))
+
+        let textSuggest = try await service.suggest(
+            request: RetrievalSuggestRequest(
+                query: "plain text retrieval token",
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+        XCTAssertTrue(textSuggest.suggestions.contains(where: { $0.title.contains("note.txt") }))
+    }
+
     func testRetrievalServiceResumesAfterSleepAndIndexesFilesCreatedDuringPause() async throws {
         let scratch = try makeScratchDirectory()
         defer { try? FileManager.default.removeItem(at: scratch) }
@@ -461,6 +718,151 @@ final class RetrievalExtractionTests: XCTestCase {
             )
         )
         XCTAssertTrue(suggest.suggestions.contains(where: { $0.title.contains("wake-resume.txt") }))
+    }
+
+    func testRetrievalStoreDeletesDocumentsWhenPathRemoved() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let removedRoot = scratch.appendingPathComponent("to-remove", isDirectory: true)
+        let keepRoot = scratch.appendingPathComponent("keep", isDirectory: true)
+        try FileManager.default.createDirectory(at: removedRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: keepRoot, withIntermediateDirectories: true)
+
+        let removedPath = removedRoot.appendingPathComponent("a.txt").path
+        let keptPath = keepRoot.appendingPathComponent("b.txt").path
+        let removedDoc = RetrievalDocument(
+            id: "doc-remove",
+            sourceType: .file,
+            sourceId: removedPath,
+            title: "remove",
+            body: "remove token",
+            sourcePathOrHandle: removedPath,
+            updatedAt: Date(),
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        let keptDoc = RetrievalDocument(
+            id: "doc-keep",
+            sourceType: .file,
+            sourceId: keptPath,
+            title: "keep",
+            body: "keep token",
+            sourcePathOrHandle: keptPath,
+            updatedAt: Date(),
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        let removeChunk = RetrievalChunk(id: "doc-remove:0", documentId: "doc-remove", text: "remove token", index: 0, embedding: [0.1, 0.2])
+        let keepChunk = RetrievalChunk(id: "doc-keep:0", documentId: "doc-keep", text: "keep token", index: 0, embedding: [0.3, 0.4])
+        try await store.upsertDocument(removedDoc, chunks: [removeChunk])
+        try await store.upsertDocument(keptDoc, chunks: [keepChunk])
+        try await store.insertGraphEdges([
+            GraphEdge(
+                id: "doc-remove:mentions:remove",
+                sourceNode: "doc-remove",
+                targetNode: "remove",
+                edgeType: "mentions",
+                confidence: 0.5,
+                weight: 1.0,
+                sourceType: .file,
+                eventTime: Date(),
+                updatedAt: Date()
+            ),
+        ])
+
+        let deletedCount = try await store.deleteDocumentsForPath(sourceType: .file, sourcePathOrHandle: removedRoot.path)
+        XCTAssertEqual(deletedCount, 1)
+        let removedFetched = try await store.fetchDocument(for: "doc-remove")
+        let keptFetched = try await store.fetchDocument(for: "doc-keep")
+        XCTAssertNil(removedFetched)
+        XCTAssertNotNil(keptFetched)
+
+        let removeLexical = try await store.lexicalSearch(
+            queryText: "remove",
+            sourceFilters: [.file],
+            partitionFilter: [],
+            limit: 8
+        )
+        XCTAssertFalse(removeLexical.contains(where: { $0.documentId == "doc-remove" }))
+        let keepLexical = try await store.lexicalSearch(
+            queryText: "keep",
+            sourceFilters: [.file],
+            partitionFilter: [],
+            limit: 8
+        )
+        XCTAssertTrue(keepLexical.contains(where: { $0.documentId == "doc-keep" }))
+    }
+
+    func testRetrievalStoreTreatsFailedOrUnsupportedAttemptAsCurrent() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let sourceID = "/tmp/failure-case.png"
+        let now = Date()
+        try await store.recordIngestionAttempt(
+            sourceType: .file,
+            sourceId: sourceID,
+            sourcePathOrHandle: sourceID,
+            updatedAt: now,
+            outcome: .unsupported
+        )
+        let unsupportedCurrent = try await store.isIngestionAttemptCurrent(
+            sourceType: .file,
+            sourceId: sourceID,
+            updatedAt: now
+        )
+        let unsupportedAfterFutureEdit = try await store.isIngestionAttemptCurrent(
+            sourceType: .file,
+            sourceId: sourceID,
+            updatedAt: now.addingTimeInterval(60)
+        )
+        XCTAssertTrue(unsupportedCurrent)
+        XCTAssertFalse(unsupportedAfterFutureEdit)
+
+        try await store.recordIngestionAttempt(
+            sourceType: .file,
+            sourceId: sourceID,
+            sourcePathOrHandle: sourceID,
+            updatedAt: now,
+            outcome: .failed
+        )
+        let failedCurrent = try await store.isIngestionAttemptCurrent(
+            sourceType: .file,
+            sourceId: sourceID,
+            updatedAt: now
+        )
+        XCTAssertTrue(failedCurrent)
+
+        try await store.recordIngestionAttempt(
+            sourceType: .file,
+            sourceId: sourceID,
+            sourcePathOrHandle: sourceID,
+            updatedAt: now,
+            outcome: .partial
+        )
+        let partialCurrent = try await store.isIngestionAttemptCurrent(
+            sourceType: .file,
+            sourceId: sourceID,
+            updatedAt: now
+        )
+        XCTAssertFalse(partialCurrent)
     }
 
     func testQueueSnapshotStorageIsBoundedAndReclaimable() async throws {

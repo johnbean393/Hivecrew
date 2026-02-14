@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import AppKit
 
 struct RetrievalIndexWindow: View {
     @AppStorage("retrievalDaemonEnabled") private var retrievalDaemonEnabled = true
@@ -17,6 +18,7 @@ struct RetrievalIndexWindow: View {
         }
         .navigationSplitViewStyle(.balanced)
         .task(id: retrievalDaemonEnabled) {
+            viewModel.reloadAllowlistRoots()
             viewModel.setPollingEnabled(retrievalDaemonEnabled)
             if retrievalDaemonEnabled {
                 await viewModel.refreshNow()
@@ -41,7 +43,12 @@ struct RetrievalIndexWindow: View {
         } else {
             RetrievalIndexSourceDetailView(
                 model: viewModel.sourceDetail(for: viewModel.selectedEntry, enabled: retrievalDaemonEnabled),
+                allowlistRoots: viewModel.allowlistRoots,
                 lastRefreshAt: viewModel.lastRefreshAt,
+                onAddFolder: addFolderToIndexing,
+                onRemoveFolder: { path in
+                    Task { _ = await viewModel.removeAllowlistRoot(path: path) }
+                },
                 onRefresh: { Task { await viewModel.refreshNow() } },
                 onRestartDaemon: restartDaemon
             )
@@ -53,6 +60,22 @@ struct RetrievalIndexWindow: View {
         Task {
             try? await Task.sleep(for: .milliseconds(500))
             await viewModel.refreshNow()
+        }
+    }
+
+    private func addFolderToIndexing() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = "Add Folder"
+        panel.message = "Choose a folder to include in retrieval indexing."
+        guard panel.runModal() == .OK, let folderURL = panel.url else {
+            return
+        }
+        Task {
+            _ = await viewModel.addAllowlistRoot(path: folderURL.path)
         }
     }
 }

@@ -173,8 +173,9 @@ enum RetrievalDaemonMain {
         let defaultConfig = RetrievalDaemonConfiguration(
             authToken: token,
             startupAllowlistRoots: [
-                fm.homeDirectoryForCurrentUser.appendingPathComponent("Documents").path,
                 fm.homeDirectoryForCurrentUser.appendingPathComponent("Desktop").path,
+                fm.homeDirectoryForCurrentUser.appendingPathComponent("Documents").path,
+                fm.homeDirectoryForCurrentUser.appendingPathComponent("Downloads").path,
             ]
         )
         let data = try JSONEncoder().encode(defaultConfig)

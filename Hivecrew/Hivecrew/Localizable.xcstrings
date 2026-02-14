@@ -2261,6 +2261,9 @@
         }
       }
     },
+    "Add Folder..." : {
+
+    },
     "Add instructions..." : {
       "localizations" : {
         "de" : {
@@ -14891,6 +14894,9 @@
         }
       }
     },
+    "Indexed Folders" : {
+
+    },
     "Instructions" : {
       "localizations" : {
         "de" : {
@@ -17061,6 +17067,9 @@
           }
         }
       }
+    },
+    "More scope types coming soon." : {
+
     },
     "My MCP Server" : {
       "localizations" : {
