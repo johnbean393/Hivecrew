@@ -363,8 +363,11 @@ final class RetrievalDaemonManager {
     private let enabledDefaultsKey = "retrievalDaemonEnabled"
     private let allowlistRootsDefaultsKey = "retrievalAllowlistRoots"
     private let healthCheckTimeout: TimeInterval = 0.7
+    private let launchctlTimeoutSeconds: TimeInterval = 4.0
+    private let deferredUpdateDelaySeconds: TimeInterval = 6.0
     private let lifecycleStateQueue = DispatchQueue(label: "com.hivecrew.retrievald.lifecycle-state")
     private var startupTask: Task<Void, Never>?
+    private var deferredUpdateTask: Task<Void, Never>?
 
     private init() {}
 
@@ -387,6 +390,14 @@ final class RetrievalDaemonManager {
                 }
 
                 do {
+                    let uid = getuid()
+                    let serviceTarget = "gui/\(uid)/\(self.launchAgentLabel)"
+                    // Keep launch responsive: when daemon is already running, defer
+                    // any update/restart work to a delayed background maintenance pass.
+                    if self.isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+                        self.scheduleDeferredUpdateCheckIfNeeded()
+                        return
+                    }
                     let install = try self.installOrUpdate()
                     if install.binaryWasUpdated {
                         try self.unloadLaunchAgentIfPresent()
@@ -409,7 +420,67 @@ final class RetrievalDaemonManager {
         }
     }
 
+    private func scheduleDeferredUpdateCheckIfNeeded() {
+        let scheduledTask = lifecycleStateQueue.sync { () -> Task<Void, Never>? in
+            guard deferredUpdateTask == nil else {
+                return nil
+            }
+
+            let task = Task.detached(priority: .background) { [weak self] in
+                guard let self else { return }
+                defer {
+                    self.lifecycleStateQueue.async {
+                        self.deferredUpdateTask = nil
+                    }
+                }
+
+                try? await Task.sleep(for: .milliseconds(Int(self.deferredUpdateDelaySeconds * 1_000)))
+                guard !Task.isCancelled else { return }
+                guard self.isDaemonEnabledInDefaults() else { return }
+
+                do {
+                    let install = try self.installOrUpdate()
+                    UserDefaults.standard.set(install.expectedVersion, forKey: self.expectedVersionDefaultsKey)
+                    guard install.binaryWasUpdated else { return }
+
+                    try self.unloadLaunchAgentIfPresent()
+                    try self.loadLaunchAgent()
+                    _ = await self.waitForHealthyState(maxAttempts: 8)
+                    try await self.ensureExpectedDaemonVersion(install.expectedVersion)
+                } catch {
+                    print("RetrievalDaemonManager: Deferred update check failed: \(error)")
+                }
+            }
+
+            deferredUpdateTask = task
+            return task
+        }
+
+        guard scheduledTask != nil else {
+            return
+        }
+    }
+
+    private func isDaemonEnabledInDefaults() -> Bool {
+        let defaults = UserDefaults.standard
+        if !defaults.bool(forKey: enabledDefaultsKey),
+           defaults.object(forKey: enabledDefaultsKey) != nil {
+            return false
+        }
+        return true
+    }
+
+    private func cancelLifecycleTasks() {
+        lifecycleStateQueue.sync {
+            startupTask?.cancel()
+            startupTask = nil
+            deferredUpdateTask?.cancel()
+            deferredUpdateTask = nil
+        }
+    }
+
     func restart() {
+        cancelLifecycleTasks()
         Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
@@ -425,6 +496,7 @@ final class RetrievalDaemonManager {
     }
 
     func stop() {
+        cancelLifecycleTasks()
         Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
@@ -553,10 +625,11 @@ final class RetrievalDaemonManager {
         let binaryWasUpdated = previousSourceMarker != sourceMarker || !fileManager.fileExists(atPath: destinationBinary.path)
 
         if binaryWasUpdated {
-            if fileManager.fileExists(atPath: destinationBinary.path) {
-                try fileManager.removeItem(at: destinationBinary)
-            }
-            try fileManager.copyItem(at: sourceBinary, to: destinationBinary)
+            try replaceDaemonBinaryAtomically(
+                from: sourceBinary,
+                to: destinationBinary,
+                fileManager: fileManager
+            )
         }
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destinationBinary.path)
         let expectedVersion = (try? daemonBinaryVersion(at: destinationBinary))
@@ -585,6 +658,29 @@ final class RetrievalDaemonManager {
         UserDefaults.standard.set(sourceMarker, forKey: sourceMarkerDefaultsKey)
         UserDefaults.standard.set(expectedVersion, forKey: expectedVersionDefaultsKey)
         return DaemonInstallResult(expectedVersion: expectedVersion, binaryWasUpdated: binaryWasUpdated)
+    }
+
+    private func replaceDaemonBinaryAtomically(
+        from sourceBinary: URL,
+        to destinationBinary: URL,
+        fileManager: FileManager
+    ) throws {
+        let stagedURL = destinationBinary
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(binaryName).staged-\(ProcessInfo.processInfo.globallyUniqueString)")
+
+        defer {
+            try? fileManager.removeItem(at: stagedURL)
+        }
+
+        try fileManager.copyItem(at: sourceBinary, to: stagedURL)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stagedURL.path)
+
+        if fileManager.fileExists(atPath: destinationBinary.path) {
+            _ = try fileManager.replaceItemAt(destinationBinary, withItemAt: stagedURL)
+        } else {
+            try fileManager.moveItem(at: stagedURL, to: destinationBinary)
+        }
     }
 
     private func persistedDaemonSourceMarker() -> String? {
@@ -634,46 +730,139 @@ final class RetrievalDaemonManager {
     }
 
     private func runLaunchctl(_ arguments: [String], allowAlreadyLoaded: Bool) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = arguments
-        let stderr = Pipe()
-        process.standardError = stderr
-        try process.run()
-        process.waitUntilExit()
+        let result = try runLaunchctlProcess(
+            arguments,
+            captureStdout: false,
+            captureStderr: true
+        )
 
-        guard process.terminationStatus == 0 else {
-            let errorOutput = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            if allowAlreadyLoaded,
-               errorOutput.localizedCaseInsensitiveContains("already")
-                || errorOutput.localizedCaseInsensitiveContains("not loaded")
-                || errorOutput.localizedCaseInsensitiveContains("could not find service")
-                || errorOutput.localizedCaseInsensitiveContains("service not found")
-                || errorOutput.localizedCaseInsensitiveContains("no such process")
-            {
+        guard result.terminationStatus == 0 else {
+            let errorOutput = result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
+            if allowAlreadyLoaded && isIgnorableLaunchctlErrorOutput(errorOutput) {
                 return
             }
             throw NSError(
                 domain: "RetrievalDaemonManager",
-                code: Int(process.terminationStatus),
+                code: Int(result.terminationStatus),
                 userInfo: [NSLocalizedDescriptionKey: errorOutput.isEmpty ? "launchctl command failed: \(arguments.joined(separator: " "))" : errorOutput]
             )
         }
     }
 
     private func isLaunchAgentLoaded(serviceTarget: String) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["print", serviceTarget]
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
         do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
+            let result = try runLaunchctlProcess(
+                ["print", serviceTarget],
+                captureStdout: false,
+                captureStderr: false
+            )
+            return result.terminationStatus == 0
         } catch {
             return false
         }
+    }
+
+    private struct LaunchctlProcessResult {
+        let terminationStatus: Int32
+        let standardOutput: String
+        let standardError: String
+    }
+
+    private func runLaunchctlProcess(
+        _ arguments: [String],
+        captureStdout: Bool,
+        captureStderr: Bool
+    ) throws -> LaunchctlProcessResult {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+
+        var stdoutURL: URL?
+        var stderrURL: URL?
+        var stdoutHandle: FileHandle?
+        var stderrHandle: FileHandle?
+        var nullStdoutHandle: FileHandle?
+        var nullStderrHandle: FileHandle?
+
+        if captureStdout {
+            let url = temporaryCaptureURL(prefix: "hivecrew-launchctl-stdout")
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+            stdoutURL = url
+            stdoutHandle = try FileHandle(forWritingTo: url)
+            process.standardOutput = stdoutHandle
+        } else if let devNull = try? FileHandle(forWritingTo: URL(fileURLWithPath: "/dev/null")) {
+            nullStdoutHandle = devNull
+            process.standardOutput = devNull
+        }
+
+        if captureStderr {
+            let url = temporaryCaptureURL(prefix: "hivecrew-launchctl-stderr")
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+            stderrURL = url
+            stderrHandle = try FileHandle(forWritingTo: url)
+            process.standardError = stderrHandle
+        } else if let devNull = try? FileHandle(forWritingTo: URL(fileURLWithPath: "/dev/null")) {
+            nullStderrHandle = devNull
+            process.standardError = devNull
+        }
+
+        defer {
+            try? stdoutHandle?.close()
+            try? stderrHandle?.close()
+            try? nullStdoutHandle?.close()
+            try? nullStderrHandle?.close()
+            if let stdoutURL {
+                try? FileManager.default.removeItem(at: stdoutURL)
+            }
+            if let stderrURL {
+                try? FileManager.default.removeItem(at: stderrURL)
+            }
+        }
+
+        let completion = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            completion.signal()
+        }
+        try process.run()
+
+        let timeout = DispatchTime.now() + launchctlTimeoutSeconds
+        guard completion.wait(timeout: timeout) == .success else {
+            process.terminate()
+            throw NSError(
+                domain: "RetrievalDaemonManager",
+                code: 8,
+                userInfo: [NSLocalizedDescriptionKey: "launchctl command timed out: \(arguments.joined(separator: " "))"]
+            )
+        }
+        process.terminationHandler = nil
+
+        try? stdoutHandle?.close()
+        stdoutHandle = nil
+        try? stderrHandle?.close()
+        stderrHandle = nil
+
+        let standardOutput = stdoutURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        let standardError = stderrURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        return LaunchctlProcessResult(
+            terminationStatus: process.terminationStatus,
+            standardOutput: standardOutput,
+            standardError: standardError
+        )
+    }
+
+    private func temporaryCaptureURL(prefix: String) -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(prefix)-\(ProcessInfo.processInfo.globallyUniqueString)")
+    }
+
+    private func isIgnorableLaunchctlErrorOutput(_ errorOutput: String) -> Bool {
+        guard !errorOutput.isEmpty else { return false }
+        let normalized = errorOutput.lowercased()
+        return normalized.contains("already")
+            || normalized.contains("not loaded")
+            || normalized.contains("could not find service")
+            || normalized.contains("service not found")
+            || normalized.contains("no such process")
     }
 
     private func waitForHealthyState(maxAttempts: Int) async -> Bool {
@@ -816,19 +1005,14 @@ final class RetrievalDaemonManager {
     }
 
     private func launchAgentProgramPath(serviceTarget: String) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        process.arguments = ["print", serviceTarget]
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
         do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            guard let text = String(data: data, encoding: .utf8) else { return nil }
+            let result = try runLaunchctlProcess(
+                ["print", serviceTarget],
+                captureStdout: true,
+                captureStderr: false
+            )
+            guard result.terminationStatus == 0 else { return nil }
+            let text = result.standardOutput
             for line in text.split(separator: "\n") {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.hasPrefix("program = ") {
