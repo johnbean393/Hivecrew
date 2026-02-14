@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import HivecrewLLM
 
 /// LLM Provider configuration step
 struct OnboardingProviderStep: View {
@@ -164,6 +165,230 @@ struct OnboardingProviderStep: View {
         apiKey = ""
         baseURL = ""
         testResult = nil
+    }
+}
+
+/// Worker model configuration step shown during onboarding.
+struct OnboardingWorkerModelStep: View {
+    @Query(sort: \LLMProviderRecord.displayName) private var providers: [LLMProviderRecord]
+    @Binding var isConfigured: Bool
+
+    @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
+    @AppStorage("workerModelId") private var workerModelId: String?
+
+    @State private var availableModels: [LLMProviderModel] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    private var selectedProvider: LLMProviderRecord? {
+        guard let workerModelProviderId, !workerModelProviderId.isEmpty else { return nil }
+        return providers.first(where: { $0.id == workerModelProviderId })
+    }
+
+    var body: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 8) {
+                Image(systemName: "bolt.circle")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.orange)
+
+                Text("Configure Worker Model")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Text("The worker model is required and powers fast background reasoning for suggestions, titles, and lightweight extraction tasks.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 20)
+
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Worker Provider")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker(
+                        "Worker Provider",
+                        selection: Binding(
+                            get: { workerModelProviderId ?? "" },
+                            set: { newValue in
+                                let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                workerModelProviderId = normalized.isEmpty ? nil : normalized
+                                workerModelId = nil
+                                availableModels = []
+                                errorMessage = nil
+                                loadModelsForSelectedProvider()
+                                refreshConfiguredState()
+                            }
+                        )
+                    ) {
+                        ForEach(providers) { provider in
+                            Text(provider.displayName).tag(provider.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Worker Model")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if isLoading {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Loading available models...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let errorMessage {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(errorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                            Button("Retry Model Load") {
+                                loadModelsForSelectedProvider()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    } else if availableModels.isEmpty {
+                        Text("No models available for this provider.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker(
+                            "Worker Model",
+                            selection: Binding(
+                                get: { workerModelId ?? "" },
+                                set: { newValue in
+                                    let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    workerModelId = normalized.isEmpty ? nil : normalized
+                                    refreshConfiguredState()
+                                }
+                            )
+                        ) {
+                            ForEach(availableModels) { model in
+                                Text(model.displayName).tag(model.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+
+                Text("Choose a low-latency worker model. You can update this later in Settings → Providers.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 60)
+
+            Spacer()
+
+            if isConfigured {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Worker model configured")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.bottom, 8)
+            } else {
+                Text("Select both a worker provider and worker model to continue.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.bottom, 8)
+            }
+        }
+        .padding()
+        .onAppear {
+            ensureProviderSelection()
+            loadModelsForSelectedProvider()
+            refreshConfiguredState()
+        }
+        .onChange(of: providers.count) { _, _ in
+            ensureProviderSelection()
+            loadModelsForSelectedProvider()
+            refreshConfiguredState()
+        }
+    }
+
+    private func ensureProviderSelection() {
+        guard !providers.isEmpty else {
+            workerModelProviderId = nil
+            workerModelId = nil
+            return
+        }
+
+        if let existing = workerModelProviderId,
+           providers.contains(where: { $0.id == existing }) {
+            return
+        }
+
+        workerModelProviderId = providers.first(where: { $0.isDefault })?.id ?? providers.first?.id
+        workerModelId = nil
+    }
+
+    private func refreshConfiguredState() {
+        let hasProvider = !(workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let hasModel = !(workerModelId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        isConfigured = hasProvider && hasModel
+    }
+
+    private func loadModelsForSelectedProvider() {
+        guard let provider = selectedProvider else {
+            availableModels = []
+            errorMessage = "Select a provider to load models."
+            refreshConfiguredState()
+            return
+        }
+        guard let apiKey = provider.retrieveAPIKey(), !apiKey.isEmpty else {
+            availableModels = []
+            errorMessage = "This provider has no API key configured."
+            refreshConfiguredState()
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let config = LLMConfiguration(
+                    displayName: provider.displayName,
+                    baseURL: provider.parsedBaseURL,
+                    apiKey: apiKey,
+                    model: "moonshotai/kimi-k2.5",
+                    organizationId: provider.organizationId,
+                    timeoutInterval: provider.timeoutInterval
+                )
+                let client = LLMService.shared.createClient(from: config)
+                let models = try await client.listModelsDetailed()
+
+                await MainActor.run {
+                    availableModels = models
+                    isLoading = false
+                    if let existing = workerModelId, models.contains(where: { $0.id == existing }) {
+                        refreshConfiguredState()
+                    } else if let firstModel = models.first {
+                        workerModelId = firstModel.id
+                        refreshConfiguredState()
+                    } else {
+                        workerModelId = nil
+                        refreshConfiguredState()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    availableModels = []
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    workerModelId = nil
+                    refreshConfiguredState()
+                }
+            }
+        }
     }
 }
 

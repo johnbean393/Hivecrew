@@ -33,6 +33,9 @@ enum TipEvents {
     /// Fired when user attaches a file
     static let fileAttached = Tips.Event(id: "fileAttached")
     
+    /// Fired when ghost context attachment chips are first shown
+    static let ghostContextSuggestionsShown = Tips.Event(id: "ghostContextSuggestionsShown")
+    
     // MARK: - Schedule Events
     
     /// Fired when a schedule is created

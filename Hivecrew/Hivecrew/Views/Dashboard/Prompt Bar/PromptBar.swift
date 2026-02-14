@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import TipKit
 import UniformTypeIdentifiers
+import QuickLook
 
 /// Configuration for send key behavior
 enum SendKeyMode: String, CaseIterable, Identifiable {
@@ -39,7 +40,9 @@ struct PromptBar: View {
     
     // Attachments state
     @Binding var attachments: [PromptAttachment]
+    var ghostSuggestions: [PromptContextSuggestion] = []
     var onRemoveAttachment: ((PromptAttachment) -> Void)? = nil
+    var onPromoteGhostSuggestion: ((PromptContextSuggestion) -> Void)? = nil
     
     // Model selection state
     @Binding var selectedProviderId: String
@@ -53,6 +56,8 @@ struct PromptBar: View {
     
     // Send key configuration
     @AppStorage("useCommandReturn") private var useCommandReturn: Bool = true
+    @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
+    @AppStorage("workerModelId") private var workerModelId: String?
     
     // Plan mode toggle
     @Binding var planFirstEnabled: Bool
@@ -73,6 +78,8 @@ struct PromptBar: View {
     @StateObject private var mentionInsertionController = MentionInsertionController()
     @State private var mentionQuery: MentionQuery?
     @State private var mentionScreenPosition: CGPoint?
+    @State private var quickLookURL: URL?
+    @State private var quickLookURLSnapshot: [URL] = []
     
     // Tips
     private let attachFilesTip = AttachFilesTip()
@@ -98,12 +105,19 @@ struct PromptBar: View {
         return String(localized: "Enter a message. Press \(sendKeyDescription) to send.")
     }
     
-    private var hasAttachments: Bool {
-        !attachments.isEmpty
+    private var hasAttachmentPreviews: Bool {
+        !attachments.isEmpty || !ghostSuggestions.isEmpty
     }
     
     private var hasText: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasWorkerModelConfigured: Bool {
+        guard let workerModelProviderId,
+              let workerModelId else { return false }
+        return !workerModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !workerModelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     private var showMentionSuggestions: Bool {
@@ -127,17 +141,23 @@ struct PromptBar: View {
             // Main input container
             mainInputContainer
             // Attachment previews (shown above the input if there are attachments)
-            if hasAttachments {
+            if hasAttachmentPreviews {
                 PromptAttachmentPreviewList(
                     attachments: $attachments,
-                    onRemoveAttachment: onRemoveAttachment
+                    ghostSuggestions: ghostSuggestions,
+                    onRemoveAttachment: onRemoveAttachment,
+                    onPromoteGhostSuggestion: onPromoteGhostSuggestion,
+                    onOpenAttachment: { url in
+                        openQuickLook(for: url)
+                    }
                 )
                     .padding(.top, 6)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isFocused)
-        .animation(.easeInOut(duration: 0.2), value: hasAttachments)
+        .animation(.easeInOut(duration: 0.2), value: hasAttachmentPreviews)
         .animation(.easeInOut(duration: 0.15), value: inputMinHeight)
+        .quickLookPreview($quickLookURL, in: quickLookURLsForPresentation)
         .onAppear {
             setupKeyEventMonitor()
             setupMentionPanel()
@@ -286,8 +306,8 @@ struct PromptBar: View {
                 .foregroundStyle(isSubmitting ? Color.secondary : Color.accentColor)
         }
         .buttonStyle(.plain)
-        .disabled(isSubmitting || selectedProviderId.isEmpty)
-        .help("Send (\(useCommandReturn ? "⌘ + Return" : "Return"))")
+        .disabled(isSubmitting || selectedProviderId.isEmpty || !hasWorkerModelConfigured)
+        .help(sendButtonHelpText)
     }
     
     // MARK: - Helpers
@@ -333,6 +353,7 @@ struct PromptBar: View {
         let trimmed = resolvedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard !selectedProviderId.isEmpty else { return }
+        guard hasWorkerModelConfigured else { return }
         
         // Get mentioned skill names before clearing
         mentionedSkillNames = mentionInsertionController.getMentionedSkillNames()
@@ -344,6 +365,53 @@ struct PromptBar: View {
         
         // Clear the text view directly after submission
         mentionInsertionController.clearTextView()
+    }
+
+    private var sendButtonHelpText: String {
+        if !hasWorkerModelConfigured {
+            return "Configure worker provider + model in onboarding or Settings → Providers"
+        }
+        return "Send (\(useCommandReturn ? "⌘ + Return" : "Return"))"
+    }
+
+    private var quickLookPreviewURLs: [URL] {
+        var ordered: [URL] = []
+        var seenPaths = Set<String>()
+
+        for attachment in attachments {
+            let normalizedPath = attachment.url.path
+            if seenPaths.insert(normalizedPath).inserted {
+                ordered.append(attachment.url)
+            }
+        }
+
+        for suggestion in ghostSuggestions {
+            let path = suggestion.sourcePathOrHandle.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard path.hasPrefix("/") else { continue }
+            let url = URL(fileURLWithPath: path)
+            if seenPaths.insert(url.path).inserted {
+                ordered.append(url)
+            }
+        }
+
+        return ordered
+    }
+
+    private var quickLookURLsForPresentation: [URL] {
+        if quickLookURL != nil {
+            return quickLookURLSnapshot.isEmpty ? quickLookPreviewURLs : quickLookURLSnapshot
+        }
+        return quickLookPreviewURLs
+    }
+
+    private func openQuickLook(for url: URL) {
+        let currentURLs = quickLookPreviewURLs
+        if currentURLs.contains(where: { $0.path == url.path }) {
+            quickLookURLSnapshot = currentURLs
+        } else {
+            quickLookURLSnapshot = [url]
+        }
+        quickLookURL = url
     }
     
     // MARK: - Mention Panel
@@ -485,6 +553,7 @@ struct PromptBar: View {
                 PromptBar(
                     text: $text,
                     attachments: $attachments,
+                    ghostSuggestions: [],
                     selectedProviderId: $providerId,
                     selectedModelId: $modelId,
                     copyCount: $copyCount,

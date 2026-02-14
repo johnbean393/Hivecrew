@@ -108,20 +108,30 @@ struct ProvidersSettingsView: View {
                 Text("Worker Model")
                     .font(.headline)
                 
-                Text("Select a cheaper/faster model for simple tasks like title generation and webpage extraction. Leave unset to use the main model.")
+                Text("Worker model is required. It powers fast background tasks like title generation, retrieval guidance, and webpage extraction.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 
                 // Provider picker
-                Picker("Provider", selection: $workerModelProviderId) {
-                    Text("Use Main Model").tag(nil as String?)
+                Picker(
+                    "Provider",
+                    selection: Binding(
+                        get: { workerModelProviderId ?? "" },
+                        set: { newValue in
+                            let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            workerModelProviderId = normalized.isEmpty ? nil : normalized
+                            workerModelId = nil
+                        }
+                    )
+                ) {
+                    Text("Select Provider").tag("")
                     ForEach(providers) { provider in
-                        Text(provider.displayName).tag(provider.id as String?)
+                        Text(provider.displayName).tag(provider.id)
                     }
                 }
                 
                 // Model input field (simple text field for model ID)
-                if workerModelProviderId != nil {
+                if !(workerModelProviderId?.isEmpty ?? true) {
                     HStack {
                         Text("Model ID:")
                         TextField("", text: Binding(
@@ -134,6 +144,12 @@ struct ProvidersSettingsView: View {
                     Text("Enter the model ID. The worker model is used for simple tasks like title generation and webpage information extraction.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                if (workerModelProviderId?.isEmpty ?? true) || (workerModelId?.isEmpty ?? true) {
+                    Label("Worker provider and model are required.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
             .padding(.vertical, 4)

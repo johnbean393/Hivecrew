@@ -28,7 +28,7 @@ public class WebpageExtractor {
         // Fetch webpage content
         let content = try await WebpageReader.readWebpage(url: url)
         
-        // Use worker model for extraction (fall back to main model if not configured)
+        // Use the required worker model for extraction.
         // Cast taskService to access createWorkerLLMClient
         guard let service = taskService as? (any CreateWorkerClientProtocol) else {
             throw WebpageExtractorError.invalidTaskService

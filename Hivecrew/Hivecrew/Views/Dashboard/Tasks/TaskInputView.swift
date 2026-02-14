@@ -24,10 +24,13 @@ struct TaskInputView: View {
     @State private var mentionedSkillNames: [String] = []
     @State private var copyCount: TaskCopyCount = .one
     @StateObject private var contextProvider = PromptContextSuggestionProvider()
+    @State private var hasDonatedGhostContextTip = false
     
     // Persisted selections
     @AppStorage("lastSelectedProviderId") private var selectedProviderId: String = ""
     @AppStorage("lastSelectedModelId") private var selectedModelId: String = ""
+    @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
+    @AppStorage("workerModelId") private var workerModelId: String?
     
     // Non-persisted - always defaults to Direct mode on launch
     @State private var planFirstEnabled: Bool = false
@@ -37,10 +40,14 @@ struct TaskInputView: View {
             PromptBar(
                 text: $taskDescription,
                 attachments: $attachments,
+                ghostSuggestions: ghostContextSuggestions,
                 onRemoveAttachment: { removed in
                     if let suggestionID = removed.origin.indexedSuggestionID {
                         contextProvider.detachSuggestion(withID: suggestionID)
                     }
+                },
+                onPromoteGhostSuggestion: { suggestion in
+                    contextProvider.attachSuggestion(suggestion)
                 },
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
@@ -54,8 +61,13 @@ struct TaskInputView: View {
             )
             .padding(.horizontal, 40)
 
-            ContextSuggestionDrawer(provider: contextProvider)
-                .padding(.horizontal, 40)
+            if !isWorkerModelConfigured {
+                Text("Worker model is required before sending tasks. Configure it in onboarding or Settings → Providers.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 40)
+            }
+
         }
         .onAppear {
             // Select default provider only if no provider is currently selected
@@ -65,6 +77,7 @@ struct TaskInputView: View {
                let defaultProvider = providers.first(where: { $0.isDefault }) ?? providers.first {
                 selectedProviderId = defaultProvider.id
             }
+            contextProvider.setWorkerClientProvider(taskService)
             contextProvider.updateDraft(taskDescription)
         }
         .onChange(of: providers) { _, newValue in
@@ -81,11 +94,18 @@ struct TaskInputView: View {
         .onChange(of: contextProvider.attachedSuggestions) { _, _ in
             syncContextAttachmentsIntoPromptBar()
         }
+        .onChange(of: contextProvider.suggestions) { _, _ in
+            donateGhostTipIfNeeded()
+        }
+        .onChange(of: attachments) { _, _ in
+            donateGhostTipIfNeeded()
+        }
     }
     
     private func submitTask() async {
         guard !taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard !selectedProviderId.isEmpty else { return }
+        guard isWorkerModelConfigured else { return }
         
         isSubmitting = true
         defer { isSubmitting = false }
@@ -190,6 +210,30 @@ struct TaskInputView: View {
         let path = suggestion.sourcePathOrHandle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard path.hasPrefix("/") else { return nil }
         return URL(fileURLWithPath: path)
+    }
+
+    private var isWorkerModelConfigured: Bool {
+        guard let workerModelProviderId,
+              let workerModelId else { return false }
+        return !workerModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !workerModelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var ghostContextSuggestions: [PromptContextSuggestion] {
+        let selectedSuggestionIDs = Set(contextProvider.attachedSuggestions.map(\.id))
+        let existingAttachmentPaths = Set(attachments.map { $0.url.path })
+        return contextProvider.suggestions.filter { suggestion in
+            guard !selectedSuggestionIDs.contains(suggestion.id) else { return false }
+            guard let url = contextAttachmentURL(for: suggestion) else { return false }
+            return !existingAttachmentPaths.contains(url.path)
+        }
+    }
+
+    private func donateGhostTipIfNeeded() {
+        guard !hasDonatedGhostContextTip else { return }
+        guard !ghostContextSuggestions.isEmpty else { return }
+        hasDonatedGhostContextTip = true
+        TipStore.shared.donateGhostContextSuggestionsShown()
     }
 }
 

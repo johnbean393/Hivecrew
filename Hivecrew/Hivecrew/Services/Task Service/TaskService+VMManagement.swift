@@ -151,19 +151,18 @@ extension TaskService {
         return LLMService.shared.createClient(from: config)
     }
     
-    /// Create an LLM client for worker tasks (or fall back to provided client)
-    /// Worker model is used for simple tasks like title generation and webpage extraction
+    /// Create an LLM client for worker tasks.
+    /// Worker model is required and powers lightweight/background LLM tasks.
     func createWorkerLLMClient(fallbackProviderId: String, fallbackModelId: String) async throws -> any LLMClientProtocol {
-        // Try to use configured worker model
-        if let workerProviderId = UserDefaults.standard.string(forKey: "workerModelProviderId"),
-           let workerModelId = UserDefaults.standard.string(forKey: "workerModelId"),
-           !workerProviderId.isEmpty,
-           !workerModelId.isEmpty {
-            return try await createLLMClient(providerId: workerProviderId, modelId: workerModelId)
+        _ = fallbackProviderId
+        _ = fallbackModelId
+        guard let workerProviderId = UserDefaults.standard.string(forKey: "workerModelProviderId"),
+              let workerModelId = UserDefaults.standard.string(forKey: "workerModelId"),
+              !workerProviderId.isEmpty,
+              !workerModelId.isEmpty else {
+            throw TaskServiceError.workerModelNotConfigured
         }
-        
-        // Fall back to main model
-        return try await createLLMClient(providerId: fallbackProviderId, modelId: fallbackModelId)
+        return try await createLLMClient(providerId: workerProviderId, modelId: workerModelId)
     }
     
     /// Count running developer VMs (these count toward the concurrent VM limit)

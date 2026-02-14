@@ -7,6 +7,8 @@
 
 import Combine
 import SwiftUI
+import HivecrewLLM
+import NaturalLanguage
 
 enum PromptContextMode: String, CaseIterable {
     case fileRef = "fileRef"
@@ -25,7 +27,7 @@ enum PromptContextMode: String, CaseIterable {
     }
 }
 
-struct PromptContextSuggestion: Identifiable, Codable, Equatable {
+struct PromptContextSuggestion: Identifiable, Codable, Equatable, Sendable {
     let id: String
     let sourceType: String
     let title: String
@@ -37,7 +39,7 @@ struct PromptContextSuggestion: Identifiable, Codable, Equatable {
     let reasons: [String]
 }
 
-private struct RetrievalSuggestRequestPayload: Encodable {
+private struct RetrievalSuggestRequestPayload: Encodable, Sendable {
     let query: String
     let sourceFilters: [String]?
     let limit: Int
@@ -45,20 +47,38 @@ private struct RetrievalSuggestRequestPayload: Encodable {
     let includeColdPartitionFallback: Bool
 }
 
-private struct RetrievalSuggestResponsePayload: Decodable {
+private struct RetrievalSuggestResponsePayload: Decodable, Sendable {
     let suggestions: [PromptContextSuggestion]
 }
 
-private struct RetrievalCreateContextPackRequestPayload: Encodable {
+private struct RetrievalCreateContextPackRequestPayload: Encodable, Sendable {
     let query: String
     let selectedSuggestionIds: [String]
     let modeOverrides: [String: String]
 }
 
-struct RetrievalContextPackPayload: Decodable {
+struct RetrievalContextPackPayload: Decodable, Sendable {
     let id: String
     let attachmentPaths: [String]
     let inlinePromptBlocks: [String]
+}
+
+private struct ResourceRelevanceVerdict: Codable, Sendable {
+    let id: String
+    let isRelevant: Bool
+    let confidence: Double?
+    let reason: String?
+}
+
+private struct ResourceRelevanceVerdicts: Codable, Sendable {
+    let verdicts: [ResourceRelevanceVerdict]
+}
+
+private struct ResourceRelevanceCandidate: Codable, Sendable {
+    let id: String
+    let title: String
+    let resourceName: String
+    let snippet: String
 }
 
 @MainActor
@@ -71,10 +91,18 @@ final class PromptContextSuggestionProvider: ObservableObject {
     private var selectedModesBySuggestionID: [String: PromptContextMode] = [:]
     private var debounceTask: Task<Void, Never>?
     private var latestDraft = ""
+    private var activeRequestID = 0
+    private weak var workerClientProvider: (any CreateWorkerClientProtocol)?
+
+    func setWorkerClientProvider(_ provider: any CreateWorkerClientProtocol) {
+        workerClientProvider = provider
+    }
 
     func updateDraft(_ draft: String) {
         latestDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         debounceTask?.cancel()
+        activeRequestID += 1
+        let requestID = activeRequestID
 
         guard !latestDraft.isEmpty else {
             suggestions = []
@@ -83,10 +111,10 @@ final class PromptContextSuggestionProvider: ObservableObject {
         }
 
         debounceTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(180))
+            try? await Task.sleep(for: .milliseconds(500))
             guard let self else { return }
             guard !Task.isCancelled else { return }
-            await self.fetchSuggestions(for: self.latestDraft)
+            await self.fetchSuggestions(for: self.latestDraft, requestID: requestID)
         }
     }
 
@@ -110,6 +138,7 @@ final class PromptContextSuggestionProvider: ObservableObject {
     }
 
     func attachSuggestion(_ suggestion: PromptContextSuggestion) {
+        guard Self.isSearchableSuggestion(suggestion) else { return }
         guard !attachedSuggestions.contains(where: { $0.id == suggestion.id }) else { return }
         if selectedModesBySuggestionID[suggestion.id] == nil {
             selectedModesBySuggestionID[suggestion.id] = selectedMode(for: suggestion.id, sourceType: suggestion.sourceType)
@@ -150,6 +179,7 @@ final class PromptContextSuggestionProvider: ObservableObject {
             guard suggestion.sourceType == "file" else { return nil }
             let path = suggestion.sourcePathOrHandle.trimmingCharacters(in: .whitespacesAndNewlines)
             guard path.hasPrefix("/") else { return nil }
+            guard !Self.isImageFilePath(path) else { return nil }
             return path
         }
         return Array(Set(paths)).sorted()
@@ -163,7 +193,7 @@ final class PromptContextSuggestionProvider: ObservableObject {
             selectedSuggestionIds: selectedIds,
             modeOverrides: selectedModeOverrides()
         )
-        return try await postJSON(
+        return try await Self.postJSON(
             path: "/api/v1/retrieval/context-pack",
             request: payload,
             responseType: RetrievalContextPackPayload.self
@@ -171,6 +201,8 @@ final class PromptContextSuggestionProvider: ObservableObject {
     }
 
     func clearAfterSubmit() {
+        debounceTask?.cancel()
+        activeRequestID += 1
         selectedModesBySuggestionID = [:]
         suggestions = []
         attachedSuggestions = []
@@ -178,37 +210,479 @@ final class PromptContextSuggestionProvider: ObservableObject {
         latestDraft = ""
     }
 
-    private func fetchSuggestions(for query: String) async {
+    private func fetchSuggestions(for query: String, requestID: Int) async {
         isLoading = true
         defer { isLoading = false }
 
         do {
-            let response = try await postJSON(
-                path: "/api/v1/retrieval/suggest",
-                request: RetrievalSuggestRequestPayload(
-                    query: query,
-                    sourceFilters: nil,
-                    limit: 12,
-                    typingMode: true,
-                    includeColdPartitionFallback: false
-                ),
-                responseType: RetrievalSuggestResponsePayload.self
-            )
+            let pipelineStart = Date()
+            let nlpStart = Date()
+            let additionalQueries = Self.generateNLPQueryExpansions(from: query, limit: 4)
+            let nlpDurationMs = Int(Date().timeIntervalSince(nlpStart) * 1_000)
+
+            let retrievalStart = Date()
+            async let fastBaseTask = Self.retrieveSuggestions(query: query, profile: Self.primaryFastProfile)
+            async let deepBaseTask = Self.retrieveSuggestions(query: query, profile: Self.primaryDeepProfile)
+            var mergedSuggestions = try await fastBaseTask
+            mergedSuggestions.append(contentsOf: try await deepBaseTask)
+            if !additionalQueries.isEmpty {
+                let fastExpansionSuggestions = try await retrieveSuggestionsInParallel(
+                    queries: additionalQueries,
+                    profile: Self.expansionFastProfile
+                )
+                mergedSuggestions.append(contentsOf: fastExpansionSuggestions)
+                if let strongestExpansionQuery = additionalQueries.first {
+                    let deepExpansionSuggestions = try await Self.retrieveSuggestions(
+                        query: strongestExpansionQuery,
+                        profile: Self.expansionDeepProfile
+                    )
+                    mergedSuggestions.append(contentsOf: deepExpansionSuggestions)
+                }
+            }
+            let searchableSuggestions = mergedSuggestions.filter(Self.isSearchableSuggestion(_:))
+            let dedupedSuggestions = Self.dedupeSuggestions(searchableSuggestions)
+            let candidateSuggestions = Array(dedupedSuggestions.prefix(18))
+            let retrievalDurationMs = Int(Date().timeIntervalSince(retrievalStart) * 1_000)
+            try Task.checkCancellation()
+
+            // Surface best candidates immediately for low latency.
+            guard requestID == activeRequestID, query == latestDraft else { return }
             let selectedIDs = Set(attachedSuggestions.map(\.id))
-            let refreshedByID = Dictionary(uniqueKeysWithValues: response.suggestions.map { ($0.id, $0) })
-            attachedSuggestions = attachedSuggestions.map { refreshedByID[$0.id] ?? $0 }
-            suggestions = response.suggestions.filter { !selectedIDs.contains($0.id) }
+            let preliminaryByID = Dictionary(uniqueKeysWithValues: candidateSuggestions.map { ($0.id, $0) })
+            attachedSuggestions = attachedSuggestions.map { preliminaryByID[$0.id] ?? $0 }
+            suggestions = candidateSuggestions.filter { !selectedIDs.contains($0.id) }
             lastError = nil
+
+            let relevanceStart = Date()
+            var relevantSuggestions: [PromptContextSuggestion]
+            do {
+                let workerClient = try await createWorkerClient()
+                let relevantSuggestionIDs = try await filterRelevantSuggestionIDs(
+                    for: query,
+                    candidates: candidateSuggestions,
+                    using: workerClient
+                )
+                let relevantIDSet = Set(relevantSuggestionIDs)
+                relevantSuggestions = candidateSuggestions.filter { relevantIDSet.contains($0.id) }
+            } catch {
+                // Relevance stage is additive; keep preliminary suggestions on failure.
+                print("PromptContextSuggestionProvider: Relevance check fallback: \(error.localizedDescription)")
+                relevantSuggestions = candidateSuggestions
+            }
+            let minimumUsefulCount = min(6, candidateSuggestions.count)
+            if relevantSuggestions.count < minimumUsefulCount {
+                let existingIDs = Set(relevantSuggestions.map(\.id))
+                let needed = minimumUsefulCount - relevantSuggestions.count
+                let fallbackCandidates = Self.relevanceFallbackCandidates(
+                    query: query,
+                    candidates: candidateSuggestions,
+                    excluding: existingIDs,
+                    limit: needed
+                )
+                relevantSuggestions.append(contentsOf: fallbackCandidates)
+                relevantSuggestions = Self.dedupeSuggestions(relevantSuggestions)
+            }
+            let relevanceDurationMs = Int(Date().timeIntervalSince(relevanceStart) * 1_000)
+            try Task.checkCancellation()
+
+            guard requestID == activeRequestID, query == latestDraft else { return }
+            let refreshedByID = Dictionary(uniqueKeysWithValues: relevantSuggestions.map { ($0.id, $0) })
+            attachedSuggestions = attachedSuggestions.map { refreshedByID[$0.id] ?? $0 }
+            suggestions = relevantSuggestions.filter { !selectedIDs.contains($0.id) }
+            lastError = nil
+            let totalDurationMs = Int(Date().timeIntervalSince(pipelineStart) * 1_000)
+            let retrievalRequestCount = 2 + additionalQueries.count + (additionalQueries.isEmpty ? 0 : 1)
+            print(
+                "PromptContextSuggestionProvider: NLP pipeline \(totalDurationMs)ms " +
+                    "[nlp=\(nlpDurationMs)ms, retrieval=\(retrievalDurationMs)ms, relevance=\(relevanceDurationMs)ms, " +
+                    "queries=\(retrievalRequestCount), candidates=\(candidateSuggestions.count), relevant=\(relevantSuggestions.count)]"
+            )
+        } catch is CancellationError {
+            // Ignore stale/cancelled requests.
         } catch {
+            guard requestID == activeRequestID else { return }
             suggestions = []
             lastError = error.localizedDescription
         }
     }
 
-    private func postJSON<RequestBody: Encodable, ResponseBody: Decodable>(
+    private func createWorkerClient() async throws -> any LLMClientProtocol {
+        guard let workerClientProvider else {
+            throw TaskServiceError.workerModelNotConfigured
+        }
+        return try await workerClientProvider.createWorkerLLMClient(
+            fallbackProviderId: "",
+            fallbackModelId: ""
+        )
+    }
+
+    private nonisolated static let nlpStopWords: Set<String> = [
+        "a", "an", "and", "are", "as", "at", "be", "but", "by", "do", "for", "from",
+        "how", "i", "if", "in", "into", "is", "it", "me", "my", "of", "on", "or",
+        "our", "please", "so", "that", "the", "their", "them", "there", "these",
+        "this", "to", "us", "we", "with", "you", "your"
+    ]
+    private nonisolated static let disallowedImageExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "tif", "heic", "heif",
+        "avif", "ico", "icns", "svg", "psd", "raw", "cr2", "nef", "dng", "arw"
+    ]
+    private struct RetrievalQueryProfile: Sendable {
+        let limit: Int
+        let typingMode: Bool
+        let includeColdPartitionFallback: Bool
+        let timeoutSeconds: TimeInterval
+    }
+    private nonisolated static let primaryFastProfile = RetrievalQueryProfile(
+        limit: 12,
+        typingMode: true,
+        includeColdPartitionFallback: false,
+        timeoutSeconds: 1.4
+    )
+    private nonisolated static let primaryDeepProfile = RetrievalQueryProfile(
+        limit: 16,
+        typingMode: false,
+        includeColdPartitionFallback: true,
+        timeoutSeconds: 2.2
+    )
+    private nonisolated static let expansionFastProfile = RetrievalQueryProfile(
+        limit: 8,
+        typingMode: true,
+        includeColdPartitionFallback: true,
+        timeoutSeconds: 1.8
+    )
+    private nonisolated static let expansionDeepProfile = RetrievalQueryProfile(
+        limit: 10,
+        typingMode: false,
+        includeColdPartitionFallback: true,
+        timeoutSeconds: 2.2
+    )
+
+    private nonisolated static let strictRelevanceMinimumConfidence: Double = 0.72
+    private nonisolated static let strictRelevanceMinimumKeywordOverlap: Double = 0.10
+    private nonisolated static let strictRelevanceHighConfidenceOverride: Double = 0.90
+    private nonisolated static let strictRelevanceHighConfidenceMinimumOverlap: Double = 0.05
+    private nonisolated static let strictRelevanceFallbackConfidenceOnly: Double = 0.82
+    private nonisolated static let relevanceFallbackMinimumKeywordOverlap: Double = 0.06
+    private nonisolated static let relevanceFallbackMinimumScore: Double = 0.18
+
+    private nonisolated static func generateNLPQueryExpansions(from query: String, limit: Int) -> [String] {
+        let cleaned = query
+            .replacingOccurrences(of: "[^\\p{L}\\p{N}\\s_-]", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return [] }
+
+        var nounTokens: [String] = []
+        var verbTokens: [String] = []
+        var adjectiveTokens: [String] = []
+        var keywordTokens: [String] = []
+
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = cleaned
+        let options: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames, .omitOther]
+        tagger.enumerateTags(
+            in: cleaned.startIndex..<cleaned.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: options
+        ) { tag, tokenRange in
+            let token = String(cleaned[tokenRange]).lowercased()
+            guard token.count >= 3 else { return true }
+            guard !Self.nlpStopWords.contains(token) else { return true }
+            keywordTokens.append(token)
+            switch tag {
+            case .noun:
+                nounTokens.append(token)
+            case .verb:
+                verbTokens.append(token)
+            case .adjective:
+                adjectiveTokens.append(token)
+            default:
+                break
+            }
+            return true
+        }
+
+        if keywordTokens.isEmpty {
+            keywordTokens = cleaned.lowercased().split(separator: " ").map(String.init).filter { token in
+                token.count >= 3 && !Self.nlpStopWords.contains(token)
+            }
+        }
+
+        let uniqueNouns = Self.uniqueOrdered(nounTokens)
+        let uniqueVerbs = Self.uniqueOrdered(verbTokens)
+        let uniqueAdjectives = Self.uniqueOrdered(adjectiveTokens)
+        let uniqueKeywords = Self.uniqueOrdered(keywordTokens)
+
+        var expandedQueries: [String] = []
+        if !uniqueNouns.isEmpty {
+            expandedQueries.append(uniqueNouns.prefix(6).joined(separator: " "))
+        }
+        let nounVerbBlend = Self.uniqueOrdered(uniqueNouns + uniqueVerbs)
+        if nounVerbBlend.count > 1 {
+            expandedQueries.append(nounVerbBlend.prefix(6).joined(separator: " "))
+        }
+        let intentBlend = Self.uniqueOrdered(uniqueNouns + uniqueAdjectives + uniqueKeywords)
+        if intentBlend.count > 1 {
+            expandedQueries.append(intentBlend.prefix(8).joined(separator: " "))
+        }
+        if uniqueKeywords.count > 2 {
+            expandedQueries.append(uniqueKeywords.prefix(3).joined(separator: " "))
+        }
+
+        return Self.uniqueQueries(
+            expandedQueries.filter { $0.caseInsensitiveCompare(cleaned) != .orderedSame },
+            limit: limit
+        )
+    }
+
+    private nonisolated static func strictKeywords(from text: String) -> Set<String> {
+        let cleaned = text
+            .replacingOccurrences(of: "[^\\p{L}\\p{N}\\s_-]", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !cleaned.isEmpty else { return [] }
+        let keywords = cleaned.split(separator: " ").map(String.init).filter { token in
+            token.count >= 3 && !Self.nlpStopWords.contains(token)
+        }
+        return Set(keywords)
+    }
+
+    private nonisolated static func keywordOverlapScore(
+        queryKeywords: Set<String>,
+        candidateText: String
+    ) -> Double {
+        guard !queryKeywords.isEmpty else { return 0 }
+        let candidateKeywords = strictKeywords(from: candidateText)
+        guard !candidateKeywords.isEmpty else { return 0 }
+        let shared = queryKeywords.intersection(candidateKeywords).count
+        return Double(shared) / Double(queryKeywords.count)
+    }
+
+    private func filterRelevantSuggestionIDs(
+        for query: String,
+        candidates: [PromptContextSuggestion],
+        using client: any LLMClientProtocol
+    ) async throws -> [String] {
+        guard !candidates.isEmpty else { return [] }
+        let payload = candidates.map {
+            ResourceRelevanceCandidate(
+                id: $0.id,
+                title: $0.title,
+                resourceName: $0.sourcePathOrHandle,
+                snippet: String($0.snippet.prefix(320))
+            )
+        }
+        let candidatesByID = Dictionary(uniqueKeysWithValues: payload.map { ($0.id, $0) })
+        let queryKeywords = Self.strictKeywords(from: query)
+        let payloadData = try JSONEncoder().encode(payload)
+        let payloadJSONString = String(decoding: payloadData, as: UTF8.self)
+
+        let systemMessage = LLMMessage.system(
+            """
+            You are a relevance gate for retrieval results.
+            Use only the provided resource name and snippet.
+            Mark a resource relevant when it is likely useful to execute the prompt.
+            Allow moderately related resources if they clearly share key entities, topics, filenames, or deliverable intent.
+            Respond with strict JSON only.
+            """
+        )
+        let userMessage = LLMMessage.user(
+            """
+            User prompt:
+            \(query)
+
+            Resource candidates (JSON):
+            \(payloadJSONString)
+
+            Rules:
+            - Be precision-first, but do not reject all moderately relevant resources.
+            - Set isRelevant=true for direct matches and clear high-signal adjacent matches.
+            - Confidence must be 0.0 to 1.0 and should reflect evidence strength.
+            - reason should be concise and reference concrete overlap (keywords, file intent, or artifact type).
+
+            Return:
+            {"verdicts":[{"id":"...","isRelevant":true,"confidence":0.0,"reason":"..."}]}
+            """
+        )
+        let response = try await client.chat(messages: [systemMessage, userMessage], tools: nil)
+        guard let text = response.text else { return [] }
+        guard let jsonData = Self.extractJSON(from: text).data(using: .utf8) else {
+            return []
+        }
+        let verdicts = try JSONDecoder().decode(ResourceRelevanceVerdicts.self, from: jsonData)
+        return verdicts.verdicts.compactMap { verdict in
+            guard verdict.isRelevant else { return nil }
+            let confidence = min(max(verdict.confidence ?? 0, 0), 1)
+            guard confidence >= Self.strictRelevanceMinimumConfidence else { return nil }
+            guard let candidate = candidatesByID[verdict.id] else { return nil }
+
+            if queryKeywords.isEmpty {
+                return confidence >= Self.strictRelevanceFallbackConfidenceOnly ? verdict.id : nil
+            }
+
+            let overlap = Self.keywordOverlapScore(
+                queryKeywords: queryKeywords,
+                candidateText: "\(candidate.title) \(candidate.resourceName) \(candidate.snippet)"
+            )
+
+            if overlap >= Self.strictRelevanceMinimumKeywordOverlap {
+                return verdict.id
+            }
+            if confidence >= Self.strictRelevanceHighConfidenceOverride,
+               overlap >= Self.strictRelevanceHighConfidenceMinimumOverlap {
+                return verdict.id
+            }
+            return nil
+        }
+    }
+
+    private func retrieveSuggestionsInParallel(
+        queries: [String],
+        profile: RetrievalQueryProfile
+    ) async throws -> [PromptContextSuggestion] {
+        return try await withThrowingTaskGroup(of: [PromptContextSuggestion].self) { group in
+            for query in queries {
+                group.addTask {
+                    try await Self.retrieveSuggestions(query: query, profile: profile)
+                }
+            }
+            var merged: [PromptContextSuggestion] = []
+            for try await result in group {
+                merged.append(contentsOf: result)
+            }
+            return merged
+        }
+    }
+
+    private nonisolated static func retrieveSuggestions(
+        query: String,
+        profile: RetrievalQueryProfile
+    ) async throws -> [PromptContextSuggestion] {
+        let response = try await postJSON(
+            path: "/api/v1/retrieval/suggest",
+            request: RetrievalSuggestRequestPayload(
+                query: query,
+                sourceFilters: nil,
+                limit: profile.limit,
+                typingMode: profile.typingMode,
+                includeColdPartitionFallback: profile.includeColdPartitionFallback
+            ),
+            responseType: RetrievalSuggestResponsePayload.self,
+            requestTimeoutSeconds: profile.timeoutSeconds
+        )
+        return response.suggestions
+    }
+
+    private nonisolated static func uniqueQueries(_ queries: [String], limit: Int) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for query in queries {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(trimmed)
+            if result.count >= limit {
+                break
+            }
+        }
+        return result
+    }
+
+    private nonisolated static func uniqueOrdered(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var output: [String] = []
+        for value in values {
+            let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !normalized.isEmpty else { continue }
+            guard !seen.contains(normalized) else { continue }
+            seen.insert(normalized)
+            output.append(normalized)
+        }
+        return output
+    }
+
+    private nonisolated static func isImageFilePath(_ pathOrHandle: String) -> Bool {
+        let trimmed = pathOrHandle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let ext = URL(fileURLWithPath: trimmed).pathExtension.lowercased()
+        guard !ext.isEmpty else { return false }
+        return disallowedImageExtensions.contains(ext)
+    }
+
+    private nonisolated static func isSearchableSuggestion(_ suggestion: PromptContextSuggestion) -> Bool {
+        guard suggestion.sourceType.caseInsensitiveCompare("file") == .orderedSame else { return true }
+        if isImageFilePath(suggestion.sourcePathOrHandle) {
+            return false
+        }
+        if isImageFilePath(suggestion.title) {
+            return false
+        }
+        return true
+    }
+
+    private nonisolated static func dedupeSuggestions(_ suggestions: [PromptContextSuggestion]) -> [PromptContextSuggestion] {
+        var byID: [String: PromptContextSuggestion] = [:]
+        for suggestion in suggestions {
+            if let existing = byID[suggestion.id], existing.relevanceScore >= suggestion.relevanceScore {
+                continue
+            }
+            byID[suggestion.id] = suggestion
+        }
+        return byID.values.sorted { $0.relevanceScore > $1.relevanceScore }
+    }
+
+    private nonisolated static func relevanceFallbackCandidates(
+        query: String,
+        candidates: [PromptContextSuggestion],
+        excluding: Set<String>,
+        limit: Int
+    ) -> [PromptContextSuggestion] {
+        guard limit > 0 else { return [] }
+        let queryKeywords = strictKeywords(from: query)
+        var selected: [PromptContextSuggestion] = []
+        for candidate in candidates {
+            guard !excluding.contains(candidate.id) else { continue }
+            let overlap = keywordOverlapScore(
+                queryKeywords: queryKeywords,
+                candidateText: "\(candidate.title) \(candidate.sourcePathOrHandle) \(candidate.snippet)"
+            )
+            if overlap >= relevanceFallbackMinimumKeywordOverlap || candidate.relevanceScore >= relevanceFallbackMinimumScore {
+                selected.append(candidate)
+            }
+            if selected.count >= limit {
+                break
+            }
+        }
+        return selected
+    }
+
+    private nonisolated static func extractJSON(from text: String) -> String {
+        var jsonText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if jsonText.hasPrefix("```json") {
+            jsonText = String(jsonText.dropFirst(7))
+        } else if jsonText.hasPrefix("```") {
+            jsonText = String(jsonText.dropFirst(3))
+        }
+        if jsonText.hasSuffix("```") {
+            jsonText = String(jsonText.dropLast(3))
+        }
+        jsonText = jsonText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let start = jsonText.firstIndex(of: "{"),
+           let end = jsonText.lastIndex(of: "}") {
+            jsonText = String(jsonText[start...end])
+        }
+        return jsonText
+    }
+
+    private nonisolated static func postJSON<RequestBody: Encodable, ResponseBody: Decodable>(
         path: String,
         request: RequestBody,
-        responseType: ResponseBody.Type
+        responseType: ResponseBody.Type,
+        requestTimeoutSeconds: TimeInterval = 1.2
     ) async throws -> ResponseBody {
         let token = try RetrievalDaemonManager.shared.daemonAuthToken()
         let baseURL = RetrievalDaemonManager.shared.daemonBaseURL()
@@ -218,7 +692,7 @@ final class PromptContextSuggestionProvider: ObservableObject {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue(token, forHTTPHeaderField: "X-Retrieval-Token")
         urlRequest.httpBody = try JSONEncoder().encode(request)
-        urlRequest.timeoutInterval = 1.2
+        urlRequest.timeoutInterval = requestTimeoutSeconds
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {

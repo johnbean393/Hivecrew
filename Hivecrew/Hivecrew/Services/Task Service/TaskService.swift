@@ -108,6 +108,12 @@ class TaskService: ObservableObject {
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
         }
+        guard let workerProviderId = UserDefaults.standard.string(forKey: "workerModelProviderId"),
+              let workerModelId = UserDefaults.standard.string(forKey: "workerModelId"),
+              !workerProviderId.isEmpty,
+              !workerModelId.isEmpty else {
+            throw TaskServiceError.workerModelNotConfigured
+        }
         
         // Use quick fallback title immediately for instant UI feedback
         let quickTitle = titleGenerator.generateQuickTitle(from: description)
@@ -241,7 +247,7 @@ class TaskService: ObservableObject {
     /// Generate a better title using LLM and update the task
     private func generateAndUpdateTitle(for task: TaskRecord, description: String, providerId: String, modelId: String) async {
         do {
-            // Use worker model if configured, otherwise use the task's main model
+            // Use required worker model for background title generation.
             let client = try await createWorkerLLMClient(fallbackProviderId: providerId, fallbackModelId: modelId)
             let betterTitle = try await titleGenerator.generateTitle(from: description, using: client)
             

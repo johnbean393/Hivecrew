@@ -19,6 +19,7 @@ enum TaskServiceError: Error, LocalizedError {
     case providerNotFound(String)
     case noAPIKey(String)
     case missingLLMClient
+    case workerModelNotConfigured
     
     var errorDescription: String? {
         switch self {
@@ -38,6 +39,8 @@ enum TaskServiceError: Error, LocalizedError {
             return String(localized: "No API key configured for \(provider)")
         case .missingLLMClient:
             return String(localized: "LLM client was unavailable during task startup")
+        case .workerModelNotConfigured:
+            return String(localized: "Worker model is required. Configure it in onboarding or Settings → Providers.")
         }
     }
 }

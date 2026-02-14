@@ -112,6 +112,27 @@ struct AttachFilesTip: Tip {
     }
 }
 
+/// Tip: Attach from suggested ghost chips
+struct GhostContextAttachmentsTip: Tip {
+    var id: String { "ghostContextAttachments" }
+
+    var title: Text {
+        Text("Use Suggested Context")
+    }
+
+    var message: Text? {
+        Text("Faded chips are suggested context. Click one to promote it into a real attachment before sending.")
+    }
+
+    var image: Image? {
+        Image(systemName: "plus.circle.dashed")
+    }
+
+    var rules: [Rule] {
+        #Rule(TipEvents.ghostContextSuggestionsShown) { $0.donations.count >= 1 }
+    }
+}
+
 /// Tip 5: Configure LLM providers
 struct ConfigureProvidersTip: Tip {
     

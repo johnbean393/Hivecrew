@@ -126,6 +126,13 @@ final class TipStore: ObservableObject {
         }
     }
     
+    /// Donate event for first ghost context suggestions shown
+    func donateGhostContextSuggestionsShown() {
+        Task {
+            await TipEvents.ghostContextSuggestionsShown.donate()
+        }
+    }
+    
     /// Donate a schedule created event
     func donateScheduleCreated() {
         Task {

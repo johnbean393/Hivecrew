@@ -19,19 +19,22 @@ struct OnboardingView: View {
     
     @State private var currentStep: OnboardingStep = .welcome
     @State private var providerConfigured = false
+    @State private var workerConfigured = false
     @State private var templateConfigured = false
     
     enum OnboardingStep: Int, CaseIterable {
         case welcome = 0
         case provider = 1
-        case template = 2
-        case outputDirectory = 3
-        case complete = 4
+        case worker = 2
+        case template = 3
+        case outputDirectory = 4
+        case complete = 5
         
         var title: String {
             switch self {
             case .welcome: return "Welcome"
             case .provider: return "LLM Provider"
+            case .worker: return "Worker Model"
             case .template: return "VM Template"
             case .outputDirectory: return "Output"
             case .complete: return "Ready"
@@ -97,6 +100,9 @@ struct OnboardingView: View {
             
         case .provider:
             OnboardingProviderStep(isConfigured: $providerConfigured)
+
+        case .worker:
+            OnboardingWorkerModelStep(isConfigured: $workerConfigured)
             
         case .template:
             OnboardingTemplateStep(isConfigured: $templateConfigured)
@@ -149,6 +155,8 @@ struct OnboardingView: View {
             return true
         case .provider:
             return providerConfigured
+        case .worker:
+            return workerConfigured
         case .template:
             return templateConfigured
         case .outputDirectory:
