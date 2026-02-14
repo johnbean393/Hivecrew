@@ -71,6 +71,11 @@ public actor LocalReranker {
     }
 
     private func anchorTokens(_ text: String) -> [String] {
+        let genericAcronymStopWords: Set<String> = [
+            "pdf", "ppt", "pptx", "doc", "docx", "xls", "xlsx",
+            "csv", "tsv", "json", "xml", "txt", "md", "rtf",
+            "png", "jpg", "jpeg", "gif", "webp",
+        ]
         let rawTokens = text
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
             .map(String.init)
@@ -84,7 +89,21 @@ public actor LocalReranker {
             let hasLetter = token.contains(where: \.isLetter)
             let hasUppercase = token.contains(where: \.isUppercase)
             let hasLowercase = token.contains(where: \.isLowercase)
-            if (hasDigit && hasLetter) || (index > 0 && hasUppercase && hasLowercase && normalized.count >= 3) {
+            let isUppercaseAcronym = hasLetter
+                && hasUppercase
+                && !hasLowercase
+                && token.count >= 2
+                && !genericAcronymStopWords.contains(normalized)
+            let cueToken = normalized == "template"
+                || normalized == "templates"
+                || normalized == "docs"
+                || normalized == "documentation"
+                || normalized == "readme"
+            if (hasDigit && hasLetter)
+                || isUppercaseAcronym
+                || cueToken
+                || (index > 0 && hasUppercase && hasLowercase && normalized.count >= 3)
+            {
                 guard !seen.contains(normalized) else { continue }
                 seen.insert(normalized)
                 output.append(normalized)

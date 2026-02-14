@@ -1181,7 +1181,12 @@ public actor RetrievalStore {
     }
 
     private static func buildLexicalAnchorTokens(from rawTokens: [String]) -> [String] {
-        uniqueOrdered(rawTokens.enumerated().compactMap { index, token -> String? in
+        let genericAcronymStopWords: Set<String> = [
+            "pdf", "ppt", "pptx", "doc", "docx", "xls", "xlsx",
+            "csv", "tsv", "json", "xml", "txt", "md", "rtf",
+            "png", "jpg", "jpeg", "gif", "webp",
+        ]
+        return uniqueOrdered(rawTokens.enumerated().compactMap { index, token -> String? in
             guard !token.isEmpty else { return nil }
             let lower = token.lowercased()
             guard !lexicalStopWords.contains(lower) else { return nil }
@@ -1189,7 +1194,23 @@ public actor RetrievalStore {
             let hasLetter = token.contains(where: \.isLetter)
             let hasUppercase = token.contains(where: \.isUppercase)
             let hasLowercase = token.contains(where: \.isLowercase)
+            let isUppercaseAcronym = hasLetter
+                && hasUppercase
+                && !hasLowercase
+                && token.count >= 2
+                && !genericAcronymStopWords.contains(lower)
+            let cueToken = lower == "template"
+                || lower == "templates"
+                || lower == "docs"
+                || lower == "documentation"
+                || lower == "readme"
             if hasDigit && hasLetter {
+                return lower
+            }
+            if isUppercaseAcronym {
+                return lower
+            }
+            if cueToken {
                 return lower
             }
             if index > 0 && hasUppercase && hasLowercase && lower.count >= 3 {

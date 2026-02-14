@@ -31,6 +31,25 @@ public actor HybridSearchEngine {
             "this", "to", "us", "we", "with", "you", "your",
         ]
     }
+    private enum DirectorySuggestionTuning {
+        static let typingSeedSuggestions = 120
+        static let deepSeedSuggestions = 320
+        static let typingMaxSuggestions = 2
+        static let deepMaxSuggestions = 4
+        static let typingMinimumScore: Double = 0.58
+        static let deepMinimumScore: Double = 0.5
+        static let queryIntentTerms: Set<String> = [
+            "directory", "folder", "template", "templates", "docs", "documentation",
+            "repo", "repository", "project", "projects", "dataset", "datasets",
+        ]
+        static let cueSegments: Set<String> = [
+            "docs", "documentation", "template", "templates",
+            "examples", "samples", "resources",
+        ]
+        static let imageExtensions: Set<String> = [
+            "png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic",
+        ]
+    }
 
     private let store: RetrievalStore
     private let embeddingRuntime: EmbeddingRuntime
@@ -195,18 +214,28 @@ public actor HybridSearchEngine {
 
         let sorted = merged.values.sorted(by: { $0.relevanceScore > $1.relevanceScore })
         let reranked = await reranker.rerank(query: request.query, suggestions: sorted, typingMode: request.typingMode)
-        let finalSuggestions = Array(reranked.prefix(max(1, request.limit)))
+        let directorySuggestions = Self.directorySuggestions(
+            query: request.query,
+            suggestions: reranked,
+            typingMode: request.typingMode
+        )
+        let mergedWithDirectories = Self.mergeSuggestions(
+            base: reranked,
+            additional: directorySuggestions
+        )
+        let finalSuggestions = Array(mergedWithDirectories.prefix(max(1, request.limit)))
         print(
             "HybridSearchEngine: suggest stats " +
                 "[lexical=\(lexical.count), vectorSeen=\(vectorCandidatesSeen), " +
                 "vectorAccepted=\(vectorCandidatesAccepted), merged=\(merged.count), " +
                 "graphApplied=\(graphBoostApplied), graphSkipped=\(graphBoostSkipped), " +
+                "directories=\(directorySuggestions.count), " +
                 "queryChars=\(request.query.count), retrievalQueryChars=\(retrievalQuery.count)]"
         )
         return RetrievalSuggestResponse(
             suggestions: finalSuggestions,
             partial: request.typingMode,
-            totalCandidateCount: merged.count,
+            totalCandidateCount: max(merged.count, mergedWithDirectories.count),
             latencyMs: Int(Date().timeIntervalSince(start) * 1_000)
         )
     }
@@ -244,5 +273,273 @@ public actor HybridSearchEngine {
             output.append(normalized)
         }
         return output
+    }
+
+    private nonisolated static func mergeSuggestions(
+        base: [RetrievalSuggestion],
+        additional: [RetrievalSuggestion]
+    ) -> [RetrievalSuggestion] {
+        var byID: [String: RetrievalSuggestion] = [:]
+        for suggestion in base {
+            byID[suggestion.id] = suggestion
+        }
+        for suggestion in additional {
+            if let existing = byID[suggestion.id], existing.relevanceScore >= suggestion.relevanceScore {
+                continue
+            }
+            byID[suggestion.id] = suggestion
+        }
+        return byID.values.sorted {
+            if $0.relevanceScore == $1.relevanceScore {
+                return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+            }
+            return $0.relevanceScore > $1.relevanceScore
+        }
+    }
+
+    private struct DirectoryAggregate {
+        var childCount: Int = 0
+        var bestScore: Double = 0
+        var scoreSum: Double = 0
+        var latestTimestamp: Date?
+        var risk: RetrievalRiskLabel = .low
+        var previewTitles: [String] = []
+    }
+
+    private nonisolated static func directorySuggestions(
+        query: String,
+        suggestions: [RetrievalSuggestion],
+        typingMode: Bool
+    ) -> [RetrievalSuggestion] {
+        let queryTokens = informativeQueryTokens(query)
+        let queryAcronymTokens = acronymTokens(query)
+        let hasDirectoryIntent = !queryTokens.isDisjoint(with: DirectorySuggestionTuning.queryIntentTerms)
+        let seedLimit = typingMode
+            ? DirectorySuggestionTuning.typingSeedSuggestions
+            : DirectorySuggestionTuning.deepSeedSuggestions
+        let maxSuggestions = typingMode
+            ? DirectorySuggestionTuning.typingMaxSuggestions
+            : DirectorySuggestionTuning.deepMaxSuggestions
+        let minimumScore = typingMode
+            ? DirectorySuggestionTuning.typingMinimumScore
+            : DirectorySuggestionTuning.deepMinimumScore
+
+        var aggregates: [String: DirectoryAggregate] = [:]
+        for suggestion in suggestions.prefix(seedLimit) {
+            guard suggestion.sourceType == .file else { continue }
+            let path = suggestion.sourcePathOrHandle.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard path.hasPrefix("/") else { continue }
+            let imagePath = isImagePath(path)
+            if imagePath && !(hasDirectoryIntent && pathHasCueSegment(path)) {
+                continue
+            }
+            let directoryPaths = candidateDirectoryPaths(
+                for: path,
+                queryTokens: queryTokens,
+                hasDirectoryIntent: hasDirectoryIntent
+            )
+            guard !directoryPaths.isEmpty else { continue }
+            for directoryPath in directoryPaths {
+                var aggregate = aggregates[directoryPath] ?? DirectoryAggregate()
+                aggregate.childCount += 1
+                aggregate.bestScore = max(aggregate.bestScore, suggestion.relevanceScore)
+                aggregate.scoreSum += suggestion.relevanceScore
+                aggregate.latestTimestamp = maxTimestamp(aggregate.latestTimestamp, suggestion.timestamp)
+                aggregate.risk = higherRisk(aggregate.risk, suggestion.risk)
+                if aggregate.previewTitles.count < 3 {
+                    let compactTitle = suggestion.title
+                        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !compactTitle.isEmpty && !aggregate.previewTitles.contains(compactTitle) {
+                        aggregate.previewTitles.append(compactTitle)
+                    }
+                }
+                aggregates[directoryPath] = aggregate
+            }
+        }
+
+        var output: [RetrievalSuggestion] = []
+        for (directoryPath, aggregate) in aggregates {
+            guard aggregate.childCount > 0 else { continue }
+            let averageScore = aggregate.scoreSum / Double(aggregate.childCount)
+            let pathCoverage = tokenCoverage(tokens: queryTokens, text: directoryPath)
+            let lowerPath = directoryPath.lowercased()
+            let pathTokens = Set(tokenize(directoryPath))
+            var cueBoost: Double = 0
+            if lowerPath.contains("/docs/") || lowerPath.hasSuffix("/docs") {
+                cueBoost += 0.22
+            }
+            if lowerPath.contains("template") {
+                cueBoost += 0.22
+            }
+            if lowerPath.contains("template") && !queryAcronymTokens.isDisjoint(with: pathTokens) {
+                cueBoost += 0.32
+            }
+            if lowerPath.contains("/examples/") || lowerPath.contains("/samples/") {
+                cueBoost += 0.08
+            }
+            let clusterBoost = min(0.28, Double(max(0, aggregate.childCount - 1)) * 0.06)
+            let intentBoost = hasDirectoryIntent ? 0.08 : 0
+            let score = max(aggregate.bestScore * 0.8, averageScore * 0.95)
+                + pathCoverage * 0.35
+                + cueBoost
+                + clusterBoost
+                + intentBoost
+            let hasEvidence = aggregate.childCount >= (hasDirectoryIntent ? 1 : 2)
+                || pathCoverage >= 0.22
+                || cueBoost >= 0.2
+            guard hasEvidence, score >= minimumScore else { continue }
+
+            let directoryURL = URL(fileURLWithPath: directoryPath)
+            let basename = directoryURL.lastPathComponent
+            let title = basename.isEmpty ? directoryPath : "\(basename)/"
+            let snippet: String
+            if aggregate.previewTitles.isEmpty {
+                snippet = "Directory with \(aggregate.childCount) related files."
+            } else {
+                snippet = "Directory with \(aggregate.childCount) related files: \(aggregate.previewTitles.joined(separator: ", "))"
+            }
+            output.append(
+                RetrievalSuggestion(
+                    id: "dir:\(directoryPath)",
+                    sourceType: .file,
+                    title: title,
+                    snippet: String(snippet.prefix(420)),
+                    sourceId: directoryPath,
+                    sourcePathOrHandle: directoryPath,
+                    relevanceScore: score,
+                    risk: aggregate.risk,
+                    reasons: ["directory", "directory-cluster"],
+                    timestamp: aggregate.latestTimestamp
+                )
+            )
+        }
+
+        return output
+            .sorted {
+                if $0.relevanceScore == $1.relevanceScore {
+                    return $0.title.localizedStandardCompare($1.title) == .orderedAscending
+                }
+                return $0.relevanceScore > $1.relevanceScore
+            }
+            .prefix(maxSuggestions)
+            .map { $0 }
+    }
+
+    private nonisolated static func candidateDirectoryPaths(
+        for filePath: String,
+        queryTokens: Set<String>,
+        hasDirectoryIntent: Bool
+    ) -> [String] {
+        let fileURL = URL(fileURLWithPath: filePath)
+        let parentURL = fileURL.deletingLastPathComponent()
+        let parentPath = parentURL.path
+        guard !parentPath.isEmpty, parentPath != "/" else { return [] }
+
+        var candidates: [String] = [parentPath]
+        var seen: Set<String> = [parentPath]
+
+        var cursor = parentURL
+        var steps = 0
+        while cursor.path != "/" && steps < 8 {
+            let name = cursor.lastPathComponent.lowercased()
+            if name.isEmpty {
+                break
+            }
+            let nameTokens = Set(tokenize(name))
+            let cueMatch = DirectorySuggestionTuning.cueSegments.contains(name)
+                || DirectorySuggestionTuning.cueSegments.contains(where: { name.contains($0) })
+            let queryOverlap = !nameTokens.isDisjoint(with: queryTokens)
+            if cueMatch || (hasDirectoryIntent && queryOverlap) {
+                if !seen.contains(cursor.path) {
+                    candidates.append(cursor.path)
+                    seen.insert(cursor.path)
+                }
+            }
+            let next = cursor.deletingLastPathComponent()
+            if next.path == cursor.path {
+                break
+            }
+            cursor = next
+            steps += 1
+        }
+        return candidates
+    }
+
+    private nonisolated static func informativeQueryTokens(_ text: String) -> Set<String> {
+        Set(tokenize(text).filter { token in
+            if token.count >= 3 {
+                return !QueryTuning.stopWords.contains(token)
+            }
+            return token.count >= 2 && token.contains(where: \.isNumber)
+        })
+    }
+
+    private nonisolated static func tokenize(_ text: String) -> [String] {
+        text
+            .lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+    }
+
+    private nonisolated static func acronymTokens(_ text: String) -> Set<String> {
+        Set(
+            text
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .compactMap { token -> String? in
+                    guard token.count >= 2 else { return nil }
+                    let hasUppercase = token.contains(where: \.isUppercase)
+                    let hasLowercase = token.contains(where: \.isLowercase)
+                    let hasLetter = token.contains(where: \.isLetter)
+                    guard hasLetter, hasUppercase, !hasLowercase else { return nil }
+                    return token.lowercased()
+                }
+        )
+    }
+
+    private nonisolated static func tokenCoverage(tokens: Set<String>, text: String) -> Double {
+        guard !tokens.isEmpty else { return 0 }
+        let textTokens = Set(tokenize(text))
+        guard !textTokens.isEmpty else { return 0 }
+        let overlap = tokens.intersection(textTokens).count
+        return Double(overlap) / Double(tokens.count)
+    }
+
+    private nonisolated static func isImagePath(_ path: String) -> Bool {
+        let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
+        guard !ext.isEmpty else { return false }
+        return DirectorySuggestionTuning.imageExtensions.contains(ext)
+    }
+
+    private nonisolated static func pathHasCueSegment(_ path: String) -> Bool {
+        let segments = path
+            .lowercased()
+            .split(separator: "/")
+            .map(String.init)
+        return segments.contains(where: { segment in
+            DirectorySuggestionTuning.cueSegments.contains(segment)
+                || DirectorySuggestionTuning.cueSegments.contains(where: { segment.contains($0) })
+        })
+    }
+
+    private nonisolated static func higherRisk(
+        _ lhs: RetrievalRiskLabel,
+        _ rhs: RetrievalRiskLabel
+    ) -> RetrievalRiskLabel {
+        let rank: [RetrievalRiskLabel: Int] = [.low: 0, .medium: 1, .high: 2]
+        return (rank[rhs] ?? 0) > (rank[lhs] ?? 0) ? rhs : lhs
+    }
+
+    private nonisolated static func maxTimestamp(_ lhs: Date?, _ rhs: Date?) -> Date? {
+        switch (lhs, rhs) {
+        case let (l?, r?):
+            return l >= r ? l : r
+        case let (l?, nil):
+            return l
+        case let (nil, r?):
+            return r
+        case (nil, nil):
+            return nil
+        }
     }
 }

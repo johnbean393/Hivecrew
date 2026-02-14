@@ -1358,6 +1358,99 @@ final class RetrievalExtractionTests: XCTestCase {
         XCTAssertNotEqual(first.snippet, title)
     }
 
+    func testDirectorySuggestionSurfacesTemplateFolder() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let query = "Create a detailed PowerPoint presentation for this research paper using the NYU Powerpoint template."
+        let runtime = EmbeddingRuntime()
+        let (queryEmbeddings, _) = try await runtime.embed(texts: [query])
+        let queryVector = try XCTUnwrap(queryEmbeddings.first)
+
+        let templateDirectory = "/tmp/NYU Template"
+        let primaryVector = makeVector(withCosine: 0.74, relativeTo: queryVector)
+        let secondaryVector = makeVector(withCosine: 0.68, relativeTo: queryVector)
+
+        try await store.upsertDocument(
+            RetrievalDocument(
+                id: "doc-nyu-template-guide",
+                sourceType: .file,
+                sourceId: "\(templateDirectory)/template-guide.md",
+                title: "template-guide.md",
+                body: "NYU PowerPoint template guide and slide master instructions.",
+                sourcePathOrHandle: "\(templateDirectory)/template-guide.md",
+                updatedAt: Date(),
+                risk: .low,
+                partition: "hot",
+                searchable: true
+            ),
+            chunks: [
+                RetrievalChunk(
+                    id: "doc-nyu-template-guide:0",
+                    documentId: "doc-nyu-template-guide",
+                    text: "NYU PowerPoint template guide and slide master instructions.",
+                    index: 0,
+                    embedding: primaryVector
+                ),
+            ]
+        )
+        try await store.upsertDocument(
+            RetrievalDocument(
+                id: "doc-nyu-template-theme",
+                sourceType: .file,
+                sourceId: "\(templateDirectory)/theme/colors.md",
+                title: "colors.md",
+                body: "Template color palette and presentation typography references.",
+                sourcePathOrHandle: "\(templateDirectory)/theme/colors.md",
+                updatedAt: Date(),
+                risk: .low,
+                partition: "hot",
+                searchable: true
+            ),
+            chunks: [
+                RetrievalChunk(
+                    id: "doc-nyu-template-theme:0",
+                    documentId: "doc-nyu-template-theme",
+                    text: "Template color palette and presentation typography references.",
+                    index: 0,
+                    embedding: secondaryVector
+                ),
+            ]
+        )
+
+        let engine = HybridSearchEngine(
+            store: store,
+            embeddingRuntime: runtime,
+            graphAugmentor: GraphAugmentor(store: store),
+            reranker: LocalReranker()
+        )
+        let response = try await engine.suggest(
+            request: RetrievalSuggestRequest(
+                query: query,
+                sourceFilters: [.file],
+                limit: 12,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+
+        let directorySuggestion = try XCTUnwrap(
+            response.suggestions.first { $0.sourcePathOrHandle == templateDirectory }
+        )
+        XCTAssertTrue(directorySuggestion.reasons.contains("directory"))
+        XCTAssertTrue(directorySuggestion.title.localizedCaseInsensitiveContains("nyu template"))
+        let rank = try XCTUnwrap(response.suggestions.firstIndex(where: { $0.sourcePathOrHandle == templateDirectory }))
+        XCTAssertLessThanOrEqual(rank, 3)
+    }
+
     private func makeVector(withCosine targetCosine: Float, relativeTo reference: [Float]) -> [Float] {
         let normalizedReference = normalized(reference)
         guard !normalizedReference.isEmpty else { return [] }

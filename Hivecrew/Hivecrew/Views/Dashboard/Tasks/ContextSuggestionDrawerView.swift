@@ -267,16 +267,6 @@ final class PromptContextSuggestionProvider: ObservableObject {
             let retrievalDurationMs = Int(Date().timeIntervalSince(retrievalStart) * 1_000)
             try Task.checkCancellation()
 
-            // Surface best candidates immediately for low latency.
-            guard requestID == activeRequestID, query == latestDraft else { return }
-            let selectedIDs = Set(attachedSuggestions.map(\.id))
-            let preliminaryByID = Dictionary(uniqueKeysWithValues: candidateSuggestions.map { ($0.id, $0) })
-            attachedSuggestions = attachedSuggestions.map { preliminaryByID[$0.id] ?? $0 }
-            suggestions = candidateSuggestions.filter { !selectedIDs.contains($0.id) }
-            lastError = nil
-            isLoading = false
-            loadingCompleted = true
-
             let relevanceStart = Date()
             var relevantSuggestions: [PromptContextSuggestion]
             let shouldRunRelevanceStage = Self.shouldRunLLMRelevanceStage(
@@ -334,10 +324,13 @@ final class PromptContextSuggestionProvider: ObservableObject {
             try Task.checkCancellation()
 
             guard requestID == activeRequestID, query == latestDraft else { return }
+            let selectedIDs = Set(attachedSuggestions.map(\.id))
             let refreshedByID = Dictionary(uniqueKeysWithValues: relevantSuggestions.map { ($0.id, $0) })
             attachedSuggestions = attachedSuggestions.map { refreshedByID[$0.id] ?? $0 }
             suggestions = relevantSuggestions.filter { !selectedIDs.contains($0.id) }
             lastError = nil
+            isLoading = false
+            loadingCompleted = true
             let totalDurationMs = Int(Date().timeIntervalSince(pipelineStart) * 1_000)
             print(
                 "PromptContextSuggestionProvider: NLP pipeline \(totalDurationMs)ms " +
