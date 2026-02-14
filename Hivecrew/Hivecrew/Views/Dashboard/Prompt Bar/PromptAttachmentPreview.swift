@@ -60,6 +60,7 @@ struct PromptAttachmentPreviewList: View {
     var onOpenAttachment: ((URL) -> Void)? = nil
     
     private let ghostAttachmentsTip = GhostContextAttachmentsTip()
+    private let chipSpring = Animation.spring(response: 0.28, dampingFraction: 0.82)
     
     var body: some View {
         if !attachments.isEmpty || !ghostSuggestions.isEmpty {
@@ -88,6 +89,7 @@ struct PromptAttachmentPreviewList: View {
                             onRemoveAttachment?(attachment)
                         }
                     )
+                    .transition(chipTransition)
                 }
 
                 ForEach(ghostSuggestions) { suggestion in
@@ -101,11 +103,21 @@ struct PromptAttachmentPreviewList: View {
                                 onPromoteGhostSuggestion?(suggestion)
                             }
                         )
+                        .transition(chipTransition)
                     }
                 }
             }
             .padding(.vertical, 8)
         }
+        .animation(chipSpring, value: attachments.map(\.id))
+        .animation(chipSpring, value: ghostSuggestions.map(\.id))
+    }
+
+    private var chipTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.96)),
+            removal: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.96))
+        )
     }
 
     private func ghostURL(for suggestion: PromptContextSuggestion) -> URL? {

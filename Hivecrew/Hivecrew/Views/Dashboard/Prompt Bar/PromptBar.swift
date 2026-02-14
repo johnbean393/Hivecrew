@@ -151,7 +151,13 @@ struct PromptBar: View {
                         openQuickLook(for: url)
                     }
                 )
-                    .padding(.top, 6)
+                .padding(.top, 6)
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    )
+                )
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isFocused)

@@ -180,9 +180,17 @@ struct TaskInputView: View {
         let selectedIDs = Set(selectedSuggestions.map(\.id))
 
         // Remove attachment chips for suggestions that are no longer selected.
-        attachments.removeAll { attachment in
+        let hadRemovals = attachments.contains { attachment in
             guard let suggestionID = attachment.origin.indexedSuggestionID else { return false }
             return !selectedIDs.contains(suggestionID)
+        }
+        if hadRemovals {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                attachments.removeAll { attachment in
+                    guard let suggestionID = attachment.origin.indexedSuggestionID else { return false }
+                    return !selectedIDs.contains(suggestionID)
+                }
+            }
         }
 
         for suggestion in selectedSuggestions {
@@ -196,12 +204,14 @@ struct TaskInputView: View {
             let alreadyAttachedByPath = attachments.contains { $0.url.path == url.path }
             if alreadyAttachedByPath { continue }
 
-            attachments.append(
-                PromptAttachment(
-                    url: url,
-                    origin: .indexedContext(suggestionID: suggestion.id)
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                attachments.append(
+                    PromptAttachment(
+                        url: url,
+                        origin: .indexedContext(suggestionID: suggestion.id)
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -222,11 +232,18 @@ struct TaskInputView: View {
     private var ghostContextSuggestions: [PromptContextSuggestion] {
         let selectedSuggestionIDs = Set(contextProvider.attachedSuggestions.map(\.id))
         let existingAttachmentPaths = Set(attachments.map { $0.url.path })
-        return contextProvider.suggestions.filter { suggestion in
-            guard !selectedSuggestionIDs.contains(suggestion.id) else { return false }
-            guard let url = contextAttachmentURL(for: suggestion) else { return false }
-            return !existingAttachmentPaths.contains(url.path)
-        }
+        return contextProvider.suggestions
+            .filter { suggestion in
+                guard !selectedSuggestionIDs.contains(suggestion.id) else { return false }
+                guard let url = contextAttachmentURL(for: suggestion) else { return false }
+                return !existingAttachmentPaths.contains(url.path)
+            }
+            .sorted { lhs, rhs in
+                if lhs.relevanceScore == rhs.relevanceScore {
+                    return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+                }
+                return lhs.relevanceScore > rhs.relevanceScore
+            }
     }
 
     private func donateGhostTipIfNeeded() {

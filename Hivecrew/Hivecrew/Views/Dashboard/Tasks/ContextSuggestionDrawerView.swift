@@ -221,18 +221,18 @@ final class PromptContextSuggestionProvider: ObservableObject {
             let nlpDurationMs = Int(Date().timeIntervalSince(nlpStart) * 1_000)
 
             let retrievalStart = Date()
-            async let fastBaseTask = Self.retrieveSuggestions(query: query, profile: Self.primaryFastProfile)
-            async let deepBaseTask = Self.retrieveSuggestions(query: query, profile: Self.primaryDeepProfile)
-            var mergedSuggestions = try await fastBaseTask
-            mergedSuggestions.append(contentsOf: try await deepBaseTask)
+            async let fastBaseTask = Self.retrieveSuggestionsBestEffort(query: query, profile: Self.primaryFastProfile)
+            async let deepBaseTask = Self.retrieveSuggestionsBestEffort(query: query, profile: Self.primaryDeepProfile)
+            var mergedSuggestions = await fastBaseTask
+            mergedSuggestions.append(contentsOf: await deepBaseTask)
             if !additionalQueries.isEmpty {
-                let fastExpansionSuggestions = try await retrieveSuggestionsInParallel(
+                let fastExpansionSuggestions = await retrieveSuggestionsInParallelBestEffort(
                     queries: additionalQueries,
                     profile: Self.expansionFastProfile
                 )
                 mergedSuggestions.append(contentsOf: fastExpansionSuggestions)
                 if let strongestExpansionQuery = additionalQueries.first {
-                    let deepExpansionSuggestions = try await Self.retrieveSuggestions(
+                    let deepExpansionSuggestions = await Self.retrieveSuggestionsBestEffort(
                         query: strongestExpansionQuery,
                         profile: Self.expansionDeepProfile
                     )
@@ -336,26 +336,29 @@ final class PromptContextSuggestionProvider: ObservableObject {
         limit: 12,
         typingMode: true,
         includeColdPartitionFallback: false,
-        timeoutSeconds: 1.4
+        timeoutSeconds: 1.9
     )
     private nonisolated static let primaryDeepProfile = RetrievalQueryProfile(
         limit: 16,
         typingMode: false,
         includeColdPartitionFallback: true,
-        timeoutSeconds: 2.2
+        timeoutSeconds: 2.8
     )
     private nonisolated static let expansionFastProfile = RetrievalQueryProfile(
         limit: 8,
         typingMode: true,
         includeColdPartitionFallback: true,
-        timeoutSeconds: 1.8
+        timeoutSeconds: 2.2
     )
     private nonisolated static let expansionDeepProfile = RetrievalQueryProfile(
         limit: 10,
         typingMode: false,
         includeColdPartitionFallback: true,
-        timeoutSeconds: 2.2
+        timeoutSeconds: 2.8
     )
+    private nonisolated static let retrievalTimeoutRetryAttempts = 1
+    private nonisolated static let retrievalTimeoutRetryDelayMs: UInt64 = 140
+    private nonisolated static let retrievalTimeoutRetryExtraSeconds: TimeInterval = 0.6
 
     private nonisolated static let strictRelevanceMinimumConfidence: Double = 0.72
     private nonisolated static let strictRelevanceMinimumKeywordOverlap: Double = 0.10
@@ -538,18 +541,18 @@ final class PromptContextSuggestionProvider: ObservableObject {
         }
     }
 
-    private func retrieveSuggestionsInParallel(
+    private func retrieveSuggestionsInParallelBestEffort(
         queries: [String],
         profile: RetrievalQueryProfile
-    ) async throws -> [PromptContextSuggestion] {
-        return try await withThrowingTaskGroup(of: [PromptContextSuggestion].self) { group in
+    ) async -> [PromptContextSuggestion] {
+        return await withTaskGroup(of: [PromptContextSuggestion].self) { group in
             for query in queries {
                 group.addTask {
-                    try await Self.retrieveSuggestions(query: query, profile: profile)
+                    await Self.retrieveSuggestionsBestEffort(query: query, profile: profile)
                 }
             }
             var merged: [PromptContextSuggestion] = []
-            for try await result in group {
+            for await result in group {
                 merged.append(contentsOf: result)
             }
             return merged
@@ -573,6 +576,47 @@ final class PromptContextSuggestionProvider: ObservableObject {
             requestTimeoutSeconds: profile.timeoutSeconds
         )
         return response.suggestions
+    }
+
+    private nonisolated static func retrieveSuggestionsBestEffort(
+        query: String,
+        profile: RetrievalQueryProfile
+    ) async -> [PromptContextSuggestion] {
+        var attempt = 0
+        var currentProfile = profile
+        while true {
+            do {
+                return try await retrieveSuggestions(query: query, profile: currentProfile)
+            } catch {
+                if Task.isCancelled {
+                    return []
+                }
+                guard isTimeoutError(error),
+                      attempt < retrievalTimeoutRetryAttempts else {
+                    print("PromptContextSuggestionProvider: Retrieval request failed for query '\(query)': \(error.localizedDescription)")
+                    return []
+                }
+                attempt += 1
+                currentProfile = RetrievalQueryProfile(
+                    limit: currentProfile.limit,
+                    typingMode: currentProfile.typingMode,
+                    includeColdPartitionFallback: currentProfile.includeColdPartitionFallback,
+                    timeoutSeconds: currentProfile.timeoutSeconds + retrievalTimeoutRetryExtraSeconds
+                )
+                try? await Task.sleep(for: .milliseconds(retrievalTimeoutRetryDelayMs))
+            }
+        }
+    }
+
+    private nonisolated static func isTimeoutError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut {
+            return true
+        }
+        if let urlError = error as? URLError, urlError.code == .timedOut {
+            return true
+        }
+        return nsError.localizedDescription.localizedCaseInsensitiveContains("timed out")
     }
 
     private nonisolated static func uniqueQueries(_ queries: [String], limit: Int) -> [String] {
