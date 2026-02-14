@@ -13,6 +13,8 @@ public actor RetrievalStore {
     private static let queueSnapshotMaxItems = 128
     private static let queueSnapshotRetentionCount = 1
     private static let queueSnapshotCompactThresholdBytes: Int64 = 256 * 1_024 * 1_024
+    private static let vectorDecodeCacheCapacity = 16_384
+    private var vectorDecodeCache: [String: [Float]] = [:]
 
     public init(dbPath: URL, contextPackDirectory: URL) {
         self.dbPath = dbPath
@@ -105,6 +107,12 @@ public actor RetrievalStore {
             CREATE TABLE IF NOT EXISTS metrics (
                 key TEXT PRIMARY KEY,
                 value REAL NOT NULL,
+                updated_at REAL NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS service_state (
+                state_key TEXT PRIMARY KEY,
+                state_value TEXT NOT NULL,
                 updated_at REAL NOT NULL
             );
 
@@ -214,7 +222,9 @@ public actor RetrievalStore {
                     bindText(stmt, at: 4, value: document.title)
                     bindText(stmt, at: 5, value: chunk.text)
                 })
-                let vectorBlob = try JSONEncoder().encode(chunk.embedding)
+                let vectorBlob = chunk.embedding.withUnsafeBufferPointer { buffer in
+                    Data(buffer: buffer)
+                }
                 try execPrepared("""
                     INSERT OR REPLACE INTO chunk_vectors (chunk_id, document_id, chunk_index, vector_blob)
                     VALUES (?, ?, ?, ?);
@@ -313,6 +323,117 @@ public actor RetrievalStore {
             return false
         }
         return existingTimestamp >= currentTimestamp
+    }
+
+    public func loadServiceState(key: String) throws -> String? {
+        try querySingle("""
+            SELECT state_value
+            FROM service_state
+            WHERE state_key = ?
+            LIMIT 1;
+        """, bind: { stmt in
+            bindText(stmt, at: 1, value: key)
+        }, map: { stmt in
+            stringValue(stmt, at: 0)
+        })
+    }
+
+    public func saveServiceState(key: String, value: String) throws {
+        try execPrepared("""
+            INSERT INTO service_state (state_key, state_value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(state_key) DO UPDATE SET
+                state_value = excluded.state_value,
+                updated_at = excluded.updated_at;
+        """, bind: { stmt in
+            bindText(stmt, at: 1, value: key)
+            bindText(stmt, at: 2, value: value)
+            sqlite3_bind_double(stmt, 3, Date().timeIntervalSince1970)
+        })
+    }
+
+    @discardableResult
+    public func purgeFileDocumentsForExtensions(_ fileExtensions: Set<String>) throws -> Int {
+        let normalizedExtensions = Set(
+            fileExtensions
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
+        guard !normalizedExtensions.isEmpty else { return 0 }
+
+        let sortedExtensions = normalizedExtensions.sorted()
+        let extensionClause = sortedExtensions.map { _ in "lower(source_path_or_handle) LIKE ?" }.joined(separator: " OR ")
+        let documentIDs: [String] = try query("""
+            SELECT id
+            FROM documents
+            WHERE source_type = ?
+              AND (\(extensionClause));
+        """, bind: { stmt in
+            bindText(stmt, at: 1, value: RetrievalSourceType.file.rawValue)
+            for (offset, ext) in sortedExtensions.enumerated() {
+                bindText(stmt, at: offset + 2, value: "%.\(ext)")
+            }
+        }, map: { stmt in
+            stringValue(stmt, at: 0)
+        })
+
+        try inTransaction {
+            let attemptClause = sortedExtensions.map { _ in "lower(source_path_or_handle) LIKE ? OR lower(source_id) LIKE ?" }.joined(separator: " OR ")
+            try execPrepared("""
+                DELETE FROM ingestion_attempts
+                WHERE source_type = ?
+                  AND (\(attemptClause));
+            """, bind: { stmt in
+                bindText(stmt, at: 1, value: RetrievalSourceType.file.rawValue)
+                var bindIndex = 2
+                for ext in sortedExtensions {
+                    let pattern = "%.\(ext)"
+                    bindText(stmt, at: bindIndex, value: pattern)
+                    bindText(stmt, at: bindIndex + 1, value: pattern)
+                    bindIndex += 2
+                }
+            })
+
+            guard !documentIDs.isEmpty else {
+                return
+            }
+
+            let batchSize = 300
+            var index = 0
+            while index < documentIDs.count {
+                let upperBound = min(index + batchSize, documentIDs.count)
+                let batch = Array(documentIDs[index..<upperBound])
+                let placeholders = Array(repeating: "?", count: batch.count).joined(separator: ",")
+
+                try execPrepared("DELETE FROM chunks_fts WHERE document_id IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM chunk_vectors WHERE document_id IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM graph_edges WHERE source_node IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM graph_edges WHERE target_node IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                try execPrepared("DELETE FROM documents WHERE id IN (\(placeholders));", bind: { stmt in
+                    for (offset, id) in batch.enumerated() {
+                        bindText(stmt, at: offset + 1, value: id)
+                    }
+                })
+                index = upperBound
+            }
+        }
+        return documentIDs.count
     }
 
     @discardableResult
@@ -668,6 +789,11 @@ public actor RetrievalStore {
         partitionFilter: Set<String>,
         limit: Int
     ) throws -> [LexicalHit] {
+        let matchQuery = Self.buildFTSMatchQuery(from: queryText)
+        guard !matchQuery.isEmpty else { return [] }
+        let anchorTokens = Self.buildLexicalAnchorTokens(from: queryText)
+        let boundedLimit = max(1, limit)
+        let rawLimit = max(boundedLimit, boundedLimit * Self.lexicalRawCandidateMultiplier)
         var sql = """
             SELECT d.id, d.source_type, d.title, d.source_path_or_handle, d.risk, d.updated_at, c.text
             FROM chunks_fts c
@@ -676,7 +802,7 @@ public actor RetrievalStore {
               AND d.searchable = 1
         """
         var binders: [(OpaquePointer) -> Void] = [
-            { stmt in bindText(stmt, at: 1, value: queryText) }
+            { stmt in bindText(stmt, at: 1, value: matchQuery) }
         ]
         var index = 2
 
@@ -700,11 +826,11 @@ public actor RetrievalStore {
             }
         }
 
-        sql += " ORDER BY bm25(chunks_fts) LIMIT ?;"
+        sql += " ORDER BY bm25(chunks_fts), d.updated_at DESC LIMIT ?;"
         let limitIndex = index
-        binders.append { stmt in sqlite3_bind_int(stmt, Int32(limitIndex), Int32(limit)) }
+        binders.append { stmt in sqlite3_bind_int(stmt, Int32(limitIndex), Int32(rawLimit)) }
 
-        return try query(sql, bind: { stmt in
+        let rawHits: [LexicalHit] = try query(sql, bind: { stmt in
             binders.forEach { $0(stmt) }
         }, map: { stmt in
             LexicalHit(
@@ -717,15 +843,53 @@ public actor RetrievalStore {
                 snippet: stringValue(stmt, at: 6)
             )
         })
+        let lexicalContentHits = Self.dedupeLexicalHits(rawHits, limit: boundedLimit)
+        let lexicalPathHits = try pathTitleAnchorHits(
+            anchorTokens: anchorTokens,
+            sourceFilters: sourceFilters,
+            partitionFilter: partitionFilter,
+            limit: boundedLimit
+        )
+
+        // Prioritize path/title anchor matches for entity-centric prompts (e.g. product names),
+        // then merge with content lexical hits for breadth.
+        var ordered: [LexicalHit] = []
+        ordered.reserveCapacity(boundedLimit)
+        var seen = Set<String>()
+        for hit in lexicalPathHits + lexicalContentHits {
+            guard !seen.contains(hit.documentId) else { continue }
+            seen.insert(hit.documentId)
+            ordered.append(hit)
+            if ordered.count >= boundedLimit {
+                break
+            }
+        }
+        return ordered
     }
 
-    public func allChunkVectors(
+    public func topChunkVectorsBySimilarity(
+        queryVector: [Float],
         sourceFilters: Set<RetrievalSourceType>,
         partitionFilter: Set<String>,
-        limit: Int
+        topK: Int,
+        scanLimit: Int,
+        minimumSimilarity: Double = 0
     ) throws -> [VectorHit] {
+        guard !queryVector.isEmpty else { return [] }
+        let boundedTopK = max(1, topK)
+        let boundedScanLimit = max(boundedTopK, scanLimit)
         var sql = """
-            SELECT v.chunk_id, v.document_id, v.chunk_index, v.vector_blob, d.source_type, d.title, d.source_path_or_handle, d.risk, d.updated_at
+            SELECT
+                v.chunk_id,
+                v.document_id,
+                v.chunk_index,
+                v.vector_blob,
+                d.source_type,
+                d.title,
+                d.source_path_or_handle,
+                d.risk,
+                d.updated_at,
+                ''
             FROM chunk_vectors v
             JOIN documents d ON d.id = v.document_id
             WHERE d.searchable = 1
@@ -756,25 +920,87 @@ public actor RetrievalStore {
 
         sql += " ORDER BY d.updated_at DESC LIMIT ?;"
         let limitIndex = bindIndex
-        binders.append { stmt in sqlite3_bind_int(stmt, Int32(limitIndex), Int32(limit)) }
+        binders.append { stmt in sqlite3_bind_int(stmt, Int32(limitIndex), Int32(boundedScanLimit)) }
 
-        return try query(sql, bind: { stmt in
-            binders.forEach { $0(stmt) }
-        }, map: { stmt in
-            let vectorData = blobData(stmt, at: 3)
-            let vector = (try? JSONDecoder().decode([Float].self, from: vectorData)) ?? []
-            return VectorHit(
-                chunkId: stringValue(stmt, at: 0),
-                documentId: stringValue(stmt, at: 1),
-                chunkIndex: Int(sqlite3_column_int(stmt, 2)),
-                vector: vector,
-                sourceType: RetrievalSourceType(rawValue: stringValue(stmt, at: 4)) ?? .file,
-                title: stringValue(stmt, at: 5),
-                sourcePathOrHandle: stringValue(stmt, at: 6),
-                risk: RetrievalRiskLabel(rawValue: stringValue(stmt, at: 7)) ?? .low,
-                updatedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 8))
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw RetrievalCoreError.sqliteError(lastError())
+        }
+        guard let statement else {
+            throw RetrievalCoreError.sqliteError("Failed to prepare vector similarity query statement")
+        }
+        defer { sqlite3_finalize(statement) }
+
+        binders.forEach { $0(statement) }
+
+        var topHits: [VectorHit] = []
+        topHits.reserveCapacity(min(boundedTopK, 256))
+        var weakestIndex = 0
+
+        var stepResult = sqlite3_step(statement)
+        while stepResult == SQLITE_ROW {
+            let chunkID = stringValue(statement, at: 0)
+            let vectorData = blobData(statement, at: 3)
+            let vector = decodeVectorBlob(vectorData, chunkID: chunkID)
+            guard vector.count == queryVector.count else {
+                stepResult = sqlite3_step(statement)
+                continue
+            }
+            let similarity = CandidateScorer.cosineSimilarity(queryVector, vector)
+            guard similarity >= minimumSimilarity else {
+                stepResult = sqlite3_step(statement)
+                continue
+            }
+
+            let hit = VectorHit(
+                chunkId: chunkID,
+                documentId: stringValue(statement, at: 1),
+                chunkIndex: Int(sqlite3_column_int(statement, 2)),
+                chunkText: stringValue(statement, at: 9),
+                similarity: similarity,
+                sourceType: RetrievalSourceType(rawValue: stringValue(statement, at: 4)) ?? .file,
+                title: stringValue(statement, at: 5),
+                sourcePathOrHandle: stringValue(statement, at: 6),
+                risk: RetrievalRiskLabel(rawValue: stringValue(statement, at: 7)) ?? .low,
+                updatedAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 8))
             )
-        })
+
+            if topHits.count < boundedTopK {
+                topHits.append(hit)
+                if topHits.count == 1 || isWeakerSimilarityHit(hit, than: topHits[weakestIndex]) {
+                    weakestIndex = topHits.count - 1
+                }
+                stepResult = sqlite3_step(statement)
+                continue
+            }
+
+            if isStrongerSimilarityHit(hit, than: topHits[weakestIndex]) {
+                topHits[weakestIndex] = hit
+                weakestIndex = weakestSimilarityHitIndex(in: topHits)
+            }
+            stepResult = sqlite3_step(statement)
+        }
+
+        guard stepResult == SQLITE_DONE else {
+            throw RetrievalCoreError.sqliteError(lastError())
+        }
+
+        let sortedHits = topHits.sorted(by: isStrongerSimilarityHit(_:than:))
+        let chunkTextByID = try loadChunkTexts(for: sortedHits.map(\.chunkId))
+        return sortedHits.map { hit in
+            VectorHit(
+                chunkId: hit.chunkId,
+                documentId: hit.documentId,
+                chunkIndex: hit.chunkIndex,
+                chunkText: chunkTextByID[hit.chunkId] ?? "",
+                similarity: hit.similarity,
+                sourceType: hit.sourceType,
+                title: hit.title,
+                sourcePathOrHandle: hit.sourcePathOrHandle,
+                risk: hit.risk,
+                updatedAt: hit.updatedAt
+            )
+        }
     }
 
     public func graphNeighbors(seedDocumentIds: Set<String>, maxEdges: Int) throws -> [GraphEdge] {
@@ -899,6 +1125,238 @@ public actor RetrievalStore {
         return Int(Double(remaining) / rate)
     }
 
+    private nonisolated static let lexicalRawCandidateMultiplier = 8
+    private nonisolated static let lexicalStopWords: Set<String> = [
+        "a", "an", "and", "are", "as", "at", "be", "by", "do", "for", "from",
+        "how", "i", "if", "in", "into", "is", "it", "me", "my", "of", "on", "or",
+        "our", "so", "that", "the", "their", "them", "there", "these", "this", "to",
+        "us", "we", "with", "you", "your",
+    ]
+
+    private static func buildFTSMatchQuery(from text: String) -> String {
+        let rawTokens = text
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+        guard !rawTokens.isEmpty else { return "" }
+
+        let contentTokens = uniqueOrdered(rawTokens.map { $0.lowercased() }.filter { token in
+            if token.count >= 3 {
+                return !lexicalStopWords.contains(token)
+            }
+            return token.count >= 2 && token.contains(where: \.isNumber)
+        })
+        let anchorTokens = buildLexicalAnchorTokens(from: rawTokens)
+
+        let boundedContent = Array(contentTokens.prefix(10))
+        let boundedAnchors = Array(anchorTokens.prefix(5))
+        let contentExpression = lexicalDisjunction(from: boundedContent)
+        let anchorExpression = lexicalDisjunction(from: boundedAnchors)
+
+        if !anchorExpression.isEmpty && !contentExpression.isEmpty {
+            return "(\(anchorExpression)) AND (\(contentExpression))"
+        }
+        if !contentExpression.isEmpty {
+            return contentExpression
+        }
+        if !anchorExpression.isEmpty {
+            return anchorExpression
+        }
+
+        let fallbackTerms = Array(uniqueOrdered(rawTokens.map { $0.lowercased() }).prefix(6))
+        return lexicalDisjunction(from: fallbackTerms)
+    }
+
+    private static func lexicalDisjunction(from terms: [String]) -> String {
+        guard !terms.isEmpty else { return "" }
+        return terms
+            .map(escapeFTSTerm(_:))
+            .joined(separator: " OR ")
+    }
+
+    private static func buildLexicalAnchorTokens(from text: String) -> [String] {
+        let rawTokens = text
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+        return buildLexicalAnchorTokens(from: rawTokens)
+    }
+
+    private static func buildLexicalAnchorTokens(from rawTokens: [String]) -> [String] {
+        uniqueOrdered(rawTokens.enumerated().compactMap { index, token -> String? in
+            guard !token.isEmpty else { return nil }
+            let lower = token.lowercased()
+            guard !lexicalStopWords.contains(lower) else { return nil }
+            let hasDigit = token.contains(where: \.isNumber)
+            let hasLetter = token.contains(where: \.isLetter)
+            let hasUppercase = token.contains(where: \.isUppercase)
+            let hasLowercase = token.contains(where: \.isLowercase)
+            if hasDigit && hasLetter {
+                return lower
+            }
+            if index > 0 && hasUppercase && hasLowercase && lower.count >= 3 {
+                return lower
+            }
+            return nil
+        })
+    }
+
+    private static func escapeFTSTerm(_ term: String) -> String {
+        let escaped = term.replacingOccurrences(of: "\"", with: "\"\"")
+        return "\"\(escaped)\""
+    }
+
+    private static func uniqueOrdered(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var output: [String] = []
+        output.reserveCapacity(values.count)
+        for value in values {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            guard !seen.contains(trimmed) else { continue }
+            seen.insert(trimmed)
+            output.append(trimmed)
+        }
+        return output
+    }
+
+    private static func dedupeLexicalHits(_ rawHits: [LexicalHit], limit: Int) -> [LexicalHit] {
+        let boundedLimit = max(1, limit)
+        var byDocumentID: [String: LexicalHit] = [:]
+        var orderedDocumentIDs: [String] = []
+        orderedDocumentIDs.reserveCapacity(min(boundedLimit, rawHits.count))
+        for hit in rawHits {
+            guard byDocumentID[hit.documentId] == nil else { continue }
+            byDocumentID[hit.documentId] = hit
+            orderedDocumentIDs.append(hit.documentId)
+            if orderedDocumentIDs.count >= boundedLimit {
+                break
+            }
+        }
+        return orderedDocumentIDs.compactMap { byDocumentID[$0] }
+    }
+
+    private func pathTitleAnchorHits(
+        anchorTokens: [String],
+        sourceFilters: Set<RetrievalSourceType>,
+        partitionFilter: Set<String>,
+        limit: Int
+    ) throws -> [LexicalHit] {
+        let boundedAnchors = Array(Self.uniqueOrdered(anchorTokens).prefix(4))
+        guard !boundedAnchors.isEmpty else { return [] }
+        let boundedLimit = max(1, limit)
+
+        var scoreFragments: [String] = []
+        var matchFragments: [String] = []
+        var binders: [(OpaquePointer) -> Void] = []
+        var bindIndex = 1
+
+        for token in boundedAnchors {
+            let pattern = "%\(token)%"
+            scoreFragments.append("(CASE WHEN lower(d.title) LIKE ? OR lower(d.source_path_or_handle) LIKE ? THEN 1 ELSE 0 END)")
+            let scoreTitleIndex = bindIndex
+            binders.append { stmt in bindText(stmt, at: scoreTitleIndex, value: pattern) }
+            bindIndex += 1
+            let scorePathIndex = bindIndex
+            binders.append { stmt in bindText(stmt, at: scorePathIndex, value: pattern) }
+            bindIndex += 1
+
+            matchFragments.append("lower(d.title) LIKE ? OR lower(d.source_path_or_handle) LIKE ?")
+            let matchTitleIndex = bindIndex
+            binders.append { stmt in bindText(stmt, at: matchTitleIndex, value: pattern) }
+            bindIndex += 1
+            let matchPathIndex = bindIndex
+            binders.append { stmt in bindText(stmt, at: matchPathIndex, value: pattern) }
+            bindIndex += 1
+        }
+
+        let scoreExpression = scoreFragments.joined(separator: " + ")
+        let matchExpression = matchFragments.joined(separator: " OR ")
+        let qualityExpression = """
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/projects/%' THEN 2 ELSE 0 END) +
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/documentation/%' THEN 1 ELSE 0 END) +
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/docs/%' THEN 6 ELSE 0 END) +
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/readme.md' OR lower(d.title) = 'readme.md' THEN 2 ELSE 0 END) -
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/app archives/%' THEN 2 ELSE 0 END) -
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/site/%' THEN 1 ELSE 0 END) -
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/testing/%' THEN 2 ELSE 0 END) -
+            (CASE WHEN lower(d.source_path_or_handle) LIKE '%/misc/%' THEN 1 ELSE 0 END)
+        """
+        var sql = """
+            SELECT
+                d.id,
+                d.source_type,
+                d.title,
+                d.source_path_or_handle,
+                d.risk,
+                d.updated_at,
+                substr(COALESCE(d.body, ''), 1, 420),
+                (\(scoreExpression)) AS anchor_score,
+                (\(qualityExpression)) AS quality_score
+            FROM documents d
+            WHERE d.searchable = 1
+        """
+        sql += " AND (\(matchExpression))"
+
+        if !sourceFilters.isEmpty {
+            let placeholders = Array(repeating: "?", count: sourceFilters.count).joined(separator: ",")
+            sql += " AND d.source_type IN (\(placeholders))"
+            for source in sourceFilters.sorted(by: { $0.rawValue < $1.rawValue }) {
+                let localIndex = bindIndex
+                binders.append { stmt in bindText(stmt, at: localIndex, value: source.rawValue) }
+                bindIndex += 1
+            }
+        }
+
+        if !partitionFilter.isEmpty {
+            let placeholders = Array(repeating: "?", count: partitionFilter.count).joined(separator: ",")
+            sql += " AND d.partition_label IN (\(placeholders))"
+            for partition in partitionFilter.sorted() {
+                let localIndex = bindIndex
+                binders.append { stmt in bindText(stmt, at: localIndex, value: partition) }
+                bindIndex += 1
+            }
+        }
+
+        sql += " ORDER BY (anchor_score * 10 + quality_score) DESC, d.updated_at DESC LIMIT ?;"
+        let limitIndex = bindIndex
+        binders.append { stmt in sqlite3_bind_int(stmt, Int32(limitIndex), Int32(boundedLimit)) }
+
+        return try query(sql, bind: { stmt in
+            binders.forEach { $0(stmt) }
+        }, map: { stmt in
+            LexicalHit(
+                documentId: stringValue(stmt, at: 0),
+                sourceType: RetrievalSourceType(rawValue: stringValue(stmt, at: 1)) ?? .file,
+                title: stringValue(stmt, at: 2),
+                sourcePathOrHandle: stringValue(stmt, at: 3),
+                risk: RetrievalRiskLabel(rawValue: stringValue(stmt, at: 4)) ?? .low,
+                updatedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 5)),
+                snippet: stringValue(stmt, at: 6)
+            )
+        })
+    }
+
+    private func loadChunkTexts(for chunkIDs: [String]) throws -> [String: String] {
+        let uniqueChunkIDs = Array(Set(chunkIDs))
+        guard !uniqueChunkIDs.isEmpty else { return [:] }
+        let placeholders = Array(repeating: "?", count: uniqueChunkIDs.count).joined(separator: ",")
+        let sql = """
+            SELECT chunk_id, text
+            FROM chunks_fts
+            WHERE chunk_id IN (\(placeholders));
+        """
+        let rows: [(chunkID: String, text: String)] = try query(sql, bind: { stmt in
+            for (index, chunkID) in uniqueChunkIDs.enumerated() {
+                bindText(stmt, at: index + 1, value: chunkID)
+            }
+        }, map: { stmt in
+            (
+                chunkID: stringValue(stmt, at: 0),
+                text: stringValue(stmt, at: 1)
+            )
+        })
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.chunkID, $0.text) })
+    }
+
     private func exec(_ sql: String) throws {
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
             throw RetrievalCoreError.sqliteError(lastError())
@@ -974,6 +1432,41 @@ public actor RetrievalStore {
         }
     }
 
+    private func decodeVectorBlob(_ data: Data, chunkID: String) -> [Float] {
+        if let cached = vectorDecodeCache[chunkID] {
+            return cached
+        }
+        let decoded = decodeVectorBlobPayload(data)
+        if vectorDecodeCache.count >= Self.vectorDecodeCacheCapacity {
+            vectorDecodeCache.removeAll(keepingCapacity: true)
+        }
+        vectorDecodeCache[chunkID] = decoded
+        return decoded
+    }
+
+    private func decodeVectorBlobPayload(_ data: Data) -> [Float] {
+        guard !data.isEmpty else { return [] }
+        var firstNonWhitespaceByte: UInt8?
+        for byte in data {
+            if byte != 32 && byte != 9 && byte != 10 && byte != 13 {
+                firstNonWhitespaceByte = byte
+                break
+            }
+        }
+        // Existing databases persist vectors as JSON arrays. Keep compatibility while allowing
+        // future native float blobs without migration overhead.
+        if firstNonWhitespaceByte == UInt8(ascii: "[") {
+            return (try? JSONDecoder().decode([Float].self, from: data)) ?? []
+        }
+        let floatSize = MemoryLayout<Float>.stride
+        guard data.count.isMultiple(of: floatSize) else {
+            return (try? JSONDecoder().decode([Float].self, from: data)) ?? []
+        }
+        return data.withUnsafeBytes { rawBuffer in
+            Array(rawBuffer.bindMemory(to: Float.self))
+        }
+    }
+
     private func lastError() -> String {
         guard let db, let cString = sqlite3_errmsg(db) else { return "Unknown sqlite error" }
         return String(cString: cString)
@@ -1002,4 +1495,29 @@ private func blobData(_ stmt: OpaquePointer, at index: Int32) -> Data {
         return Data()
     }
     return Data(bytes: pointer, count: Int(sqlite3_column_bytes(stmt, index)))
+}
+
+private func isStrongerSimilarityHit(_ lhs: VectorHit, than rhs: VectorHit) -> Bool {
+    if lhs.similarity == rhs.similarity {
+        return lhs.updatedAt > rhs.updatedAt
+    }
+    return lhs.similarity > rhs.similarity
+}
+
+private func isWeakerSimilarityHit(_ lhs: VectorHit, than rhs: VectorHit) -> Bool {
+    if lhs.similarity == rhs.similarity {
+        return lhs.updatedAt < rhs.updatedAt
+    }
+    return lhs.similarity < rhs.similarity
+}
+
+private func weakestSimilarityHitIndex(in hits: [VectorHit]) -> Int {
+    guard !hits.isEmpty else { return 0 }
+    var weakestIndex = 0
+    for index in hits.indices.dropFirst() {
+        if isWeakerSimilarityHit(hits[index], than: hits[weakestIndex]) {
+            weakestIndex = index
+        }
+    }
+    return weakestIndex
 }

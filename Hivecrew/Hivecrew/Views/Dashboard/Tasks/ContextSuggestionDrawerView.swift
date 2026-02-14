@@ -92,6 +92,7 @@ final class PromptContextSuggestionProvider: ObservableObject {
     private var debounceTask: Task<Void, Never>?
     private var latestDraft = ""
     private var activeRequestID = 0
+    private var lastDraftEditAt = Date.distantPast
     private weak var workerClientProvider: (any CreateWorkerClientProtocol)?
 
     func setWorkerClientProvider(_ provider: any CreateWorkerClientProtocol) {
@@ -100,6 +101,7 @@ final class PromptContextSuggestionProvider: ObservableObject {
 
     func updateDraft(_ draft: String) {
         latestDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        lastDraftEditAt = Date()
         debounceTask?.cancel()
         activeRequestID += 1
         let requestID = activeRequestID
@@ -212,36 +214,56 @@ final class PromptContextSuggestionProvider: ObservableObject {
 
     private func fetchSuggestions(for query: String, requestID: Int) async {
         isLoading = true
-        defer { isLoading = false }
+        var loadingCompleted = false
+        defer {
+            if !loadingCompleted {
+                isLoading = false
+            }
+        }
 
         do {
             let pipelineStart = Date()
             let nlpStart = Date()
-            let additionalQueries = Self.generateNLPQueryExpansions(from: query, limit: 4)
+            let queryKeywords = Self.strictKeywords(from: query)
+            let retrievalQuery = Self.compactRetrievalQuery(from: query)
+            let retrievalQueryKeywords = Self.strictKeywords(from: retrievalQuery)
+            let shouldRunDeepBase = Self.shouldRunDeepBaseQuery(query: retrievalQuery, queryKeywords: retrievalQueryKeywords)
+            let shouldRunExpansions = Self.shouldRunExpansionQueries(query: retrievalQuery, queryKeywords: retrievalQueryKeywords)
+            let additionalQueries = shouldRunExpansions
+                ? Self.generateNLPQueryExpansions(from: retrievalQuery, limit: Self.maximumExpansionQueryCount)
+                : []
             let nlpDurationMs = Int(Date().timeIntervalSince(nlpStart) * 1_000)
 
             let retrievalStart = Date()
-            async let fastBaseTask = Self.retrieveSuggestionsBestEffort(query: query, profile: Self.primaryFastProfile)
-            async let deepBaseTask = Self.retrieveSuggestionsBestEffort(query: query, profile: Self.primaryDeepProfile)
-            var mergedSuggestions = await fastBaseTask
-            mergedSuggestions.append(contentsOf: await deepBaseTask)
-            if !additionalQueries.isEmpty {
+            let fastBaseSuggestions = await Self.retrieveSuggestionsBestEffort(query: retrievalQuery, profile: Self.primaryFastProfile)
+            var mergedSuggestions = fastBaseSuggestions
+            var retrievalRequestCount = 1
+            if shouldRunDeepBase, fastBaseSuggestions.count < Self.fastBaseSufficientCandidateCount {
+                let deepBaseSuggestions = await Self.retrieveSuggestionsBestEffort(query: retrievalQuery, profile: Self.primaryDeepProfile)
+                mergedSuggestions.append(contentsOf: deepBaseSuggestions)
+                retrievalRequestCount += 1
+            }
+            let baseSuggestionIDs = Set(mergedSuggestions.map(\.id))
+            if !additionalQueries.isEmpty, mergedSuggestions.count < Self.expansionCandidateCutoff {
                 let fastExpansionSuggestions = await retrieveSuggestionsInParallelBestEffort(
                     queries: additionalQueries,
                     profile: Self.expansionFastProfile
                 )
                 mergedSuggestions.append(contentsOf: fastExpansionSuggestions)
-                if let strongestExpansionQuery = additionalQueries.first {
-                    let deepExpansionSuggestions = await Self.retrieveSuggestionsBestEffort(
-                        query: strongestExpansionQuery,
-                        profile: Self.expansionDeepProfile
-                    )
-                    mergedSuggestions.append(contentsOf: deepExpansionSuggestions)
-                }
+                retrievalRequestCount += additionalQueries.count
             }
             let searchableSuggestions = mergedSuggestions.filter(Self.isSearchableSuggestion(_:))
             let dedupedSuggestions = Self.dedupeSuggestions(searchableSuggestions)
-            let candidateSuggestions = Array(dedupedSuggestions.prefix(18))
+            let penalizedSuggestions = Self.applyExpansionOnlyPenalty(
+                dedupedSuggestions,
+                baseSuggestionIDs: baseSuggestionIDs
+            )
+            let rankedSuggestions = Self.rankSuggestionsWithBasePreference(
+                penalizedSuggestions,
+                baseSuggestionIDs: baseSuggestionIDs
+            )
+            let candidateSuggestions = Array(rankedSuggestions.prefix(18))
+            let expansionOnlyCandidateCount = candidateSuggestions.filter { !baseSuggestionIDs.contains($0.id) }.count
             let retrievalDurationMs = Int(Date().timeIntervalSince(retrievalStart) * 1_000)
             try Task.checkCancellation()
 
@@ -252,36 +274,62 @@ final class PromptContextSuggestionProvider: ObservableObject {
             attachedSuggestions = attachedSuggestions.map { preliminaryByID[$0.id] ?? $0 }
             suggestions = candidateSuggestions.filter { !selectedIDs.contains($0.id) }
             lastError = nil
+            isLoading = false
+            loadingCompleted = true
 
             let relevanceStart = Date()
             var relevantSuggestions: [PromptContextSuggestion]
-            do {
-                let workerClient = try await createWorkerClient()
-                let relevantSuggestionIDs = try await filterRelevantSuggestionIDs(
-                    for: query,
-                    candidates: candidateSuggestions,
-                    using: workerClient
-                )
-                let relevantIDSet = Set(relevantSuggestionIDs)
-                relevantSuggestions = candidateSuggestions.filter { relevantIDSet.contains($0.id) }
-            } catch {
-                // Relevance stage is additive; keep preliminary suggestions on failure.
-                print("PromptContextSuggestionProvider: Relevance check fallback: \(error.localizedDescription)")
+            let shouldRunRelevanceStage = Self.shouldRunLLMRelevanceStage(
+                query: query,
+                candidateCount: candidateSuggestions.count,
+                queryKeywords: queryKeywords
+            )
+            var ranLLMRelevance = false
+            if shouldRunRelevanceStage {
+                let idleMs = Date().timeIntervalSince(lastDraftEditAt) * 1_000
+                let waitMs = max(Self.relevanceStabilizationDelayMs, UInt64(max(0, Self.minimumIdleBeforeLLMRelevanceMs - idleMs)))
+                if waitMs > 0 {
+                    try? await Task.sleep(for: .milliseconds(waitMs))
+                }
+                guard requestID == activeRequestID, query == latestDraft else { return }
+                do {
+                    let workerClient = try await createWorkerClient()
+                    let relevantSuggestionIDs = try await filterRelevantSuggestionIDs(
+                        for: query,
+                        candidates: candidateSuggestions,
+                        using: workerClient
+                    )
+                    let relevantIDSet = Set(relevantSuggestionIDs)
+                    relevantSuggestions = candidateSuggestions.filter { relevantIDSet.contains($0.id) }
+                    ranLLMRelevance = true
+                } catch {
+                    // Relevance stage is additive; keep preliminary suggestions on failure.
+                    print("PromptContextSuggestionProvider: Relevance check fallback: \(error.localizedDescription)")
+                    relevantSuggestions = candidateSuggestions
+                }
+            } else {
                 relevantSuggestions = candidateSuggestions
             }
-            let minimumUsefulCount = min(6, candidateSuggestions.count)
-            if relevantSuggestions.count < minimumUsefulCount {
+            var fallbackAdmissions = 0
+            // Keep fallback conservative. Prefer fewer strong matches over filling weak ones.
+            if relevantSuggestions.isEmpty {
                 let existingIDs = Set(relevantSuggestions.map(\.id))
-                let needed = minimumUsefulCount - relevantSuggestions.count
+                let needed = min(3, candidateSuggestions.count)
                 let fallbackCandidates = Self.relevanceFallbackCandidates(
                     query: query,
                     candidates: candidateSuggestions,
                     excluding: existingIDs,
                     limit: needed
                 )
+                fallbackAdmissions = fallbackCandidates.count
                 relevantSuggestions.append(contentsOf: fallbackCandidates)
                 relevantSuggestions = Self.dedupeSuggestions(relevantSuggestions)
             }
+            relevantSuggestions = Self.rankSuggestionsWithBasePreference(
+                relevantSuggestions,
+                baseSuggestionIDs: baseSuggestionIDs
+            )
+            let expansionOnlyRelevantCount = relevantSuggestions.filter { !baseSuggestionIDs.contains($0.id) }.count
             let relevanceDurationMs = Int(Date().timeIntervalSince(relevanceStart) * 1_000)
             try Task.checkCancellation()
 
@@ -291,11 +339,15 @@ final class PromptContextSuggestionProvider: ObservableObject {
             suggestions = relevantSuggestions.filter { !selectedIDs.contains($0.id) }
             lastError = nil
             let totalDurationMs = Int(Date().timeIntervalSince(pipelineStart) * 1_000)
-            let retrievalRequestCount = 2 + additionalQueries.count + (additionalQueries.isEmpty ? 0 : 1)
             print(
                 "PromptContextSuggestionProvider: NLP pipeline \(totalDurationMs)ms " +
                     "[nlp=\(nlpDurationMs)ms, retrieval=\(retrievalDurationMs)ms, relevance=\(relevanceDurationMs)ms, " +
-                    "queries=\(retrievalRequestCount), candidates=\(candidateSuggestions.count), relevant=\(relevantSuggestions.count)]"
+                    "queryChars=\(query.count), retrievalQueryChars=\(retrievalQuery.count), " +
+                    "queries=\(retrievalRequestCount), deepBase=\(shouldRunDeepBase), expansions=\(additionalQueries.count), " +
+                    "llmRelevance=\(ranLLMRelevance), " +
+                    "candidates=\(candidateSuggestions.count), relevant=\(relevantSuggestions.count), " +
+                    "fallbackAdmissions=\(fallbackAdmissions), expansionOnlyCandidates=\(expansionOnlyCandidateCount), " +
+                    "expansionOnlyRelevant=\(expansionOnlyRelevantCount)]"
             )
         } catch is CancellationError {
             // Ignore stale/cancelled requests.
@@ -336,37 +388,49 @@ final class PromptContextSuggestionProvider: ObservableObject {
         limit: 12,
         typingMode: true,
         includeColdPartitionFallback: false,
-        timeoutSeconds: 1.9
+        timeoutSeconds: 1.2
     )
     private nonisolated static let primaryDeepProfile = RetrievalQueryProfile(
         limit: 16,
         typingMode: false,
         includeColdPartitionFallback: true,
-        timeoutSeconds: 2.8
+        timeoutSeconds: 1.8
     )
     private nonisolated static let expansionFastProfile = RetrievalQueryProfile(
-        limit: 8,
+        limit: 6,
         typingMode: true,
         includeColdPartitionFallback: true,
-        timeoutSeconds: 2.2
+        timeoutSeconds: 1.4
     )
-    private nonisolated static let expansionDeepProfile = RetrievalQueryProfile(
-        limit: 10,
-        typingMode: false,
-        includeColdPartitionFallback: true,
-        timeoutSeconds: 2.8
-    )
+    private nonisolated static let minimumCharactersForDeepBase = 32
+    private nonisolated static let minimumKeywordCountForDeepBase = 3
+    private nonisolated static let minimumCharactersForExpansion = 56
+    private nonisolated static let minimumKeywordCountForExpansion = 4
+    private nonisolated static let maximumExpansionQueryCount = 1
+    private nonisolated static let fastBaseSufficientCandidateCount = 8
+    private nonisolated static let expansionCandidateCutoff = 12
+    private nonisolated static let minimumCharactersForLLMRelevance = 40
+    private nonisolated static let minimumCandidatesForLLMRelevance = 4
+    private nonisolated static let relevanceStabilizationDelayMs: UInt64 = 220
+    private nonisolated static let minimumIdleBeforeLLMRelevanceMs: Double = 650
+    private nonisolated static let compactQueryMinimumLength = 180
+    private nonisolated static let compactQueryMaximumLength = 260
+    private nonisolated static let compactQueryMaxKeywordTerms = 14
+    // Kept enabled: final relevance verification refines precision after fast retrieval.
+    private nonisolated static let llmRelevanceEnabled = true
     private nonisolated static let retrievalTimeoutRetryAttempts = 1
     private nonisolated static let retrievalTimeoutRetryDelayMs: UInt64 = 140
-    private nonisolated static let retrievalTimeoutRetryExtraSeconds: TimeInterval = 0.6
+    private nonisolated static let retrievalTimeoutRetryExtraSeconds: TimeInterval = 0.3
 
     private nonisolated static let strictRelevanceMinimumConfidence: Double = 0.72
     private nonisolated static let strictRelevanceMinimumKeywordOverlap: Double = 0.10
     private nonisolated static let strictRelevanceHighConfidenceOverride: Double = 0.90
     private nonisolated static let strictRelevanceHighConfidenceMinimumOverlap: Double = 0.05
     private nonisolated static let strictRelevanceFallbackConfidenceOnly: Double = 0.82
-    private nonisolated static let relevanceFallbackMinimumKeywordOverlap: Double = 0.06
-    private nonisolated static let relevanceFallbackMinimumScore: Double = 0.18
+    private nonisolated static let relevanceFallbackMinimumKeywordOverlap: Double = 0.12
+    private nonisolated static let relevanceFallbackMinimumScore: Double = 0.24
+    private nonisolated static let expansionOnlyPenaltyScore: Double = 0.09
+    private nonisolated static let baseSuggestionTieBreakDelta: Double = 0.05
 
     private nonisolated static func generateNLPQueryExpansions(from query: String, limit: Int) -> [String] {
         let cleaned = query
@@ -452,6 +516,28 @@ final class PromptContextSuggestionProvider: ObservableObject {
         return Set(keywords)
     }
 
+    private nonisolated static func compactRetrievalQuery(from text: String) -> String {
+        let cleaned = text
+            .replacingOccurrences(of: "[^\\p{L}\\p{N}\\s_-]", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return text }
+        guard cleaned.count >= compactQueryMinimumLength else { return cleaned }
+
+        let orderedKeywords = cleaned
+            .lowercased()
+            .split(separator: " ")
+            .map(String.init)
+            .filter { token in
+                token.count >= 3 && !nlpStopWords.contains(token)
+            }
+        let compactKeywords = uniqueOrdered(orderedKeywords).prefix(compactQueryMaxKeywordTerms).joined(separator: " ")
+        if compactKeywords.count >= 24 {
+            return compactKeywords
+        }
+        return String(cleaned.prefix(compactQueryMaximumLength))
+    }
+
     private nonisolated static func keywordOverlapScore(
         queryKeywords: Set<String>,
         candidateText: String
@@ -461,6 +547,34 @@ final class PromptContextSuggestionProvider: ObservableObject {
         guard !candidateKeywords.isEmpty else { return 0 }
         let shared = queryKeywords.intersection(candidateKeywords).count
         return Double(shared) / Double(queryKeywords.count)
+    }
+
+    private nonisolated static func shouldRunDeepBaseQuery(
+        query: String,
+        queryKeywords: Set<String>
+    ) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count >= minimumCharactersForDeepBase || queryKeywords.count >= minimumKeywordCountForDeepBase
+    }
+
+    private nonisolated static func shouldRunExpansionQueries(
+        query: String,
+        queryKeywords: Set<String>
+    ) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count >= minimumCharactersForExpansion && queryKeywords.count >= minimumKeywordCountForExpansion
+    }
+
+    private nonisolated static func shouldRunLLMRelevanceStage(
+        query: String,
+        candidateCount: Int,
+        queryKeywords: Set<String>
+    ) -> Bool {
+        guard llmRelevanceEnabled else { return false }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= minimumCharactersForLLMRelevance else { return false }
+        guard candidateCount >= minimumCandidatesForLLMRelevance else { return false }
+        return queryKeywords.count >= minimumKeywordCountForDeepBase
     }
 
     private func filterRelevantSuggestionIDs(
@@ -679,6 +793,46 @@ final class PromptContextSuggestionProvider: ObservableObject {
         return byID.values.sorted { $0.relevanceScore > $1.relevanceScore }
     }
 
+    private nonisolated static func applyExpansionOnlyPenalty(
+        _ suggestions: [PromptContextSuggestion],
+        baseSuggestionIDs: Set<String>
+    ) -> [PromptContextSuggestion] {
+        suggestions.map { suggestion in
+            guard !baseSuggestionIDs.contains(suggestion.id) else { return suggestion }
+            return PromptContextSuggestion(
+                id: suggestion.id,
+                sourceType: suggestion.sourceType,
+                title: suggestion.title,
+                snippet: suggestion.snippet,
+                sourceId: suggestion.sourceId,
+                sourcePathOrHandle: suggestion.sourcePathOrHandle,
+                relevanceScore: max(0, suggestion.relevanceScore - expansionOnlyPenaltyScore),
+                risk: suggestion.risk,
+                reasons: suggestion.reasons
+            )
+        }
+    }
+
+    private nonisolated static func rankSuggestionsWithBasePreference(
+        _ suggestions: [PromptContextSuggestion],
+        baseSuggestionIDs: Set<String>
+    ) -> [PromptContextSuggestion] {
+        suggestions.sorted { lhs, rhs in
+            let scoreDelta = abs(lhs.relevanceScore - rhs.relevanceScore)
+            if scoreDelta <= baseSuggestionTieBreakDelta {
+                let lhsIsBase = baseSuggestionIDs.contains(lhs.id)
+                let rhsIsBase = baseSuggestionIDs.contains(rhs.id)
+                if lhsIsBase != rhsIsBase {
+                    return lhsIsBase
+                }
+            }
+            if lhs.relevanceScore == rhs.relevanceScore {
+                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+            }
+            return lhs.relevanceScore > rhs.relevanceScore
+        }
+    }
+
     private nonisolated static func relevanceFallbackCandidates(
         query: String,
         candidates: [PromptContextSuggestion],
@@ -694,7 +848,9 @@ final class PromptContextSuggestionProvider: ObservableObject {
                 queryKeywords: queryKeywords,
                 candidateText: "\(candidate.title) \(candidate.sourcePathOrHandle) \(candidate.snippet)"
             )
-            if overlap >= relevanceFallbackMinimumKeywordOverlap || candidate.relevanceScore >= relevanceFallbackMinimumScore {
+            if overlap >= relevanceFallbackMinimumKeywordOverlap,
+               candidate.relevanceScore >= relevanceFallbackMinimumScore
+            {
                 selected.append(candidate)
             }
             if selected.count >= limit {

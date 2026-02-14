@@ -104,6 +104,7 @@ final class RetrievalExtractionTests: XCTestCase {
 
         _ = try await connector.runBackfill(
             resumeToken: nil,
+            mode: .full,
             policy: policy,
             limit: 500
         ) { batch, _ in
@@ -136,6 +137,7 @@ final class RetrievalExtractionTests: XCTestCase {
 
         checkpointResult = try await connector.runBackfill(
             resumeToken: nil,
+            mode: .full,
             policy: policy,
             limit: 500
         ) { events, _ in
@@ -189,6 +191,135 @@ final class RetrievalExtractionTests: XCTestCase {
 
         XCTAssertEqual(json.telemetry.outcome, .success)
         XCTAssertTrue(json.content?.text.localizedCaseInsensitiveContains("JSON hidden token") == true)
+    }
+
+    func testLegacyWordDocExtractionAndPolicySupport() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let corpusRoot = scratch.appendingPathComponent("corpus", isDirectory: true)
+        try FileManager.default.createDirectory(at: corpusRoot, withIntermediateDirectories: true)
+        let docURL = corpusRoot.appendingPathComponent("legacy.doc")
+        try createLegacyWordDoc(with: "LEGACY DOC TOKEN", at: docURL)
+
+        let policy = IndexingPolicy.preset(profile: "developer", startupAllowlistRoots: [corpusRoot.path])
+        let attrs = try FileManager.default.attributesOfItem(atPath: docURL.path)
+        let fileSize = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        let evaluation = policy.evaluate(fileURL: docURL, fileSize: fileSize, modifiedAt: Date())
+        switch evaluation {
+        case .index, .deferred:
+            break
+        case .skip(let reason):
+            XCTFail("Expected .doc to be indexable, got skip reason: \(reason)")
+        }
+
+        let extractionService = ContentExtractionService()
+        let result = await extractionService.extract(fileURL: docURL, policy: policy)
+        XCTAssertNotEqual(result.telemetry.outcome, .unsupported)
+        XCTAssertTrue(result.content?.text.localizedCaseInsensitiveContains("LEGACY DOC TOKEN") == true)
+    }
+
+    func testStorePurgesOfficeDocumentsAndAttemptsForForcedReindex() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let now = Date()
+        let officeSourceID = "/tmp/report.docx"
+        let textSourceID = "/tmp/notes.txt"
+
+        let officeDocument = RetrievalDocument(
+            id: "doc-office",
+            sourceType: .file,
+            sourceId: officeSourceID,
+            title: "report.docx",
+            body: "Office token",
+            sourcePathOrHandle: officeSourceID,
+            updatedAt: now,
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        let textDocument = RetrievalDocument(
+            id: "doc-text",
+            sourceType: .file,
+            sourceId: textSourceID,
+            title: "notes.txt",
+            body: "Text token",
+            sourcePathOrHandle: textSourceID,
+            updatedAt: now,
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+
+        try await store.upsertDocument(
+            officeDocument,
+            chunks: [
+                RetrievalChunk(
+                    id: "doc-office:0",
+                    documentId: "doc-office",
+                    text: "Office token",
+                    index: 0,
+                    embedding: [0.2, 0.4]
+                )
+            ]
+        )
+        try await store.upsertDocument(
+            textDocument,
+            chunks: [
+                RetrievalChunk(
+                    id: "doc-text:0",
+                    documentId: "doc-text",
+                    text: "Text token",
+                    index: 0,
+                    embedding: [0.1, 0.3]
+                )
+            ]
+        )
+
+        try await store.recordIngestionAttempt(
+            sourceType: .file,
+            sourceId: officeSourceID,
+            sourcePathOrHandle: officeSourceID,
+            updatedAt: now,
+            outcome: .unsupported
+        )
+        try await store.recordIngestionAttempt(
+            sourceType: .file,
+            sourceId: textSourceID,
+            sourcePathOrHandle: textSourceID,
+            updatedAt: now,
+            outcome: .unsupported
+        )
+
+        let removedCount = try await store.purgeFileDocumentsForExtensions(["doc", "docx"])
+        XCTAssertEqual(removedCount, 1)
+        let removedOfficeDocument = try await store.fetchDocument(for: "doc-office")
+        let retainedTextDocument = try await store.fetchDocument(for: "doc-text")
+        XCTAssertNil(removedOfficeDocument)
+        XCTAssertNotNil(retainedTextDocument)
+
+        let officeAttemptStillCurrent = try await store.isIngestionAttemptCurrent(
+            sourceType: .file,
+            sourceId: officeSourceID,
+            updatedAt: now
+        )
+        XCTAssertFalse(officeAttemptStillCurrent)
+
+        let textAttemptStillCurrent = try await store.isIngestionAttemptCurrent(
+            sourceType: .file,
+            sourceId: textSourceID,
+            updatedAt: now
+        )
+        XCTAssertTrue(textAttemptStillCurrent)
     }
 
     func testContentExtractionTimeoutRemainsResponsiveWhenWorkQueueIsBlocked() async throws {
@@ -905,6 +1036,377 @@ final class RetrievalExtractionTests: XCTestCase {
         XCTAssertTrue(afterReclaim.isEmpty)
     }
 
+    func testHybridSearchRejectsWeakVectorOnlyCandidate() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let query = "phase one precision sentinel query"
+        let runtime = EmbeddingRuntime()
+        let (queryEmbeddings, _) = try await runtime.embed(texts: [query])
+        let queryVector = try XCTUnwrap(queryEmbeddings.first)
+        let weakVector = makeVector(withCosine: 0.02, relativeTo: queryVector)
+
+        let weakDocument = RetrievalDocument(
+            id: "doc-weak-vector",
+            sourceType: .file,
+            sourceId: "/tmp/unrelated-vector.txt",
+            title: "unrelated-vector.txt",
+            body: "general archive planning notes",
+            sourcePathOrHandle: "/tmp/unrelated-vector.txt",
+            updatedAt: Date(),
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        let weakChunk = RetrievalChunk(
+            id: "doc-weak-vector:0",
+            documentId: "doc-weak-vector",
+            text: "general archive planning notes",
+            index: 0,
+            embedding: weakVector
+        )
+        try await store.upsertDocument(weakDocument, chunks: [weakChunk])
+
+        let engine = HybridSearchEngine(
+            store: store,
+            embeddingRuntime: runtime,
+            graphAugmentor: GraphAugmentor(store: store),
+            reranker: LocalReranker()
+        )
+        let response = try await engine.suggest(
+            request: RetrievalSuggestRequest(
+                query: query,
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+
+        XCTAssertTrue(response.suggestions.isEmpty)
+    }
+
+    func testGraphBoostDoesNotOvertakeStrongDirectMatch() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let query = "launch roadmap alpha planning"
+        let runtime = EmbeddingRuntime()
+        let (queryEmbeddings, _) = try await runtime.embed(texts: [query])
+        let queryVector = try XCTUnwrap(queryEmbeddings.first)
+        let strongVector = makeVector(withCosine: 0.42, relativeTo: queryVector)
+        let weakVector = makeVector(withCosine: 0.36, relativeTo: queryVector)
+
+        let strongDocument = RetrievalDocument(
+            id: "doc-strong-direct",
+            sourceType: .file,
+            sourceId: "/tmp/launch-roadmap.txt",
+            title: "launch-roadmap.txt",
+            body: "launch roadmap alpha planning with milestones",
+            sourcePathOrHandle: "/tmp/launch-roadmap.txt",
+            updatedAt: Date(),
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        let weakDocument = RetrievalDocument(
+            id: "doc-weak-graph",
+            sourceType: .file,
+            sourceId: "/tmp/background-notes.txt",
+            title: "background-notes.txt",
+            body: "historical notes and archive references",
+            sourcePathOrHandle: "/tmp/background-notes.txt",
+            updatedAt: Date(),
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        try await store.upsertDocument(
+            strongDocument,
+            chunks: [
+                RetrievalChunk(
+                    id: "doc-strong-direct:0",
+                    documentId: "doc-strong-direct",
+                    text: "launch roadmap alpha planning with milestones",
+                    index: 0,
+                    embedding: strongVector
+                ),
+            ]
+        )
+        try await store.upsertDocument(
+            weakDocument,
+            chunks: [
+                RetrievalChunk(
+                    id: "doc-weak-graph:0",
+                    documentId: "doc-weak-graph",
+                    text: "historical notes and archive references",
+                    index: 0,
+                    embedding: weakVector
+                ),
+            ]
+        )
+        let graphEdges: [GraphEdge] = (0..<48).map { index in
+            GraphEdge(
+                id: "doc-weak-graph:boost:\(index)",
+                sourceNode: "doc-weak-graph",
+                targetNode: "shared-node-\(index)",
+                edgeType: "mentions",
+                confidence: 1.0,
+                weight: 2.0,
+                sourceType: .file,
+                eventTime: Date(),
+                updatedAt: Date()
+            )
+        }
+        try await store.insertGraphEdges(graphEdges)
+
+        let engine = HybridSearchEngine(
+            store: store,
+            embeddingRuntime: runtime,
+            graphAugmentor: GraphAugmentor(store: store),
+            reranker: LocalReranker()
+        )
+        let response = try await engine.suggest(
+            request: RetrievalSuggestRequest(
+                query: query,
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+        XCTAssertTrue(response.suggestions.contains(where: { $0.id == "doc-weak-graph" }))
+        XCTAssertEqual(response.suggestions.first?.id, "doc-strong-direct")
+    }
+
+    func testSimilarityFirstVectorSelectionBeatsRecencyBias() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let query = "phase two ordering sentinel"
+        let runtime = EmbeddingRuntime()
+        let (queryEmbeddings, _) = try await runtime.embed(texts: [query])
+        let queryVector = try XCTUnwrap(queryEmbeddings.first)
+
+        let oldRelevantVector = makeVector(withCosine: 0.72, relativeTo: queryVector)
+        let distractorVector = makeVector(withCosine: 0.19, relativeTo: queryVector)
+        let oldRelevantDocID = "doc-old-relevant"
+        let oldRelevantDate = Date().addingTimeInterval(-86_400 * 120)
+
+        let oldRelevantDocument = RetrievalDocument(
+            id: oldRelevantDocID,
+            sourceType: .file,
+            sourceId: "/tmp/old-relevant.txt",
+            title: "old-relevant.txt",
+            body: "historical strategy draft",
+            sourcePathOrHandle: "/tmp/old-relevant.txt",
+            updatedAt: oldRelevantDate,
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        try await store.upsertDocument(
+            oldRelevantDocument,
+            chunks: [
+                RetrievalChunk(
+                    id: "\(oldRelevantDocID):0",
+                    documentId: oldRelevantDocID,
+                    text: "historical strategy draft",
+                    index: 0,
+                    embedding: oldRelevantVector
+                ),
+            ]
+        )
+
+        for index in 0..<260 {
+            let docID = "doc-recent-distractor-\(index)"
+            let sourcePath = "/tmp/recent-distractor-\(index).txt"
+            let document = RetrievalDocument(
+                id: docID,
+                sourceType: .file,
+                sourceId: sourcePath,
+                title: "recent-distractor-\(index).txt",
+                body: "routine status log entry",
+                sourcePathOrHandle: sourcePath,
+                updatedAt: Date().addingTimeInterval(TimeInterval(index)),
+                risk: .low,
+                partition: "hot",
+                searchable: true
+            )
+            try await store.upsertDocument(
+                document,
+                chunks: [
+                    RetrievalChunk(
+                        id: "\(docID):0",
+                        documentId: docID,
+                        text: "routine status log entry",
+                        index: 0,
+                        embedding: distractorVector
+                    ),
+                ]
+            )
+        }
+
+        let engine = HybridSearchEngine(
+            store: store,
+            embeddingRuntime: runtime,
+            graphAugmentor: GraphAugmentor(store: store),
+            reranker: LocalReranker()
+        )
+        let response = try await engine.suggest(
+            request: RetrievalSuggestRequest(
+                query: query,
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: true,
+                includeColdPartitionFallback: false
+            )
+        )
+
+        XCTAssertEqual(response.suggestions.first?.id, oldRelevantDocID)
+    }
+
+    func testVectorOnlySuggestionUsesChunkTextSnippet() async throws {
+        let scratch = try makeScratchDirectory()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+
+        let paths = makePaths(root: scratch)
+        for directory in [paths.daemonDirectory, paths.indexDirectory, paths.cacheDirectory, paths.contextPacksDirectory, paths.logsDirectory, paths.socketDirectory] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+
+        let store = RetrievalStore(dbPath: paths.metadataDBPath, contextPackDirectory: paths.contextPacksDirectory)
+        try await store.openAndMigrate()
+
+        let query = "phase two snippet sentinel query"
+        let runtime = EmbeddingRuntime()
+        let (queryEmbeddings, _) = try await runtime.embed(texts: [query])
+        let queryVector = try XCTUnwrap(queryEmbeddings.first)
+        let vector = makeVector(withCosine: 0.58, relativeTo: queryVector)
+
+        let docID = "doc-snippet-evidence"
+        let chunkText = "Vector snippet sentinel phrase for ranking evidence."
+        let title = "plain-title-without-sentinel.txt"
+        let document = RetrievalDocument(
+            id: docID,
+            sourceType: .file,
+            sourceId: "/tmp/\(title)",
+            title: title,
+            body: "archive body without direct lexical overlap",
+            sourcePathOrHandle: "/tmp/\(title)",
+            updatedAt: Date(),
+            risk: .low,
+            partition: "hot",
+            searchable: true
+        )
+        try await store.upsertDocument(
+            document,
+            chunks: [
+                RetrievalChunk(
+                    id: "\(docID):0",
+                    documentId: docID,
+                    text: chunkText,
+                    index: 0,
+                    embedding: vector
+                ),
+            ]
+        )
+
+        let engine = HybridSearchEngine(
+            store: store,
+            embeddingRuntime: runtime,
+            graphAugmentor: GraphAugmentor(store: store),
+            reranker: LocalReranker()
+        )
+        let response = try await engine.suggest(
+            request: RetrievalSuggestRequest(
+                query: query,
+                sourceFilters: [.file],
+                limit: 8,
+                typingMode: false,
+                includeColdPartitionFallback: true
+            )
+        )
+
+        let first = try XCTUnwrap(response.suggestions.first)
+        XCTAssertEqual(first.id, docID)
+        XCTAssertTrue(first.snippet.localizedCaseInsensitiveContains("snippet sentinel phrase"))
+        XCTAssertNotEqual(first.snippet, title)
+    }
+
+    private func makeVector(withCosine targetCosine: Float, relativeTo reference: [Float]) -> [Float] {
+        let normalizedReference = normalized(reference)
+        guard !normalizedReference.isEmpty else { return [] }
+
+        let firstValue = normalizedReference.first ?? Float(0)
+        var orthogonal: [Float] = Array(normalizedReference.dropFirst()) + [firstValue]
+        var projection: Float = 0
+        for index in normalizedReference.indices {
+            projection += orthogonal[index] * normalizedReference[index]
+        }
+        for index in orthogonal.indices {
+            orthogonal[index] -= projection * normalizedReference[index]
+        }
+        orthogonal = normalized(orthogonal)
+        if orthogonal.allSatisfy({ abs($0) < 0.000_001 }) {
+            orthogonal = Array(repeating: 0, count: normalizedReference.count)
+            orthogonal[0] = 1
+            var fallbackProjection: Float = 0
+            for index in normalizedReference.indices {
+                fallbackProjection += orthogonal[index] * normalizedReference[index]
+            }
+            for index in orthogonal.indices {
+                orthogonal[index] -= fallbackProjection * normalizedReference[index]
+            }
+            orthogonal = normalized(orthogonal)
+        }
+
+        let clipped = max(-0.95, min(0.95, targetCosine))
+        let orthogonalScale = sqrt(max(0, 1 - (clipped * clipped)))
+        var combined = Array(repeating: Float(0), count: normalizedReference.count)
+        for index in combined.indices {
+            combined[index] = (clipped * normalizedReference[index]) + (orthogonalScale * orthogonal[index])
+        }
+        return normalized(combined)
+    }
+
+    private func normalized(_ vector: [Float]) -> [Float] {
+        guard !vector.isEmpty else { return [] }
+        var sumSquares: Float = 0
+        for value in vector {
+            sumSquares += value * value
+        }
+        let magnitude = sqrt(sumSquares)
+        guard magnitude > 0.000_001 else {
+            return vector
+        }
+        return vector.map { $0 / magnitude }
+    }
+
     private func createFixtures(at root: URL) throws -> (docx: URL, pptx: URL, xlsx: URL, image: URL, pdf: URL, json: URL) {
         let docxURL = root.appendingPathComponent("plan.docx")
         try createZipArchive(
@@ -1041,6 +1543,15 @@ final class RetrievalExtractionTests: XCTestCase {
         let doc = PDFDocument()
         doc.insert(page, at: 0)
         XCTAssertTrue(doc.write(to: destinationURL))
+    }
+
+    private func createLegacyWordDoc(with text: String, at destinationURL: URL) throws {
+        let attributed = NSAttributedString(string: text)
+        let data = try attributed.data(
+            from: NSRange(location: 0, length: attributed.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.docFormat]
+        )
+        try data.write(to: destinationURL, options: .atomic)
     }
 
     private func makeScratchDirectory() throws -> URL {

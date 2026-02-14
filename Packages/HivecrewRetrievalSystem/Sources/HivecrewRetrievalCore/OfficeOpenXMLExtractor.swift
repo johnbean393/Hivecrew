@@ -5,7 +5,11 @@ import ZIPFoundation
 struct OfficeOpenXMLExtractor: FileContentExtractor {
     let name = "office_openxml"
 
-    private static let extensions: Set<String> = ["docx", "pptx", "xlsx"]
+    private static let extensions: Set<String> = [
+        "docx", "docm", "dotx", "dotm",
+        "pptx", "pptm", "potx", "potm", "ppsx", "ppsm",
+        "xlsx", "xlsm", "xltx", "xltm",
+    ]
 
     func canHandle(fileURL: URL, contentType _: UTType?) -> Bool {
         Self.extensions.contains(fileURL.pathExtension.lowercased())
@@ -50,7 +54,7 @@ struct OfficeOpenXMLExtractor: FileContentExtractor {
     private func extractionPaths(for ext: String, archive: Archive) -> [String] {
         let archivePaths = archive.map(\.path)
         switch ext {
-        case "docx":
+        case "docx", "docm", "dotx", "dotm":
             let sorted = archivePaths
                 .filter { $0.hasPrefix("word/") && $0.hasSuffix(".xml") }
                 .sorted()
@@ -58,11 +62,11 @@ struct OfficeOpenXMLExtractor: FileContentExtractor {
                 return ["word/document.xml"] + sorted.filter { $0 != "word/document.xml" }
             }
             return sorted
-        case "pptx":
+        case "pptx", "pptm", "potx", "potm", "ppsx", "ppsm":
             return archivePaths
                 .filter { $0.hasPrefix("ppt/slides/slide") && $0.hasSuffix(".xml") }
                 .sorted(by: naturalPathOrder)
-        case "xlsx":
+        case "xlsx", "xlsm", "xltx", "xltm":
             var candidates: [String] = []
             if archivePaths.contains("xl/sharedStrings.xml") {
                 candidates.append("xl/sharedStrings.xml")

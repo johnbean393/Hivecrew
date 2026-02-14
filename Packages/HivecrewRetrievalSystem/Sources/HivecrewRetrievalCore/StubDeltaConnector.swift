@@ -26,10 +26,14 @@ public final class StubDeltaConnector: SourceConnector, @unchecked Sendable {
 
     public func runBackfill(
         resumeToken: String?,
+        mode: SourceBackfillMode,
         policy: IndexingPolicy,
         limit: Int,
         handler: @escaping @Sendable ([IngestionEvent], BackfillCheckpoint) async -> Void
     ) async throws -> BackfillCheckpoint? {
+        _ = mode
+        _ = policy
+        _ = limit
         let checkpoint = BackfillCheckpoint(
             key: "\(sourceType.rawValue):default",
             sourceType: sourceType,

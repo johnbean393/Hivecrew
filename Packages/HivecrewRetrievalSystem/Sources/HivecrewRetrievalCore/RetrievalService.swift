@@ -7,6 +7,17 @@ import IOKit.ps
 #endif
 
 public actor RetrievalService {
+    private enum BackfillTriggerReason {
+        case startup
+        case manual
+    }
+
+    private enum StartupFileBackfillPlan {
+        case skip
+        case incremental(resumeToken: String?)
+        case full
+    }
+
     private let daemonVersion: String
     private let configuration: RetrievalDaemonConfiguration
     private let store: RetrievalStore
@@ -46,6 +57,26 @@ public actor RetrievalService {
     private static let activeSourceTypes: [RetrievalSourceType] = [.file]
     private static let activeSourceTypeSet: Set<RetrievalSourceType> = Set(activeSourceTypes)
     private static let ingestionWorkerMultiplier = 1
+    private static let officeDocumentReindexStateKey = "office_document_reindex_revision"
+    private static let officeDocumentReindexRevision = "2026-02-14-office-v1"
+    private static let fileBackfillStrategyRevisionStateKey = "file_backfill_strategy_revision"
+    private static let fileBackfillScopeFingerprintStateKey = "file_backfill_scope_fingerprint"
+    private static let fileBackfillStrategyRevision = "2026-02-14-smart-startup-v1"
+    // Startup full-tree reconciliation is expensive on large corpora.
+    // Keep it disabled by default and rely on live FSEvents + manual backfill.
+    private static let startupBackgroundReconciliationEnabled = false
+    private static let startupBackfillSkipIntervalSeconds: TimeInterval = 6 * 3_600
+    private static let startupRunningCheckpointStaleGraceSeconds: TimeInterval = 30
+    private static let startupIncrementalBackfillLimit = 6_000
+    private static let startupFullBackfillLimit = 20_000
+    private static let startupIncrementalBackfillMaxIterations = 1
+    private static let startupFullBackfillMaxIterations = 12
+    private static let manualBackfillMaxIterations = 64
+    private static let officeDocumentExtensionsForForcedReindex: Set<String> = [
+        "doc", "docx", "docm", "dot", "dotx", "dotm",
+        "pptx", "pptm", "potx", "potm", "ppsx", "ppsm",
+        "xlsx", "xlsm", "xltx", "xltm",
+    ]
 
     public init(configuration: RetrievalDaemonConfiguration, paths: RetrievalPaths) throws {
         self.daemonVersion = Self.computeDaemonVersion()
@@ -85,6 +116,7 @@ public actor RetrievalService {
         await ensureConnectorsRegistered()
         do {
             try await store.openAndMigrate()
+            try await applyOfficeDocumentReindexIfNeeded()
             try await store.refreshFileSearchability(nonSearchableExtensions: policy.nonSearchableFileExtensions)
             _ = try await store.reclaimQueueSnapshotStorageIfNeeded()
         } catch {
@@ -138,7 +170,8 @@ public actor RetrievalService {
 
     public func suggest(request: RetrievalSuggestRequest) async throws -> RetrievalSuggestResponse {
         let cacheKey = "\(request.query.lowercased())|\(request.typingMode)|\(request.limit)|\(request.sourceFilters?.map(\.rawValue).sorted().joined(separator: ",") ?? "all")"
-        if let (cachedAt, response) = suggestCache[cacheKey], Date().timeIntervalSince(cachedAt) < 1.5 {
+        let cacheTTL: TimeInterval = request.typingMode ? 2.5 : 1.5
+        if let (cachedAt, response) = suggestCache[cacheKey], Date().timeIntervalSince(cachedAt) < cacheTTL {
             return response
         }
         let response = try await searchEngine.suggest(request: request)
@@ -275,23 +308,59 @@ public actor RetrievalService {
     }
 
     public func triggerBackfill(limit: Int = 50_000) async throws -> [BackfillCheckpoint] {
+        try await triggerBackfill(limit: limit, reason: .manual)
+    }
+
+    private func triggerBackfill(limit: Int, reason: BackfillTriggerReason) async throws -> [BackfillCheckpoint] {
         await ensureConnectorsRegistered()
         var checkpoints: [BackfillCheckpoint] = []
         for source in Self.activeSourceTypes {
             await metrics.beginBackfill(sourceType: source)
             do {
                 let key = "\(source.rawValue):default"
-                let sourceLimit = source == .file ? max(limit, 50_000) : limit
-                // File indexing policy evolves frequently (extensions, OCR support, extraction quality).
-                // Always start file backfills from scratch so previously skipped files become eligible.
-                let previous = source == .file ? nil : try await store.loadCheckpoint(key: key)?.resumeToken
-                var resumeToken = previous
+                var sourceLimit = limit
+                var resumeToken: String?
+                var backfillMode: SourceBackfillMode = .full
+                var maxIterations = Self.manualBackfillMaxIterations
+
+                if source == .file {
+                    switch reason {
+                    case .manual:
+                        // Manual trigger keeps previous semantics: exhaustive full crawl.
+                        sourceLimit = max(limit, 50_000)
+                        resumeToken = nil
+                        backfillMode = .full
+                        maxIterations = Self.manualBackfillMaxIterations
+                    case .startup:
+                        let plan = try await startupFileBackfillPlan(key: key)
+                        switch plan {
+                        case .skip:
+                            await metrics.endBackfill(sourceType: source)
+                            continue
+                        case .incremental(let token):
+                            sourceLimit = min(max(limit, 1_000), Self.startupIncrementalBackfillLimit)
+                            resumeToken = token
+                            backfillMode = .incremental
+                            maxIterations = Self.startupIncrementalBackfillMaxIterations
+                        case .full:
+                            sourceLimit = min(max(limit, 5_000), Self.startupFullBackfillLimit)
+                            resumeToken = nil
+                            backfillMode = .full
+                            maxIterations = Self.startupFullBackfillMaxIterations
+                        }
+                    }
+                } else {
+                    resumeToken = try await store.loadCheckpoint(key: key)?.resumeToken
+                }
+
                 var latestCheckpoint: BackfillCheckpoint?
                 var iterations = 0
-                while iterations < 64 {
+                var exhaustedSourceBackfill = false
+                while iterations < maxIterations {
                     let checkpoint = try await connectorHub.runBackfill(
                         source: source,
                         resumeToken: resumeToken,
+                        mode: backfillMode,
                         policy: policy,
                         limit: sourceLimit
                     ) { events, checkpoint in
@@ -307,7 +376,10 @@ public actor RetrievalService {
                             )
                         )
                     }
-                    guard let checkpoint else { break }
+                    guard let checkpoint else {
+                        exhaustedSourceBackfill = true
+                        break
+                    }
                     latestCheckpoint = checkpoint
                     resumeToken = checkpoint.resumeToken
                     iterations += 1
@@ -315,8 +387,38 @@ public actor RetrievalService {
                         break
                     }
                 }
+                if exhaustedSourceBackfill, latestCheckpoint?.status.lowercased() != "idle" {
+                    let finalizedCheckpoint = BackfillCheckpoint(
+                        key: key,
+                        sourceType: source,
+                        scopeLabel: latestCheckpoint?.scopeLabel ?? "default",
+                        cursor: latestCheckpoint?.cursor,
+                        lastIndexedPath: latestCheckpoint?.lastIndexedPath,
+                        lastIndexedTimestamp: latestCheckpoint?.lastIndexedTimestamp,
+                        resumeToken: resumeToken ?? latestCheckpoint?.resumeToken,
+                        itemsProcessed: latestCheckpoint?.itemsProcessed ?? 0,
+                        itemsSkipped: latestCheckpoint?.itemsSkipped ?? 0,
+                        estimatedTotal: max(1, latestCheckpoint?.estimatedTotal ?? 1),
+                        status: "idle"
+                    )
+                    latestCheckpoint = finalizedCheckpoint
+                    try? await store.saveCheckpoint(finalizedCheckpoint)
+                    try? await store.upsertBackfillJob(
+                        RetrievalBackfillJob(
+                            id: key,
+                            sourceType: source,
+                            scopeLabel: finalizedCheckpoint.scopeLabel,
+                            status: finalizedCheckpoint.status,
+                            resumeToken: finalizedCheckpoint.resumeToken
+                        )
+                    )
+                }
                 if let checkpoint = latestCheckpoint {
                     checkpoints.append(checkpoint)
+                }
+                if source == .file, reason == .startup {
+                    // Persist startup strategy markers only after a successful startup backfill pass.
+                    try? await persistStartupFileBackfillState()
                 }
                 await metrics.endBackfill(sourceType: source)
             } catch {
@@ -386,7 +488,7 @@ public actor RetrievalService {
                     return
                 }
                 do {
-                    _ = try await self.triggerBackfill(limit: 50_000)
+                    _ = try await self.triggerBackfill(limit: 50_000, reason: .startup)
                     await self.markStartupBackfillCompleted()
                     return
                 } catch is CancellationError {
@@ -403,6 +505,110 @@ public actor RetrievalService {
 
     private func markStartupBackfillCompleted() {
         startupBackfillCompleted = true
+    }
+
+    private func startupFileBackfillPlan(key: String) async throws -> StartupFileBackfillPlan {
+        let loadedCheckpoint = try await store.loadCheckpoint(key: key)
+        let fileSourceStats = try await store.indexStats().sources.first(where: { $0.sourceType == .file })
+        let fileDocumentCount = fileSourceStats?.documentCount ?? 0
+        if fileDocumentCount == 0 {
+            return .full
+        }
+
+        let currentScopeFingerprint = startupBackfillScopeFingerprint()
+        let savedScopeFingerprint = try await store.loadServiceState(key: Self.fileBackfillScopeFingerprintStateKey)
+        if savedScopeFingerprint != currentScopeFingerprint {
+            return .full
+        }
+        // Strategy revisions should not force expensive startup recrawls when
+        // an index already exists. We persist the new marker after this startup.
+        _ = try await store.loadServiceState(key: Self.fileBackfillStrategyRevisionStateKey)
+
+        var normalizedCheckpoint = loadedCheckpoint
+        if var checkpoint = normalizedCheckpoint, checkpoint.status.lowercased() != "idle" {
+            let looksLikeStaleTerminalRunningState =
+                checkpoint.status.lowercased() == "running" &&
+                checkpoint.itemsProcessed >= checkpoint.estimatedTotal &&
+                checkpoint.estimatedTotal > 0 &&
+                Date().timeIntervalSince(checkpoint.updatedAt) > Self.startupRunningCheckpointStaleGraceSeconds
+            if looksLikeStaleTerminalRunningState {
+                checkpoint = BackfillCheckpoint(
+                    key: checkpoint.key,
+                    sourceType: checkpoint.sourceType,
+                    scopeLabel: checkpoint.scopeLabel,
+                    cursor: checkpoint.cursor,
+                    lastIndexedPath: checkpoint.lastIndexedPath,
+                    lastIndexedTimestamp: checkpoint.lastIndexedTimestamp,
+                    resumeToken: checkpoint.resumeToken,
+                    itemsProcessed: checkpoint.itemsProcessed,
+                    itemsSkipped: checkpoint.itemsSkipped,
+                    estimatedTotal: max(1, checkpoint.estimatedTotal),
+                    status: "idle"
+                )
+                try? await store.saveCheckpoint(checkpoint)
+                try? await store.upsertBackfillJob(
+                    RetrievalBackfillJob(
+                        id: checkpoint.key,
+                        sourceType: checkpoint.sourceType,
+                        scopeLabel: checkpoint.scopeLabel,
+                        status: checkpoint.status,
+                        resumeToken: checkpoint.resumeToken
+                    )
+                )
+                normalizedCheckpoint = checkpoint
+            } else {
+                return .skip
+            }
+        }
+        guard Self.startupBackgroundReconciliationEnabled else {
+            return .skip
+        }
+        guard let checkpoint = normalizedCheckpoint else {
+            return .skip
+        }
+        let recentlyBackfilled = Date().timeIntervalSince(checkpoint.updatedAt) < Self.startupBackfillSkipIntervalSeconds
+        if recentlyBackfilled {
+            return .skip
+        }
+        return .incremental(resumeToken: checkpoint.resumeToken)
+    }
+
+    private func persistStartupFileBackfillState() async throws {
+        try await store.saveServiceState(
+            key: Self.fileBackfillStrategyRevisionStateKey,
+            value: Self.fileBackfillStrategyRevision
+        )
+        try await store.saveServiceState(
+            key: Self.fileBackfillScopeFingerprintStateKey,
+            value: startupBackfillScopeFingerprint()
+        )
+    }
+
+    private func startupBackfillScopeFingerprint() -> String {
+        let roots = normalizedPathSet(policy.allowlistRoots).sorted().joined(separator: "|")
+        let excludes = policy.excludes.map { $0.lowercased() }.sorted().joined(separator: "|")
+        let allowedExtensions = policy.allowedFileExtensions.sorted().joined(separator: "|")
+        return "\(roots)#\(excludes)#\(allowedExtensions)#\(policy.stage1RecentCutoffDays)#\(policy.firstPassFileSizeCapBytes)#\(policy.hardFileSizeCapBytes)"
+    }
+
+    private func applyOfficeDocumentReindexIfNeeded() async throws {
+        let currentRevision = try await store.loadServiceState(key: Self.officeDocumentReindexStateKey)
+        guard currentRevision != Self.officeDocumentReindexRevision else {
+            return
+        }
+        let purgedDocumentCount = try await store.purgeFileDocumentsForExtensions(Self.officeDocumentExtensionsForForcedReindex)
+        try await store.saveServiceState(
+            key: Self.officeDocumentReindexStateKey,
+            value: Self.officeDocumentReindexRevision
+        )
+        try? await store.appendAudit(
+            kind: "office_document_reindex_forced",
+            payload: [
+                "revision": Self.officeDocumentReindexRevision,
+                "purgedDocumentCount": "\(purgedDocumentCount)",
+                "daemonVersion": daemonVersion,
+            ]
+        )
     }
 
     private func ensureConnectorsRegistered() async {

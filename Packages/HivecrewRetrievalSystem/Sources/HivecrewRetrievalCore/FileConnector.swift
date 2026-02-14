@@ -36,11 +36,16 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     private let callbackQueue = DispatchQueue(label: "com.hivecrew.retrieval.file-events", qos: .utility)
     private let stateQueue = DispatchQueue(label: "com.hivecrew.retrieval.file-events.state")
     private var pendingChangedPaths: Set<String> = []
+    private var pendingOverflowed = false
     private var lastSeenEventID: FSEventStreamEventId?
     private var quietWindowTask: Task<Void, Never>?
     private var quietWindowGeneration: UInt64 = 0
+    private var lastChangeFlushAt: Date = .distantPast
     private var liveHandler: (@Sendable ([IngestionEvent]) async -> Void)?
     private static let packageDirectoryExtensions: Set<String> = ["rtfd", "pages", "key", "numbers"]
+    private static let maxPendingChangedPaths = 2_000
+    private static let overflowRecoveryScanLimit = 384
+    private static let maxDirectEventsPerFlush = 512
     private enum ScanMode {
         case changesSince
         case olderThanResumeToken
@@ -61,6 +66,11 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     public func start(handler: @escaping @Sendable ([IngestionEvent]) async -> Void) {
         stop()
         liveHandler = handler
+        stateQueue.sync {
+            pendingChangedPaths.removeAll(keepingCapacity: true)
+            pendingOverflowed = false
+            lastChangeFlushAt = Date()
+        }
 
         // FSEvents for near-real-time updates and event-log reconciliation.
         startFSEvents()
@@ -71,6 +81,8 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
             quietWindowGeneration &+= 1
             quietWindowTask?.cancel()
             quietWindowTask = nil
+            pendingChangedPaths.removeAll(keepingCapacity: true)
+            pendingOverflowed = false
         }
         stopFSEvents()
         liveHandler = nil
@@ -78,29 +90,44 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
 
     public func runBackfill(
         resumeToken: String?,
+        mode: SourceBackfillMode,
         policy: IndexingPolicy,
         limit: Int,
         handler: @escaping @Sendable ([IngestionEvent], BackfillCheckpoint) async -> Void
     ) async throws -> BackfillCheckpoint? {
         let cursor = decodeResumeCursor(resumeToken)
         let tokenDate = cursor.map { Date(timeIntervalSince1970: $0.timestamp) } ?? resumeToken.flatMap { ISO8601DateFormatter().date(from: $0) }
+        let scanMode: ScanMode = mode == .incremental ? .changesSince : .olderThanResumeToken
         let scanOutput = try await scanRecent(
             policy: policy,
             since: tokenDate,
-            resumeCursor: cursor,
+            resumeCursor: mode == .incremental ? nil : cursor,
             limit: limit,
-            mode: .olderThanResumeToken
+            mode: scanMode
         )
         let batch = scanOutput.events
         let candidateCount = scanOutput.selectedCandidateCount
-        guard candidateCount > 0 else {
+        if mode == .full, candidateCount == 0 {
             return nil
         }
         let isIdle = candidateCount < limit
         let estimatedTotal = isIdle ? max(1, candidateCount) : max(limit, candidateCount)
-        let resumeTokenValue = scanOutput.oldestCandidate.map { candidate in
-            encodeResumeCursor(timestamp: candidate.modifiedAt.timeIntervalSince1970, path: candidate.url.path)
-        } ?? resumeToken
+        let resumeTokenValue: String? = {
+            switch mode {
+            case .full:
+                return scanOutput.oldestCandidate.map { candidate in
+                    encodeResumeCursor(timestamp: candidate.modifiedAt.timeIntervalSince1970, path: candidate.url.path)
+                } ?? resumeToken
+            case .incremental:
+                if let newest = scanOutput.newestCandidate {
+                    return encodeResumeCursor(timestamp: newest.modifiedAt.timeIntervalSince1970, path: newest.url.path)
+                }
+                if let resumeToken {
+                    return resumeToken
+                }
+                return encodeResumeCursor(timestamp: Date().timeIntervalSince1970, path: "")
+            }
+        }()
         let checkpoint = BackfillCheckpoint(
             key: "file:default",
             sourceType: .file,
@@ -155,7 +182,13 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
         }
 
         let roots = policy.allowlistRoots as CFArray
-        let latency = max(0.1, min(policy.quietWindowSeconds, 2.0))
+        let latency = max(0.4, min(policy.quietWindowSeconds, 4.0))
+        let eventFlags = FSEventStreamCreateFlags(
+            kFSEventStreamCreateFlagFileEvents |
+            kFSEventStreamCreateFlagUseCFTypes |
+                kFSEventStreamCreateFlagIgnoreSelf |
+                kFSEventStreamCreateFlagMarkSelf
+        )
         let stream = FSEventStreamCreate(
             kCFAllocatorDefault,
             callback,
@@ -163,11 +196,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
             roots,
             sinceWhen,
             latency,
-            FSEventStreamCreateFlags(
-                kFSEventStreamCreateFlagFileEvents |
-                kFSEventStreamCreateFlagUseCFTypes |
-                kFSEventStreamCreateFlagNoDefer
-            )
+            eventFlags
         )
         guard let stream else { return }
         eventStream = stream
@@ -189,7 +218,14 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
                 lastSeenEventID = max(lastSeenEventID ?? latestEventID, latestEventID)
             }
             for path in paths {
+                guard isInsideAllowlistRoots(path) else { continue }
+                guard !shouldSkipExcludedPath(path, policy: policy) else { continue }
                 pendingChangedPaths.insert(path)
+                if pendingChangedPaths.count > Self.maxPendingChangedPaths {
+                    pendingChangedPaths.removeAll(keepingCapacity: true)
+                    pendingOverflowed = true
+                    break
+                }
             }
             quietWindowGeneration &+= 1
             let generation = quietWindowGeneration
@@ -216,12 +252,40 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     }
 
     private func flushPendingChanges() async {
-        let changed = stateQueue.sync { () -> [String] in
+        let pending = stateQueue.sync { () -> (paths: [String], overflowed: Bool, previousFlushAt: Date) in
             let paths = Array(pendingChangedPaths)
             pendingChangedPaths.removeAll()
-            return paths
+            let overflowed = pendingOverflowed
+            pendingOverflowed = false
+            let previousFlushAt = lastChangeFlushAt
+            lastChangeFlushAt = Date()
+            return (paths, overflowed, previousFlushAt)
         }
+
+        if pending.overflowed {
+            let sinceDate = pending.previousFlushAt == .distantPast ? nil : pending.previousFlushAt
+            do {
+                let scanOutput = try await scanRecent(
+                    policy: policy,
+                    since: sinceDate,
+                    limit: Self.overflowRecoveryScanLimit,
+                    mode: .changesSince
+                )
+                guard !scanOutput.events.isEmpty else { return }
+                if let liveHandler {
+                    await liveHandler(scanOutput.events)
+                }
+            } catch {
+                print("FileConnector: overflow recovery scan failed: \(error.localizedDescription)")
+            }
+            return
+        }
+
+        var changed = pending.paths
         guard !changed.isEmpty else { return }
+        if changed.count > Self.maxDirectEventsPerFlush {
+            changed = Array(changed.prefix(Self.maxDirectEventsPerFlush))
+        }
 
         let fm = FileManager.default
         var events: [IngestionEvent] = []
@@ -280,6 +344,17 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
         return "default"
     }
 
+    private func isInsideAllowlistRoots(_ path: String) -> Bool {
+        let canonicalPath = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+        for root in policy.allowlistRoots {
+            let canonicalRoot = URL(fileURLWithPath: root).standardizedFileURL.resolvingSymlinksInPath().path
+            if canonicalPath == canonicalRoot || canonicalPath.hasPrefix(canonicalRoot + "/") {
+                return true
+            }
+        }
+        return false
+    }
+
     private func scanRecent(
         policy: IndexingPolicy,
         since: Date? = nil,
@@ -320,6 +395,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
             events: sorted,
             stats: stats,
             selectedCandidateCount: candidates.count,
+            newestCandidate: candidates.first,
             oldestCandidate: candidates.last
         )
     }
@@ -328,6 +404,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
         let events: [IngestionEvent]
         let stats: ScanBatchStats
         let selectedCandidateCount: Int
+        let newestCandidate: FileCandidate?
         let oldestCandidate: FileCandidate?
     }
 
@@ -352,16 +429,24 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
         limit: Int,
         mode: ScanMode
     ) -> CandidateCollectionOutput {
+        guard limit > 0 else {
+            return CandidateCollectionOutput(
+                candidates: [],
+                rootsScanned: 0,
+                candidatesSeen: 0,
+                candidatesSkippedExcluded: 0
+            )
+        }
         let fm = FileManager.default
         let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey, .isDirectoryKey]
         var candidates: [FileCandidate] = []
         candidates.reserveCapacity(limit)
+        var weakestCandidateIndex = 0
         var rootsScanned = 0
         var candidatesSeen = 0
         var candidatesSkippedExcluded = 0
 
         for root in policy.allowlistRoots {
-            if mode == .changesSince, candidates.count >= limit { break }
             let rootURL = URL(fileURLWithPath: root, isDirectory: true)
             rootsScanned += 1
             guard let enumerator = fm.enumerator(
@@ -373,7 +458,6 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
                 continue
             }
             for case let url as URL in enumerator {
-                if mode == .changesSince, candidates.count >= limit { break }
                 candidatesSeen += 1
                 let values = try? url.resourceValues(forKeys: Set(keys))
                 if shouldSkipExcludedPath(url.path, policy: policy) {
@@ -406,31 +490,49 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
                 case .skip:
                     continue
                 }
-                candidates.append(
-                    FileCandidate(
-                        url: url,
-                        modifiedAt: modifiedAt,
-                        size: size,
-                        scope: rootURL.lastPathComponent
-                    )
+                let candidate = FileCandidate(
+                    url: url,
+                    modifiedAt: modifiedAt,
+                    size: size,
+                    scope: rootURL.lastPathComponent
                 )
+                if candidates.count < limit {
+                    candidates.append(candidate)
+                    if candidates.count == 1 || isCandidateNewer(candidates[weakestCandidateIndex], than: candidate) {
+                        weakestCandidateIndex = candidates.count - 1
+                    }
+                } else if isCandidateNewer(candidate, than: candidates[weakestCandidateIndex]) {
+                    candidates[weakestCandidateIndex] = candidate
+                    weakestCandidateIndex = weakestCandidateIndexForSelection(candidates)
+                }
             }
         }
-        candidates.sort { lhs, rhs in
-            if lhs.modifiedAt != rhs.modifiedAt {
-                return lhs.modifiedAt > rhs.modifiedAt
-            }
-            return lhs.url.path > rhs.url.path
-        }
-        if candidates.count > limit {
-            candidates = Array(candidates.prefix(limit))
-        }
+        _ = mode
+        candidates.sort(by: isCandidateNewer(_:than:))
         return CandidateCollectionOutput(
             candidates: candidates,
             rootsScanned: rootsScanned,
             candidatesSeen: candidatesSeen,
             candidatesSkippedExcluded: candidatesSkippedExcluded
         )
+    }
+
+    private func isCandidateNewer(_ lhs: FileCandidate, than rhs: FileCandidate) -> Bool {
+        if lhs.modifiedAt != rhs.modifiedAt {
+            return lhs.modifiedAt > rhs.modifiedAt
+        }
+        return lhs.url.path > rhs.url.path
+    }
+
+    private func weakestCandidateIndexForSelection(_ candidates: [FileCandidate]) -> Int {
+        guard !candidates.isEmpty else { return 0 }
+        var weakestIndex = 0
+        for index in candidates.indices.dropFirst() {
+            if isCandidateNewer(candidates[weakestIndex], than: candidates[index]) {
+                weakestIndex = index
+            }
+        }
+        return weakestIndex
     }
 
     private func isIndexableNode(url: URL, values: URLResourceValues?) -> Bool {

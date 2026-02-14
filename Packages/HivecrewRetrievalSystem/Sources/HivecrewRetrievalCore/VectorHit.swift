@@ -5,7 +5,8 @@ public struct VectorHit: Sendable {
     public let chunkId: String
     public let documentId: String
     public let chunkIndex: Int
-    public let vector: [Float]
+    public let chunkText: String
+    public let similarity: Double
     public let sourceType: RetrievalSourceType
     public let title: String
     public let sourcePathOrHandle: String

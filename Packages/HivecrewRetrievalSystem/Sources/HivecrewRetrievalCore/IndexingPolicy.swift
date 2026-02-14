@@ -56,7 +56,9 @@ public struct IndexingPolicy: Sendable, Codable {
         let commonDocumentFormats: Set<String> = [
             "md", "txt", "rtf", "rtfd", "html", "htm", "pdf",
             "json", "yaml", "yml", "toml", "csv", "tsv", "sql", "xml", "eml", "ics",
-            "docx", "pptx", "xlsx", "pages",
+            "doc", "docx", "docm", "dot", "dotx", "dotm",
+            "pptx", "pptm", "potx", "potm", "ppsx", "ppsm",
+            "xlsx", "xlsm", "xltx", "xltm", "pages",
             "png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "webp", "bmp",
         ]
         let codeFileFormats: Set<String> = [

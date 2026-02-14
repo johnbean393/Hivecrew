@@ -173,16 +173,41 @@ struct OnboardingWorkerModelStep: View {
     @Query(sort: \LLMProviderRecord.displayName) private var providers: [LLMProviderRecord]
     @Binding var isConfigured: Bool
 
+    @AppStorage("lastSelectedProviderId") private var mainModelProviderId: String = ""
+    @AppStorage("lastSelectedModelId") private var mainModelId: String = ""
     @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
     @AppStorage("workerModelId") private var workerModelId: String?
 
-    @State private var availableModels: [LLMProviderModel] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State private var availableMainModels: [LLMProviderModel] = []
+    @State private var isLoadingMainModels = false
+    @State private var mainModelErrorMessage: String?
 
-    private var selectedProvider: LLMProviderRecord? {
-        guard let workerModelProviderId, !workerModelProviderId.isEmpty else { return nil }
-        return providers.first(where: { $0.id == workerModelProviderId })
+    @State private var availableWorkerModels: [LLMProviderModel] = []
+    @State private var isLoadingWorkerModels = false
+    @State private var workerModelErrorMessage: String?
+
+    private enum ModelLoadError: LocalizedError {
+        case missingAPIKey
+
+        var errorDescription: String? {
+            switch self {
+            case .missingAPIKey:
+                return "This provider has no API key configured."
+            }
+        }
+    }
+
+    private var selectedMainProvider: LLMProviderRecord? {
+        let normalized = mainModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return providers.first(where: { $0.id == normalized })
+    }
+
+    private var selectedWorkerProvider: LLMProviderRecord? {
+        guard let workerModelProviderId else { return nil }
+        let normalized = workerModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return providers.first(where: { $0.id == normalized })
     }
 
     var body: some View {
@@ -192,11 +217,11 @@ struct OnboardingWorkerModelStep: View {
                     .font(.system(size: 48))
                     .foregroundStyle(.orange)
 
-                Text("Configure Worker Model")
+                Text("Configure Main & Worker Models")
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("The worker model is required and powers fast background reasoning for suggestions, titles, and lightweight extraction tasks.")
+                Text("Choose both the main chat model and worker model used for lightweight background tasks.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -204,6 +229,81 @@ struct OnboardingWorkerModelStep: View {
             .padding(.top, 20)
 
             VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Main Provider")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker(
+                        "Main Provider",
+                        selection: Binding(
+                            get: { mainModelProviderId },
+                            set: { newValue in
+                                let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                mainModelProviderId = normalized
+                                mainModelId = ""
+                                availableMainModels = []
+                                mainModelErrorMessage = nil
+                                loadMainModelsForSelectedProvider()
+                                refreshConfiguredState()
+                            }
+                        )
+                    ) {
+                        ForEach(providers) { provider in
+                            Text(provider.displayName).tag(provider.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Main Model")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if isLoadingMainModels {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Loading available models...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let mainModelErrorMessage {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(mainModelErrorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                            Button("Retry Model Load") {
+                                loadMainModelsForSelectedProvider()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    } else if availableMainModels.isEmpty {
+                        Text("No models available for this provider.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker(
+                            "Main Model",
+                            selection: Binding(
+                                get: { mainModelId },
+                                set: { newValue in
+                                    mainModelId = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    refreshConfiguredState()
+                                }
+                            )
+                        ) {
+                            ForEach(availableMainModels) { model in
+                                Text(model.displayName).tag(model.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+
+                Divider()
+
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Worker Provider")
                         .font(.caption)
@@ -216,9 +316,9 @@ struct OnboardingWorkerModelStep: View {
                                 let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                                 workerModelProviderId = normalized.isEmpty ? nil : normalized
                                 workerModelId = nil
-                                availableModels = []
-                                errorMessage = nil
-                                loadModelsForSelectedProvider()
+                                availableWorkerModels = []
+                                workerModelErrorMessage = nil
+                                loadWorkerModelsForSelectedProvider()
                                 refreshConfiguredState()
                             }
                         )
@@ -235,7 +335,7 @@ struct OnboardingWorkerModelStep: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if isLoading {
+                    if isLoadingWorkerModels {
                         HStack(spacing: 8) {
                             ProgressView()
                                 .scaleEffect(0.7)
@@ -243,18 +343,18 @@ struct OnboardingWorkerModelStep: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                    } else if let errorMessage {
+                    } else if let workerModelErrorMessage {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(errorMessage)
+                            Text(workerModelErrorMessage)
                                 .font(.caption)
                                 .foregroundStyle(.red)
                             Button("Retry Model Load") {
-                                loadModelsForSelectedProvider()
+                                loadWorkerModelsForSelectedProvider()
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                         }
-                    } else if availableModels.isEmpty {
+                    } else if availableWorkerModels.isEmpty {
                         Text("No models available for this provider.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -270,7 +370,7 @@ struct OnboardingWorkerModelStep: View {
                                 }
                             )
                         ) {
-                            ForEach(availableModels) { model in
+                            ForEach(availableWorkerModels) { model in
                                 Text(model.displayName).tag(model.id)
                             }
                         }
@@ -278,7 +378,7 @@ struct OnboardingWorkerModelStep: View {
                     }
                 }
 
-                Text("Choose a low-latency worker model. You can update this later in Settings → Providers.")
+                Text("Choose a capable main model and a low-latency worker model. You can update both later in Settings.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -290,12 +390,12 @@ struct OnboardingWorkerModelStep: View {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                    Text("Worker model configured")
+                    Text("Main and worker models configured")
                         .foregroundStyle(.secondary)
                 }
                 .padding(.bottom, 8)
             } else {
-                Text("Select both a worker provider and worker model to continue.")
+                Text("Select main and worker providers + models to continue.")
                     .font(.caption)
                     .foregroundStyle(.red)
                     .padding(.bottom, 8)
@@ -304,71 +404,112 @@ struct OnboardingWorkerModelStep: View {
         .padding()
         .onAppear {
             ensureProviderSelection()
-            loadModelsForSelectedProvider()
+            loadMainModelsForSelectedProvider()
+            loadWorkerModelsForSelectedProvider()
             refreshConfiguredState()
         }
         .onChange(of: providers.count) { _, _ in
             ensureProviderSelection()
-            loadModelsForSelectedProvider()
+            loadMainModelsForSelectedProvider()
+            loadWorkerModelsForSelectedProvider()
             refreshConfiguredState()
         }
     }
 
     private func ensureProviderSelection() {
         guard !providers.isEmpty else {
+            mainModelProviderId = ""
+            mainModelId = ""
             workerModelProviderId = nil
             workerModelId = nil
+            availableMainModels = []
+            availableWorkerModels = []
             return
         }
 
-        if let existing = workerModelProviderId,
-           providers.contains(where: { $0.id == existing }) {
-            return
+        let defaultProviderId = providers.first(where: { $0.isDefault })?.id ?? providers.first?.id ?? ""
+
+        let normalizedMainProviderId = mainModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedMainProviderId.isEmpty || !providers.contains(where: { $0.id == normalizedMainProviderId }) {
+            mainModelProviderId = defaultProviderId
+            mainModelId = ""
         }
 
-        workerModelProviderId = providers.first(where: { $0.isDefault })?.id ?? providers.first?.id
-        workerModelId = nil
+        let normalizedWorkerProviderId = workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if normalizedWorkerProviderId.isEmpty || !providers.contains(where: { $0.id == normalizedWorkerProviderId }) {
+            workerModelProviderId = defaultProviderId.isEmpty ? nil : defaultProviderId
+            workerModelId = nil
+        }
     }
 
     private func refreshConfiguredState() {
-        let hasProvider = !(workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        let hasModel = !(workerModelId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        isConfigured = hasProvider && hasModel
+        let hasMainProvider = !mainModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasMainModel = !mainModelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasWorkerProvider = !(workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let hasWorkerModel = !(workerModelId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        isConfigured = hasMainProvider && hasMainModel && hasWorkerProvider && hasWorkerModel
     }
 
-    private func loadModelsForSelectedProvider() {
-        guard let provider = selectedProvider else {
-            availableModels = []
-            errorMessage = "Select a provider to load models."
-            refreshConfiguredState()
-            return
-        }
-        guard let apiKey = provider.retrieveAPIKey(), !apiKey.isEmpty else {
-            availableModels = []
-            errorMessage = "This provider has no API key configured."
+    private func loadMainModelsForSelectedProvider() {
+        guard let provider = selectedMainProvider else {
+            availableMainModels = []
+            mainModelErrorMessage = "Select a provider to load models."
+            mainModelId = ""
             refreshConfiguredState()
             return
         }
 
-        isLoading = true
-        errorMessage = nil
+        isLoadingMainModels = true
+        mainModelErrorMessage = nil
 
         Task {
             do {
-                let config = LLMConfiguration(
-                    displayName: provider.displayName,
-                    baseURL: provider.parsedBaseURL,
-                    apiKey: apiKey,
-                    model: "moonshotai/kimi-k2.5",
-                    organizationId: provider.organizationId,
-                    timeoutInterval: provider.timeoutInterval
-                )
-                let client = LLMService.shared.createClient(from: config)
-                let models = try await client.listModelsDetailed()
+                let models = try await fetchModels(for: provider)
 
                 await MainActor.run {
-                    availableModels = models
-                    isLoading = false
+                    availableMainModels = models
+                    isLoadingMainModels = false
+                    if models.contains(where: { $0.id == mainModelId }) {
+                        refreshConfiguredState()
+                    } else if let firstModel = models.first {
+                        mainModelId = firstModel.id
+                        refreshConfiguredState()
+                    } else {
+                        mainModelId = ""
+                        refreshConfiguredState()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    availableMainModels = []
+                    isLoadingMainModels = false
+                    mainModelErrorMessage = error.localizedDescription
+                    mainModelId = ""
+                    refreshConfiguredState()
+                }
+            }
+        }
+    }
+
+    private func loadWorkerModelsForSelectedProvider() {
+        guard let provider = selectedWorkerProvider else {
+            availableWorkerModels = []
+            workerModelErrorMessage = "Select a provider to load models."
+            workerModelId = nil
+            refreshConfiguredState()
+            return
+        }
+
+        isLoadingWorkerModels = true
+        workerModelErrorMessage = nil
+
+        Task {
+            do {
+                let models = try await fetchModels(for: provider)
+
+                await MainActor.run {
+                    availableWorkerModels = models
+                    isLoadingWorkerModels = false
                     if let existing = workerModelId, models.contains(where: { $0.id == existing }) {
                         refreshConfiguredState()
                     } else if let firstModel = models.first {
@@ -381,19 +522,36 @@ struct OnboardingWorkerModelStep: View {
                 }
             } catch {
                 await MainActor.run {
-                    availableModels = []
-                    isLoading = false
-                    errorMessage = error.localizedDescription
+                    availableWorkerModels = []
+                    isLoadingWorkerModels = false
+                    workerModelErrorMessage = error.localizedDescription
                     workerModelId = nil
                     refreshConfiguredState()
                 }
             }
         }
     }
+
+    private func fetchModels(for provider: LLMProviderRecord) async throws -> [LLMProviderModel] {
+        guard let apiKey = provider.retrieveAPIKey(), !apiKey.isEmpty else {
+            throw ModelLoadError.missingAPIKey
+        }
+
+        let config = LLMConfiguration(
+            displayName: provider.displayName,
+            baseURL: provider.parsedBaseURL,
+            apiKey: apiKey,
+            model: "moonshotai/kimi-k2.5",
+            organizationId: provider.organizationId,
+            timeoutInterval: provider.timeoutInterval
+        )
+        let client = LLMService.shared.createClient(from: config)
+        return try await client.listModelsDetailed()
+    }
 }
 
 #Preview {
     OnboardingProviderStep(isConfigured: .constant(false))
         .modelContainer(for: LLMProviderRecord.self, inMemory: true)
-        .frame(width: 600, height: 450)
+        .frame(width: 720, height: 450)
 }

@@ -34,7 +34,7 @@ struct OnboardingView: View {
             switch self {
             case .welcome: return "Welcome"
             case .provider: return "LLM Provider"
-            case .worker: return "Worker Model"
+            case .worker: return "Models"
             case .template: return "VM Template"
             case .outputDirectory: return "Output"
             case .complete: return "Ready"
@@ -61,7 +61,7 @@ struct OnboardingView: View {
             navigationButtons
                 .padding(20)
         }
-        .frame(width: 600, height: 700)
+        .frame(width: 720, height: 700)
         .background(Color(nsColor: .windowBackgroundColor))
     }
     

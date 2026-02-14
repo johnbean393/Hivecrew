@@ -26,6 +26,7 @@ public actor ConnectorHub {
     public func runBackfill(
         source: RetrievalSourceType,
         resumeToken: String?,
+        mode: SourceBackfillMode,
         policy: IndexingPolicy,
         limit: Int,
         handler: @escaping @Sendable ([IngestionEvent], BackfillCheckpoint) async -> Void
@@ -38,6 +39,7 @@ public actor ConnectorHub {
         }
         return try await connector.runBackfill(
             resumeToken: resumeToken,
+            mode: mode,
             policy: policy,
             limit: limit,
             handler: handler

@@ -545,7 +545,10 @@ final class RetrievalDaemonManager {
         let sourceBinary = try resolveSourceBinary()
         let destinationBinary = daemonBinaryURL()
         let sourceBinaryVersion = try daemonBinaryVersion(at: sourceBinary)
-        let sourceMarker = deterministicDaemonSourceMarker() ?? sourceBinaryVersion
+        // Use the actual source binary digest as the install marker.
+        // A source-tree hash can drift ahead of the bundled binary and trigger
+        // stale daemon rollbacks when the app binary was not rebuilt yet.
+        let sourceMarker = sourceBinaryVersion
         let previousSourceMarker = persistedDaemonSourceMarker()
         let binaryWasUpdated = previousSourceMarker != sourceMarker || !fileManager.fileExists(atPath: destinationBinary.path)
 
@@ -1090,17 +1093,17 @@ final class RetrievalDaemonManager {
     }
 
     private func resolveSourceBinary() throws -> URL {
-        if let auxiliary = Bundle.main.url(forAuxiliaryExecutable: binaryName) {
-            return auxiliary
-        }
-        if let bundled = Bundle.main.url(forResource: binaryName, withExtension: nil) {
-            return bundled
-        }
         if let overridePath = ProcessInfo.processInfo.environment["HIVECREW_RETRIEVAL_DAEMON_PATH"] {
             let url = URL(fileURLWithPath: overridePath)
             if FileManager.default.fileExists(atPath: url.path) {
                 return url
             }
+        }
+        if let auxiliary = Bundle.main.url(forAuxiliaryExecutable: binaryName) {
+            return auxiliary
+        }
+        if let bundled = Bundle.main.url(forResource: binaryName, withExtension: nil) {
+            return bundled
         }
         throw NSError(
             domain: "RetrievalDaemonManager",
