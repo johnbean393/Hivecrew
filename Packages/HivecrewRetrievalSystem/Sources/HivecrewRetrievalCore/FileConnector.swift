@@ -38,6 +38,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     private var pendingChangedPaths: Set<String> = []
     private var lastSeenEventID: FSEventStreamEventId?
     private var quietWindowTask: Task<Void, Never>?
+    private var quietWindowGeneration: UInt64 = 0
     private var liveHandler: (@Sendable ([IngestionEvent]) async -> Void)?
     private static let packageDirectoryExtensions: Set<String> = ["rtfd", "pages", "key", "numbers"]
     private enum ScanMode {
@@ -66,8 +67,11 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     }
 
     public func stop() {
-        quietWindowTask?.cancel()
-        quietWindowTask = nil
+        stateQueue.sync {
+            quietWindowGeneration &+= 1
+            quietWindowTask?.cancel()
+            quietWindowTask = nil
+        }
         stopFSEvents()
         liveHandler = nil
     }
@@ -180,20 +184,34 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     }
 
     private func enqueueChanged(paths: [String], latestEventID: FSEventStreamEventId? = nil) {
-        stateQueue.sync {
+        let generation = stateQueue.sync { () -> UInt64 in
             if let latestEventID {
                 lastSeenEventID = max(lastSeenEventID ?? latestEventID, latestEventID)
             }
             for path in paths {
                 pendingChangedPaths.insert(path)
             }
+            quietWindowGeneration &+= 1
+            let generation = quietWindowGeneration
+            quietWindowTask?.cancel()
+            return generation
         }
 
-        quietWindowTask?.cancel()
-        quietWindowTask = Task.detached(priority: .utility) { [weak self] in
+        let quietWindowDelay = policy.quietWindowSeconds
+        let newTask = Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .seconds(policy.quietWindowSeconds))
+            try? await Task.sleep(for: .seconds(quietWindowDelay))
+            guard !Task.isCancelled else { return }
+            let isLatestGeneration = self.stateQueue.sync { self.quietWindowGeneration == generation }
+            guard isLatestGeneration else { return }
             await self.flushPendingChanges()
+        }
+        stateQueue.sync {
+            if quietWindowGeneration == generation {
+                quietWindowTask = newTask
+            } else {
+                newTask.cancel()
+            }
         }
     }
 
