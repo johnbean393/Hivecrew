@@ -178,16 +178,20 @@ class CredentialManager: ObservableObject {
     /// Resolve a token string to its actual value
     func resolveToken(_ tokenString: String) -> String? {
         guard let uuid = UUID(uuidString: tokenString) else { return nil }
-        return tokenMap[uuid]
+        return valueForToken(uuid)
     }
     
     /// Substitute all UUID tokens in text with their real values
     func substituteTokens(in text: String) -> String {
         var result = text
         
-        // Direct substitution: iterate through all known tokens and replace them
-        // This is more reliable than regex matching as it handles case insensitivity properly
-        for (token, value) in tokenMap {
+        // Resolve credential tokens lazily so app launch/settings open do not trigger
+        // mass keychain reads for all stored credentials.
+        let allTokens = Set(credentials.flatMap { [$0.usernameToken, $0.passwordToken] })
+        
+        // Direct substitution: iterate through known credential tokens and replace them.
+        for token in allTokens {
+            guard let value = valueForToken(token) else { continue }
             let tokenString = token.uuidString
             // Replace all occurrences (case-insensitive since UUIDs can be upper or lower)
             if let range = result.range(of: tokenString, options: .caseInsensitive) {
@@ -204,13 +208,29 @@ class CredentialManager: ObservableObject {
     
     /// Check if text contains any credential tokens
     func containsCredentialTokens(in text: String) -> Bool {
-        // Check if any known token exists in the text (case-insensitive)
-        for token in tokenMap.keys {
-            if text.range(of: token.uuidString, options: .caseInsensitive) != nil {
-                return true
+        // Check credential metadata tokens only (no keychain access needed).
+        for credential in credentials {
+            let tokens = [credential.usernameToken, credential.passwordToken]
+            for token in tokens {
+                if text.range(of: token.uuidString, options: .caseInsensitive) != nil {
+                    return true
+                }
             }
         }
         return false
+    }
+    
+    private func valueForToken(_ token: UUID) -> String? {
+        if let cached = tokenMap[token] {
+            return cached
+        }
+        
+        guard let loaded = loadFromKeychain(forToken: token) else {
+            return nil
+        }
+        
+        tokenMap[token] = loaded
+        return loaded
     }
     
     // MARK: - Agent API
@@ -244,8 +264,8 @@ class CredentialManager: ObservableObject {
             return nil
         }
         
-        let username = tokenMap[credential.usernameToken]
-        let password = tokenMap[credential.passwordToken]
+        let username = valueForToken(credential.usernameToken)
+        let password = valueForToken(credential.passwordToken)
         
         return (username, password)
     }
@@ -253,28 +273,13 @@ class CredentialManager: ObservableObject {
     // MARK: - Persistence
     
     private func loadCredentials() {
-        // Load credential metadata from UserDefaults
+        // Load credential metadata from UserDefaults.
+        // Values are resolved lazily from Keychain when needed.
         if let data = UserDefaults.standard.data(forKey: credentialsKey),
            let decoded = try? JSONDecoder().decode([StoredCredential].self, from: data) {
             credentials = decoded
-            print("CredentialManager: Loaded \(credentials.count) credentials from UserDefaults")
-            
-            // Load values from Keychain into token map
-            for credential in credentials {
-                if let username = loadFromKeychain(forToken: credential.usernameToken) {
-                    tokenMap[credential.usernameToken] = username
-                    print("CredentialManager: Loaded username for '\(credential.displayName)' (token: \(credential.usernameToken.uuidString.prefix(8))...)")
-                } else {
-                    print("CredentialManager: WARNING - Failed to load username from keychain for '\(credential.displayName)'")
-                }
-                if let password = loadFromKeychain(forToken: credential.passwordToken) {
-                    tokenMap[credential.passwordToken] = password
-                    print("CredentialManager: Loaded password for '\(credential.displayName)' (token: \(credential.passwordToken.uuidString.prefix(8))...)")
-                } else {
-                    print("CredentialManager: WARNING - Failed to load password from keychain for '\(credential.displayName)'")
-                }
-            }
-            print("CredentialManager: tokenMap has \(tokenMap.count) entries")
+            tokenMap.removeAll()
+            print("CredentialManager: Loaded \(credentials.count) credential records from UserDefaults")
         } else {
             print("CredentialManager: No credentials found in UserDefaults")
         }
