@@ -11,7 +11,8 @@ import Security
 /// Manages Keychain storage for remote access credentials
 enum RemoteAccessKeychain {
     
-    private static let service = "com.pattonium.remote-access"
+    private static let unifiedService = "com.pattonium.hivecrew"
+    private static let legacyServices = ["com.pattonium.remote-access"]
     
     // Keychain account keys
     private static let sessionTokenKey = "session-token"
@@ -120,7 +121,7 @@ enum RemoteAccessKeychain {
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
+            kSecAttrService as String: unifiedService,
             kSecAttrAccount as String: key,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
@@ -131,6 +132,42 @@ enum RemoteAccessKeychain {
     }
     
     private static func retrieve(key: String) -> String? {
+        if let value = retrieve(key: key, fromService: unifiedService) {
+            return value
+        }
+        
+        for legacyService in legacyServices {
+            if let legacyValue = retrieve(key: key, fromService: legacyService) {
+                _ = store(key: key, value: legacyValue)
+                return legacyValue
+            }
+        }
+        
+        return nil
+    }
+    
+    @discardableResult
+    private static func delete(key: String) -> Bool {
+        var success = true
+        let services = [unifiedService] + legacyServices
+        
+        for service in services {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: key
+            ]
+            
+            let status = SecItemDelete(query as CFDictionary)
+            if status != errSecSuccess && status != errSecItemNotFound {
+                success = false
+            }
+        }
+        
+        return success
+    }
+    
+    private static func retrieve(key: String, fromService service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -149,17 +186,5 @@ enum RemoteAccessKeychain {
         }
         
         return value
-    }
-    
-    @discardableResult
-    private static func delete(key: String) -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
-        
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

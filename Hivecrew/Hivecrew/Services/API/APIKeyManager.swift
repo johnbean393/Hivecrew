@@ -12,6 +12,8 @@ import Security
 /// Manages the Hivecrew REST API key
 enum APIKeyManager {
     
+    private static let unifiedService = "com.pattonium.hivecrew"
+    private static let legacyServices = ["com.pattonium.api"]
     private static let keychainKey = "com.pattonium.api-key"
     
     /// Generate a new API key
@@ -24,24 +26,18 @@ enum APIKeyManager {
     
     /// Retrieve the API key from Keychain
     static func retrieveAPIKey() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.pattonium.api",
-            kSecAttrAccount as String: keychainKey,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let key = String(data: data, encoding: .utf8) else {
-            return nil
+        if let key = retrieveFromService(unifiedService) {
+            return key
         }
         
-        return key
+        for legacyService in legacyServices {
+            if let legacyKey = retrieveFromService(legacyService) {
+                _ = storeAPIKey(legacyKey)
+                return legacyKey
+            }
+        }
+        
+        return nil
     }
     
     /// Store the API key in Keychain
@@ -54,7 +50,7 @@ enum APIKeyManager {
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.pattonium.api",
+            kSecAttrService as String: unifiedService,
             kSecAttrAccount as String: keychainKey,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
@@ -67,14 +63,22 @@ enum APIKeyManager {
     /// Delete the API key from Keychain
     @discardableResult
     static func deleteAPIKey() -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.pattonium.api",
-            kSecAttrAccount as String: keychainKey
-        ]
+        var success = true
+        let services = [unifiedService] + legacyServices
         
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+        for service in services {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: keychainKey
+            ]
+            let status = SecItemDelete(query as CFDictionary)
+            if status != errSecSuccess && status != errSecItemNotFound {
+                success = false
+            }
+        }
+        
+        return success
     }
     
     /// Check if an API key exists
@@ -95,5 +99,26 @@ enum APIKeyManager {
     static func regenerateAPIKey() -> String? {
         deleteAPIKey()
         return generateAndStoreAPIKey()
+    }
+    
+    private static func retrieveFromService(_ service: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: keychainKey,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let key = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        
+        return key
     }
 }

@@ -79,8 +79,9 @@ class CredentialManager: ObservableObject {
     /// UserDefaults key for storing credential metadata
     private let credentialsKey = "storedCredentials"
     
-    /// Keychain service identifier
-    private let keychainService = "com.pattonium.credentials"
+    /// Unified and legacy keychain service identifiers
+    private let unifiedKeychainService = "com.pattonium.hivecrew"
+    private let legacyKeychainServices = ["com.pattonium.credentials"]
     
     // MARK: - Initialization
     
@@ -311,17 +312,19 @@ class CredentialManager: ObservableObject {
         guard let data = value.data(using: .utf8) else { return }
         
         // Delete existing item first
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
+        for service in allKeychainServices {
+            let deleteQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: key
+            ]
+            SecItemDelete(deleteQuery as CFDictionary)
+        }
         
         // Add new item
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
+            kSecAttrService as String: unifiedKeychainService,
             kSecAttrAccount as String: key,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
@@ -336,9 +339,24 @@ class CredentialManager: ObservableObject {
     private func loadFromKeychain(forToken token: UUID) -> String? {
         let key = token.uuidString
         
+        if let value = loadFromKeychain(forToken: key, service: unifiedKeychainService) {
+            return value
+        }
+        
+        for legacyService in legacyKeychainServices {
+            if let legacyValue = loadFromKeychain(forToken: key, service: legacyService) {
+                try? storeInKeychain(value: legacyValue, forToken: token)
+                return legacyValue
+            }
+        }
+        
+        return nil
+    }
+    
+    private func loadFromKeychain(forToken key: String, service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: key,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
@@ -358,16 +376,26 @@ class CredentialManager: ObservableObject {
     
     private func deleteFromKeychain(forToken token: UUID) throws {
         let key = token.uuidString
+        var lastError: OSStatus?
         
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key
-        ]
-        
-        let status = SecItemDelete(query as CFDictionary)
-        if status != errSecSuccess && status != errSecItemNotFound {
-            throw CredentialManagerError.keychainError(status)
+        for service in allKeychainServices {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: key
+            ]
+            let status = SecItemDelete(query as CFDictionary)
+            if status != errSecSuccess && status != errSecItemNotFound {
+                lastError = status
+            }
         }
+        
+        if let lastError {
+            throw CredentialManagerError.keychainError(lastError)
+        }
+    }
+    
+    private var allKeychainServices: [String] {
+        [unifiedKeychainService] + legacyKeychainServices
     }
 }

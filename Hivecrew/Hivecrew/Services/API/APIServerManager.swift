@@ -277,27 +277,24 @@ final class APIServerManager {
 /// Manages the HMAC signing key for device session tokens in the Keychain
 enum DeviceAuthKeychain {
     
-    private static let service = "com.pattonium.device-auth"
+    private static let unifiedService = "com.pattonium.hivecrew"
+    private static let legacyServices = ["com.pattonium.device-auth"]
     private static let account = "signing-key"
     
     /// Load the signing key from Keychain
     static func loadSigningKey() -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess, let data = result as? Data else {
-            return nil
+        if let data = loadSigningKey(fromService: unifiedService) {
+            return data
         }
         
-        return data
+        for legacyService in legacyServices {
+            if let legacyData = loadSigningKey(fromService: legacyService) {
+                _ = saveSigningKey(legacyData)
+                return legacyData
+            }
+        }
+        
+        return nil
     }
     
     /// Save the signing key to Keychain
@@ -308,7 +305,7 @@ enum DeviceAuthKeychain {
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
+            kSecAttrService as String: unifiedService,
             kSecAttrAccount as String: account,
             kSecValueData as String: keyData,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
@@ -321,14 +318,41 @@ enum DeviceAuthKeychain {
     /// Delete the signing key from Keychain
     @discardableResult
     static func deleteSigningKey() -> Bool {
+        var success = true
+        let services = [unifiedService] + legacyServices
+        
+        for service in services {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account
+            ]
+            
+            let status = SecItemDelete(query as CFDictionary)
+            if status != errSecSuccess && status != errSecItemNotFound {
+                success = false
+            }
+        }
+        
+        return success
+    }
+    
+    private static func loadSigningKey(fromService service: String) -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
         ]
         
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else {
+            return nil
+        }
+        
+        return data
     }
 }
 

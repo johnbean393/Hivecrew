@@ -15,6 +15,8 @@ struct ProviderRow: View {
     let onSetDefault: () -> Void
     
     var body: some View {
+        let hasAPIKey = provider.hasAPIKey
+        
         HStack(spacing: 12) {
             Image(systemName: providerIcon)
                 .font(.title2)
@@ -52,11 +54,11 @@ struct ProviderRow: View {
             Spacer()
             
             HStack(spacing: 4) {
-                Image(systemName: provider.hasAPIKey ? "key.fill" : "key")
-                    .foregroundStyle(provider.hasAPIKey ? .green : .orange)
-                Text(provider.hasAPIKey ? "Configured" : "No Key")
+                Image(systemName: hasAPIKey ? "key.fill" : "key")
+                    .foregroundStyle(hasAPIKey ? .green : .orange)
+                Text(hasAPIKey ? "Configured" : "No Key")
                     .font(.caption)
-                    .foregroundStyle(provider.hasAPIKey ? Color.secondary : Color.orange)
+                    .foregroundStyle(hasAPIKey ? Color.secondary : Color.orange)
             }
             
             Menu {

@@ -20,6 +20,7 @@ struct ProviderEditSheet: View {
     @State private var displayName: String = ""
     @State private var baseURL: String = ""
     @State private var apiKey: String = ""
+    @State private var existingAPIKey: String = ""
     @State private var organizationId: String = ""
     @State private var isDefault: Bool = false
     @State private var timeoutInterval: Double = 120.0
@@ -146,7 +147,7 @@ struct ProviderEditSheet: View {
         if !apiKey.isEmpty {
             return apiKey
         }
-        return provider?.retrieveAPIKey() ?? ""
+        return existingAPIKey
     }
     
     private func loadProvider() {
@@ -157,7 +158,8 @@ struct ProviderEditSheet: View {
         organizationId = provider.organizationId ?? ""
         isDefault = provider.isDefault
         timeoutInterval = provider.timeoutInterval
-        // Don't load API key - it's stored in keychain
+        // Load once to avoid repeated keychain prompts during view re-renders.
+        existingAPIKey = provider.retrieveAPIKey() ?? ""
     }
     
     private func save() {

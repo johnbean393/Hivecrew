@@ -202,7 +202,8 @@ public class DuckDuckGoSearch {
 
 enum SearchProviderKeychain {
     
-    private static let service = "com.pattonium.web-search"
+    private static let unifiedService = "com.pattonium.hivecrew"
+    private static let legacyServices = ["com.pattonium.web-search"]
     private static let searchAPIKeyAccount = "searchapi"
     private static let serpAPIKeyAccount = "serpapi"
     
@@ -235,7 +236,7 @@ enum SearchProviderKeychain {
         guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
+            kSecAttrService as String: unifiedService,
             kSecAttrAccount as String: account,
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
@@ -244,6 +245,33 @@ enum SearchProviderKeychain {
     }
     
     private static func retrieve(account: String) -> String? {
+        if let value = retrieve(account: account, fromService: unifiedService) {
+            return value
+        }
+        
+        for legacyService in legacyServices {
+            if let legacyValue = retrieve(account: account, fromService: legacyService) {
+                store(legacyValue, account: account)
+                return legacyValue
+            }
+        }
+        
+        return nil
+    }
+    
+    private static func delete(account: String) {
+        let services = [unifiedService] + legacyServices
+        for service in services {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account
+            ]
+            SecItemDelete(query as CFDictionary)
+        }
+    }
+    
+    private static func retrieve(account: String, fromService service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -259,15 +287,6 @@ enum SearchProviderKeychain {
             return nil
         }
         return value
-    }
-    
-    private static func delete(account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(query as CFDictionary)
     }
 }
 
