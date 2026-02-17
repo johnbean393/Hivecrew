@@ -10,6 +10,20 @@ import AppKit
 
 /// Utility for downscaling base64-encoded images
 enum ImageDownscaler {
+    /// MIME types that can be passed through directly for image editing requests
+    static let directlySupportedEditInputMimeTypes: Set<String> = ["image/png", "image/jpeg"]
+    
+    /// Normalize equivalent MIME type aliases used by some image encoders.
+    /// In practice, `.jpg` is equivalent to `.jpeg`, but APIs commonly expect `image/jpeg`.
+    static func normalizeImageMimeType(_ mimeType: String) -> String {
+        let normalized = mimeType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "image/jpg":
+            return "image/jpeg"
+        default:
+            return normalized
+        }
+    }
     
     /// Scale levels for progressive downscaling
     enum ScaleLevel: Int, CaseIterable, Comparable {
@@ -50,9 +64,11 @@ enum ImageDownscaler {
         mimeType: String,
         to scaleLevel: ScaleLevel
     ) -> (data: String, mimeType: String)? {
+        let normalizedMimeType = normalizeImageMimeType(mimeType)
+        
         // If original, return as-is
         if scaleLevel == .original {
-            return (base64Data, mimeType)
+            return (base64Data, normalizedMimeType)
         }
         
         // Decode base64 to Data
@@ -106,9 +122,11 @@ enum ImageDownscaler {
         base64Data: String,
         mimeType: String
     ) -> (data: String, mimeType: String)? {
+        let normalizedMimeType = normalizeImageMimeType(mimeType)
+        
         // Already JPEG, return as-is
-        if mimeType == "image/jpeg" {
-            return (base64Data, mimeType)
+        if normalizedMimeType == "image/jpeg" {
+            return (base64Data, "image/jpeg")
         }
         
         guard let imageData = Data(base64Encoded: base64Data),

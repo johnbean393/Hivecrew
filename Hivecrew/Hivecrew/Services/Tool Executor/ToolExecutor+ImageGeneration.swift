@@ -16,8 +16,8 @@ extension ToolExecutor {
     /// Execute image generation tool
     func executeGenerateImage(args: [String: Any]) async throws -> InternalToolResult {
         let prompt = args["prompt"] as? String ?? ""
-        let referenceImagePaths = args["referenceImagePaths"] as? [String]
-        let aspectRatio = args["aspectRatio"] as? String
+        let referenceImagePaths = (args["referenceImagePaths"] as? [String]) ?? (args["reference_image_paths"] as? [String])
+        let aspectRatio = (args["aspectRatio"] as? String) ?? (args["aspect_ratio"] as? String)
         
         // Get configuration
         guard let config = try await getImageGenerationConfig(aspectRatio: aspectRatio) else {
@@ -34,29 +34,34 @@ extension ToolExecutor {
             referenceImages = []
             for (index, path) in paths.enumerated() {
                 if let imageData = try? await loadReferenceImage(path: path) {
+                    let normalizedImageData = (
+                        data: imageData.data,
+                        mimeType: ImageDownscaler.normalizeImageMimeType(imageData.mimeType)
+                    )
+                    
                     if index == 0 {
-                        // First image: keep at full quality, but ensure PNG/JPEG format
-                        if imageData.mimeType == "image/png" || imageData.mimeType == "image/jpeg" {
-                            referenceImages?.append(imageData)
+                        // First image: keep at full quality for PNG/JPEG/JPG, convert others to JPEG
+                        if ImageDownscaler.directlySupportedEditInputMimeTypes.contains(normalizedImageData.mimeType) {
+                            referenceImages?.append(normalizedImageData)
                         } else if let converted = ImageDownscaler.convertToJPEG(
-                            base64Data: imageData.data,
-                            mimeType: imageData.mimeType
+                            base64Data: normalizedImageData.data,
+                            mimeType: normalizedImageData.mimeType
                         ) {
                             referenceImages?.append(converted)
                         } else {
-                            referenceImages?.append(imageData)
+                            referenceImages?.append(normalizedImageData)
                         }
                     } else {
                         // Subsequent images: downscale to ~4x smaller (512px max dimension)
                         // downscale() also converts to JPEG
                         if let downscaled = ImageDownscaler.downscale(
-                            base64Data: imageData.data,
-                            mimeType: imageData.mimeType,
+                            base64Data: normalizedImageData.data,
+                            mimeType: normalizedImageData.mimeType,
                             to: .small
                         ) {
                             referenceImages?.append(downscaled)
                         } else {
-                            referenceImages?.append(imageData)
+                            referenceImages?.append(normalizedImageData)
                         }
                     }
                 }

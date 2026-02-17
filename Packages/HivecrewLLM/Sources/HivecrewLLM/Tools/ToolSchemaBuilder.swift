@@ -393,16 +393,24 @@ public final class ToolSchemaBuilder: Sendable {
             // Image generation tool
             case .generateImage:
                 return (
-                    "Generate or edit an image using AI. Provide a text prompt describing the desired output. For image editing, provide reference images via referenceImagePaths - the FIRST image is the main image and is kept at full quality, while subsequent images are automatically compressed to 1/4 size (dimensions halved) to avoid payload size limits. You can provide up to 14 reference images. The generated image will be saved to the images inbox folder.",
+                    "Generate or edit an image using AI. Provide a text prompt describing the desired output. For image editing, provide reference images via referenceImagePaths (or reference_image_paths). PNG, JPEG, and JPG inputs are supported. The FIRST image is the main image and is kept at full quality, while subsequent images are automatically compressed to 1/4 size (dimensions halved) to avoid payload size limits. You can provide up to 14 reference images. The generated image will be saved to the images inbox folder.",
                     objectSchema(
                         properties: [
                             "prompt": stringProperty("Detailed description of the image to generate or how to edit the reference image(s). Be specific about style, composition, colors, and subject matter."),
                             "referenceImagePaths": arrayProperty(
-                                "Paths to reference images for editing or style guidance. The FIRST image is treated as the main image (full quality), subsequent images are compressed. Paths can be relative to shared folder or absolute.",
+                                "Paths to reference images for editing or style guidance. PNG, JPEG, and JPG files are supported. The FIRST image is treated as the main image (full quality), subsequent images are compressed. Paths can be relative to shared folder or absolute.",
+                                itemType: ["type": "string"]
+                            ),
+                            "reference_image_paths": arrayProperty(
+                                "Snake_case alias of referenceImagePaths.",
                                 itemType: ["type": "string"]
                             ),
                             "aspectRatio": enumProperty(
                                 "Aspect ratio for the generated image. Defaults to 1:1 if not specified.",
+                                ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
+                            ),
+                            "aspect_ratio": enumProperty(
+                                "Snake_case alias of aspectRatio.",
                                 ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
                             )
                         ],

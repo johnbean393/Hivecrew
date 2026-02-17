@@ -523,7 +523,8 @@ public struct GetLoginCredentialsParams: Codable, Sendable {
 public struct GenerateImageParams: Codable, Sendable {
     /// Detailed description of the image to generate
     public let prompt: String
-    /// Optional paths to reference images for style or content guidance
+    /// Optional paths to reference images for style or content guidance.
+    /// Image editing supports PNG, JPEG, and JPG inputs.
     public let referenceImagePaths: [String]?
     /// Aspect ratio for the generated image.
     /// Supported values: "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"

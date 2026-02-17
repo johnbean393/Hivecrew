@@ -616,8 +616,8 @@ final class SubagentToolExecutor {
     
     private func executeGenerateImage(args: [String: Any]) async throws -> ToolResult {
         let prompt = args["prompt"] as? String ?? ""
-        let referenceImagePaths = args["referenceImagePaths"] as? [String]
-        let aspectRatio = args["aspectRatio"] as? String
+        let referenceImagePaths = (args["referenceImagePaths"] as? [String]) ?? (args["reference_image_paths"] as? [String])
+        let aspectRatio = (args["aspectRatio"] as? String) ?? (args["aspect_ratio"] as? String)
         
         guard let config = try await getImageGenerationConfig(aspectRatio: aspectRatio) else {
             return .text("Error: Image generation is not configured. Enable it in Settings > Tasks.")
@@ -630,26 +630,31 @@ final class SubagentToolExecutor {
             referenceImages = []
             for (index, path) in paths.enumerated() {
                 if let imageData = try? await loadReferenceImage(path: path) {
+                    let normalizedImageData = (
+                        data: imageData.data,
+                        mimeType: ImageDownscaler.normalizeImageMimeType(imageData.mimeType)
+                    )
+                    
                     if index == 0 {
-                        if imageData.mimeType == "image/png" || imageData.mimeType == "image/jpeg" {
-                            referenceImages?.append(imageData)
+                        if ImageDownscaler.directlySupportedEditInputMimeTypes.contains(normalizedImageData.mimeType) {
+                            referenceImages?.append(normalizedImageData)
                         } else if let converted = ImageDownscaler.convertToJPEG(
-                            base64Data: imageData.data,
-                            mimeType: imageData.mimeType
+                            base64Data: normalizedImageData.data,
+                            mimeType: normalizedImageData.mimeType
                         ) {
                             referenceImages?.append(converted)
                         } else {
-                            referenceImages?.append(imageData)
+                            referenceImages?.append(normalizedImageData)
                         }
                     } else {
                         if let downscaled = ImageDownscaler.downscale(
-                            base64Data: imageData.data,
-                            mimeType: imageData.mimeType,
+                            base64Data: normalizedImageData.data,
+                            mimeType: normalizedImageData.mimeType,
                             to: .small
                         ) {
                             referenceImages?.append(downscaled)
                         } else {
-                            referenceImages?.append(imageData)
+                            referenceImages?.append(normalizedImageData)
                         }
                     }
                 }
