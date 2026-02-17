@@ -372,6 +372,7 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     public let configuration: LLMConfiguration
     
     private let openAI: OpenAI
+    let urlSession: URLSession
     
     public init(configuration: LLMConfiguration) {
         self.configuration = configuration
@@ -399,6 +400,12 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         }
         
         self.openAI = OpenAI(configuration: openAIConfig)
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.timeoutIntervalForRequest = configuration.timeoutInterval
+        sessionConfiguration.timeoutIntervalForResource = configuration.timeoutInterval
+        sessionConfiguration.waitsForConnectivity = false
+        self.urlSession = URLSession(configuration: sessionConfiguration)
     }
     
     public func chat(
@@ -562,7 +569,7 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         request.timeoutInterval = configuration.timeoutInterval
         
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await urlSession.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw LLMError.unknown(message: "Invalid response type")
@@ -580,6 +587,8 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         } catch let error as URLError {
             if error.code == .timedOut {
                 throw LLMError.timeout
+            } else if error.code == .cancelled {
+                throw LLMError.cancelled
             }
             throw LLMError.networkError(underlying: error)
         } catch {

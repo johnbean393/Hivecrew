@@ -82,6 +82,9 @@ final class AgentRunner {
     
     /// Continuation for waiting when paused
     private var pauseContinuation: CheckedContinuation<String?, Never>?
+
+    /// In-flight LLM request task for cooperative cancellation on pause/cancel/timeout
+    var currentLLMRequestTask: Task<LLMResponse, Error>?
     
     /// Number of times the agent has attempted to complete but verification failed
     var completionAttempts: Int = 0
@@ -285,6 +288,7 @@ final class AgentRunner {
                 try await Task.sleep(nanoseconds: UInt64(self?.timeoutMinutes ?? 30) * 60 * 1_000_000_000)
                 await MainActor.run {
                     self?.isTimedOut = true
+                    self?.cancelInFlightLLMRequest(reason: "agent timeout reached")
                 }
             } catch {
                 // Task was cancelled, ignore
@@ -516,6 +520,7 @@ final class AgentRunner {
     /// Cancel the agent run
     func cancel() {
         isCancelled = true
+        cancelInFlightLLMRequest(reason: "task cancelled")
         // Resume if paused so it can exit cleanly
         pauseContinuation?.resume(returning: nil)
         pauseContinuation = nil
@@ -529,6 +534,7 @@ final class AgentRunner {
         isPaused = true
         statePublisher.status = .paused
         statePublisher.logInfo("Agent paused by user")
+        cancelInFlightLLMRequest(reason: "agent paused")
         Task { [subagentManager] in
             await subagentManager.setPaused(true)
         }
@@ -545,9 +551,18 @@ final class AgentRunner {
             statePublisher.logInfo("Agent resumed")
         }
         
-        // Resume the continuation
-        pauseContinuation?.resume(returning: instructions)
-        pauseContinuation = nil
+        if let pauseContinuation {
+            pauseContinuation.resume(returning: instructions)
+            self.pauseContinuation = nil
+        } else if let instructions = instructions, !instructions.isEmpty {
+            // If we resumed before the loop reached waitIfPaused(), preserve input for next decide().
+            let existing = statePublisher.pendingInstructions?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let existing, !existing.isEmpty {
+                statePublisher.pendingInstructions = existing + "\n" + instructions
+            } else {
+                statePublisher.pendingInstructions = instructions
+            }
+        }
         Task { [subagentManager] in
             await subagentManager.setPaused(false)
         }
@@ -562,6 +577,12 @@ final class AgentRunner {
         return await withCheckedContinuation { continuation in
             self.pauseContinuation = continuation
         }
+    }
+
+    func cancelInFlightLLMRequest(reason: String) {
+        guard currentLLMRequestTask != nil else { return }
+        statePublisher.logInfo("Cancelling in-flight LLM request (\(reason))")
+        currentLLMRequestTask?.cancel()
     }
 }
 

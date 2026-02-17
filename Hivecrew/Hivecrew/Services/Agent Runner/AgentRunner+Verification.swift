@@ -125,6 +125,8 @@ extension AgentRunner {
         
         for attempt in 1...maxLLMRetries {
             do {
+                try throwIfAgentInterrupted()
+
                 // Start reasoning stream before the LLM call
                 await MainActor.run {
                     statePublisher.startReasoningStream()
@@ -139,7 +141,7 @@ extension AgentRunner {
                 }
                 
                 // Use the provided messages (which may have been downscaled)
-                let response = try await llmClient.chatWithReasoningStream(
+                let response = try await runCancellableLLMCall(
                     messages: workingMessages,
                     tools: tools,
                     onReasoningUpdate: reasoningCallback
@@ -219,6 +221,7 @@ extension AgentRunner {
                 
                 // Retry explicitly on empty responses
                 if isEmptyResponseError(error) && attempt < maxLLMRetries {
+                    try throwIfAgentInterrupted()
                     let delay = baseRetryDelay * pow(2.0, Double(attempt - 1))
                     statePublisher.logInfo("LLM returned empty response (attempt \(attempt)/\(maxLLMRetries)). Retrying in \(Int(delay))s...")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -227,6 +230,7 @@ extension AgentRunner {
                 
                 // Check if error is retryable
                 if isRetryableError(error) && attempt < maxLLMRetries {
+                    try throwIfAgentInterrupted()
                     let delay = baseRetryDelay * pow(2.0, Double(attempt - 1))
                     statePublisher.logInfo("LLM call failed (attempt \(attempt)/\(maxLLMRetries)): \(formatLLMError(error)). Retrying in \(Int(delay))s...")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -673,6 +677,65 @@ extension AgentRunner {
         }
         
         return false
+    }
+
+    func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        if let llmError = error as? LLMError, case .cancelled = llmError {
+            return true
+        }
+
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return true
+        }
+
+        return false
+    }
+
+    private func runCancellableLLMCall(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?,
+        onReasoningUpdate: ReasoningStreamCallback?
+    ) async throws -> LLMResponse {
+        try throwIfAgentInterrupted()
+
+        let llmClient = self.llmClient
+        let requestTask = Task<LLMResponse, Error> {
+            try await llmClient.chatWithReasoningStream(
+                messages: messages,
+                tools: tools,
+                onReasoningUpdate: onReasoningUpdate
+            )
+        }
+
+        currentLLMRequestTask = requestTask
+        defer {
+            currentLLMRequestTask = nil
+        }
+
+        do {
+            return try await requestTask.value
+        } catch {
+            if isTimedOut {
+                throw LLMError.timeout
+            }
+            if isCancelled || isPaused || isCancellationError(error) {
+                throw LLMError.cancelled
+            }
+            throw error
+        }
+    }
+
+    private func throwIfAgentInterrupted() throws {
+        if isTimedOut {
+            throw LLMError.timeout
+        }
+        if isCancelled || isPaused {
+            throw LLMError.cancelled
+        }
     }
     
     /// Format LLM error for user-friendly display

@@ -65,6 +65,23 @@ extension AgentRunner {
                 (response, toolCalls) = try await decide(observation: observation)
                 consecutiveLLMFailures = 0
             } catch {
+                // Control-flow interruptions should not count as LLM failures.
+                if isCancelled || isTimedOut {
+                    break
+                }
+                if isPaused {
+                    let instructions = await waitIfPaused()
+                    if isCancelled { break }
+                    if let instructions = instructions, !instructions.isEmpty {
+                        conversationHistory.append(.user("User instruction: \(instructions)"))
+                    }
+                    continue
+                }
+                if isCancellationError(error) {
+                    statePublisher.logInfo("LLM call interrupted by control action. Continuing...")
+                    continue
+                }
+
                 consecutiveLLMFailures += 1
                 let errorMessage = formatLLMError(error)
                 statePublisher.logError("LLM call failed (\(consecutiveLLMFailures)/\(maxConsecutiveLLMFailures)): \(errorMessage)")
