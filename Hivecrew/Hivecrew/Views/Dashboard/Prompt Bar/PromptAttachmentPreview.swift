@@ -5,6 +5,7 @@
 //  Visual previews for attached files in the prompt bar
 //
 
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 import QuickLookThumbnailing
@@ -58,6 +59,7 @@ struct PromptAttachmentPreviewList: View {
     var onRemoveAttachment: ((PromptAttachment) -> Void)? = nil
     var onPromoteGhostSuggestion: ((PromptContextSuggestion) -> Void)? = nil
     var onOpenAttachment: ((URL) -> Void)? = nil
+    @StateObject private var scrollGestureGate = ChipScrollGestureGate()
     
     private let ghostAttachmentsTip = GhostContextAttachmentsTip()
     private let chipSpring = Animation.spring(response: 0.28, dampingFraction: 0.82)
@@ -79,6 +81,7 @@ struct PromptAttachmentPreviewList: View {
                 ForEach(attachments) { attachment in
                     PromptAttachmentPreviewItem(
                         attachment: attachment,
+                        scrollGestureGate: scrollGestureGate,
                         onOpen: {
                             onOpenAttachment?(attachment.url)
                         },
@@ -96,6 +99,7 @@ struct PromptAttachmentPreviewList: View {
                     if let url = ghostURL(for: suggestion) {
                         PromptGhostAttachmentPreviewItem(
                             fileURL: url,
+                            scrollGestureGate: scrollGestureGate,
                             onOpen: {
                                 onOpenAttachment?(url)
                             },
@@ -127,21 +131,47 @@ struct PromptAttachmentPreviewList: View {
     }
 }
 
+private final class ChipScrollGestureGate: ObservableObject {
+    private var isLocked = false
+    private var lockExpiresAt: Date = .distantPast
+
+    func shouldConsume(_ event: NSEvent, now: Date = Date()) -> Bool {
+        guard isLocked else { return false }
+
+        if event.phase == .ended || event.momentumPhase == .ended || now >= lockExpiresAt {
+            isLocked = false
+            return false
+        }
+        return true
+    }
+
+    func lock(now: Date = Date(), minimumDuration: TimeInterval = 0.9) {
+        isLocked = true
+        lockExpiresAt = now.addingTimeInterval(minimumDuration)
+    }
+}
+
 /// Suggested context shown as a ghost attachment chip.
 struct PromptGhostAttachmentPreviewItem: View {
     let fileURL: URL
+    fileprivate let scrollGestureGate: ChipScrollGestureGate
     var onOpen: () -> Void
     var onPromote: () -> Void
 
     @State private var thumbnail: NSImage?
     @State private var isHovering = false
+    @State private var scrollMonitor: Any?
+    @State private var accumulatedScrollY: CGFloat = 0
 
     private let thumbnailSize: CGFloat = 48
     private let containerHeight: CGFloat = 48
     private let cornerRadius: CGFloat = 10
+    private let actionSegmentWidth: CGFloat = 34
+    private let scrollThreshold: CGFloat = 30
+    private let verticalIntentRatio: CGFloat = 1.35
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        HStack(spacing: 0) {
             Button(action: onOpen) {
                 HStack(spacing: 0) {
                     thumbnailView
@@ -163,36 +193,55 @@ struct PromptGhostAttachmentPreviewItem: View {
                         .padding(.horizontal, 12)
                         .frame(maxWidth: 120, alignment: .leading)
                 }
+                .frame(height: containerHeight)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-                .opacity(0.6)
             }
             .buttonStyle(.plain)
 
             if isHovering {
                 Button(action: onPromote) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.white, Color.accentColor)
+                    ZStack {
+                        Color.accentColor.opacity(0.95)
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: actionSegmentWidth, height: containerHeight)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .offset(x: 6, y: -6)
-                .transition(.scale.combined(with: .opacity))
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.28))
+                        .frame(width: 1)
+                }
+                .help("Attach suggested context")
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .opacity(0.6)
+        .contentShape(Rectangle())
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
             }
         }
+        .animation(.easeInOut(duration: 0.15), value: isHovering)
         .onAppear {
             loadThumbnail()
+            setupScrollMonitor()
         }
-        .help("Suggested context: click to preview, + to attach")
+        .onDisappear {
+            removeScrollMonitor()
+        }
+        .help("Suggested context: click to preview, + or scroll to attach")
     }
 
     @ViewBuilder
@@ -251,28 +300,80 @@ struct PromptGhostAttachmentPreviewItem: View {
             }
         }
     }
+
+    private func setupScrollMonitor() {
+        guard scrollMonitor == nil else { return }
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { event in
+            handleScroll(event)
+        }
+    }
+
+    private func removeScrollMonitor() {
+        guard let scrollMonitor else { return }
+        NSEvent.removeMonitor(scrollMonitor)
+        self.scrollMonitor = nil
+    }
+
+    private func handleScroll(_ event: NSEvent) -> NSEvent? {
+        guard isHovering else { return event }
+        let now = Date()
+
+        if scrollGestureGate.shouldConsume(event, now: now) {
+            return nil
+        }
+
+        if event.phase == .began || event.momentumPhase == .began {
+            accumulatedScrollY = 0
+        }
+
+        let deltaX = abs(event.scrollingDeltaX)
+        let deltaY = abs(event.scrollingDeltaY)
+        guard deltaY >= deltaX * verticalIntentRatio else {
+            accumulatedScrollY = 0
+            return event
+        }
+
+        accumulatedScrollY += event.scrollingDeltaY
+
+        if abs(accumulatedScrollY) >= scrollThreshold {
+            accumulatedScrollY = 0
+            scrollGestureGate.lock(now: now)
+            onPromote()
+            return nil
+        }
+
+        if event.phase == .ended || event.momentumPhase == .ended {
+            accumulatedScrollY = 0
+        }
+
+        return event
+    }
 }
 
 /// Individual attachment preview item
 struct PromptAttachmentPreviewItem: View {
     
     let attachment: PromptAttachment
+    fileprivate let scrollGestureGate: ChipScrollGestureGate
     var onOpen: () -> Void
     var onRemove: () -> Void
     
     @State private var thumbnail: NSImage?
     @State private var isHovering: Bool = false
+    @State private var scrollMonitor: Any?
+    @State private var accumulatedScrollY: CGFloat = 0
     
     private let thumbnailSize: CGFloat = 48
     private let containerHeight: CGFloat = 48
     private let cornerRadius: CGFloat = 10
+    private let actionSegmentWidth: CGFloat = 34
+    private let scrollThreshold: CGFloat = 30
+    private let verticalIntentRatio: CGFloat = 1.35
     
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        HStack(spacing: 0) {
             Button(action: onOpen) {
-                // Main horizontal container
                 HStack(spacing: 0) {
-                    // LEFT: Thumbnail preview
                     thumbnailView
                         .frame(width: thumbnailSize, height: containerHeight)
                         .clipShape(
@@ -284,7 +385,6 @@ struct PromptAttachmentPreviewItem: View {
                             )
                         )
                     
-                    // RIGHT: Filename
                     Text(attachment.fileName)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
@@ -293,35 +393,54 @@ struct PromptAttachmentPreviewItem: View {
                         .padding(.horizontal, 12)
                         .frame(maxWidth: 120, alignment: .leading)
                 }
+                .frame(height: containerHeight)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
             }
             .buttonStyle(.plain)
             
-            // Remove button
             if isHovering {
                 Button(action: onRemove) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.white, .red)
+                    ZStack {
+                        Color.red.opacity(0.9)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: actionSegmentWidth, height: containerHeight)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .offset(x: 6, y: -6)
-                .transition(.scale.combined(with: .opacity))
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.28))
+                        .frame(width: 1)
+                }
+                .help("Remove attachment")
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
             }
         }
+        .animation(.easeInOut(duration: 0.15), value: isHovering)
         .onAppear {
             loadThumbnail()
+            setupScrollMonitor()
         }
+        .onDisappear {
+            removeScrollMonitor()
+        }
+        .help("Attachment: click to preview, x or scroll to remove")
     }
     
     @ViewBuilder
@@ -382,6 +501,54 @@ struct PromptAttachmentPreviewItem: View {
                 }
             }
         }
+    }
+
+    private func setupScrollMonitor() {
+        guard scrollMonitor == nil else { return }
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { event in
+            handleScroll(event)
+        }
+    }
+
+    private func removeScrollMonitor() {
+        guard let scrollMonitor else { return }
+        NSEvent.removeMonitor(scrollMonitor)
+        self.scrollMonitor = nil
+    }
+
+    private func handleScroll(_ event: NSEvent) -> NSEvent? {
+        guard isHovering else { return event }
+        let now = Date()
+
+        if scrollGestureGate.shouldConsume(event, now: now) {
+            return nil
+        }
+
+        if event.phase == .began || event.momentumPhase == .began {
+            accumulatedScrollY = 0
+        }
+
+        let deltaX = abs(event.scrollingDeltaX)
+        let deltaY = abs(event.scrollingDeltaY)
+        guard deltaY >= deltaX * verticalIntentRatio else {
+            accumulatedScrollY = 0
+            return event
+        }
+
+        accumulatedScrollY += event.scrollingDeltaY
+
+        if abs(accumulatedScrollY) >= scrollThreshold {
+            accumulatedScrollY = 0
+            scrollGestureGate.lock(now: now)
+            onRemove()
+            return nil
+        }
+
+        if event.phase == .ended || event.momentumPhase == .ended {
+            accumulatedScrollY = 0
+        }
+
+        return event
     }
 }
 

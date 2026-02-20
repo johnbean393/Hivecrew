@@ -38,7 +38,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     private var pendingChangedPaths: Set<String> = []
     private var pendingOverflowed = false
     private var lastSeenEventID: FSEventStreamEventId?
-    private var quietWindowTask: Task<Void, Never>?
+    private var quietWindowTimer: DispatchSourceTimer?
     private var quietWindowGeneration: UInt64 = 0
     private var lastChangeFlushAt: Date = .distantPast
     private var liveHandler: (@Sendable ([IngestionEvent]) async -> Void)?
@@ -79,8 +79,9 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     public func stop() {
         stateQueue.sync {
             quietWindowGeneration &+= 1
-            quietWindowTask?.cancel()
-            quietWindowTask = nil
+            quietWindowTimer?.setEventHandler {}
+            quietWindowTimer?.cancel()
+            quietWindowTimer = nil
             pendingChangedPaths.removeAll(keepingCapacity: true)
             pendingOverflowed = false
         }
@@ -213,7 +214,7 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
     }
 
     private func enqueueChanged(paths: [String], latestEventID: FSEventStreamEventId? = nil) {
-        let generation = stateQueue.sync { () -> UInt64 in
+        stateQueue.sync {
             if let latestEventID {
                 lastSeenEventID = max(lastSeenEventID ?? latestEventID, latestEventID)
             }
@@ -228,26 +229,37 @@ public final class FileConnector: SourceConnector, @unchecked Sendable {
                 }
             }
             quietWindowGeneration &+= 1
-            let generation = quietWindowGeneration
-            quietWindowTask?.cancel()
-            return generation
+            scheduleQuietWindowFlushLocked(afterSeconds: policy.quietWindowSeconds)
         }
+    }
 
-        let quietWindowDelay = policy.quietWindowSeconds
-        let newTask = Task.detached(priority: .utility) { [weak self] in
+    private func scheduleQuietWindowFlushLocked(afterSeconds delay: TimeInterval) {
+        ensureQuietWindowTimerLocked()
+        let delayMs = max(1, Int((delay * 1_000).rounded(.up)))
+        quietWindowTimer?.schedule(
+            deadline: .now() + .milliseconds(delayMs),
+            repeating: .never,
+            leeway: .milliseconds(100)
+        )
+    }
+
+    private func ensureQuietWindowTimerLocked() {
+        guard quietWindowTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: callbackQueue)
+        timer.setEventHandler { [weak self] in
+            self?.handleQuietWindowTimerFire()
+        }
+        timer.resume()
+        quietWindowTimer = timer
+    }
+
+    private func handleQuietWindowTimerFire() {
+        let generation = stateQueue.sync { quietWindowGeneration }
+        Task(priority: .utility) { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .seconds(quietWindowDelay))
-            guard !Task.isCancelled else { return }
             let isLatestGeneration = self.stateQueue.sync { self.quietWindowGeneration == generation }
             guard isLatestGeneration else { return }
             await self.flushPendingChanges()
-        }
-        stateQueue.sync {
-            if quietWindowGeneration == generation {
-                quietWindowTask = newTask
-            } else {
-                newTask.cancel()
-            }
         }
     }
 
