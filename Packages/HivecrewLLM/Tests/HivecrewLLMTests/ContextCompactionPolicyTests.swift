@@ -115,6 +115,16 @@ final class ContextCompactionPolicyTests: XCTestCase {
         let error = GenericError(message: "Context window exceeded: requested 130000 tokens, max context length is 128000.")
         XCTAssertEqual(ContextCompactionPolicy.compactionReason(for: error), .contextExceeded)
     }
+
+    func testCompactionPolicyDetectsMaximumInputExceededMessage() {
+        struct GenericError: LocalizedError {
+            let message: String
+            var errorDescription: String? { message }
+        }
+
+        let error = GenericError(message: "Maximum input exceeded for this model.")
+        XCTAssertEqual(ContextCompactionPolicy.compactionReason(for: error), .contextExceeded)
+    }
 }
 
 private actor MockLLMClient: LLMClientProtocol {

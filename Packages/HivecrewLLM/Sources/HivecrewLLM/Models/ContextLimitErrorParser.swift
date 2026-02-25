@@ -69,6 +69,9 @@ public enum ContextLimitErrorParser {
     }
 
     private static let contextExceededSignals: [String] = [
+        "maximum input exceeded",
+        "max input exceeded",
+        "input exceeded",
         "maximum context length",
         "max context length",
         "context length exceeded",
