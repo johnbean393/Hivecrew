@@ -104,8 +104,8 @@ extension GuestAgentConnection {
     }
     
     /// Run a shell command
-    /// Note: The command is automatically wrapped to include common tool paths (Homebrew, Cargo, etc.)
-    /// since the GuestAgent runs zsh non-interactively without sourcing profile files.
+    /// Note: The command is automatically wrapped with a normalized environment (PATH/HOME, etc.)
+    /// so run_shell behaves consistently regardless of VM launch context.
     func runShell(command: String, timeout: Double? = nil) async throws -> ShellResult {
         // Expand tilde and $HOME to the literal home path. Tilde expansion only works in unquoted 
         // shell contexts, and $HOME variables don't work when passed to programs like Node.js require().
@@ -117,9 +117,9 @@ extension GuestAgentConnection {
             .replacingOccurrences(of: "$HOME/", with: "\(vmHomePath)/")
             .replacingOccurrences(of: "${HOME}/", with: "\(vmHomePath)/")
         
-        // Prepend common tool paths to ensure Homebrew, Cargo, Bun, and other tools are available.
-        // The GuestAgent runs /bin/zsh -c which doesn't source ~/.zshrc or ~/.zprofile,
-        // so tools installed via package managers won't be in PATH by default.
+        // Normalize shell environment for deterministic behavior across launch contexts.
+        // We pin HOME to the VM user so run_shell resolves user-installed assets (e.g. TeX user tree).
+        // We also prepend common tool paths because login/profile startup behavior can vary.
         //
         // Python fix: Detect the active python3 version and ONLY add that version's
         // user site-packages to PYTHONPATH and bin dir to PATH. Adding all versions'
@@ -128,7 +128,19 @@ extension GuestAgentConnection {
         // All Python setup is guarded with `if` so a missing/broken Python install
         // cannot affect the exit status of the actual command that follows.
         let envSetup = """
-            export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.nvm/versions/node/$(ls -1 $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:/Library/TeX/texbin:$PATH" 2>/dev/null
+            export HOME="/Users/hivecrew"
+            export TEXMFHOME="$HOME/Library/texmf"
+            export TEXMFVAR="$HOME/Library/texlive/texmf-var"
+            export TEXMFCONFIG="$HOME/Library/texlive/texmf-config"
+            export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:/Library/TeX/texbin:$PATH"
+            if [ -d "/usr/local/texlive" ]; then
+                _texlive_bin=$(ls -1dt /usr/local/texlive/*/bin/*-darwin 2>/dev/null | head -1)
+                [ -n "$_texlive_bin" ] && PATH="$_texlive_bin:$PATH"
+            fi
+            if [ -d "$HOME/.nvm/versions/node" ]; then
+                _nvm_node_bin=$(ls -1dt "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | head -1)
+                [ -n "$_nvm_node_bin" ] && PATH="$_nvm_node_bin:$PATH"
+            fi
             _pyver=$(python3 -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)
             if [ -n "$_pyver" ]; then
                 [ -d "$HOME/Library/Python/$_pyver/bin" ] && PATH="$HOME/Library/Python/$_pyver/bin:$PATH"
@@ -136,12 +148,27 @@ extension GuestAgentConnection {
                     [ -d "$_d" ] && PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$_d"
                 done
             fi
-            export PATH PYTHONPATH 2>/dev/null
+            export HOME PATH PYTHONPATH TEXMFHOME TEXMFVAR TEXMFCONFIG 2>/dev/null
             """
         
         // Append user-defined environment variables from VM provisioning config
         let userEnvExports = VMProvisioningService.shared.environmentExportString
-        let fullEnvSetup = userEnvExports.isEmpty ? envSetup : "\(envSetup); \(userEnvExports)"
+        
+        // Re-apply critical defaults after user env exports so empty overrides cannot break TeX tooling.
+        let postEnvSetup = """
+            : "${HOME:=/Users/hivecrew}"
+            [ -n "$TEXMFHOME" ] || TEXMFHOME="$HOME/Library/texmf"
+            [ -n "$TEXMFVAR" ] || TEXMFVAR="$HOME/Library/texlive/texmf-var"
+            [ -n "$TEXMFCONFIG" ] || TEXMFCONFIG="$HOME/Library/texlive/texmf-config"
+            if command -v tlmgr >/dev/null 2>&1; then
+                [ -f "$HOME/tlpkg/texlive.tlpdb" ] || command tlmgr init-usertree >/dev/null 2>&1 || true
+                tlmgr() { command tlmgr --usermode "$@"; }
+            fi
+            export HOME TEXMFHOME TEXMFVAR TEXMFCONFIG 2>/dev/null
+            """
+        let fullEnvSetup = userEnvExports.isEmpty
+            ? "\(envSetup); \(postEnvSetup)"
+            : "\(envSetup); \(userEnvExports); \(postEnvSetup)"
         
         let wrappedCommand = "\(fullEnvSetup); \(expandedCommand)"
         
