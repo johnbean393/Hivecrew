@@ -23,8 +23,8 @@ enum ImageGenerationAvailability {
     private static let imageGenerationProviderKey = "imageGenerationProvider"
     private static let imageGenerationModelKey = "imageGenerationModel"
     
-    static let defaultOpenRouterModel = "google/gemini-3-pro-image-preview"
-    static let defaultGeminiModel = "gemini-3-pro-image-preview"
+    static let defaultOpenRouterModel = "google/gemini-3.1-flash-image-preview"
+    static let defaultGeminiModel = "gemini-3.1-flash-image-preview"
     
     static func defaultModel(for provider: ImageGenerationProvider) -> String {
         switch provider {

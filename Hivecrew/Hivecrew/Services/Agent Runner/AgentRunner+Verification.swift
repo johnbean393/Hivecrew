@@ -106,577 +106,70 @@ extension AgentRunner {
         tools: [LLMToolDefinition]?,
         updateConversationHistory: Bool = true
     ) async throws -> LLMResponse {
-        var lastError: Error?
-        var contextCompactionRetries = 0
-        let maxCompactionRetries = 3
-        var workingMessages = messages
-        var workingScaleLevel = currentImageScaleLevel
-        let initialBudget = await ContextBudgetResolver.shared.resolve(using: llmClient)
-        var maxInputTokens = initialBudget.maxInputTokens
-
-        if let maxInputTokens {
-            await proactivelyCompactMessagesIfNeeded(
-                messages: &workingMessages,
-                tools: tools,
-                maxInputTokens: maxInputTokens,
-                updateConversationHistory: updateConversationHistory
-            )
-        }
-        
-        for attempt in 1...maxLLMRetries {
-            do {
-                try throwIfAgentInterrupted()
-
-                // Start reasoning stream before the LLM call
-                await MainActor.run {
-                    statePublisher.startReasoningStream()
-                }
-                
-                // Create a callback that updates the state publisher on the main actor
-                let reasoningCallback: ReasoningStreamCallback = { [weak self] reasoning in
-                    guard let self = self else { return }
-                    Task { @MainActor in
-                        self.statePublisher.updateStreamingReasoning(reasoning)
-                    }
-                }
-                
-                // Use the provided messages (which may have been downscaled)
-                let response = try await runCancellableLLMCall(
-                    messages: workingMessages,
-                    tools: tools,
-                    onReasoningUpdate: reasoningCallback
-                )
-                
-                let hasText = !(response.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-                let hasToolCalls = !(response.toolCalls?.isEmpty ?? true)
-                if !hasText && !hasToolCalls {
-                    // Log details about the empty response for debugging
-                    let responseId = response.id
-                    let finishReason = response.finishReason?.rawValue ?? "nil"
-                    let choiceCount = response.choices.count
-                    let reasoning = response.reasoning?.prefix(100) ?? "nil"
-                    print("[AgentRunner] Empty response detected - id: \(responseId), finishReason: \(finishReason), choices: \(choiceCount), reasoning: \(reasoning)")
-                    throw LLMError.unknown(message: "Empty response from model (id: \(responseId), finishReason: \(finishReason), choices: \(choiceCount))")
-                }
-                
-                return response
-            } catch {
-                lastError = error
-
-                if let learnedBudget = await learnContextBudget(from: error) {
-                    maxInputTokens = learnedBudget.maxInputTokens ?? maxInputTokens
-                }
-
-                // Context pressure should always trigger compaction before retry.
-                if let compactionReason = ContextCompactionPolicy.compactionReason(for: error),
-                   contextCompactionRetries < maxCompactionRetries {
-                    contextCompactionRetries += 1
-
-                    if isPayloadTooLargeError(error) {
-                        // Keep the existing downscale flow for 413-like failures.
-                        if let nextLevel = workingScaleLevel.next {
-                            statePublisher.logInfo("Context compaction triggered (\(compactionReason.rawValue)). Downscaling images to \(nextLevel) and retrying...")
-                            workingScaleLevel = nextLevel
-                            downscaleMessages(&workingMessages, to: nextLevel)
-                            if updateConversationHistory {
-                                currentImageScaleLevel = nextLevel
-                                downscaleConversationImages(to: nextLevel)
-                            }
-                            continue
-                        }
-
-                        statePublisher.logInfo("Context compaction triggered (\(compactionReason.rawValue)). Removing older images and retrying...")
-                        aggressiveCompactMessages(&workingMessages)
-                        truncateToolResultsForContextLimit(&workingMessages, maxToolResultChars: 12000)
-                        if updateConversationHistory {
-                            conversationHistory = workingMessages
-                        }
-                        continue
-                    }
-
-                    statePublisher.logInfo("Context compaction triggered (\(compactionReason.rawValue)). Compacting messages and retrying...")
-                    let compacted = await compactMessagesForContextLimit(
-                        &workingMessages,
-                        keepMostRecentImageOnly: true,
-                        maxToolResultChars: 12000
-                    )
-                    if !compacted {
-                        // Ensure at least one compaction attempt on context-limit errors.
-                        aggressiveCompactMessages(&workingMessages)
-                        truncateToolResultsForContextLimit(&workingMessages, maxToolResultChars: 8000)
-                    }
-                    if updateConversationHistory {
-                        conversationHistory = workingMessages
-                    }
-                    if let maxInputTokens {
-                        await proactivelyCompactMessagesIfNeeded(
-                            messages: &workingMessages,
-                            tools: tools,
-                            maxInputTokens: maxInputTokens,
-                            updateConversationHistory: updateConversationHistory
-                        )
-                    }
-                    continue
-                }
-                
-                // Retry explicitly on empty responses
-                if isEmptyResponseError(error) && attempt < maxLLMRetries {
-                    try throwIfAgentInterrupted()
-                    let delay = baseRetryDelay * pow(2.0, Double(attempt - 1))
-                    statePublisher.logInfo("LLM returned empty response (attempt \(attempt)/\(maxLLMRetries)). Retrying in \(Int(delay))s...")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    continue
-                }
-                
-                // Check if error is retryable
-                if isRetryableError(error) && attempt < maxLLMRetries {
-                    try throwIfAgentInterrupted()
-                    let delay = baseRetryDelay * pow(2.0, Double(attempt - 1))
-                    statePublisher.logInfo("LLM call failed (attempt \(attempt)/\(maxLLMRetries)): \(formatLLMError(error)). Retrying in \(Int(delay))s...")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                } else {
-                    throw error
-                }
-            }
-        }
-        
-        // Should never reach here, but just in case
-        throw lastError ?? AgentRunnerError.taskFailed("LLM call failed after \(maxLLMRetries) attempts")
-    }
-    
-    /// Check if an error indicates payload was too large
-    private func isPayloadTooLargeError(_ error: Error) -> Bool {
-        // Check for LLMError.payloadTooLarge
-        if let llmError = error as? LLMError, llmError.isPayloadTooLarge {
-            return true
-        }
-        
-        // Also check error message for 413 or "oversized payload" 
-        let errorString = error.localizedDescription.lowercased()
-        return errorString.contains("413") || 
-               errorString.contains("oversized payload") ||
-               errorString.contains("payload too large") ||
-               errorString.contains("request entity too large")
-    }
-
-    private func proactivelyCompactMessagesIfNeeded(
-        messages: inout [LLMMessage],
-        tools: [LLMToolDefinition]?,
-        maxInputTokens: Int,
-        updateConversationHistory: Bool
-    ) async {
-        guard maxInputTokens > 0 else {
-            return
+        // Start reasoning stream before the LLM call
+        await MainActor.run {
+            statePublisher.startReasoningStream()
         }
 
-        let maxPasses = 3
-        for pass in 1...maxPasses {
-            let estimated = PromptUsageEstimator.estimatePromptTokens(messages: messages, tools: tools)
-            let decision = ContextCompactionPolicy.proactiveDecision(
-                estimatedPromptTokens: estimated,
-                maxInputTokens: maxInputTokens
-            )
-            guard decision.shouldCompact else {
-                return
-            }
-
-            let fillPercent = Int(((decision.fillRatio ?? 0) * 100).rounded())
-            statePublisher.logInfo("Context compaction triggered (threshold85): \(estimated)/\(maxInputTokens) tokens (\(fillPercent)% full).")
-
-            let changed = await compactMessagesForContextLimit(
-                &messages,
-                keepMostRecentImageOnly: false,
-                maxToolResultChars: 12000
-            )
-            if !changed {
-                statePublisher.logInfo("Context remained above threshold but no additional compaction was possible.")
-                return
-            }
-
-            if updateConversationHistory {
-                conversationHistory = messages
-            }
-
-            let afterEstimate = PromptUsageEstimator.estimatePromptTokens(messages: messages, tools: tools)
-            let afterFill = Int(
-                (PromptUsageEstimator.fillRatio(
-                    estimatedPromptTokens: afterEstimate,
-                    maxInputTokens: maxInputTokens
-                ) * 100).rounded()
-            )
-            statePublisher.logInfo("Context compaction pass \(pass) -> \(afterEstimate)/\(maxInputTokens) tokens (\(afterFill)% full).")
-        }
-    }
-
-    @discardableResult
-    private func compactMessagesForContextLimit(
-        _ messages: inout [LLMMessage],
-        keepMostRecentImageOnly: Bool,
-        maxToolResultChars: Int
-    ) async -> Bool {
-        var changed = false
-        let keepRecentCount = keepMostRecentImageOnly ? 6 : 8
-        if await summarizeOlderMessagesWithLLM(&messages, keepRecentCount: keepRecentCount) {
-            changed = true
-        }
-
-        let maxImagesToKeep = keepMostRecentImageOnly ? 1 : 2
-        var keptImageMessages = 0
-
-        for i in stride(from: messages.count - 1, through: 0, by: -1) {
-            let message = messages[i]
-            let hasImages = message.role == .user && message.hasImages
-            let shouldDropImages = hasImages && (keptImageMessages >= maxImagesToKeep)
-            if hasImages && !shouldDropImages {
-                keptImageMessages += 1
-            }
-
-            var newContent: [LLMMessageContent] = []
-            var removedImages = false
-
-            for part in message.content {
-                switch part {
-                case .imageBase64, .imageURL:
-                    if shouldDropImages {
-                        removedImages = true
-                    } else {
-                        newContent.append(part)
-                    }
-                case .toolResult(let toolCallId, let content):
-                    if content.count > maxToolResultChars {
-                        let truncated = String(content.prefix(maxToolResultChars))
-                        newContent.append(
-                            .toolResult(
-                                toolCallId: toolCallId,
-                                content: truncated + "\n\n[... truncated to reduce context size ...]"
-                            )
-                        )
-                        changed = true
-                    } else {
-                        newContent.append(part)
-                    }
-                default:
-                    newContent.append(part)
-                }
-            }
-
-            if removedImages {
-                changed = true
-                if newContent.isEmpty {
-                    newContent = [.text("[Image removed to reduce context usage]")]
-                } else {
-                    newContent.append(.text("[Image removed to reduce context usage]"))
-                }
-            }
-
-            if newContent != message.content {
-                changed = true
-                messages[i] = LLMMessage(
-                    role: message.role,
-                    content: newContent,
-                    name: message.name,
-                    toolCalls: message.toolCalls,
-                    toolCallId: message.toolCallId,
-                    reasoning: message.reasoning
-                )
+        // Create a callback that updates the state publisher on the main actor
+        let reasoningCallback: ReasoningStreamCallback = { [weak self] reasoning in
+            guard let self = self else { return }
+            Task { @MainActor in
+                self.statePublisher.updateStreamingReasoning(reasoning)
             }
         }
 
-        return changed
-    }
-
-    private func summarizeOlderMessagesWithLLM(
-        _ messages: inout [LLMMessage],
-        keepRecentCount: Int
-    ) async -> Bool {
-        let startIndex = messages.first?.role == .system ? 1 : 0
-        let endIndexExclusive = max(startIndex, messages.count - keepRecentCount)
-        guard endIndexExclusive - startIndex >= 3 else {
-            return false
-        }
-
-        let olderMessages = Array(messages[startIndex..<endIndexExclusive])
-        guard let summary = await generateCompactionSummaryUsingLLM(for: olderMessages) else {
-            return false
-        }
-
-        let summaryMessage = LLMMessage.assistant(
-            """
-            [Compacted context summary generated by the model]
-            \(summary)
-            """
+        let hooks = SharedLLMRetryHandler.Hooks(
+            logInfo: { [weak self] message in
+                self?.statePublisher.logInfo(message)
+            },
+            checkInterruption: { [weak self] in
+                try self?.throwIfAgentInterrupted()
+            },
+            onMessagesChanged: { [weak self] compactedMessages in
+                guard let self, updateConversationHistory else { return }
+                self.conversationHistory = compactedMessages
+            },
+            onImageScaleLevelChanged: { [weak self] newScale in
+                guard let self, updateConversationHistory else { return }
+                self.currentImageScaleLevel = newScale
+            }
         )
-        messages.replaceSubrange(startIndex..<endIndexExclusive, with: [summaryMessage])
-        return true
-    }
 
-    private func generateCompactionSummaryUsingLLM(
-        for messages: [LLMMessage]
-    ) async -> String? {
-        let transcript = buildCompactionTranscript(from: messages, maxCharacters: 24_000)
-        guard !transcript.isEmpty else {
-            return nil
-        }
-
-        let compactionMessages: [LLMMessage] = [
-            .system(
-                """
-                You are compacting prior agent context for future turns.
-                Produce a dense factual summary that preserves:
-                - user goals and constraints
-                - decisions already made
-                - completed actions and outcomes
-                - unresolved tasks, blockers, and errors
-                - exact file paths, commands, and thresholds when present
-                Do not invent facts. Keep it concise and scannable.
-                """
-            ),
-            .user(
-                """
-                Compact this prior context. Return only the summary.
-
-                \(transcript)
-                """
-            )
-        ]
-
-        do {
-            let response = try await llmClient.chat(messages: compactionMessages, tools: nil)
-            guard let text = response.text?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !text.isEmpty else {
-                return nil
-            }
-            // Keep inserted summaries bounded.
-            return String(text.prefix(8000))
-        } catch {
-            statePublisher.logInfo("LLM summary compaction failed: \(error.localizedDescription). Falling back to heuristic compaction.")
-            return nil
-        }
-    }
-
-    private func buildCompactionTranscript(
-        from messages: [LLMMessage],
-        maxCharacters: Int
-    ) -> String {
-        guard maxCharacters > 0 else { return "" }
-        var parts: [String] = []
-        var totalCount = 0
-
-        for message in messages {
-            let roleLabel = message.role.rawValue.uppercased()
-            var body = message.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            let imageCount = message.content.reduce(into: 0) { partial, content in
-                switch content {
-                case .imageBase64, .imageURL:
-                    partial += 1
-                default:
-                    break
-                }
-            }
-            if imageCount > 0 {
-                body += "\n[Images omitted: \(imageCount)]"
-            }
-
-            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
-                let names = toolCalls.map { $0.function.name }.joined(separator: ", ")
-                body += "\n[Tool calls: \(names)]"
-            }
-
-            let candidate = "[\(roleLabel)] \(body)"
-            guard !candidate.isEmpty else { continue }
-
-            if totalCount + candidate.count > maxCharacters {
-                let remaining = max(0, maxCharacters - totalCount)
-                if remaining > 64 {
-                    parts.append(String(candidate.prefix(remaining)))
-                }
-                parts.append("[TRUNCATED]")
-                break
-            }
-
-            parts.append(candidate)
-            totalCount += candidate.count
-        }
-
-        return parts.joined(separator: "\n\n")
-    }
-
-    @discardableResult
-    private func truncateToolResultsForContextLimit(
-        _ messages: inout [LLMMessage],
-        maxToolResultChars: Int
-    ) -> Bool {
-        var changed = false
-        for i in 0..<messages.count {
-            let message = messages[i]
-            var updatedContent: [LLMMessageContent] = []
-            var messageChanged = false
-
-            for part in message.content {
-                switch part {
-                case .toolResult(let toolCallId, let content):
-                    if content.count > maxToolResultChars {
-                        let truncated = String(content.prefix(maxToolResultChars))
-                        updatedContent.append(
-                            .toolResult(
-                                toolCallId: toolCallId,
-                                content: truncated + "\n\n[... truncated to reduce context size ...]"
-                            )
-                        )
-                        messageChanged = true
-                    } else {
-                        updatedContent.append(part)
-                    }
-                default:
-                    updatedContent.append(part)
-                }
-            }
-
-            if messageChanged {
-                changed = true
-                messages[i] = LLMMessage(
-                    role: message.role,
-                    content: updatedContent,
-                    name: message.name,
-                    toolCalls: message.toolCalls,
-                    toolCallId: message.toolCallId,
-                    reasoning: message.reasoning
-                )
-            }
-        }
-        return changed
-    }
-
-    private func learnContextBudget(from error: Error) async -> ContextBudget? {
-        guard let contextInfo = ContextLimitErrorParser.parse(error: error) else {
-            return nil
-        }
-        let learned = await ContextBudgetResolver.shared.learnContextLimit(
-            providerBaseURL: llmClient.configuration.baseURL,
-            modelId: llmClient.configuration.model,
-            maxInputTokens: contextInfo.maxInputTokens,
-            requestedTokens: contextInfo.requestedTokens
+        let options = SharedLLMRetryHandler.Options(
+            maxLLMRetries: maxLLMRetries,
+            maxContextCompactionRetries: 3,
+            baseRetryDelay: baseRetryDelay,
+            proactiveCompactionPasses: 3,
+            normalToolResultLimit: 12000,
+            aggressiveToolResultLimit: 8000
         )
-        if let learnedLimit = learned?.maxInputTokens {
-            statePublisher.logInfo("Learned context budget from provider error: \(learnedLimit) tokens.")
-        }
-        return learned
-    }
-    
-    /// Detect empty response errors from the model
-    private func isEmptyResponseError(_ error: Error) -> Bool {
-        if let llmError = error as? LLMError {
-            switch llmError {
-            case .noChoices:
-                return true
-            case .unknown(let message):
-                let normalized = message.lowercased()
-                return normalized.contains("empty response") || normalized.contains("no content")
-            default:
-                break
-            }
-        }
-        
-        let errorString = error.localizedDescription.lowercased()
-        return errorString.contains("empty response") ||
-               errorString.contains("no content") ||
-               errorString.contains("no response choices")
-    }
-    
-    /// Aggressively compact any message array when at minimum image scale
-    /// Keeps only the most recent image
-    private func aggressiveCompactMessages(_ messages: inout [LLMMessage]) {
-        var foundFirst = false
-        
-        for i in stride(from: messages.count - 1, through: 0, by: -1) {
-            let message = messages[i]
-            
-            if message.role == .user && message.hasImages {
-                if foundFirst {
-                    let textContent = message.textContent
-                    messages[i] = .user("[Image removed to reduce payload size]\n\(textContent)")
-                } else {
-                    foundFirst = true
-                }
-            }
-        }
-    }
-    
-    /// Downscale images in any message array to the specified scale level
-    private func downscaleMessages(_ messages: inout [LLMMessage], to scaleLevel: ImageDownscaler.ScaleLevel) {
-        for i in 0..<messages.count {
-            let message = messages[i]
-            
-            guard message.role == .user && message.hasImages else { continue }
-            
-            var newContent: [LLMMessageContent] = []
-            var wasModified = false
-            
-            for content in message.content {
-                switch content {
-                case .imageBase64(let data, let mimeType):
-                    if let downscaled = ImageDownscaler.downscale(
-                        base64Data: data,
-                        mimeType: mimeType,
-                        to: scaleLevel
-                    ) {
-                        newContent.append(.imageBase64(data: downscaled.data, mimeType: downscaled.mimeType))
-                        wasModified = true
-                    } else {
-                        newContent.append(content)
-                    }
-                default:
-                    newContent.append(content)
-                }
-            }
-            
-            if wasModified {
-                messages[i] = LLMMessage(
-                    role: message.role,
-                    content: newContent,
-                    name: message.name,
-                    toolCalls: message.toolCalls,
-                    toolCallId: message.toolCallId,
-                    reasoning: message.reasoning
+
+        let outcome = try await SharedLLMRetryHandler.callWithRetry(
+            llmClient: llmClient,
+            messages: messages,
+            tools: tools,
+            imageScaleLevel: currentImageScaleLevel,
+            onReasoningUpdate: reasoningCallback,
+            onContentUpdate: nil,
+            llmCall: { [weak self] callMessages, callTools, callReasoningUpdate, _ in
+                guard let self else { throw LLMError.cancelled }
+                return try await self.runCancellableLLMCall(
+                    messages: callMessages,
+                    tools: callTools,
+                    onReasoningUpdate: callReasoningUpdate
                 )
-            }
+            },
+            options: options,
+            hooks: hooks
+        )
+
+        if updateConversationHistory {
+            conversationHistory = outcome.messages
+            currentImageScaleLevel = outcome.imageScaleLevel
         }
-    }
-    
-    /// Check if an error is retryable (transient)
-    func isRetryableError(_ error: Error) -> Bool {
-        let errorString = error.localizedDescription.lowercased()
-        
-        // Rate limits
-        if errorString.contains("rate limit") || errorString.contains("too many requests") {
-            return true
-        }
-        
-        // Network errors
-        if errorString.contains("network") || errorString.contains("timeout") ||
-           errorString.contains("connection") || errorString.contains("temporarily unavailable") {
-            return true
-        }
-        
-        // Server errors (5xx)
-        if errorString.contains("500") || errorString.contains("502") ||
-           errorString.contains("503") || errorString.contains("504") {
-            return true
-        }
-        
-        // Check for URLError types
-        if let urlError = error as? URLError {
-            switch urlError.code {
-            case .timedOut, .networkConnectionLost, .notConnectedToInternet,
-                 .cannotConnectToHost, .cannotFindHost:
-                return true
-            default:
-                break
-            }
-        }
-        
-        return false
+
+        return outcome.response
     }
 
     func isCancellationError(_ error: Error) -> Bool {

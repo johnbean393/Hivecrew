@@ -442,9 +442,9 @@ struct TaskDefaultsSettingsView: View {
     
     private var modelHelpText: String {
         if imageGenerationProvider == "openRouter" {
-            return "e.g., google/gemini-2.5-flash-preview-image-generation, google/gemini-3-pro-image-preview"
+            return "e.g., google/gemini-3.1-flash-image-preview, google/gemini-3-pro-image-preview"
         } else {
-            return "e.g., gemini-2.5-flash-image, gemini-3-pro-image-preview"
+            return "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview"
         }
     }
     

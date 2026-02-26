@@ -46,6 +46,7 @@
 		20360DC32F38234300A9B998 /* CloudflaredManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBD2F38234300A9B998 /* CloudflaredManager.swift */; };
 		20360DC42F38234300A9B998 /* RemoteAccessKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBF2F38234300A9B998 /* RemoteAccessKeychain.swift */; };
 		20360DC52F38234300A9B998 /* RemoteAccessAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20360DBE2F38234300A9B998 /* RemoteAccessAPIClient.swift */; };
+		20380DD82F4ED59600767441 /* SharedLLMRetryHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20380DD72F4ED59600767441 /* SharedLLMRetryHandler.swift */; };
 		203838DD2F3904440026DC9A /* DeviceAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203838DC2F3904440026DC9A /* DeviceAuthService.swift */; };
 		203838DF2F39066E0026DC9A /* PairingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203838DE2F39066E0026DC9A /* PairingWindowController.swift */; };
 		204963372F17AD61007DD5FD /* QuestionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204963362F17AD61007DD5FD /* QuestionWindowController.swift */; };
@@ -286,6 +287,7 @@
 		20360DBE2F38234300A9B998 /* RemoteAccessAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessAPIClient.swift; sourceTree = "<group>"; };
 		20360DBF2F38234300A9B998 /* RemoteAccessKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessKeychain.swift; sourceTree = "<group>"; };
 		20360DC02F38234300A9B998 /* RemoteAccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAccessManager.swift; sourceTree = "<group>"; };
+		20380DD72F4ED59600767441 /* SharedLLMRetryHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLLMRetryHandler.swift; sourceTree = "<group>"; };
 		203838DC2F3904440026DC9A /* DeviceAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAuthService.swift; sourceTree = "<group>"; };
 		203838DE2F39066E0026DC9A /* PairingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingWindowController.swift; sourceTree = "<group>"; };
 		204963362F17AD61007DD5FD /* QuestionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionWindowController.swift; sourceTree = "<group>"; };
@@ -629,6 +631,7 @@
 			children = (
 				202F64712F2D6BFD00F6F359 /* ImageDownscaler.swift */,
 				3001A0042F15000000000004 /* AgentRunner.swift */,
+				20380DD72F4ED59600767441 /* SharedLLMRetryHandler.swift */,
 				204DF43F2F15744D004AB99B /* AgentRunner+Loop.swift */,
 				204DF4402F15744D004AB99B /* AgentRunner+Verification.swift */,
 			);
@@ -1429,6 +1432,7 @@
 				204DF4412F15744D004AB99B /* AgentRunner+Verification.swift in Sources */,
 				202F646D2F2D26DE00F6F359 /* ImageGenerationService.swift in Sources */,
 				20E22E162F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift in Sources */,
+				20380DD82F4ED59600767441 /* SharedLLMRetryHandler.swift in Sources */,
 				20E22E172F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift in Sources */,
 				202F646E2F2D26DE00F6F359 /* ImageGenerationAvailability.swift in Sources */,
 				204DF4422F15744D004AB99B /* AgentRunner+Loop.swift in Sources */,
