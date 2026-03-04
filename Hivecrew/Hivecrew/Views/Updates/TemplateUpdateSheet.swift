@@ -125,7 +125,7 @@ struct TemplateUpdateSheet: View {
                 
                 HStack(spacing: 16) {
                     Button("Ask Later") {
-                        downloadService.askLater()
+                        downloadService.askLater(for: update.version)
                         isPresented = false
                     }
                     .buttonStyle(.plain)

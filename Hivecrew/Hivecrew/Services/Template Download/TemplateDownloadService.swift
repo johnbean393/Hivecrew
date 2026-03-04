@@ -57,6 +57,16 @@ public class TemplateDownloadService: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "skippedTemplateVersion") }
     }
     
+    private var askLaterVersion: String? {
+        get { UserDefaults.standard.string(forKey: "askLaterTemplateVersion") }
+        set { UserDefaults.standard.set(newValue, forKey: "askLaterTemplateVersion") }
+    }
+    
+    private var askLaterUntilDate: Date? {
+        get { UserDefaults.standard.object(forKey: "askLaterTemplateUntilDate") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "askLaterTemplateUntilDate") }
+    }
+    
     // MARK: - Singleton
     
     public static let shared = TemplateDownloadService()
@@ -78,16 +88,38 @@ public class TemplateDownloadService: ObservableObject {
     public func shouldPromptForUpdate() -> Bool {
         guard updateAvailable, let update = availableUpdate else { return false }
         if let skipped = skippedVersion, skipped == update.version { return false }
+        if let deferredVersion = askLaterVersion,
+           deferredVersion == update.version,
+           let askLaterUntilDate,
+           Date() < askLaterUntilDate {
+            return false
+        }
         return true
     }
     
     public func skipVersion(_ version: String) { skippedVersion = version }
-    public func askLater() { }
+    
+    public func askLater(for version: String) {
+        askLaterVersion = version
+        askLaterUntilDate = Date().addingTimeInterval(24 * 60 * 60)
+    }
+    
+    public func askLater() {
+        guard let update = availableUpdate else { return }
+        askLater(for: update.version)
+    }
+    
     public func clearSkippedVersion() { skippedVersion = nil }
+    
+    public func clearAskLaterPreference() {
+        askLaterVersion = nil
+        askLaterUntilDate = nil
+    }
     
     public func markTemplateAsCompatible(_ template: RemoteTemplate) {
         lastKnownCompatibleVersion = template.version
         lastKnownCompatibleId = template.id
+        clearAskLaterPreference()
         updateAvailable = false
         availableUpdate = nil
     }
@@ -99,6 +131,7 @@ public class TemplateDownloadService: ObservableObject {
             try? fileManager.removeItem(at: oldTemplatePath)
         }
         clearSkippedVersion()
+        clearAskLaterPreference()
         return newTemplateId
     }
 
