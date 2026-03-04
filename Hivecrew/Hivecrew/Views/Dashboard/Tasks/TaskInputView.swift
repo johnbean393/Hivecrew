@@ -23,12 +23,15 @@ struct TaskInputView: View {
     @State private var isSubmitting: Bool = false
     @State private var mentionedSkillNames: [String] = []
     @State private var copyCount: TaskCopyCount = .one
+    @State private var multiModelSelections: [PromptModelSelection] = []
     @StateObject private var contextProvider = PromptContextSuggestionProvider()
     @State private var hasDonatedGhostContextTip = false
     
     // Persisted selections
     @AppStorage("lastSelectedProviderId") private var selectedProviderId: String = ""
     @AppStorage("lastSelectedModelId") private var selectedModelId: String = ""
+    @AppStorage("useMultiplePromptModels") private var useMultiplePromptModels: Bool = false
+    @AppStorage("promptModelSelections") private var promptModelSelectionsData: String = ""
     @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
     @AppStorage("workerModelId") private var workerModelId: String?
     
@@ -52,6 +55,8 @@ struct TaskInputView: View {
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
                 copyCount: $copyCount,
+                useMultipleModels: $useMultiplePromptModels,
+                multiModelSelections: $multiModelSelections,
                 mentionedSkillNames: $mentionedSkillNames,
                 planFirstEnabled: $planFirstEnabled,
                 onSubmit: {
@@ -79,6 +84,7 @@ struct TaskInputView: View {
             }
             contextProvider.setWorkerClientProvider(taskService)
             contextProvider.updateDraft(taskDescription)
+            loadPromptModelSelections()
         }
         .onChange(of: providers) { _, newValue in
             // Update if no provider selected or stored provider was deleted.
@@ -100,11 +106,18 @@ struct TaskInputView: View {
         .onChange(of: attachments) { _, _ in
             donateGhostTipIfNeeded()
         }
+        .onChange(of: multiModelSelections) { _, _ in
+            persistPromptModelSelections()
+        }
     }
     
     private func submitTask() async {
         guard !taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        guard !selectedProviderId.isEmpty else { return }
+        if useMultiplePromptModels {
+            guard !multiModelSelections.isEmpty else { return }
+        } else {
+            guard !selectedProviderId.isEmpty else { return }
+        }
         guard isWorkerModelConfigured else { return }
         
         isSubmitting = true
@@ -117,8 +130,14 @@ struct TaskInputView: View {
         let effectiveModelId = currentModelId.isEmpty ? "moonshotai/kimi-k2.5" : currentModelId
         let effectiveProviderId = currentProviderId.isEmpty ? selectedProviderId : currentProviderId
         
-        let taskCount = copyCount.rawValue
-        print("TaskInputView: Submitting \(taskCount) task(s) with provider=\(effectiveProviderId), model=\(effectiveModelId)")
+        let executionTargets = resolvedExecutionTargets(
+            effectiveProviderId: effectiveProviderId,
+            effectiveModelId: effectiveModelId
+        )
+        let taskCount = executionTargets.reduce(0) { partial, target in
+            partial + target.copyCount
+        }
+        print("TaskInputView: Submitting \(taskCount) task(s) across \(executionTargets.count) target(s)")
         
         do {
             let trimmedDescription = taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -143,21 +162,23 @@ struct TaskInputView: View {
             let selectedSuggestionIds = contextProvider.selectedSuggestionIDs()
             let modeOverrides = contextProvider.selectedModeOverrides()
             
-            // Create the specified number of task copies
-            for _ in 0..<taskCount {
-                _ = try await taskService.createTask(
-                    description: trimmedDescription,
-                    providerId: effectiveProviderId,
-                    modelId: effectiveModelId,
-                    attachedFilePaths: filePaths,
-                    mentionedSkillNames: mentionedSkillNames,
-                    retrievalContextPackId: contextPack?.id,
-                    retrievalInlineContextBlocks: inlineContext,
-                    retrievalContextAttachmentPaths: contextAttachmentPaths,
-                    retrievalSelectedSuggestionIds: selectedSuggestionIds,
-                    retrievalModeOverrides: modeOverrides,
-                    planFirstEnabled: planFirstEnabled
-                )
+            // Create one task per model target and requested copy count.
+            for target in executionTargets {
+                for _ in 0..<target.copyCount {
+                    _ = try await taskService.createTask(
+                        description: trimmedDescription,
+                        providerId: target.providerId,
+                        modelId: target.modelId,
+                        attachedFilePaths: filePaths,
+                        mentionedSkillNames: mentionedSkillNames,
+                        retrievalContextPackId: contextPack?.id,
+                        retrievalInlineContextBlocks: inlineContext,
+                        retrievalContextAttachmentPaths: contextAttachmentPaths,
+                        retrievalSelectedSuggestionIds: selectedSuggestionIds,
+                        retrievalModeOverrides: modeOverrides,
+                        planFirstEnabled: planFirstEnabled
+                    )
+                }
             }
             
             // Track task creation for tips
@@ -168,11 +189,77 @@ struct TaskInputView: View {
             taskDescription = ""
             attachments = []
             mentionedSkillNames = []
-            copyCount = .one  // Reset to single copy after submission
+            if !useMultiplePromptModels {
+                copyCount = .one  // Reset to single copy after submission
+            }
             contextProvider.clearAfterSubmit()
         } catch {
             print("Failed to create task: \(error)")
         }
+    }
+
+    private func resolvedExecutionTargets(
+        effectiveProviderId: String,
+        effectiveModelId: String
+    ) -> [(providerId: String, modelId: String, copyCount: Int)] {
+        if useMultiplePromptModels {
+            let deduped = deduplicatedSelections(multiModelSelections)
+            let targets = deduped
+                .filter { !$0.providerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .filter { !$0.modelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .map { selection in
+                    (
+                        providerId: selection.providerId,
+                        modelId: selection.modelId,
+                        copyCount: selection.copyCount.rawValue
+                    )
+                }
+            if !targets.isEmpty {
+                return targets
+            }
+        }
+
+        return [(effectiveProviderId, effectiveModelId, copyCount.rawValue)]
+    }
+
+    private func deduplicatedSelections(_ selections: [PromptModelSelection]) -> [PromptModelSelection] {
+        var order: [String] = []
+        var keyed: [String: PromptModelSelection] = [:]
+
+        for selection in selections {
+            if keyed[selection.id] == nil {
+                order.append(selection.id)
+                keyed[selection.id] = selection
+            } else {
+                keyed[selection.id] = selection
+            }
+        }
+
+        return order.compactMap { keyed[$0] }
+    }
+
+    private func loadPromptModelSelections() {
+        let raw = promptModelSelectionsData.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty, let data = raw.data(using: .utf8) else {
+            multiModelSelections = []
+            return
+        }
+        if let decoded = try? JSONDecoder().decode([PromptModelSelection].self, from: data) {
+            multiModelSelections = deduplicatedSelections(decoded)
+        } else {
+            multiModelSelections = []
+        }
+    }
+
+    private func persistPromptModelSelections() {
+        let deduped = deduplicatedSelections(multiModelSelections)
+        multiModelSelections = deduped
+        guard let data = try? JSONEncoder().encode(deduped),
+              let encoded = String(data: data, encoding: .utf8) else {
+            promptModelSelectionsData = ""
+            return
+        }
+        promptModelSelectionsData = encoded
     }
 
     private func syncContextAttachmentsIntoPromptBar() {

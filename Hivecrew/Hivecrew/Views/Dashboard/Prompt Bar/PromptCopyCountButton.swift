@@ -8,7 +8,7 @@
 import SwiftUI
 
 /// Options for number of task copies to create
-enum TaskCopyCount: Int, CaseIterable, Identifiable {
+enum TaskCopyCount: Int, CaseIterable, Identifiable, Codable {
 
     case one = 1
     case two = 2
@@ -36,6 +36,16 @@ enum TaskCopyCount: Int, CaseIterable, Identifiable {
         }
     }
 
+}
+
+struct PromptModelSelection: Codable, Identifiable, Hashable {
+    let providerId: String
+    let modelId: String
+    var copyCount: TaskCopyCount
+
+    var id: String {
+        "\(providerId)::\(modelId)"
+    }
 }
 
 // MARK: - MenuOptions Protocol

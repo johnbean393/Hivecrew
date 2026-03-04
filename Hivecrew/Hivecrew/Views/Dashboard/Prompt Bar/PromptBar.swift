@@ -50,6 +50,8 @@ struct PromptBar: View {
     
     // Copy count selection state
     @Binding var copyCount: TaskCopyCount
+    @Binding var useMultipleModels: Bool
+    @Binding var multiModelSelections: [PromptModelSelection]
     
     // Mentioned skill names (populated on submit)
     @Binding var mentionedSkillNames: [String]
@@ -118,6 +120,13 @@ struct PromptBar: View {
               let workerModelId else { return false }
         return !workerModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !workerModelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasExecutionTarget: Bool {
+        if useMultipleModels {
+            return !multiModelSelections.isEmpty
+        }
+        return !selectedProviderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     private var showMentionSuggestions: Bool {
@@ -257,15 +266,20 @@ struct PromptBar: View {
                     PromptModelButton(
                         selectedProviderId: $selectedProviderId,
                         selectedModelId: $selectedModelId,
+                        copyCount: $copyCount,
+                        useMultipleModels: $useMultipleModels,
+                        multiModelSelections: $multiModelSelections,
                         providers: Array(providers),
                         isFocused: isFocused
                     )
                     
-                    PromptCopyCountButton(
-                        copyCount: $copyCount,
-                        isFocused: isFocused
-                    )
-                    .popoverTip(batchExecutionTip, arrowEdge: .bottom)
+                    if !useMultipleModels {
+                        PromptCopyCountButton(
+                            copyCount: $copyCount,
+                            isFocused: isFocused
+                        )
+                        .popoverTip(batchExecutionTip, arrowEdge: .bottom)
+                    }
                     
                     // Plan First toggle (rightmost)
                     PlanFirstToggle(
@@ -312,7 +326,7 @@ struct PromptBar: View {
                 .foregroundStyle(isSubmitting ? Color.secondary : Color.accentColor)
         }
         .buttonStyle(.plain)
-        .disabled(isSubmitting || selectedProviderId.isEmpty || !hasWorkerModelConfigured)
+        .disabled(isSubmitting || !hasExecutionTarget || !hasWorkerModelConfigured)
         .help(sendButtonHelpText)
     }
     
@@ -358,7 +372,7 @@ struct PromptBar: View {
         let resolvedText = mentionInsertionController.getResolvedText()
         let trimmed = resolvedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        guard !selectedProviderId.isEmpty else { return }
+        guard hasExecutionTarget else { return }
         guard hasWorkerModelConfigured else { return }
         
         // Get mentioned skill names before clearing
@@ -374,6 +388,9 @@ struct PromptBar: View {
     }
 
     private var sendButtonHelpText: String {
+        if useMultipleModels && multiModelSelections.isEmpty {
+            return "Select at least one model when Use Multiple Models is enabled"
+        }
         if !hasWorkerModelConfigured {
             return "Configure worker provider + model in onboarding or Settings → Providers"
         }
@@ -548,6 +565,8 @@ struct PromptBar: View {
         @State var providerId = ""
         @State var modelId = ""
         @State var copyCount: TaskCopyCount = .one
+        @State var useMultipleModels = false
+        @State var multiModelSelections: [PromptModelSelection] = []
         @State var isSubmitting = false
         @State var mentionedSkills: [String] = []
         @State var planFirst = false
@@ -563,6 +582,8 @@ struct PromptBar: View {
                     selectedProviderId: $providerId,
                     selectedModelId: $modelId,
                     copyCount: $copyCount,
+                    useMultipleModels: $useMultipleModels,
+                    multiModelSelections: $multiModelSelections,
                     mentionedSkillNames: $mentionedSkills,
                     planFirstEnabled: $planFirst,
                     onSubmit: {

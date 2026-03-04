@@ -13,6 +13,9 @@ import HivecrewLLM
 struct PromptModelPopover: View {
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var copyCount: TaskCopyCount
+    @Binding var useMultipleModels: Bool
+    @Binding var multiModelSelections: [PromptModelSelection]
     let providers: [LLMProviderRecord]
     @Binding var isPresented: Bool
     
@@ -76,8 +79,9 @@ struct PromptModelPopover: View {
     }
     
     var orderedProviderScopedModels: [LLMProviderModel] {
+        let baseModels: [LLMProviderModel]
         if isOpenRouterProvider {
-            return providerScopedModels.sorted { lhs, rhs in
+            baseModels = providerScopedModels.sorted { lhs, rhs in
                 let lhsProvider = providerSlug(from: lhs.id)
                 let rhsProvider = providerSlug(from: rhs.id)
                 
@@ -92,8 +96,14 @@ struct PromptModelPopover: View {
                 
                 return lhs.id.localizedStandardCompare(rhs.id) == .orderedAscending
             }
+        } else {
+            baseModels = providerScopedModels
         }
-        return providerScopedModels
+
+        // Always bubble selected models to the top while preserving relative order.
+        let selected = baseModels.filter { isModelPinnedToTop($0.id) }
+        let unselected = baseModels.filter { !isModelPinnedToTop($0.id) }
+        return selected + unselected
     }
     
     var filteredModels: [LLMProviderModel] {
@@ -124,6 +134,10 @@ struct PromptModelPopover: View {
             
             // Model list
             modelList
+
+            Divider()
+
+            multiModelToggleRow
         }
         .frame(width: popoverWidth, height: 480)
         .onAppear {
@@ -138,6 +152,12 @@ struct PromptModelPopover: View {
         }
         .onChange(of: searchText) { _, _ in
             resetHoverPanelState()
+        }
+        .onChange(of: useMultipleModels) { _, isEnabled in
+            if isEnabled {
+                // Avoid carrying a stale multi-selection into a new multi-model pass.
+                multiModelSelections.removeAll()
+            }
         }
         .onChange(of: filteredModels.map(\.id)) { _, updatedIDs in
             let hoveredStillVisible = hoveredModelId.map(updatedIDs.contains) ?? true
@@ -172,10 +192,12 @@ struct PromptModelPopover: View {
             UserDefaults.standard.set(provider.id, forKey: "lastSelectedProviderId")
             UserDefaults.standard.synchronize()
             
-            // Clear the model selection when switching providers
-            selectedModelId = ""
-            UserDefaults.standard.set("", forKey: "lastSelectedModelId")
-            UserDefaults.standard.synchronize()
+            if !useMultipleModels {
+                // Clear the model selection when switching providers in single mode.
+                selectedModelId = ""
+                UserDefaults.standard.set("", forKey: "lastSelectedModelId")
+                UserDefaults.standard.synchronize()
+            }
         }) {
             Text(provider.displayName)
                 .font(.caption)
@@ -205,6 +227,19 @@ struct PromptModelPopover: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .padding([.horizontal, .top], 12)
         .padding(.bottom, 8)
+    }
+
+    private var multiModelToggleRow: some View {
+        HStack(spacing: 0) {
+            Toggle("Use Multiple Models", isOn: $useMultipleModels)
+                .font(.caption)
+                .fontWeight(.medium)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
     
     // MARK: - Model List
@@ -415,67 +450,62 @@ struct PromptModelPopover: View {
     
     @ViewBuilder
     private func modelRow(_ model: LLMProviderModel) -> some View {
-        let isSelected = model.id == selectedModelId
+        let isSelected = isModelSelected(model.id)
         let isHovered = model.id == hoveredModelId
         
-        Button(action: {
-            resetHoverPanelState()
-            selectedModelId = model.id
-            
-            // Force UserDefaults to synchronize immediately
-            UserDefaults.standard.set(model.id, forKey: "lastSelectedModelId")
-            UserDefaults.standard.synchronize()
-            
-            // Dismiss after a small delay to ensure the binding propagates
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                isPresented = false
-            }
-        }) {
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(primaryRowTitle(model))
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                    
-                    if let secondaryText = secondaryRowText(model) {
-                        Text(secondaryText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    
-                }
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(primaryRowTitle(model))
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
                 
-                Spacer(minLength: 8)
-                
-                if isOpenRouterProvider && model.isVisionCapable {
-                    Image(systemName: "eye")
+                if let secondaryText = secondaryRowText(model) {
+                    Text(secondaryText)
                         .font(.caption)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
+            }
+            
+            Spacer(minLength: 8)
+            
+            if isOpenRouterProvider && model.isVisionCapable {
+                Image(systemName: "eye")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+            }
+            
+            if useMultipleModels {
+                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                    .font(.body)
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 
                 if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.body)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.accentColor)
+                    modelCopyCountMenu(modelId: model.id)
                 }
+            } else if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.body)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.accentColor)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        isSelected
-                        ? Color.accentColor.opacity(0.2)
-                        : (isHovered ? Color.primary.opacity(0.08) : Color.clear)
-                    )
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(
+                    isSelected
+                    ? Color.accentColor.opacity(0.2)
+                    : (isHovered ? Color.primary.opacity(0.08) : Color.clear)
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            handleModelSelectionTap(model)
+        }
         .background(
             ScreenFrameReader { screenFrame in
                 modelRowFrames[model.id] = screenFrame
@@ -501,7 +531,95 @@ struct PromptModelPopover: View {
             }
         }
     }
-    
+
+    private func modelCopyCountMenu(modelId: String) -> some View {
+        let selectedCount = selectedCopyCount(for: modelId)
+
+        return Menu {
+            ForEach(TaskCopyCount.allCases) { option in
+                Button(option.description) {
+                    updateSelectionCount(for: modelId, to: option)
+                }
+            }
+        } label: {
+            Text(selectedCount.description)
+                .font(.caption2)
+                .fontWeight(.medium)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(Capsule())
+        }
+        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
+    }
+
+    private func selectionIndex(for modelId: String) -> Int? {
+        multiModelSelections.firstIndex(where: { selection in
+            selection.providerId == selectedProviderId && selection.modelId == modelId
+        })
+    }
+
+    private func isModelPinnedToTop(_ modelId: String) -> Bool {
+        if useMultipleModels {
+            return selectionIndex(for: modelId) != nil
+        }
+        return modelId == selectedModelId
+    }
+
+    private func isModelSelected(_ modelId: String) -> Bool {
+        if useMultipleModels {
+            return selectionIndex(for: modelId) != nil
+        }
+        return modelId == selectedModelId
+    }
+
+    private func selectedCopyCount(for modelId: String) -> TaskCopyCount {
+        guard let index = selectionIndex(for: modelId) else {
+            return .one
+        }
+        return multiModelSelections[index].copyCount
+    }
+
+    private func updateSelectionCount(for modelId: String, to copyCount: TaskCopyCount) {
+        guard let index = selectionIndex(for: modelId) else { return }
+        multiModelSelections[index].copyCount = copyCount
+    }
+
+    private func handleModelSelectionTap(_ model: LLMProviderModel) {
+        resetHoverPanelState()
+
+        if useMultipleModels {
+            if let index = selectionIndex(for: model.id) {
+                multiModelSelections.remove(at: index)
+            } else {
+                multiModelSelections.append(
+                    PromptModelSelection(
+                        providerId: selectedProviderId,
+                        modelId: model.id,
+                        copyCount: copyCount
+                    )
+                )
+            }
+            selectedModelId = model.id
+            UserDefaults.standard.set(model.id, forKey: "lastSelectedModelId")
+            UserDefaults.standard.synchronize()
+            return
+        }
+
+        selectedModelId = model.id
+
+        // Force UserDefaults to synchronize immediately
+        UserDefaults.standard.set(model.id, forKey: "lastSelectedModelId")
+        UserDefaults.standard.synchronize()
+
+        // Dismiss after a small delay to ensure the binding propagates
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isPresented = false
+        }
+    }
+
     private func scheduleHoverPanelOpen(for model: LLMProviderModel) {
         cancelScheduledHoverPanelOpen()
         let targetModelID = model.id

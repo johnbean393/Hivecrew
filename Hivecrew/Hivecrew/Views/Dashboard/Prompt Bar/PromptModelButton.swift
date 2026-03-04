@@ -12,6 +12,9 @@ struct PromptModelButton: View {
     
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var copyCount: TaskCopyCount
+    @Binding var useMultipleModels: Bool
+    @Binding var multiModelSelections: [PromptModelSelection]
     let providers: [LLMProviderRecord]
     var isFocused: Bool = false
     
@@ -22,15 +25,30 @@ struct PromptModelButton: View {
     }
     
     var displayText: String {
+        if useMultipleModels {
+            if multiModelSelections.isEmpty {
+                return "Select models"
+            }
+            if multiModelSelections.count == 1, let selection = multiModelSelections.first {
+                return selection.modelId
+            }
+            let parts = multiModelSelections.map { selection in
+                "\(selection.modelId)"
+            }
+            return parts.joined(separator: ", ")
+        }
+        
         if selectedModelId.isEmpty {
             return selectedProvider?.displayName ?? "Select Model"
-        } else {
-            return selectedModelId
         }
+        return selectedModelId
     }
     
     var hasValidSelection: Bool {
-        !selectedProviderId.isEmpty && !selectedModelId.isEmpty
+        if useMultipleModels {
+            return !multiModelSelections.isEmpty
+        }
+        return !selectedProviderId.isEmpty && !selectedModelId.isEmpty
     }
     
     /// Use accent color only when focused and has a valid selection
@@ -78,6 +96,9 @@ struct PromptModelButton: View {
             PromptModelPopover(
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
+                copyCount: $copyCount,
+                useMultipleModels: $useMultipleModels,
+                multiModelSelections: $multiModelSelections,
                 providers: providers,
                 isPresented: $showingPopover
             )
@@ -98,10 +119,25 @@ struct PromptModelButton: View {
 // MARK: - Preview
 
 #Preview {
-    PromptModelButton(
-        selectedProviderId: .constant("test"),
-        selectedModelId: .constant("moonshotai/kimi-k2.5"),
-        providers: []
-    )
-    .padding()
+    struct PreviewWrapper: View {
+        @State private var providerId = "test"
+        @State private var modelId = "moonshotai/kimi-k2.5"
+        @State private var copyCount: TaskCopyCount = .one
+        @State private var useMultipleModels = false
+        @State private var multiSelections: [PromptModelSelection] = []
+
+        var body: some View {
+            PromptModelButton(
+                selectedProviderId: $providerId,
+                selectedModelId: $modelId,
+                copyCount: $copyCount,
+                useMultipleModels: $useMultipleModels,
+                multiModelSelections: $multiSelections,
+                providers: []
+            )
+            .padding()
+        }
+    }
+
+    return PreviewWrapper()
 }
