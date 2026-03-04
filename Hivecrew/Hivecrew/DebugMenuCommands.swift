@@ -19,6 +19,9 @@ struct CheckForUpdatesCommand: Commands {
     var body: some Commands {
         CommandGroup(after: .appInfo) {
             CheckForUpdatesView(updater: updater)
+            Button("Check for VM Template Updates…") {
+                NotificationCenter.default.post(name: .checkForTemplateUpdates, object: nil)
+            }
         }
     }
 }
@@ -79,6 +82,8 @@ struct DevicesMenuCommand: Commands {
 extension Notification.Name {
     /// Posted to trigger showing the onboarding wizard from the debug menu
     static let showOnboardingWizard = Notification.Name("showOnboardingWizard")
+    /// Posted to trigger a manual VM template update check from menu
+    static let checkForTemplateUpdates = Notification.Name("checkForTemplateUpdates")
     /// Posted to navigate to a specific settings tab
     static let navigateToSettingsTab = Notification.Name("navigateToSettingsTab")
 }

@@ -121,6 +121,15 @@ struct HivecrewApp: App {
                 ) { _ in
                     showOnboarding = true
                 }
+                .onReceive(
+                    NotificationCenter.default.publisher(
+                        for: .checkForTemplateUpdates
+                    )
+                ) { _ in
+                    Task {
+                        await checkForTemplateUpdatesManually()
+                    }
+                }
                 .onChange(of: showOnboarding) { _, isPresented in
                     guard !isPresented, hasCompletedOnboarding else { return }
                     if downloadService.shouldPromptForUpdate() {
@@ -247,6 +256,27 @@ struct HivecrewApp: App {
             await MainActor.run {
                 showTemplateUpdate = true
             }
+        }
+    }
+    
+    /// Manually check for template updates from the app menu
+    private func checkForTemplateUpdatesManually() async {
+        await downloadService.checkForUpdates(force: true)
+        
+        if downloadService.updateAvailable, downloadService.availableUpdate != nil {
+            await MainActor.run {
+                showTemplateUpdate = true
+            }
+            return
+        }
+        
+        await MainActor.run {
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "No Template Updates Found"
+            alert.informativeText = "You're already on the latest compatible VM template."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
         }
     }
     
