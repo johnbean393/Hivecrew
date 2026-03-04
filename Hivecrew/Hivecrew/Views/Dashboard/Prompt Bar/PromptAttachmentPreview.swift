@@ -151,6 +151,15 @@ private final class ChipScrollGestureGate: ObservableObject {
     }
 }
 
+private func revealFileInFinder(_ url: URL) {
+    let fileURL = url.standardizedFileURL
+    if FileManager.default.fileExists(atPath: fileURL.path) {
+        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+    } else {
+        NSWorkspace.shared.open(fileURL.deletingLastPathComponent())
+    }
+}
+
 /// Suggested context shown as a ghost attachment chip.
 struct PromptGhostAttachmentPreviewItem: View {
     let fileURL: URL
@@ -228,6 +237,13 @@ struct PromptGhostAttachmentPreviewItem: View {
         )
         .opacity(0.6)
         .contentShape(Rectangle())
+        .contextMenu {
+            Button {
+                revealFileInFinder(fileURL)
+            } label: {
+                Label("Show in Finder", systemImage: "folder")
+            }
+        }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
@@ -398,6 +414,13 @@ struct PromptAttachmentPreviewItem: View {
                 .background(Color(nsColor: .controlBackgroundColor))
             }
             .buttonStyle(.plain)
+            .contextMenu {
+                Button {
+                    revealFileInFinder(attachment.url)
+                } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                }
+            }
             
             if isHovering {
                 Button(action: onRemove) {
@@ -411,6 +434,13 @@ struct PromptAttachmentPreviewItem: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        revealFileInFinder(attachment.url)
+                    } label: {
+                        Label("Show in Finder", systemImage: "folder")
+                    }
+                }
                 .overlay(alignment: .leading) {
                     Rectangle()
                         .fill(Color.white.opacity(0.28))

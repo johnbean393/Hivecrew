@@ -11,6 +11,7 @@ import Sparkle
 class HivecrewAppDelegate: NSObject, NSApplicationDelegate {
     /// Sparkle updater controller - manages the update lifecycle
     let updaterController: SPUStandardUpdaterController
+    private var didRunAutomaticUpdateCheck = false
     
     override init() {
         // Initialize Sparkle updater before app finishes launching
@@ -20,6 +21,26 @@ class HivecrewAppDelegate: NSObject, NSApplicationDelegate {
             userDriverDelegate: nil
         )
         super.init()
+    }
+    
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        performAutomaticUpdateCheckWhenReady()
+    }
+    
+    private func performAutomaticUpdateCheckWhenReady(remainingAttempts: Int = 10) {
+        guard !didRunAutomaticUpdateCheck else { return }
+        
+        let updater = updaterController.updater
+        guard updater.canCheckForUpdates else {
+            guard remainingAttempts > 0 else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.performAutomaticUpdateCheckWhenReady(remainingAttempts: remainingAttempts - 1)
+            }
+            return
+        }
+        
+        didRunAutomaticUpdateCheck = true
+        updater.checkForUpdatesInBackground()
     }
     
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

@@ -121,6 +121,12 @@ struct HivecrewApp: App {
                 ) { _ in
                     showOnboarding = true
                 }
+                .onChange(of: showOnboarding) { _, isPresented in
+                    guard !isPresented, hasCompletedOnboarding else { return }
+                    if downloadService.shouldPromptForUpdate() {
+                        showTemplateUpdate = true
+                    }
+                }
         }
         .modelContainer(sharedModelContainer)
         .commands {
@@ -196,24 +202,29 @@ struct HivecrewApp: App {
         // Servers are connected when MCP tools are first needed to avoid startup lag
         MCPServerManager.shared.configure(modelContext: sharedModelContainer.mainContext)
         
+        // Check startup tasks only once per app launch, not on window re-open.
+        if !hasPerformedStartupCheck {
+            hasPerformedStartupCheck = true
+            
+            if hasCompletedOnboarding {
+                // Update tip state for onboarding completion
+                TipStore.shared.onboardingCompleted()
+                
+                // Check for queued tasks from previous session (after a brief delay to let data load)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    checkForQueuedTasks()
+                }
+            }
+            
+            // Always check template updates on startup, but only prompt after onboarding is complete.
+            Task {
+                await checkForTemplateUpdates(allowPrompt: hasCompletedOnboarding)
+            }
+        }
+        
         // Check if onboarding is needed
         if !hasCompletedOnboarding {
             showOnboarding = true
-        } else if !hasPerformedStartupCheck {
-            // Only do this once per app launch, not on window re-open
-            hasPerformedStartupCheck = true
-            
-            // Update tip state for onboarding completion
-            TipStore.shared.onboardingCompleted()
-            
-            // Check for queued tasks from previous session (after a brief delay to let data load)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                checkForQueuedTasks()
-            }
-            // Check for template updates
-            Task {
-                await checkForTemplateUpdates()
-            }
         }
     }
     
@@ -227,12 +238,12 @@ struct HivecrewApp: App {
     }
     
     /// Check for template updates and prompt if available
-    private func checkForTemplateUpdates() async {
+    private func checkForTemplateUpdates(allowPrompt: Bool) async {
         // Force check on startup
         await downloadService.checkForUpdates(force: true)
         
         // Show prompt if update available and not skipped
-        if downloadService.shouldPromptForUpdate() {
+        if allowPrompt, downloadService.shouldPromptForUpdate() {
             await MainActor.run {
                 showTemplateUpdate = true
             }
