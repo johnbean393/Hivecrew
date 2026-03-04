@@ -341,9 +341,10 @@ struct OnboardingTemplateStep: View {
             let cpuCount = configDict?["cpuCount"] as? Int ?? 2
             let memorySize = configDict?["memorySize"] as? UInt64 ?? (4 * 1024 * 1024 * 1024)
             let description = configDict?["description"] as? String ?? ""
+            let importedVersion = configDict?["version"] as? String
             
             // Create new config
-            let newConfig: [String: Any] = [
+            var newConfig: [String: Any] = [
                 "id": templateId,
                 "name": templateName,
                 "description": description,
@@ -352,6 +353,9 @@ struct OnboardingTemplateStep: View {
                 "cpuCount": cpuCount,
                 "memorySize": memorySize
             ]
+            if let importedVersion, !importedVersion.isEmpty {
+                newConfig["version"] = importedVersion
+            }
             
             let newConfigData = try JSONSerialization.data(withJSONObject: newConfig, options: .prettyPrinted)
             try newConfigData.write(to: templateDir.appendingPathComponent("config.json"))
