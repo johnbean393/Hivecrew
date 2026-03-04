@@ -14,7 +14,6 @@ import HivecrewShared
 import HivecrewLLM
 import HivecrewAPI
 import AppKit
-import UserNotifications
 
 @main
 struct HivecrewApp: App {
@@ -178,9 +177,6 @@ struct HivecrewApp: App {
         // Configure termination manager
         terminationManager.configure(taskService: taskService)
         
-        // Request notification permissions for agent questions
-        requestNotificationPermissions()
-        
         // Configure TipKit
         TipStore.shared.configure()
         
@@ -280,16 +276,4 @@ struct HivecrewApp: App {
         }
     }
     
-    /// Request notification permissions for agent question alerts
-    private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error = error {
-                print("Notification permission error: \(error)")
-            } else if granted {
-                print("Notification permissions granted")
-            } else {
-                print("Notification permissions denied")
-            }
-        }
-    }
 }

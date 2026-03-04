@@ -430,9 +430,38 @@ extension TaskService {
             trigger: nil // Deliver immediately
         )
         
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("TaskService: Failed to send notification: \(error)")
+        enqueueNotificationRequest(request)
+    }
+    
+    /// Request permissions lazily and enqueue a local notification request.
+    private func enqueueNotificationRequest(_ request: UNNotificationRequest) {
+        let center = UNUserNotificationCenter.current()
+        
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                center.add(request) { error in
+                    if let error = error {
+                        print("TaskService: Failed to send notification: \(error)")
+                    }
+                }
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+                    if let error = error {
+                        print("TaskService: Notification permission error: \(error)")
+                        return
+                    }
+                    guard granted else { return }
+                    center.add(request) { addError in
+                        if let addError = addError {
+                            print("TaskService: Failed to send notification: \(addError)")
+                        }
+                    }
+                }
+            case .denied:
+                return
+            @unknown default:
+                return
             }
         }
     }
