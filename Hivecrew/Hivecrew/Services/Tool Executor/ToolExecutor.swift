@@ -355,10 +355,8 @@ class ToolExecutor {
     
     private func executeGetCredentials(args: [String: Any]) -> InternalToolResult {
         let serviceFilter = args["service"] as? String
-        print("ToolExecutor: get_login_credentials called with service filter: \(serviceFilter ?? "nil")")
         
         var credentials = CredentialManager.shared.getCredentialsForAgent(service: serviceFilter)
-        print("ToolExecutor: getCredentialsForAgent returned \(credentials.count) credentials")
         
         var noMatchMsg: String? = nil
         
@@ -368,7 +366,6 @@ class ToolExecutor {
         }
         
         if credentials.isEmpty {
-            print("ToolExecutor: No credentials found, returning empty message")
             return .text("No credentials stored.")
         }
         
@@ -380,7 +377,6 @@ class ToolExecutor {
             // Use explicit .uuidString for password token to ensure consistent format for substitution
             output += "\(cred.displayName):\n  Username: \(usernameDisplay)\n  Password: \(cred.passwordToken.uuidString)\n\n"
         }
-        print("ToolExecutor: get_login_credentials returning output (\(output.count) chars):\n\(output)")
         return .text(output)
     }
     
