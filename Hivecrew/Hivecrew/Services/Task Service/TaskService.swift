@@ -192,28 +192,31 @@ class TaskService: ObservableObject {
     /// - Returns: The newly created task
     /// - Note: Use `validateRerunAttachments` first to check for missing files
     func rerunTask(_ originalTask: TaskRecord) async throws -> TaskRecord {
+        try await rerunTask(
+            originalTask,
+            providerId: originalTask.providerId,
+            modelId: originalTask.modelId
+        )
+    }
+    
+    /// Create a new task with the same parameters as a previous task, using a specific provider/model
+    /// - Parameters:
+    ///   - originalTask: The task to rerun
+    ///   - providerId: Provider ID to use for the new task
+    ///   - modelId: Model ID to use for the new task
+    /// - Returns: The newly created task
+    /// - Note: Use `validateRerunAttachments` first to check for missing files
+    func rerunTask(_ originalTask: TaskRecord, providerId: String, modelId: String) async throws -> TaskRecord {
         // Prepare attachment infos for rerun (validates files exist, keeps references)
         // Actual copying happens when the new session starts
         let originalInfos = originalTask.attachmentInfos
         let newInfos = AttachmentManager.prepareAttachmentsForRerun(originalInfos: originalInfos)
         
-        // If the original task had a plan, reuse it to skip the planning phase
-        // and start execution directly
-        return try await createTask(
-            description: originalTask.taskDescription,
-            providerId: originalTask.providerId,
-            modelId: originalTask.modelId,
-            attachmentInfos: newInfos.isEmpty ? nil : newInfos,
-            outputDirectory: originalTask.outputDirectory,
-            mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
-            retrievalContextPackId: originalTask.retrievalContextPackId,
-            retrievalInlineContextBlocks: originalTask.retrievalInlineContextBlocks,
-            retrievalContextAttachmentPaths: originalTask.retrievalContextAttachmentPaths ?? [],
-            retrievalSelectedSuggestionIds: originalTask.retrievalSelectedSuggestionIds ?? [],
-            retrievalModeOverrides: originalTask.retrievalModeOverrides,
-            planFirstEnabled: originalTask.planFirstEnabled,
-            planMarkdown: originalTask.planMarkdown,
-            planSelectedSkillNames: originalTask.planSelectedSkillNames
+        return try await createRerunTask(
+            from: originalTask,
+            providerId: providerId,
+            modelId: modelId,
+            attachmentInfos: newInfos.isEmpty ? nil : newInfos
         )
     }
     
@@ -224,13 +227,49 @@ class TaskService: ObservableObject {
     ///   - resolvedAttachments: Resolved attachment infos (after user selected replacements)
     /// - Returns: The newly created task
     func rerunTask(_ originalTask: TaskRecord, withResolvedAttachments resolvedAttachments: [AttachmentInfo]) async throws -> TaskRecord {
+        try await rerunTask(
+            originalTask,
+            providerId: originalTask.providerId,
+            modelId: originalTask.modelId,
+            withResolvedAttachments: resolvedAttachments
+        )
+    }
+    
+    /// Create a new task with the same parameters as a previous task, using provided attachments and provider/model
+    /// - Parameters:
+    ///   - originalTask: The task to rerun
+    ///   - providerId: Provider ID to use for the new task
+    ///   - modelId: Model ID to use for the new task
+    ///   - resolvedAttachments: Resolved attachment infos (after user selected replacements)
+    /// - Returns: The newly created task
+    func rerunTask(
+        _ originalTask: TaskRecord,
+        providerId: String,
+        modelId: String,
+        withResolvedAttachments resolvedAttachments: [AttachmentInfo]
+    ) async throws -> TaskRecord {
+        return try await createRerunTask(
+            from: originalTask,
+            providerId: providerId,
+            modelId: modelId,
+            attachmentInfos: resolvedAttachments.isEmpty ? nil : resolvedAttachments
+        )
+    }
+    
+    /// Shared helper for creating rerun tasks while preserving all non-model task options.
+    private func createRerunTask(
+        from originalTask: TaskRecord,
+        providerId: String,
+        modelId: String,
+        attachmentInfos: [AttachmentInfo]?
+    ) async throws -> TaskRecord {
         // If the original task had a plan, reuse it to skip the planning phase
         // and start execution directly
         return try await createTask(
             description: originalTask.taskDescription,
-            providerId: originalTask.providerId,
-            modelId: originalTask.modelId,
-            attachmentInfos: resolvedAttachments.isEmpty ? nil : resolvedAttachments,
+            providerId: providerId,
+            modelId: modelId,
+            attachmentInfos: attachmentInfos,
             outputDirectory: originalTask.outputDirectory,
             mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
             retrievalContextPackId: originalTask.retrievalContextPackId,

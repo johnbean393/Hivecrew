@@ -16,8 +16,10 @@ struct TaskRowView: View {
     @State private var isHovered: Bool = false
     @State private var showingTrace: Bool = false
     @State private var showingPlanReview: Bool = false
+    @State private var showingRerunModelSelection: Bool = false
     @State private var showingMissingAttachments: Bool = false
     @State private var missingAttachmentsValidation: RerunAttachmentValidation?
+    @State private var rerunTargetOverride: (providerId: String, modelId: String)?
     
     // Tips
     private let showDeliverableTip = ShowDeliverableTip()
@@ -269,13 +271,29 @@ struct TaskRowView: View {
                     onConfirm: { resolvedAttachments in
                         showingMissingAttachments = false
                         Task {
-                            try? await taskService.rerunTask(task, withResolvedAttachments: resolvedAttachments)
+                            let rerunTarget = rerunTargetOverride ?? (
+                                providerId: task.providerId,
+                                modelId: task.modelId
+                            )
+                            defer { rerunTargetOverride = nil }
+                            try? await taskService.rerunTask(
+                                task,
+                                providerId: rerunTarget.providerId,
+                                modelId: rerunTarget.modelId,
+                                withResolvedAttachments: resolvedAttachments
+                            )
                         }
                     },
                     onCancel: {
                         showingMissingAttachments = false
+                        rerunTargetOverride = nil
                     }
                 )
+            }
+        }
+        .sheet(isPresented: $showingRerunModelSelection) {
+            RerunModelSelectionSheet(task: task) { providerId, modelId in
+                handleRerun(providerId: providerId, modelId: modelId)
             }
         }
         .contextMenu {
@@ -292,6 +310,12 @@ struct TaskRowView: View {
                     handleRerun()
                 } label: {
                     Label("Rerun", systemImage: "arrow.counterclockwise")
+                }
+                
+                Button {
+                    showingRerunModelSelection = true
+                } label: {
+                    Label("Rerun with Different Model...", systemImage: "brain")
                 }
             }
             
@@ -349,14 +373,30 @@ struct TaskRowView: View {
     }
     
     /// Handle rerun button tap - checks for missing attachments first
-    private func handleRerun() {
+    private func handleRerun(providerId: String? = nil, modelId: String? = nil) {
+        let targetProviderId = providerId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? task.providerId
+        let targetModelId = modelId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? task.modelId
+        rerunTargetOverride = (
+            providerId: targetProviderId.isEmpty ? task.providerId : targetProviderId,
+            modelId: targetModelId.isEmpty ? task.modelId : targetModelId
+        )
+        
         // Validate attachments before rerunning
         let validation = taskService.validateRerunAttachments(task)
         
         if validation.allValid {
             // All attachments are valid, proceed with rerun
             Task {
-                try? await taskService.rerunTask(task)
+                let rerunTarget = rerunTargetOverride ?? (
+                    providerId: task.providerId,
+                    modelId: task.modelId
+                )
+                defer { rerunTargetOverride = nil }
+                try? await taskService.rerunTask(
+                    task,
+                    providerId: rerunTarget.providerId,
+                    modelId: rerunTarget.modelId
+                )
             }
         } else if validation.hasAttachments {
             // Some attachments are missing, show the sheet
@@ -365,7 +405,16 @@ struct TaskRowView: View {
         } else {
             // No attachments at all, proceed with rerun
             Task {
-                try? await taskService.rerunTask(task)
+                let rerunTarget = rerunTargetOverride ?? (
+                    providerId: task.providerId,
+                    modelId: task.modelId
+                )
+                defer { rerunTargetOverride = nil }
+                try? await taskService.rerunTask(
+                    task,
+                    providerId: rerunTarget.providerId,
+                    modelId: rerunTarget.modelId
+                )
             }
         }
     }

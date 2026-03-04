@@ -166,6 +166,7 @@ struct HivecrewApp: App {
     }
     
     /// Function to run on startup
+    @MainActor
     private func onStartup() {
         // Wire up the model context to services
         taskService.setModelContext(sharedModelContainer.mainContext)
@@ -215,8 +216,10 @@ struct HivecrewApp: App {
                 // Update tip state for onboarding completion
                 TipStore.shared.onboardingCompleted()
                 
-                // Check for queued tasks from previous session (after a brief delay to let data load)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                // Check for queued tasks from previous session after a brief delay to let data load.
+                // Keep this on MainActor because TaskService is MainActor-isolated.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
                     checkForQueuedTasks()
                 }
             }
@@ -234,6 +237,7 @@ struct HivecrewApp: App {
     }
     
     /// Check for queued tasks from a previous session and show the startup sheet
+    @MainActor
     private func checkForQueuedTasks() {
         let queuedTasks = taskService.queuedTasks
         if !queuedTasks.isEmpty {

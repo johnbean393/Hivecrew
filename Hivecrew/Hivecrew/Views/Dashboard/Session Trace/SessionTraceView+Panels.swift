@@ -504,7 +504,7 @@ extension SessionTraceView {
             
             // Rerun button for inactive tasks
             if !task.status.isActive {
-                Button(action: handleRerun) {
+                Button(action: { handleRerun() }) {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.caption2)
@@ -524,13 +524,43 @@ extension SessionTraceView {
                             onConfirm: { resolvedAttachments in
                                 showingMissingAttachments = false
                                 Task {
-                                    try? await taskService.rerunTask(task, withResolvedAttachments: resolvedAttachments)
+                                    let rerunTarget = rerunTargetOverride ?? (
+                                        providerId: task.providerId,
+                                        modelId: task.modelId
+                                    )
+                                    defer { rerunTargetOverride = nil }
+                                    try? await taskService.rerunTask(
+                                        task,
+                                        providerId: rerunTarget.providerId,
+                                        modelId: rerunTarget.modelId,
+                                        withResolvedAttachments: resolvedAttachments
+                                    )
                                 }
                             },
                             onCancel: {
                                 showingMissingAttachments = false
+                                rerunTargetOverride = nil
                             }
                         )
+                    }
+                }
+                
+                Button {
+                    showingRerunModelSelection = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "brain")
+                            .font(.caption2)
+                        Text("Choose Model")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+                .help("Rerun this task with a different model")
+                .sheet(isPresented: $showingRerunModelSelection) {
+                    RerunModelSelectionSheet(task: task) { providerId, modelId in
+                        handleRerun(providerId: providerId, modelId: modelId)
                     }
                 }
             }
@@ -628,14 +658,30 @@ extension SessionTraceView {
     }
     
     /// Handle rerun button tap - checks for missing attachments first
-    func handleRerun() {
+    func handleRerun(providerId: String? = nil, modelId: String? = nil) {
+        let targetProviderId = providerId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? task.providerId
+        let targetModelId = modelId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? task.modelId
+        rerunTargetOverride = (
+            providerId: targetProviderId.isEmpty ? task.providerId : targetProviderId,
+            modelId: targetModelId.isEmpty ? task.modelId : targetModelId
+        )
+        
         // Validate attachments before rerunning
         let validation = taskService.validateRerunAttachments(task)
         
         if validation.allValid {
             // All attachments are valid, proceed with rerun
             Task {
-                try? await taskService.rerunTask(task)
+                let rerunTarget = rerunTargetOverride ?? (
+                    providerId: task.providerId,
+                    modelId: task.modelId
+                )
+                defer { rerunTargetOverride = nil }
+                try? await taskService.rerunTask(
+                    task,
+                    providerId: rerunTarget.providerId,
+                    modelId: rerunTarget.modelId
+                )
             }
         } else if validation.hasAttachments {
             // Some attachments are missing, show the sheet
@@ -644,7 +690,16 @@ extension SessionTraceView {
         } else {
             // No attachments at all, proceed with rerun
             Task {
-                try? await taskService.rerunTask(task)
+                let rerunTarget = rerunTargetOverride ?? (
+                    providerId: task.providerId,
+                    modelId: task.modelId
+                )
+                defer { rerunTargetOverride = nil }
+                try? await taskService.rerunTask(
+                    task,
+                    providerId: rerunTarget.providerId,
+                    modelId: rerunTarget.modelId
+                )
             }
         }
     }
