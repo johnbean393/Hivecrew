@@ -675,13 +675,18 @@ struct PromptModelPopover: View {
             return
         }
         
-        // Get API key
-        guard let apiKey = provider.retrieveAPIKey() else {
-            errorMessage = "No API key configured"
-            availableModels = []
-            selectedModelId = ""
-            resetHoverPanelState()
-            return
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let stored = provider.retrieveAPIKey() else {
+                errorMessage = "No API key configured"
+                availableModels = []
+                selectedModelId = ""
+                resetHoverPanelState()
+                return
+            }
+            apiKey = stored
+        } else {
+            apiKey = ""
         }
         
         isLoading = true
@@ -689,13 +694,9 @@ struct PromptModelPopover: View {
         
         Task {
             do {
-                let config = LLMConfiguration(
-                    displayName: provider.displayName,
-                    baseURL: provider.parsedBaseURL,
-                    apiKey: apiKey,
-                    model: "moonshotai/kimi-k2.5", // Placeholder, not used for listing
-                    organizationId: provider.organizationId,
-                    timeoutInterval: provider.timeoutInterval
+                let config = provider.makeLLMConfiguration(
+                    model: provider.backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder",
+                    apiKey: apiKey
                 )
                 
                 let client = LLMService.shared.createClient(from: config)

@@ -5,6 +5,7 @@
 //  Shared utilities for LLM provider configuration views
 //
 
+import Foundation
 import SwiftUI
 import HivecrewLLM
 
@@ -26,6 +27,21 @@ struct LLMProviderPreset: Identifiable {
         LLMProviderPreset(id: "lmstudio", name: "LM Studio", baseURL: "http://localhost:1234/v1"),
         LLMProviderPreset(id: "ollama", name: "Ollama", baseURL: "http://localhost:11434/v1"),
     ]
+}
+
+enum ProviderFeatureFlags {
+    private static let codexModeEnabledDefaultsKey = "codexModeEnabled"
+
+    static var codexModeEnabled: Bool {
+        if let override = UserDefaults.standard.object(forKey: codexModeEnabledDefaultsKey) as? Bool {
+            return override
+        }
+#if DEBUG
+        return true
+#else
+        return false
+#endif
+    }
 }
 
 // MARK: - Provider URL Picker Menu
@@ -113,8 +129,37 @@ enum ProviderConnectionTester {
         baseURL: String,
         apiKey: String,
         organizationId: String? = nil,
+        backendMode: LLMBackendMode = .chatCompletions,
+        authMode: LLMAuthMode = .apiKey,
+        oauthProviderId: String? = nil,
         timeout: TimeInterval = 15
     ) async -> ConnectionTestResult {
+        if backendMode == .codexOAuth {
+            guard let oauthProviderId,
+                  CodexOAuthTokenStore.retrieve(providerId: oauthProviderId) != nil else {
+                return .failure("Connect ChatGPT first, then test again.")
+            }
+
+            let config = LLMConfiguration(
+                id: oauthProviderId,
+                displayName: "ChatGPT OAuth",
+                baseURL: nil,
+                apiKey: "",
+                model: "gpt-5-codex",
+                organizationId: nil,
+                backendMode: .codexOAuth,
+                authMode: authMode,
+                timeoutInterval: timeout
+            )
+            let client = LLMService.shared.createClient(from: config)
+            do {
+                _ = try await client.testConnection()
+                return .success
+            } catch {
+                return .failure(error.localizedDescription)
+            }
+        }
+
         // Build the API URL
         let apiURL: URL
         if let customBase = baseURL.isEmpty ? nil : URL(string: baseURL) {

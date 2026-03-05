@@ -18,6 +18,7 @@ enum TaskServiceError: Error, LocalizedError {
     case connectionTimeout(String)
     case providerNotFound(String)
     case noAPIKey(String)
+    case oauthAuthRequired(String)
     case missingLLMClient
     case workerModelNotConfigured
     
@@ -37,6 +38,8 @@ enum TaskServiceError: Error, LocalizedError {
             return String(localized: "LLM provider not found: \(id)")
         case .noAPIKey(let provider):
             return String(localized: "No API key configured for \(provider)")
+        case .oauthAuthRequired(let provider):
+            return String(localized: "Provider '\(provider)' is not connected to ChatGPT. Open Settings → Providers and connect it first.")
         case .missingLLMClient:
             return String(localized: "LLM client was unavailable during task startup")
         case .workerModelNotConfigured:

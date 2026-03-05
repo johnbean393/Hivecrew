@@ -132,22 +132,23 @@ extension TaskService {
         guard let provider = try context.fetch(descriptor).first else {
             throw TaskServiceError.providerNotFound(providerId)
         }
-        
-        // Get API key
-        guard let apiKey = provider.retrieveAPIKey() else {
-            throw TaskServiceError.noAPIKey(provider.displayName)
+
+        // Codex providers require a completed ChatGPT login before run.
+        if provider.backendMode == .codexOAuth && !provider.isOAuthAuthenticated {
+            throw TaskServiceError.oauthAuthRequired(provider.displayName)
         }
-        
-        // Create configuration
-        let config = LLMConfiguration(
-            displayName: provider.displayName,
-            baseURL: provider.parsedBaseURL,
-            apiKey: apiKey,
-            model: modelId,
-            organizationId: provider.organizationId,
-            timeoutInterval: provider.timeoutInterval
-        )
-        
+
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let retrieved = provider.retrieveAPIKey() else {
+                throw TaskServiceError.noAPIKey(provider.displayName)
+            }
+            apiKey = retrieved
+        } else {
+            apiKey = ""
+        }
+
+        let config = provider.makeLLMConfiguration(model: modelId, apiKey: apiKey)
         return LLMService.shared.createClient(from: config)
     }
     

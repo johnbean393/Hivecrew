@@ -141,6 +141,24 @@ public protocol APIServiceProvider: Sendable {
     
     /// List available models for a given provider.
     func getProviderModels(id: String) async throws -> APIModelListResponse
+
+    /// Create a provider configuration.
+    func createProvider(request: APICreateProviderRequest) async throws -> APIProvider
+
+    /// Update a provider configuration.
+    func updateProvider(id: String, request: APIUpdateProviderRequest) async throws -> APIProvider
+
+    /// Delete a provider configuration.
+    func deleteProvider(id: String) async throws
+
+    /// Start managed provider auth flow (e.g., Codex ChatGPT login).
+    func startProviderAuth(id: String) async throws -> APIProviderAuthStartResponse
+
+    /// Poll provider auth status.
+    func getProviderAuthStatus(id: String) async throws -> APIProviderAuthStatusResponse
+
+    /// Logout/clear provider auth state.
+    func logoutProviderAuth(id: String) async throws -> APIProviderAuthStatusResponse
     
     // MARK: - Template Operations
     

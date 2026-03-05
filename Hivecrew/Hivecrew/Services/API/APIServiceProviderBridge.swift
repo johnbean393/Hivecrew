@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import HivecrewAPI
 import HivecrewShared
+import HivecrewLLM
 
 /// Implementation of the API service provider that bridges to Hivecrew's internal services
 @MainActor
@@ -428,23 +429,235 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         guard let provider = try modelContext.fetch(descriptor).first else {
             throw APIError.notFound("Provider with ID '\(id)' not found")
         }
-        
-        // Fetch models from the provider's API
-        guard let apiKey = provider.retrieveAPIKey() else {
-            throw APIError.badRequest("Provider has no API key configured")
-        }
-        
+
         do {
-            let models = try await fetchModelsFromProvider(
-                baseURL: provider.effectiveBaseURL,
-                apiKey: apiKey,
-                organizationId: provider.organizationId,
-                timeoutInterval: provider.timeoutInterval
-            )
+            let models = try await fetchModelsFromProvider(provider)
             return APIModelListResponse(models: models)
         } catch {
+            if let apiError = error as? APIError {
+                throw apiError
+            }
             throw APIError.badGateway("Failed to fetch models from provider: \(error.localizedDescription)")
         }
+    }
+
+    func createProvider(request: APICreateProviderRequest) async throws -> APIProvider {
+        let displayName = request.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !displayName.isEmpty else {
+            throw APIError.badRequest("displayName is required")
+        }
+
+        let backendMode = request.backendMode.map(convertBackendModeFromAPI) ?? .chatCompletions
+        let authMode = backendMode == .codexOAuth
+            ? .chatGPTOAuth
+            : (request.authMode.map(convertAuthModeFromAPI) ?? .apiKey)
+
+        let normalizedBaseURL = backendMode == .codexOAuth ? nil : normalizedOptional(request.baseURL)
+        let normalizedOrganizationId = backendMode == .codexOAuth ? nil : normalizedOptional(request.organizationId)
+
+        let provider = LLMProviderRecord(
+            displayName: displayName,
+            baseURL: normalizedBaseURL,
+            organizationId: normalizedOrganizationId,
+            backendMode: backendMode,
+            authMode: authMode,
+            oauthAuthState: .unauthenticated,
+            isDefault: request.isDefault ?? false,
+            timeoutInterval: request.timeoutInterval ?? 120
+        )
+
+        if backendMode != .codexOAuth, let apiKey = normalizedOptional(request.apiKey) {
+            provider.storeAPIKey(apiKey)
+        }
+
+        if provider.isDefault {
+            clearDefaultProviderFlag(except: nil)
+        }
+
+        modelContext.insert(provider)
+        try modelContext.save()
+        return convertToAPIProvider(provider)
+    }
+
+    func updateProvider(id: String, request: APIUpdateProviderRequest) async throws -> APIProvider {
+        let descriptor = FetchDescriptor<LLMProviderRecord>(
+            predicate: #Predicate { $0.id == id }
+        )
+        guard let provider = try modelContext.fetch(descriptor).first else {
+            throw APIError.notFound("Provider with ID '\(id)' not found")
+        }
+
+        if let displayName = request.displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !displayName.isEmpty {
+            provider.displayName = displayName
+        }
+
+        if let backendMode = request.backendMode {
+            let converted = convertBackendModeFromAPI(backendMode)
+            provider.backendMode = converted
+            if provider.backendMode == .codexOAuth {
+                provider.authMode = .chatGPTOAuth
+                provider.baseURL = nil
+                provider.organizationId = nil
+                provider.oauthAuthState = .unauthenticated
+                provider.oauthLoginId = nil
+                provider.oauthLastAuthURL = nil
+                provider.oauthAuthMessage = nil
+                provider.oauthAuthUpdatedAt = Date()
+                provider.deleteOAuthTokens()
+            } else {
+                provider.oauthAuthState = .unauthenticated
+                provider.oauthLoginId = nil
+                provider.oauthLastAuthURL = nil
+                provider.oauthAuthMessage = nil
+                provider.oauthAuthUpdatedAt = Date()
+                provider.deleteOAuthTokens()
+            }
+        }
+
+        if provider.backendMode != .codexOAuth, let authMode = request.authMode {
+            provider.authMode = convertAuthModeFromAPI(authMode)
+        }
+
+        if provider.backendMode != .codexOAuth {
+            if request.clearBaseURL == true {
+                provider.baseURL = nil
+            } else if let baseURL = request.baseURL {
+                provider.baseURL = normalizedOptional(baseURL)
+            }
+
+            if request.clearOrganizationId == true {
+                provider.organizationId = nil
+            } else if let organizationId = request.organizationId {
+                provider.organizationId = normalizedOptional(organizationId)
+            }
+        }
+
+        if let timeoutInterval = request.timeoutInterval {
+            provider.timeoutInterval = timeoutInterval
+        }
+
+        if provider.backendMode != .codexOAuth, let apiKey = request.apiKey {
+            if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                provider.deleteAPIKey()
+            } else {
+                provider.storeAPIKey(apiKey)
+            }
+        } else if request.clearAPIKey == true {
+            provider.deleteAPIKey()
+        }
+
+        if let isDefault = request.isDefault {
+            if isDefault {
+                clearDefaultProviderFlag(except: provider.id)
+                provider.isDefault = true
+            } else {
+                provider.isDefault = false
+            }
+        }
+
+        try modelContext.save()
+        return convertToAPIProvider(provider)
+    }
+
+    func deleteProvider(id: String) async throws {
+        let descriptor = FetchDescriptor<LLMProviderRecord>(
+            predicate: #Predicate { $0.id == id }
+        )
+        guard let provider = try modelContext.fetch(descriptor).first else {
+            throw APIError.notFound("Provider with ID '\(id)' not found")
+        }
+
+        provider.deleteAPIKey()
+        provider.deleteOAuthTokens()
+        CodexOAuthCoordinator.shared.clearSessions(providerId: provider.id)
+        modelContext.delete(provider)
+        try modelContext.save()
+    }
+
+    func startProviderAuth(id: String) async throws -> APIProviderAuthStartResponse {
+        let provider = try fetchProviderRecord(id: id)
+        guard provider.backendMode == .codexOAuth else {
+            throw APIError.badRequest("Provider '\(provider.displayName)' does not support ChatGPT OAuth")
+        }
+
+        do {
+            let start = try CodexOAuthCoordinator.shared.startLogin(providerId: provider.id)
+            provider.oauthLoginId = start.loginId
+            provider.oauthLastAuthURL = start.authURL.absoluteString
+            provider.oauthAuthState = .pending
+            provider.oauthAuthUpdatedAt = start.updatedAt
+            provider.oauthAuthMessage = start.message
+            try modelContext.save()
+
+            return APIProviderAuthStartResponse(
+                providerId: provider.id,
+                status: .pending,
+                loginId: start.loginId,
+                authURL: start.authURL.absoluteString,
+                message: provider.oauthAuthMessage,
+                updatedAt: provider.oauthAuthUpdatedAt ?? Date()
+            )
+        } catch {
+            provider.oauthAuthState = .failed
+            provider.oauthAuthUpdatedAt = Date()
+            provider.oauthAuthMessage = error.localizedDescription
+            try? modelContext.save()
+            throw APIError.badGateway("Failed to start provider auth: \(error.localizedDescription)")
+        }
+    }
+
+    func getProviderAuthStatus(id: String) async throws -> APIProviderAuthStatusResponse {
+        let provider = try fetchProviderRecord(id: id)
+        guard provider.backendMode == .codexOAuth else {
+            throw APIError.badRequest("Provider '\(provider.displayName)' does not support ChatGPT OAuth")
+        }
+
+        let snapshot = CodexOAuthCoordinator.shared.status(
+            providerId: provider.id,
+            loginId: provider.oauthLoginId
+        )
+        provider.oauthAuthState = snapshot.status
+        provider.oauthLoginId = snapshot.loginId
+        provider.oauthLastAuthURL = snapshot.status == .unauthenticated
+            ? nil
+            : (snapshot.authURL?.absoluteString ?? provider.oauthLastAuthURL)
+        provider.oauthAuthMessage = snapshot.message
+        provider.oauthAuthUpdatedAt = snapshot.updatedAt ?? provider.oauthAuthUpdatedAt ?? Date()
+        try? modelContext.save()
+
+        return APIProviderAuthStatusResponse(
+            providerId: provider.id,
+            status: convertAuthState(provider.oauthAuthState),
+            loginId: provider.oauthLoginId,
+            authURL: provider.oauthLastAuthURL,
+            message: provider.oauthAuthMessage,
+            updatedAt: provider.oauthAuthUpdatedAt
+        )
+    }
+
+    func logoutProviderAuth(id: String) async throws -> APIProviderAuthStatusResponse {
+        let provider = try fetchProviderRecord(id: id)
+        guard provider.backendMode == .codexOAuth else {
+            throw APIError.badRequest("Provider '\(provider.displayName)' does not support ChatGPT OAuth")
+        }
+
+        CodexOAuthCoordinator.shared.logout(providerId: provider.id)
+
+        provider.oauthAuthState = .unauthenticated
+        provider.oauthLoginId = nil
+        provider.oauthLastAuthURL = nil
+        provider.oauthAuthMessage = nil
+        provider.oauthAuthUpdatedAt = Date()
+        try modelContext.save()
+
+        return APIProviderAuthStatusResponse(
+            providerId: provider.id,
+            status: .unauthenticated,
+            loginId: nil,
+            authURL: nil,
+            message: nil,
+            updatedAt: provider.oauthAuthUpdatedAt
+        )
     }
     
     // MARK: - Template Operations
@@ -774,7 +987,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             eventType = .statusChange
         }
         
-        var data: [String: JSONValue] = [
+        var data: [String: HivecrewAPI.JSONValue] = [
             "summary": .string(entry.summary)
         ]
         if let details = entry.details {
@@ -796,6 +1009,53 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     }
     
     // MARK: - Private Helpers
+
+    private func fetchProviderRecord(id: String) throws -> LLMProviderRecord {
+        let descriptor = FetchDescriptor<LLMProviderRecord>(
+            predicate: #Predicate { $0.id == id }
+        )
+        guard let provider = try modelContext.fetch(descriptor).first else {
+            throw APIError.notFound("Provider with ID '\(id)' not found")
+        }
+        return provider
+    }
+
+    private func clearDefaultProviderFlag(except providerId: String?) {
+        let descriptor = FetchDescriptor<LLMProviderRecord>()
+        guard let providers = try? modelContext.fetch(descriptor) else { return }
+        for provider in providers {
+            if let providerId, provider.id == providerId {
+                continue
+            }
+            provider.isDefault = false
+        }
+    }
+
+    private func normalizedOptional(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func convertBackendModeFromAPI(_ mode: APIProviderBackendMode) -> LLMBackendMode {
+        switch mode {
+        case .chatCompletions:
+            return .chatCompletions
+        case .responses:
+            return .responses
+        case .codexOAuth:
+            return .codexOAuth
+        }
+    }
+
+    private func convertAuthModeFromAPI(_ mode: APIProviderAuthMode) -> LLMAuthMode {
+        switch mode {
+        case .apiKey:
+            return .apiKey
+        case .chatGPTOAuth:
+            return .chatGPTOAuth
+        }
+    }
     
     private func findProviderIdByName(_ name: String) async throws -> String {
         let descriptor = FetchDescriptor<LLMProviderRecord>()
@@ -806,4 +1066,3 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         return provider.id
     }
 }
-

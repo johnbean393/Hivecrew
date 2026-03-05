@@ -41,7 +41,7 @@ private actor VisionCapabilityCache {
     }
 
     private func cacheKey(providerId: String, modelId: String) -> String {
-        "\(providerId.lowercased())::\(modelId.lowercased())"
+        "v2::\(providerId.lowercased())::\(modelId.lowercased())"
     }
 }
 

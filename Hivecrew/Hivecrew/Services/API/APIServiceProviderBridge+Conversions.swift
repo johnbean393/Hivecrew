@@ -214,12 +214,48 @@ extension APIServiceProviderBridge {
 // MARK: - Provider Conversions
 
 extension APIServiceProviderBridge {
+
+    func convertBackendMode(_ mode: LLMBackendMode) -> APIProviderBackendMode {
+        switch mode {
+        case .chatCompletions:
+            return .chatCompletions
+        case .responses:
+            return .responses
+        case .codexOAuth:
+            return .codexOAuth
+        }
+    }
+
+    func convertAuthMode(_ mode: LLMAuthMode) -> APIProviderAuthMode {
+        switch mode {
+        case .apiKey:
+            return .apiKey
+        case .chatGPTOAuth:
+            return .chatGPTOAuth
+        }
+    }
+
+    func convertAuthState(_ state: CodexOAuthAuthState) -> APIProviderAuthState {
+        switch state {
+        case .unauthenticated:
+            return .unauthenticated
+        case .pending:
+            return .pending
+        case .authenticated:
+            return .authenticated
+        case .failed:
+            return .failed
+        }
+    }
     
     func convertToAPIProviderSummary(_ provider: LLMProviderRecord) -> APIProviderSummary {
         return APIProviderSummary(
             id: provider.id,
             displayName: provider.displayName,
             baseURL: provider.effectiveBaseURL.absoluteString,
+            backendMode: convertBackendMode(provider.backendMode),
+            authMode: convertAuthMode(provider.authMode),
+            authState: provider.backendMode == .codexOAuth ? convertAuthState(provider.oauthAuthState) : nil,
             isDefault: provider.isDefault,
             hasAPIKey: provider.hasAPIKey,
             createdAt: provider.createdAt,
@@ -232,9 +268,16 @@ extension APIServiceProviderBridge {
             id: provider.id,
             displayName: provider.displayName,
             baseURL: provider.effectiveBaseURL.absoluteString,
+            backendMode: convertBackendMode(provider.backendMode),
+            authMode: convertAuthMode(provider.authMode),
+            authState: provider.backendMode == .codexOAuth ? convertAuthState(provider.oauthAuthState) : nil,
             isDefault: provider.isDefault,
             hasAPIKey: provider.hasAPIKey,
             organizationId: provider.organizationId,
+            oauthLoginId: provider.oauthLoginId,
+            oauthAuthURL: provider.oauthLastAuthURL,
+            oauthAuthMessage: provider.oauthAuthMessage,
+            oauthAuthUpdatedAt: provider.oauthAuthUpdatedAt,
             timeoutInterval: provider.timeoutInterval,
             createdAt: provider.createdAt,
             lastUsedAt: provider.lastUsedAt
@@ -370,19 +413,20 @@ extension APIServiceProviderBridge {
 
 extension APIServiceProviderBridge {
     
-    func fetchModelsFromProvider(
-        baseURL: URL,
-        apiKey: String,
-        organizationId: String? = nil,
-        timeoutInterval: TimeInterval = 30
-    ) async throws -> [APIModel] {
-        let config = LLMConfiguration(
-            displayName: "Provider API Models",
-            baseURL: baseURL,
-            apiKey: apiKey,
-            model: "model-listing-placeholder",
-            organizationId: organizationId,
-            timeoutInterval: timeoutInterval
+    func fetchModelsFromProvider(_ provider: LLMProviderRecord) async throws -> [APIModel] {
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let stored = provider.retrieveAPIKey() else {
+                throw APIError.badRequest("Provider has no API key configured")
+            }
+            apiKey = stored
+        } else {
+            apiKey = ""
+        }
+
+        let config = provider.makeLLMConfiguration(
+            model: provider.backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder",
+            apiKey: apiKey
         )
         let client = LLMService.shared.createClient(from: config)
         let providerModels = try await client.listModelsDetailed()

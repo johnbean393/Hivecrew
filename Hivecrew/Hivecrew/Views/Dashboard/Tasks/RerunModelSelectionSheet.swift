@@ -309,10 +309,16 @@ struct RerunModelSelectionSheet: View {
             return
         }
         
-        guard let apiKey = provider.retrieveAPIKey() else {
-            availableModels = []
-            modelLoadError = "No API key configured for this provider."
-            return
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let stored = provider.retrieveAPIKey() else {
+                availableModels = []
+                modelLoadError = "No API key configured for this provider."
+                return
+            }
+            apiKey = stored
+        } else {
+            apiKey = ""
         }
         
         let requestProviderId = provider.id
@@ -321,13 +327,9 @@ struct RerunModelSelectionSheet: View {
         
         Task {
             do {
-                let config = LLMConfiguration(
-                    displayName: provider.displayName,
-                    baseURL: provider.parsedBaseURL,
-                    apiKey: apiKey,
-                    model: "moonshotai/kimi-k2.5",
-                    organizationId: provider.organizationId,
-                    timeoutInterval: provider.timeoutInterval
+                let config = provider.makeLLMConfiguration(
+                    model: provider.backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder",
+                    apiKey: apiKey
                 )
                 let client = LLMService.shared.createClient(from: config)
                 let models = try await client.listModelsDetailed()

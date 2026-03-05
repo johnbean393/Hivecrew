@@ -6,6 +6,7 @@
 //
 
 import Combine
+import HivecrewLLM
 import SwiftUI
 
 struct ProviderRow: View {
@@ -42,6 +43,10 @@ struct ProviderRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                } else if provider.backendMode == .codexOAuth {
+                    Text(provider.isOAuthAuthenticated ? "ChatGPT OAuth • Connected" : "ChatGPT OAuth • Not connected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text("OpenAI API")
                         .font(.caption)
@@ -77,6 +82,12 @@ struct ProviderRow: View {
     }
     
     private var providerIcon: String {
+        if provider.backendMode == .codexOAuth {
+            return provider.isOAuthAuthenticated ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.exclamationmark"
+        }
+        if provider.backendMode == .responses {
+            return "bolt.horizontal.circle"
+        }
         if provider.baseURL?.contains("azure") == true {
             return "cloud.fill"
         } else if provider.baseURL?.contains("localhost") == true {

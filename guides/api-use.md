@@ -1003,6 +1003,12 @@ Returns the created task object.
 
 ## Providers API
 
+Provider modes:
+
+- `chat_completions` (legacy OpenAI-compatible chat endpoint)
+- `responses` (OpenAI Responses API standard)
+- `codex_oauth` (direct ChatGPT OAuth + Codex backend)
+
 ### List Providers
 
 ```bash
@@ -1025,6 +1031,9 @@ curl http://localhost:5482/api/v1/providers \
       "id": "provider-123",
       "displayName": "OpenRouter",
       "baseURL": "https://openrouter.ai/api/v1",
+      "backendMode": "chat_completions",
+      "authMode": "api_key",
+      "authState": null,
       "isDefault": true,
       "hasAPIKey": true,
       "createdAt": "2026-01-10T08:00:00Z"
@@ -1038,6 +1047,52 @@ curl http://localhost:5482/api/v1/providers \
 ```bash
 GET /api/v1/providers/:id
 ```
+
+### Create Provider
+
+```bash
+POST /api/v1/providers
+```
+
+```json
+{
+  "displayName": "Responses Provider",
+  "baseURL": "https://api.openai.com/v1",
+  "apiKey": "sk-...",
+  "backendMode": "responses",
+  "authMode": "api_key",
+  "isDefault": false,
+  "timeoutInterval": 120
+}
+```
+
+Notes:
+
+- `apiKey` is write-only and is never returned in read payloads.
+- `codex_oauth` providers ignore `apiKey` and use ChatGPT OAuth tokens.
+
+### Update Provider
+
+```bash
+PATCH /api/v1/providers/:id
+```
+
+```json
+{
+  "displayName": "ChatGPT OAuth",
+  "backendMode": "codex_oauth",
+  "authMode": "chatgpt_oauth",
+  "isDefault": true
+}
+```
+
+### Delete Provider
+
+```bash
+DELETE /api/v1/providers/:id
+```
+
+Returns `204 No Content` on success.
 
 ### List Provider Models
 
@@ -1062,6 +1117,26 @@ GET /api/v1/providers/:id/models
     }
   ]
 }
+```
+
+### Start ChatGPT OAuth
+
+```bash
+POST /api/v1/providers/:id/auth/start
+```
+
+Starts ChatGPT OAuth for a `codex_oauth` provider and returns the browser authorization URL.
+
+### Poll ChatGPT OAuth Status
+
+```bash
+GET /api/v1/providers/:id/auth/status
+```
+
+### Logout ChatGPT OAuth
+
+```bash
+POST /api/v1/providers/:id/auth/logout
 ```
 
 ---

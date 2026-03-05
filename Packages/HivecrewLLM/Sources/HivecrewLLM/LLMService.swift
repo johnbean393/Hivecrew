@@ -33,7 +33,12 @@ public final class LLMService: Sendable {
     /// - Parameter configuration: The configuration for the client
     /// - Returns: An LLM client instance
     public func createClient(from configuration: LLMConfiguration) -> any LLMClientProtocol {
-        OpenAICompatibleClient(configuration: configuration)
+        switch configuration.backendMode {
+        case .chatCompletions:
+            OpenAICompatibleClient(configuration: configuration)
+        case .responses, .codexOAuth:
+            ResponsesAPIClient(configuration: configuration)
+        }
     }
     
     /// Create an LLM client with inline parameters
@@ -52,6 +57,8 @@ public final class LLMService: Sendable {
         model: String,
         baseURL: URL? = nil,
         organizationId: String? = nil,
+        backendMode: LLMBackendMode = .chatCompletions,
+        authMode: LLMAuthMode = .apiKey,
         displayName: String? = nil
     ) -> any LLMClientProtocol {
         let configuration = LLMConfiguration(
@@ -59,7 +66,9 @@ public final class LLMService: Sendable {
             baseURL: baseURL,
             apiKey: apiKey,
             model: model,
-            organizationId: organizationId
+            organizationId: organizationId,
+            backendMode: backendMode,
+            authMode: authMode
         )
         return createClient(from: configuration)
     }

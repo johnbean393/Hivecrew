@@ -81,9 +81,14 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
 ![Provider Settings](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/provider-settings.png)
 
 - **Multi-Provider**: Works with Anthropic, OpenAI, OpenRouter, and any OpenAI-compatible API
+- **Backend Modes**: Per provider, choose `chat_completions`, `responses`, or `codex_oauth`
 - **Per-Task Selection**: Choose which provider and model to use for each task
 - **Local LLMs**: Connect to local LLM servers with custom base URLs
+- **Responses API Support**: Use OpenAI Responses-compatible providers with standard API key auth
+- **ChatGPT OAuth Support**: Direct OAuth (PKCE) login with ChatGPT for Codex-compatible usage
 - **Recommended Provider**: We suggest using [OpenRouter](https://openrouter.ai) for easy switching between different models with a single API key
+
+Codex OAuth mode is rollout-gated in release builds (`UserDefaults` key: `codexModeEnabled`) and is intended for individual ChatGPT account usage, not multi-tenant resale workflows.
 
 #### Recommended Models
 
