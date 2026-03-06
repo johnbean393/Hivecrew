@@ -89,6 +89,7 @@ struct TaskInputView: View {
             contextProvider.setWorkerClientProvider(taskService)
             contextProvider.updateDraft(taskDescription)
             loadPromptModelSelections()
+            normalizePromptModelSelections()
         }
         .onChange(of: providers) { _, newValue in
             // Update if no provider selected or stored provider was deleted.
@@ -97,6 +98,7 @@ struct TaskInputView: View {
                let first = newValue.first(where: { $0.isDefault }) ?? newValue.first {
                 selectedProviderId = first.id
             }
+            normalizePromptModelSelections()
         }
         .onChange(of: taskDescription) { _, newValue in
             contextProvider.updateDraft(newValue)
@@ -112,6 +114,9 @@ struct TaskInputView: View {
         }
         .onChange(of: multiModelSelections) { _, _ in
             persistPromptModelSelections()
+        }
+        .onChange(of: selectedProviderId) { _, _ in
+            normalizePromptModelSelections()
         }
     }
     
@@ -133,6 +138,8 @@ struct TaskInputView: View {
         
         let effectiveModelId = currentModelId.isEmpty ? "moonshotai/kimi-k2.5" : currentModelId
         let effectiveProviderId = currentProviderId.isEmpty ? selectedProviderId : currentProviderId
+
+        normalizePromptModelSelections(fallbackProviderId: effectiveProviderId)
         
         let executionTargets = resolvedExecutionTargets(
             effectiveProviderId: effectiveProviderId,
@@ -215,7 +222,10 @@ struct TaskInputView: View {
         effectiveModelId: String
     ) -> [(providerId: String, modelId: String, copyCount: Int, reasoningEnabled: Bool?, reasoningEffort: String?)] {
         if useMultiplePromptModels {
-            let deduped = deduplicatedSelections(multiModelSelections)
+            let deduped = normalizedSelections(
+                deduplicatedSelections(multiModelSelections),
+                fallbackProviderId: effectiveProviderId
+            )
             let targets = deduped
                 .filter { !$0.providerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 .filter { !$0.modelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -280,6 +290,45 @@ struct TaskInputView: View {
             return
         }
         promptModelSelectionsData = encoded
+    }
+
+    private func normalizePromptModelSelections(fallbackProviderId: String? = nil) {
+        let normalized = normalizedSelections(
+            multiModelSelections,
+            fallbackProviderId: fallbackProviderId ?? selectedProviderId
+        )
+        guard normalized != multiModelSelections else { return }
+        multiModelSelections = normalized
+    }
+
+    private func normalizedSelections(
+        _ selections: [PromptModelSelection],
+        fallbackProviderId: String
+    ) -> [PromptModelSelection] {
+        let trimmedFallbackProviderId = fallbackProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let knownProviderIds = Set(providers.map(\.id))
+
+        return deduplicatedSelections(selections).map { selection in
+            let trimmedProviderId = selection.providerId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedProviderId: String
+            if !trimmedProviderId.isEmpty, knownProviderIds.contains(trimmedProviderId) {
+                resolvedProviderId = trimmedProviderId
+            } else if !trimmedFallbackProviderId.isEmpty {
+                resolvedProviderId = trimmedFallbackProviderId
+            } else if providers.count == 1 {
+                resolvedProviderId = providers[0].id
+            } else {
+                resolvedProviderId = trimmedProviderId
+            }
+
+            return PromptModelSelection(
+                providerId: resolvedProviderId,
+                modelId: selection.modelId,
+                copyCount: selection.copyCount,
+                reasoningEnabled: selection.reasoningEnabled,
+                reasoningEffort: selection.reasoningEffort
+            )
+        }
     }
 
     private func syncContextAttachmentsIntoPromptBar() {
