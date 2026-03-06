@@ -81,26 +81,7 @@ struct PromptModelPopover: View {
     }
     
     var orderedProviderScopedModels: [LLMProviderModel] {
-        let baseModels: [LLMProviderModel]
-        if isOpenRouterProvider {
-            baseModels = providerScopedModels.sorted { lhs, rhs in
-                let lhsProvider = providerSlug(from: lhs.id)
-                let rhsProvider = providerSlug(from: rhs.id)
-                
-                if lhsProvider != rhsProvider {
-                    return lhsProvider.localizedStandardCompare(rhsProvider) == .orderedAscending
-                }
-                
-                let nameComparison = lhs.displayName.localizedStandardCompare(rhs.displayName)
-                if nameComparison != .orderedSame {
-                    return nameComparison == .orderedAscending
-                }
-                
-                return lhs.id.localizedStandardCompare(rhs.id) == .orderedAscending
-            }
-        } else {
-            baseModels = providerScopedModels
-        }
+        let baseModels = LLMProviderModel.sortByVersionDescending(providerScopedModels)
 
         // Always bubble selected models to the top while preserving relative order.
         let selected = baseModels.filter { isModelPinnedToTop($0.id) }
@@ -904,13 +885,6 @@ struct PromptModelPopover: View {
             return nil
         }
         return model.id
-    }
-    
-    private func providerSlug(from modelID: String) -> String {
-        guard let slashIndex = modelID.firstIndex(of: "/") else {
-            return ""
-        }
-        return String(modelID[..<slashIndex]).lowercased()
     }
     
     private func trimmedDescription(_ description: String?) -> String? {

@@ -204,36 +204,38 @@ private extension ResponsesAPIClient {
 
         do {
             let decoded = try JSONDecoder().decode(StrictModelsResponse.self, from: data)
-            return decoded.data
-                .filter(\.isSupportedInAPI)
-                .map { model in
-                    let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
-                    return LLMProviderModel(
-                        id: model.id,
-                        name: model.name,
-                        description: model.description,
-                        contextLength: model.contextLength,
-                        createdAt: model.created.map { Date(timeIntervalSince1970: TimeInterval($0)) },
-                        inputModalities: model.inputModalities,
-                        outputModalities: model.outputModalities,
-                        supportsVisionInput: model.supportsVision,
-                        reasoningCapability: supportedEfforts.isEmpty
-                            ? .none
-                            : LLMReasoningCapability(
-                                kind: .effort,
-                                supportedEfforts: supportedEfforts,
-                                defaultEffort: model.defaultReasoningLevel,
-                                defaultEnabled: false
-                            )
-                    )
-                }
-                .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
-                .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
+            return LLMProviderModel.sortByVersionDescending(
+                decoded.data
+                    .filter(\.isSupportedInAPI)
+                    .map { model in
+                        let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
+                        return LLMProviderModel(
+                            id: model.id,
+                            name: model.name,
+                            description: model.description,
+                            contextLength: model.contextLength,
+                            createdAt: model.created.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                            inputModalities: model.inputModalities,
+                            outputModalities: model.outputModalities,
+                            supportsVisionInput: model.supportsVision,
+                            reasoningCapability: supportedEfforts.isEmpty
+                                ? .none
+                                : LLMReasoningCapability(
+                                    kind: .effort,
+                                    supportedEfforts: supportedEfforts,
+                                    defaultEffort: model.defaultReasoningLevel,
+                                    defaultEnabled: false
+                                )
+                        )
+                    }
+                    .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+            )
         } catch {
             logStrictModelsDecodeFailure(error: error, data: data)
-            return try parseModelsResponse(data)
-                .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
-                .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
+            return LLMProviderModel.sortByVersionDescending(
+                try parseModelsResponse(data)
+                    .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+            )
         }
     }
 }

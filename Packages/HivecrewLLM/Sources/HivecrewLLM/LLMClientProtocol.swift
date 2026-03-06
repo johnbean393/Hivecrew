@@ -135,6 +135,6 @@ extension LLMClientProtocol {
     /// Default implementation maps plain IDs into minimal model descriptors.
     public func listModelsDetailed() async throws -> [LLMProviderModel] {
         let ids = try await listModels()
-        return ids.map { LLMProviderModel(id: $0) }
+        return LLMProviderModel.sortByVersionDescending(ids.map { LLMProviderModel(id: $0) })
     }
 }

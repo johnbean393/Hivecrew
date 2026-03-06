@@ -672,6 +672,18 @@ struct PromptReasoningButton: View {
         isFocused ? .controlAccentColor : NSColor(Color.primary.opacity(0.5))
     }
 
+    private var selectedEffortLabel: String {
+        let resolved = resolveReasoningSelection(
+            capability: capability,
+            currentEnabled: reasoningEnabled,
+            currentEffort: reasoningEffort
+        )
+        guard let effort = resolved.effort else {
+            return "Reason"
+        }
+        return reasoningEffortDisplayName(effort)
+    }
+
     private var loadToken: String {
         let providerToken = providers.map(\.id).joined(separator: "|")
         return "\(selectedProviderId)::\(providerToken)"
@@ -718,7 +730,7 @@ struct PromptReasoningButton: View {
             HStack(spacing: 4) {
                 Image(systemName: "brain.head.profile")
                     .font(.caption)
-                Text("Reason")
+                Text(selectedEffortLabel)
                     .font(.caption)
                     .lineLimit(1)
             }

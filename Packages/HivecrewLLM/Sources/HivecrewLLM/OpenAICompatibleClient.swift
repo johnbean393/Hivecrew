@@ -553,8 +553,8 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     public func listModelsDetailed() async throws -> [LLMProviderModel] {
         let modelsResponse = try await fetchModelsResponse()
         
-        return modelsResponse.data
-            .map { model in
+        return LLMProviderModel.sortByVersionDescending(
+            modelsResponse.data.map { model in
                 LLMProviderModel(
                     id: model.id,
                     name: model.name,
@@ -567,9 +567,7 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
                     reasoningCapability: model.normalizedReasoningCapability
                 )
             }
-            .sorted {
-                $0.id.localizedStandardCompare($1.id) == .orderedAscending
-            }
+        )
     }
     
     private func fetchModelsResponse() async throws -> ModelsResponse {

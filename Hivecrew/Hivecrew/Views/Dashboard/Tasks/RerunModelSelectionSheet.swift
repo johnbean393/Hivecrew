@@ -353,10 +353,7 @@ struct RerunModelSelectionSheet: View {
                     apiKey: apiKey
                 )
                 let client = LLMService.shared.createClient(from: config)
-                let models = try await client.listModelsDetailed()
-                    .sorted { lhs, rhs in
-                        lhs.id.localizedStandardCompare(rhs.id) == .orderedAscending
-                    }
+                let models = LLMProviderModel.sortByVersionDescending(try await client.listModelsDetailed())
                 
                 await MainActor.run {
                     guard requestProviderId == selectedProviderId else { return }
