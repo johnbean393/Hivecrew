@@ -127,6 +127,7 @@ struct PromptBar: View {
     @State private var mentionScreenPosition: CGPoint?
     @State private var quickLookURL: URL?
     @State private var quickLookURLSnapshot: [URL] = []
+    @State private var isReasoningControlVisible: Bool = false
     
     // Tips
     private let attachFilesTip = AttachFilesTip()
@@ -326,6 +327,7 @@ struct PromptBar: View {
                             selectedModelId: $selectedModelId,
                             reasoningEnabled: $reasoningEnabled,
                             reasoningEffort: $reasoningEffort,
+                            isVisible: $isReasoningControlVisible,
                             providers: Array(providers),
                             isFocused: isFocused
                         )
@@ -334,6 +336,7 @@ struct PromptBar: View {
                             copyCount: $copyCount,
                             isFocused: isFocused
                         )
+                        .padding(.leading, isReasoningControlVisible ? 0 : -8)
                         .popoverTip(batchExecutionTip, arrowEdge: .bottom)
                     }
                     
@@ -617,6 +620,7 @@ struct PromptReasoningButton: View {
     @Binding var selectedModelId: String
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
+    @Binding var isVisible: Bool
     let providers: [LLMProviderRecord]
     var isFocused: Bool = false
 
@@ -837,6 +841,7 @@ struct PromptReasoningButton: View {
     }
 
     private func synchronizeSelection() {
+        isVisible = capability.kind != .none
         let resolution = resolveReasoningSelection(
             capability: capability,
             currentEnabled: reasoningEnabled,

@@ -209,6 +209,27 @@ private extension ResponsesAPIClient {
                     .filter(\.isSupportedInAPI)
                     .map { model in
                         let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
+                        let supportsReasoningToggle = model.supportedParameters?.contains(where: {
+                            $0.caseInsensitiveCompare("reasoning") == .orderedSame
+                        }) == true
+                        let reasoningCapability: LLMReasoningCapability
+                        if !supportedEfforts.isEmpty {
+                            reasoningCapability = LLMReasoningCapability(
+                                kind: .effort,
+                                supportedEfforts: supportedEfforts,
+                                defaultEffort: model.defaultReasoningLevel,
+                                defaultEnabled: false
+                            )
+                        } else if supportsReasoningToggle {
+                            reasoningCapability = LLMReasoningCapability(
+                                kind: .toggle,
+                                supportedEfforts: [],
+                                defaultEffort: nil,
+                                defaultEnabled: true
+                            )
+                        } else {
+                            reasoningCapability = .none
+                        }
                         return LLMProviderModel(
                             id: model.id,
                             name: model.name,
@@ -218,14 +239,7 @@ private extension ResponsesAPIClient {
                             inputModalities: model.inputModalities,
                             outputModalities: model.outputModalities,
                             supportsVisionInput: model.supportsVision,
-                            reasoningCapability: supportedEfforts.isEmpty
-                                ? .none
-                                : LLMReasoningCapability(
-                                    kind: .effort,
-                                    supportedEfforts: supportedEfforts,
-                                    defaultEffort: model.defaultReasoningLevel,
-                                    defaultEnabled: false
-                                )
+                            reasoningCapability: reasoningCapability
                         )
                     }
                     .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
@@ -568,6 +582,27 @@ func parseResponsesModelsForTests(
             .filter(\.isSupportedInAPI)
             .map { model in
                 let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
+                let supportsReasoningToggle = model.supportedParameters?.contains(where: {
+                    $0.caseInsensitiveCompare("reasoning") == .orderedSame
+                }) == true
+                let reasoningCapability: LLMReasoningCapability
+                if !supportedEfforts.isEmpty {
+                    reasoningCapability = LLMReasoningCapability(
+                        kind: .effort,
+                        supportedEfforts: supportedEfforts,
+                        defaultEffort: model.defaultReasoningLevel,
+                        defaultEnabled: false
+                    )
+                } else if supportsReasoningToggle {
+                    reasoningCapability = LLMReasoningCapability(
+                        kind: .toggle,
+                        supportedEfforts: [],
+                        defaultEffort: nil,
+                        defaultEnabled: true
+                    )
+                } else {
+                    reasoningCapability = .none
+                }
                 return LLMProviderModel(
                     id: model.id,
                     name: model.name,
@@ -577,14 +612,7 @@ func parseResponsesModelsForTests(
                     inputModalities: model.inputModalities,
                     outputModalities: model.outputModalities,
                     supportsVisionInput: model.supportsVision,
-                    reasoningCapability: supportedEfforts.isEmpty
-                        ? .none
-                        : LLMReasoningCapability(
-                            kind: .effort,
-                            supportedEfforts: supportedEfforts,
-                            defaultEffort: model.defaultReasoningLevel,
-                            defaultEnabled: false
-                        )
+                    reasoningCapability: reasoningCapability
                 )
             }
             .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
@@ -1291,6 +1319,7 @@ private struct StrictModelsResponse: Decodable {
         let outputModalities: [String]?
         let supportsVision: Bool?
         let supportedReasoningLevels: [ReasoningLevel]?
+        let supportedParameters: [String]?
         let defaultReasoningLevel: String?
         let isSupportedInAPI: Bool
 
@@ -1321,6 +1350,8 @@ private struct StrictModelsResponse: Decodable {
             case supportsVisionCamel = "supportsVision"
             case supportsImageDetailOriginal = "supports_image_detail_original"
             case supportedReasoningLevels = "supported_reasoning_levels"
+            case supportedParameters = "supported_parameters"
+            case supportedParametersCamel = "supportedParameters"
             case defaultReasoningLevel = "default_reasoning_level"
             case supportedInAPI = "supported_in_api"
         }
@@ -1375,6 +1406,11 @@ private struct StrictModelsResponse: Decodable {
             ) ?? inputModalities?.contains(where: { $0.caseInsensitiveCompare("image") == .orderedSame })
 
             supportedReasoningLevels = try? container.decodeIfPresent([ReasoningLevel].self, forKey: .supportedReasoningLevels)
+            supportedParameters = Self.decodeStringArray(
+                from: container,
+                snakeCaseKey: .supportedParameters,
+                camelCaseKey: .supportedParametersCamel
+            )
             defaultReasoningLevel = try? container.decodeIfPresent(String.self, forKey: .defaultReasoningLevel)
             isSupportedInAPI = (try? container.decodeIfPresent(Bool.self, forKey: .supportedInAPI)) ?? true
         }

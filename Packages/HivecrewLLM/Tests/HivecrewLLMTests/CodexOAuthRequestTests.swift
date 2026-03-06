@@ -251,4 +251,27 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(model.reasoningCapability.supportedEfforts, ["low", "medium", "high"])
         XCTAssertEqual(model.reasoningCapability.defaultEffort, "medium")
     }
+
+    func testResponsesModelsPayloadWithSupportedParametersMapsToToggleCapability() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "moonshotai/kimi-k2.5",
+                  "name": "MoonshotAI: Kimi K2.5",
+                  "supported_parameters": ["reasoning", "include_reasoning", "reasoning_effort"]
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .responses)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.reasoningCapability.kind, .toggle)
+        XCTAssertEqual(model.reasoningCapability.supportedEfforts, [])
+        XCTAssertEqual(model.reasoningCapability.defaultEnabled, true)
+    }
 }

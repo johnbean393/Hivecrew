@@ -44,6 +44,7 @@ document.addEventListener('alpine:init', () => {
         quickCreating: false,
         quickPlanFirst: localStorage.getItem('hivecrew_plan_first') === 'true',
         quickFiles: [],
+        quickProviderId: localStorage.getItem('hivecrew_provider_id') || '',
         quickModelId: localStorage.getItem('hivecrew_model_id') || '',
         quickReasoningEnabled: null,
         quickReasoningEffort: null,
@@ -81,6 +82,16 @@ document.addEventListener('alpine:init', () => {
         // Providers & Models
         providers: [],
         availableModels: [],
+        modelsByProviderId: {},
+        quickModelOptions: [],
+        quickReasoningKind: 'none',
+        quickReasoningSupportedEfforts: [],
+        quickReasoningDefaultEffort: null,
+        quickReasoningDefaultEnabled: false,
+        taskReasoningKind: 'none',
+        taskReasoningSupportedEfforts: [],
+        taskReasoningDefaultEffort: null,
+        taskReasoningDefaultEnabled: false,
         modelDropdownOpen: false,
         modelSearchQuery: '',
         
@@ -178,11 +189,17 @@ document.addEventListener('alpine:init', () => {
         },
         
         saveModelSelection() {
+            if (this.newTask.providerId) {
+                this.quickProviderId = this.newTask.providerId;
+                localStorage.setItem('hivecrew_provider_id', this.newTask.providerId);
+            }
             if (this.newTask.modelId) {
                 localStorage.setItem('hivecrew_model_id', this.newTask.modelId);
                 this.quickModelId = this.newTask.modelId;
             }
+            this.normalizeQuickSelection();
             this.syncTaskReasoningSelection();
+            this.syncQuickReasoningSelection();
         },
 
         saveProviderSelection() {
@@ -198,12 +215,14 @@ document.addEventListener('alpine:init', () => {
             
             if (savedProviderId && this.providers.some(p => p.id === savedProviderId)) {
                 this.newTask.providerId = savedProviderId;
+                this.quickProviderId = savedProviderId;
             }
             
             if (savedModelId) {
                 this.newTask.modelId = savedModelId;
                 this.quickModelId = savedModelId;
             }
+            this.normalizeQuickSelection();
             this.syncTaskReasoningSelection();
             this.syncQuickReasoningSelection();
         },
@@ -597,29 +616,172 @@ document.addEventListener('alpine:init', () => {
         },
         
         get filteredModels() {
-            if (!this.modelSearchQuery.trim()) return this.availableModels;
+            if (!this.modelSearchQuery.trim()) return this.quickModelOptions;
             const q = this.modelSearchQuery.toLowerCase();
-            return this.availableModels.filter(m =>
-                m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)
+            return this.quickModelOptions.filter(m =>
+                m.id.toLowerCase().includes(q)
+                || m.name.toLowerCase().includes(q)
+                || m.providerDisplayName.toLowerCase().includes(q)
             );
         },
 
         get quickReasoningCapability() {
-            return this.getReasoningCapabilityForModel(this.quickModelId);
+            const selectedModel = this.resolveQuickModelSelection();
+            return selectedModel?.reasoningCapability || {
+                kind: 'none',
+                supportedEfforts: [],
+                defaultEffort: null,
+                defaultEnabled: false
+            };
         },
 
         get taskReasoningCapability() {
-            return this.getReasoningCapabilityForModel(this.newTask.modelId);
+            return this.getReasoningCapabilityForModel(this.newTask.providerId, this.newTask.modelId);
         },
 
-        getReasoningCapabilityForModel(modelId) {
-            const matched = this.availableModels.find(model => model.id === modelId);
+        get quickModelDisplayValue() {
+            const selectedModel = this.resolveQuickModelSelection();
+            return selectedModel?.id || this.quickModelId || 'Select model...';
+        },
+
+        findQuickModelMatches(modelId) {
+            if (!modelId) {
+                return [];
+            }
+            return this.quickModelOptions.filter(model => model.id === modelId);
+        },
+
+        choosePreferredQuickModelMatch(matches) {
+            if (!matches.length) {
+                return null;
+            }
+
+            const preferredProviderIds = [
+                this.quickProviderId,
+                this.newTask.modelId === this.quickModelId ? this.newTask.providerId : null,
+                this.getDefaultProviderId()
+            ].filter(Boolean);
+
+            const reasoningMatches = matches.filter(model => model.reasoningCapability?.kind !== 'none');
+            if (reasoningMatches.length > 0) {
+                for (const providerId of preferredProviderIds) {
+                    const providerMatch = reasoningMatches.find(model => model.providerId === providerId);
+                    if (providerMatch) {
+                        return providerMatch;
+                    }
+                }
+                return reasoningMatches[0];
+            }
+
+            for (const providerId of preferredProviderIds) {
+                const providerMatch = matches.find(model => model.providerId === providerId);
+                if (providerMatch) {
+                    return providerMatch;
+                }
+            }
+
+            return matches[0];
+        },
+
+        getQuickModelOption(providerId, modelId) {
+            if (!modelId) {
+                return null;
+            }
+            if (providerId) {
+                return this.quickModelOptions.find(model =>
+                    model.providerId === providerId && model.id === modelId
+                ) || null;
+            }
+            const matches = this.quickModelOptions.filter(model => model.id === modelId);
+            return matches.length === 1 ? matches[0] : null;
+        },
+
+        resolveQuickModelSelection() {
+            if (!this.quickModelId) {
+                return null;
+            }
+
+            const matches = this.findQuickModelMatches(this.quickModelId);
+            return this.choosePreferredQuickModelMatch(matches);
+        },
+
+        rebuildQuickModelOptions() {
+            this.quickModelOptions = this.providers.flatMap(provider =>
+                (this.modelsByProviderId[provider.id] || []).map(model => ({
+                    ...model,
+                    providerId: provider.id,
+                    providerDisplayName: provider.displayName || provider.id,
+                    optionKey: `${provider.id}::${model.id}`
+                }))
+            );
+        },
+
+        getReasoningCapabilityForModel(providerId, modelId) {
+            const matched = providerId
+                ? (this.modelsByProviderId[providerId] || []).find(model => model.id === modelId)
+                : this.getQuickModelOption(null, modelId);
             return matched?.reasoningCapability || {
                 kind: 'none',
                 supportedEfforts: [],
                 defaultEffort: null,
                 defaultEnabled: false
             };
+        },
+
+        getDefaultProviderId() {
+            const savedProviderId = localStorage.getItem('hivecrew_provider_id');
+            if (savedProviderId && this.providers.some(provider => provider.id === savedProviderId)) {
+                return savedProviderId;
+            }
+            return this.providers.find(provider => provider.isDefault)?.id || this.providers[0]?.id || '';
+        },
+
+        emptyReasoningCapability() {
+            return {
+                kind: 'none',
+                supportedEfforts: [],
+                defaultEffort: null,
+                defaultEnabled: false
+            };
+        },
+
+        updateQuickReasoningCapability() {
+            const selectedModel = this.resolveQuickModelSelection();
+            const capability = selectedModel?.reasoningCapability || this.emptyReasoningCapability();
+            this.quickReasoningKind = capability.kind || 'none';
+            this.quickReasoningSupportedEfforts = capability.supportedEfforts || [];
+            this.quickReasoningDefaultEffort = capability.defaultEffort ?? null;
+            this.quickReasoningDefaultEnabled = capability.defaultEnabled ?? false;
+        },
+
+        updateTaskReasoningCapability() {
+            const capability = this.getReasoningCapabilityForModel(
+                this.newTask.providerId,
+                this.newTask.modelId
+            );
+            this.taskReasoningKind = capability.kind || 'none';
+            this.taskReasoningSupportedEfforts = capability.supportedEfforts || [];
+            this.taskReasoningDefaultEffort = capability.defaultEffort ?? null;
+            this.taskReasoningDefaultEnabled = capability.defaultEnabled ?? false;
+        },
+
+        normalizeQuickSelection() {
+            if (!this.providers.length) {
+                return;
+            }
+
+            if (!this.quickProviderId || !this.providers.some(provider => provider.id === this.quickProviderId)) {
+                this.quickProviderId = this.getDefaultProviderId();
+            }
+
+            if (!this.quickModelId) {
+                return;
+            }
+
+            const resolvedModel = this.resolveQuickModelSelection();
+            if (resolvedModel) {
+                this.quickProviderId = resolvedModel.providerId;
+            }
         },
 
         resolveReasoningSelection(capability, reasoningEnabled, reasoningEffort) {
@@ -658,8 +820,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         syncTaskReasoningSelection() {
+            this.updateTaskReasoningCapability();
             const resolved = this.resolveReasoningSelection(
-                this.taskReasoningCapability,
+                {
+                    kind: this.taskReasoningKind,
+                    supportedEfforts: this.taskReasoningSupportedEfforts,
+                    defaultEffort: this.taskReasoningDefaultEffort,
+                    defaultEnabled: this.taskReasoningDefaultEnabled
+                },
                 this.newTask.reasoningEnabled,
                 this.newTask.reasoningEffort
             );
@@ -668,8 +836,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         syncQuickReasoningSelection() {
+            this.updateQuickReasoningCapability();
             const resolved = this.resolveReasoningSelection(
-                this.quickReasoningCapability,
+                {
+                    kind: this.quickReasoningKind,
+                    supportedEfforts: this.quickReasoningSupportedEfforts,
+                    defaultEffort: this.quickReasoningDefaultEffort,
+                    defaultEnabled: this.quickReasoningDefaultEnabled
+                },
                 this.quickReasoningEnabled,
                 this.quickReasoningEffort
             );
@@ -1039,6 +1213,7 @@ document.addEventListener('alpine:init', () => {
                 if (response.ok) {
                     const data = await response.json();
                     this.providers = data.providers || [];
+                    this.rebuildQuickModelOptions();
                     
                     // Auto-select default provider only if no persisted selection
                     if (!this.newTask.providerId) {
@@ -1047,12 +1222,12 @@ document.addEventListener('alpine:init', () => {
                             this.newTask.providerId = defaultProvider.id;
                         }
                     }
-                    
-                    // Load models for the active provider
-                    const activeProvider = this.getActiveProvider();
-                    if (activeProvider) {
-                        await this.loadModelsForProvider(activeProvider.id);
+
+                    if (!this.quickProviderId) {
+                        this.quickProviderId = this.getDefaultProviderId();
                     }
+                    
+                    await this.loadAllProviderModels();
                 }
             } catch (error) {
                 console.error('Failed to load providers:', error);
@@ -1067,28 +1242,44 @@ document.addEventListener('alpine:init', () => {
                 || null;
         },
         
-        async loadModelsForProvider(providerId) {
+        async fetchModelsForProvider(providerId) {
+            if (!providerId) {
+                return [];
+            }
             try {
                 const response = await this.apiFetch(`/api/v1/providers/${providerId}/models`);
                 if (response.ok) {
                     const data = await response.json();
-                    this.availableModels = data.models || [];
-                    if (this.newTask.providerId === providerId) {
-                        if (this.newTask.modelId && !this.availableModels.some(model => model.id === this.newTask.modelId)) {
-                            this.newTask.modelId = '';
-                        }
-                        this.syncTaskReasoningSelection();
-                    }
-                    if (this.quickModelId && !this.availableModels.some(model => model.id === this.quickModelId)) {
-                        this.quickReasoningEnabled = null;
-                        this.quickReasoningEffort = null;
-                    } else {
-                        this.syncQuickReasoningSelection();
-                    }
+                    const models = data.models || [];
+                    this.modelsByProviderId = {
+                        ...this.modelsByProviderId,
+                        [providerId]: models
+                    };
+                    this.rebuildQuickModelOptions();
+                    return models;
                 }
             } catch (error) {
                 console.error('Failed to load models:', error);
             }
+            return this.modelsByProviderId[providerId] || [];
+        },
+
+        async loadAllProviderModels() {
+            await Promise.all(this.providers.map(provider => this.fetchModelsForProvider(provider.id)));
+            await this.loadModelsForProvider(this.newTask.providerId || this.getDefaultProviderId());
+            this.normalizeQuickSelection();
+            this.syncQuickReasoningSelection();
+        },
+
+        async loadModelsForProvider(providerId) {
+            const models = await this.fetchModelsForProvider(providerId);
+            this.availableModels = models;
+            if (this.newTask.providerId === providerId && this.newTask.modelId && !models.some(model => model.id === this.newTask.modelId)) {
+                this.newTask.modelId = '';
+            }
+            this.normalizeQuickSelection();
+            this.syncTaskReasoningSelection();
+            this.syncQuickReasoningSelection();
         },
 
         // -------------------------------------------------------------------
@@ -1201,15 +1392,23 @@ document.addEventListener('alpine:init', () => {
         // -------------------------------------------------------------------
 
         saveQuickModelSelection() {
+            if (this.quickProviderId) {
+                localStorage.setItem('hivecrew_provider_id', this.quickProviderId);
+                this.newTask.providerId = this.quickProviderId;
+                this.loadModelsForProvider(this.quickProviderId);
+            }
             if (this.quickModelId) {
                 localStorage.setItem('hivecrew_model_id', this.quickModelId);
                 this.newTask.modelId = this.quickModelId;
             }
+            this.normalizeQuickSelection();
+            this.syncTaskReasoningSelection();
             this.syncQuickReasoningSelection();
         },
         
-        selectModel(modelId) {
-            this.quickModelId = modelId;
+        selectModel(model) {
+            this.quickProviderId = model.providerId;
+            this.quickModelId = model.id;
             this.modelDropdownOpen = false;
             this.modelSearchQuery = '';
             this.saveQuickModelSelection();
@@ -1218,6 +1417,9 @@ document.addEventListener('alpine:init', () => {
         selectCustomModel() {
             const custom = this.modelSearchQuery.trim();
             if (custom) {
+                if (!this.quickProviderId) {
+                    this.quickProviderId = this.getDefaultProviderId();
+                }
                 this.quickModelId = custom;
                 this.modelDropdownOpen = false;
                 this.modelSearchQuery = '';
@@ -1261,10 +1463,9 @@ document.addEventListener('alpine:init', () => {
             const description = this.getPromptText().trim();
             if (!description) return;
             
-            // Resolve provider: persisted → default → first available
-            const savedProviderId = localStorage.getItem('hivecrew_provider_id');
-            const provider = (savedProviderId && this.providers.find(p => p.id === savedProviderId))
-                || this.providers.find(p => p.isDefault)
+            this.normalizeQuickSelection();
+            const provider = this.providers.find(p => p.id === this.quickProviderId)
+                || this.providers.find(p => p.id === this.getDefaultProviderId())
                 || this.providers[0];
             
             if (!provider) {
