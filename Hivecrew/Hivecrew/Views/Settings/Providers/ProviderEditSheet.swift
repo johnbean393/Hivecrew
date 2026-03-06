@@ -21,6 +21,7 @@ struct ProviderEditSheet: View {
     @Query(sort: \LLMProviderRecord.displayName) private var allProviders: [LLMProviderRecord]
 
     let provider: LLMProviderRecord?
+    let initialBackendMode: LLMBackendMode
 
     @State private var displayName: String = ""
     @State private var backendMode: LLMBackendMode = .chatCompletions
@@ -63,6 +64,11 @@ struct ProviderEditSheet: View {
 
     private var shouldAutoRefreshOAuthAuth: Bool {
         isCodexMode && oauthAuthState == .pending && !isAuthenticatingOAuth
+    }
+
+    init(provider: LLMProviderRecord?, initialBackendMode: LLMBackendMode = .chatCompletions) {
+        self.provider = provider
+        self.initialBackendMode = initialBackendMode
     }
 
     var body: some View {
@@ -249,7 +255,13 @@ struct ProviderEditSheet: View {
                                 .scaleEffect(0.7)
                                 .frame(width: 14, height: 14)
                         }
-                        Text("Connect ChatGPT")
+                        Image("OpenAILogo")
+                            .renderingMode(.template)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 16, height: 16)
+                            .foregroundStyle(.primary)
+                        Text("Sign in with ChatGPT")
                     }
                 }
                 .disabled(isAuthenticatingOAuth)
@@ -309,7 +321,14 @@ struct ProviderEditSheet: View {
     }
 
     private func loadProvider() {
-        guard let provider else { return }
+        guard let provider else {
+            backendMode = initialBackendMode
+            authMode = initialBackendMode == .codexOAuth ? .chatGPTOAuth : .apiKey
+            if displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                displayName = initialBackendMode == .codexOAuth ? "ChatGPT OAuth" : "OpenRouter"
+            }
+            return
+        }
 
         displayName = provider.displayName
         backendMode = provider.backendMode

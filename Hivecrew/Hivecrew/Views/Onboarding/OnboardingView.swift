@@ -99,7 +99,14 @@ struct OnboardingView: View {
             OnboardingWelcomeStep()
             
         case .provider:
-            OnboardingProviderStep(isConfigured: $providerConfigured)
+            OnboardingProviderStep(
+                isConfigured: $providerConfigured,
+                onProviderConnected: {
+                    withAnimation {
+                        goNext()
+                    }
+                }
+            )
 
         case .worker:
             OnboardingWorkerModelStep(isConfigured: $workerConfigured)

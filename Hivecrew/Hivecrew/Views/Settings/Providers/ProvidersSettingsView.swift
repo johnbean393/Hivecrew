@@ -5,16 +5,18 @@
 //  LLM Providers settings tab with full provider management
 //
 
+import AppKit
 import SwiftUI
 import SwiftData
 import TipKit
+import HivecrewLLM
 
 /// LLM Providers settings tab
 struct ProvidersSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \LLMProviderRecord.displayName) private var providers: [LLMProviderRecord]
     
-    @State private var showingAddSheet = false
+    @State private var addProviderPreset: AddProviderPreset?
     @State private var editingProvider: LLMProviderRecord?
     @State private var providerToDelete: LLMProviderRecord?
     @State private var showingDeleteConfirmation = false
@@ -24,6 +26,25 @@ struct ProvidersSettingsView: View {
     
     // Tips
     private let configureProvidersTip = ConfigureProvidersTip()
+
+    private enum AddProviderPreset: String, Identifiable {
+        case chatCompletions
+        case responses
+        case chatGPTOAuth
+
+        var id: String { rawValue }
+
+        var backendMode: LLMBackendMode {
+            switch self {
+            case .chatCompletions:
+                return .chatCompletions
+            case .responses:
+                return .responses
+            case .chatGPTOAuth:
+                return .codexOAuth
+            }
+        }
+    }
     
     var body: some View {
         Form {
@@ -38,8 +59,8 @@ struct ProvidersSettingsView: View {
         .onChange(of: providers.count) { _, newCount in
             TipStore.shared.updateProviderCount(newCount)
         }
-        .sheet(isPresented: $showingAddSheet) {
-            ProviderEditSheet(provider: nil)
+        .sheet(item: $addProviderPreset) { preset in
+            ProviderEditSheet(provider: nil, initialBackendMode: preset.backendMode)
         }
         .sheet(item: $editingProvider) { provider in
             ProviderEditSheet(provider: provider)
@@ -68,9 +89,7 @@ struct ProvidersSettingsView: View {
                 } description: {
                     Text("Add an LLM provider to get started with agent tasks.")
                 } actions: {
-                    Button("Add Provider") {
-                        showingAddSheet = true
-                    }
+                    addProviderMenuLabel
                 }
                 .frame(height: 150)
             } else {
@@ -86,20 +105,51 @@ struct ProvidersSettingsView: View {
                     )
                 }
                 
-                Button {
-                    showingAddSheet = true
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle")
-                        Text("Add Provider")
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-                .padding(.vertical, 4)
-                .popoverTip(configureProvidersTip, arrowEdge: .trailing)
+                addProviderMenuLabel
+                    .padding(.vertical, 4)
+                    .popoverTip(configureProvidersTip, arrowEdge: .trailing)
             }
         }
+    }
+
+    private var addProviderMenuLabel: some View {
+        Menu {
+            Button("Chat Completions") {
+                addProviderPreset = .chatCompletions
+            }
+
+            Button("Responses") {
+                addProviderPreset = .responses
+            }
+
+            Button {
+                addProviderPreset = .chatGPTOAuth
+            } label: {
+                Label {
+                    Text("Sign in with ChatGPT")
+                } icon: {
+                    openAILogoMenuImage
+                }
+            }
+        } label: {
+            HStack {
+                Image(systemName: "plus.circle")
+                Text("Add Provider")
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.blue)
+    }
+
+    private var openAILogoMenuImage: Image {
+        guard let sourceImage = NSImage(named: "OpenAILogo"),
+              let resizedImage = sourceImage.copy() as? NSImage else {
+            return Image("OpenAILogo").renderingMode(.template)
+        }
+
+        resizedImage.size = NSSize(width: 14, height: 14)
+        resizedImage.isTemplate = true
+        return Image(nsImage: resizedImage)
     }
     
     private var workerModelSection: some View {

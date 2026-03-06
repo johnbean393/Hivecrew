@@ -18,6 +18,7 @@ struct OnboardingProviderStep: View {
     @Query(sort: \LLMProviderRecord.displayName) private var providers: [LLMProviderRecord]
     
     @Binding var isConfigured: Bool
+    let onProviderConnected: () -> Void
     
     @State private var displayName: String = "OpenRouter"
     @State private var backendMode: LLMBackendMode = .chatCompletions
@@ -33,6 +34,8 @@ struct OnboardingProviderStep: View {
     @State private var oauthLastAuthURL: String?
     @State private var oauthAuthMessage: String?
     @State private var isAuthenticatingOAuth = false
+    @State private var shouldAutoSaveOAuthProvider = false
+    @State private var shouldAutoAdvanceAfterOAuth = false
 
     private var isCodexMode: Bool {
         backendMode == .codexOAuth
@@ -60,121 +63,154 @@ struct OnboardingProviderStep: View {
     }
     
     var body: some View {
-        VStack(spacing: 24) {
-            // Header
-            VStack(spacing: 8) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.blue)
-                
-                Text("Configure LLM Provider")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                
-                Text("Connect an API-key provider or ChatGPT OAuth to power your agents")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.top, 20)
-            
-            // Form
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Provider Name")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("e.g., OpenAI, Claude, Local LLM", text: $displayName)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Backend Mode")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Picker("Backend Mode", selection: $backendMode) {
-                        Text("Chat Completions").tag(LLMBackendMode.chatCompletions)
-                        Text("Responses API").tag(LLMBackendMode.responses)
-                        Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: backendMode) { _, newValue in
-                        authMode = newValue == .codexOAuth ? .chatGPTOAuth : .apiKey
-                        if newValue == .codexOAuth,
-                           displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || displayName == "OpenRouter" {
-                            displayName = "ChatGPT OAuth"
-                        }
-                    }
-                }
-
-                if isCodexMode {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("ChatGPT OAuth")
-                            .font(.caption)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.blue)
+                        
+                        Text("Configure LLM Provider")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text("Connect an API-key provider or ChatGPT OAuth to power your agents")
+                            .font(.callout)
                             .foregroundStyle(.secondary)
-                        oauthAuthContent
+                            .multilineTextAlignment(.center)
                     }
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("API Key")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        SecureField("sk-...", text: $apiKey)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Base URL (optional)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            TextField("Leave empty for OpenRouter default", text: $baseURL)
+                    .padding(.top, 20)
+                    
+                    // Form
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Provider Name")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("e.g., OpenAI, Claude, Local LLM", text: $displayName)
                                 .textFieldStyle(.roundedBorder)
-                            ProviderURLPickerMenu(baseURL: $baseURL)
                         }
-                        Text("For custom endpoints like Azure, Anthropic, or local LLMs")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            .padding(.horizontal, 60)
-            
-            // Test & Save
-            HStack(spacing: 16) {
-                Button {
-                    testConnection()
-                } label: {
-                    HStack(spacing: 6) {
-                        if isTesting {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .frame(width: 14, height: 14)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Backend Mode")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Picker("Backend Mode", selection: $backendMode) {
+                                Text("Chat Completions").tag(LLMBackendMode.chatCompletions)
+                                Text("Responses API").tag(LLMBackendMode.responses)
+                                Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
+                            }
+                            .pickerStyle(.menu)
+                            .onChange(of: backendMode) { _, newValue in
+                                authMode = newValue == .codexOAuth ? .chatGPTOAuth : .apiKey
+                                if newValue == .codexOAuth,
+                                   displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || displayName == "OpenRouter" {
+                                    displayName = "ChatGPT OAuth"
+                                }
+                            }
+                        }
+
+                        if isCodexMode {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("ChatGPT OAuth")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                oauthAuthContent
+                            }
                         } else {
-                            Image(systemName: "network")
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("API Key")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                SecureField("sk-...", text: $apiKey)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Base URL (optional)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                HStack {
+                                    TextField("Leave empty for OpenRouter default", text: $baseURL)
+                                        .textFieldStyle(.roundedBorder)
+                                    ProviderURLPickerMenu(baseURL: $baseURL)
+                                }
+                                Text("For custom endpoints like Azure, Anthropic, or local LLMs")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
-                        Text("Test Connection")
                     }
+                    .padding(.horizontal, 60)
+                    
+                    // Test & Save
+                    HStack(spacing: 16) {
+                        Button {
+                            testConnection()
+                        } label: {
+                            HStack(spacing: 6) {
+                                if isTesting {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                        .frame(width: 14, height: 14)
+                                } else {
+                                    Image(systemName: "network")
+                                }
+                                Text("Test Connection")
+                            }
+                        }
+                        .disabled((!isCodexMode && apiKey.isEmpty) || (isCodexMode && !canSaveProvider) || isTesting)
+                        
+                        if let result = testResult {
+                            ConnectionTestResultView(result: result, style: .compact)
+                        }
+                        
+                        Spacer()
+                        
+                        Button("Save Provider") {
+                            saveProvider()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canSaveProvider)
+                    }
+                    .padding(.horizontal, 60)
+
+                    VStack(spacing: 14) {
+                        HStack(spacing: 12) {
+                            separatorLine
+                            Text("or")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            separatorLine
+                        }
+
+                        Button {
+                            signInWithChatGPT()
+                        } label: {
+                            Label {
+                                Text("Sign in with ChatGPT")
+                            } icon: {
+                                Image("OpenAILogo")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 18, height: 18)
+                                    .foregroundStyle(.primary)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .disabled(isAuthenticatingOAuth)
+                    }
+                    .padding(.horizontal, 60)
+                    .padding(.bottom, 20)
                 }
-                .disabled((!isCodexMode && apiKey.isEmpty) || (isCodexMode && !canSaveProvider) || isTesting)
-                
-                if let result = testResult {
-                    ConnectionTestResultView(result: result, style: .compact)
-                }
-                
-                Spacer()
-                
-                Button("Save Provider") {
-                    saveProvider()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canSaveProvider)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 60)
-            
-            Spacer()
-            
-            // Status
+
             if hasSaved || !providers.isEmpty {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
@@ -182,10 +218,12 @@ struct OnboardingProviderStep: View {
                     Text("Provider configured")
                         .foregroundStyle(.secondary)
                 }
+                .padding(.top, 20)
                 .padding(.bottom, 8)
+                .frame(maxWidth: .infinity)
             }
         }
-        .padding()
+        .padding(.horizontal)
         .onChange(of: providers.count) { _, newCount in
             isConfigured = newCount > 0
         }
@@ -304,6 +342,8 @@ struct OnboardingProviderStep: View {
     }
 
     private func saveProvider() {
+        let shouldAdvance = shouldAutoAdvanceAfterOAuth
+
         let provider = LLMProviderRecord(
             id: draftProviderId,
             displayName: displayName,
@@ -339,6 +379,12 @@ struct OnboardingProviderStep: View {
         oauthLoginId = nil
         oauthLastAuthURL = nil
         oauthAuthMessage = nil
+        shouldAutoSaveOAuthProvider = false
+        shouldAutoAdvanceAfterOAuth = false
+
+        if shouldAdvance {
+            onProviderConnected()
+        }
     }
 
     private func startOAuthAuth() {
@@ -350,6 +396,7 @@ struct OnboardingProviderStep: View {
                 let startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
 
                 await MainActor.run {
+                    NSWorkspace.shared.open(startResult.authURL)
                     oauthLoginId = startResult.loginId
                     oauthLastAuthURL = startResult.authURL.absoluteString
                     oauthAuthState = .pending
@@ -361,6 +408,8 @@ struct OnboardingProviderStep: View {
                     oauthAuthState = .failed
                     oauthAuthMessage = error.localizedDescription
                     isAuthenticatingOAuth = false
+                    shouldAutoSaveOAuthProvider = false
+                    shouldAutoAdvanceAfterOAuth = false
                 }
             }
         }
@@ -372,11 +421,43 @@ struct OnboardingProviderStep: View {
         oauthLoginId = snapshot.loginId
         oauthLastAuthURL = snapshot.authURL?.absoluteString ?? oauthLastAuthURL
         oauthAuthMessage = snapshot.message
+
+        if snapshot.status == .authenticated,
+           shouldAutoSaveOAuthProvider,
+           !providers.contains(where: { $0.id == activeProviderId }) {
+            saveProvider()
+        } else if snapshot.status == .failed {
+            shouldAutoSaveOAuthProvider = false
+        }
+    }
+
+    private func signInWithChatGPT() {
+        backendMode = .codexOAuth
+        authMode = .chatGPTOAuth
+        displayName = "ChatGPT OAuth"
+        baseURL = ""
+        apiKey = ""
+        testResult = nil
+        shouldAutoSaveOAuthProvider = true
+        shouldAutoAdvanceAfterOAuth = true
+
+        if oauthAuthState == .authenticated || CodexOAuthTokenStore.retrieve(providerId: activeProviderId) != nil {
+            saveProvider()
+            return
+        }
+
+        startOAuthAuth()
     }
 
     private func normalizedOptional(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var separatorLine: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.25))
+            .frame(maxWidth: .infinity, minHeight: 1, maxHeight: 1)
     }
 }
 
@@ -765,7 +846,10 @@ struct OnboardingWorkerModelStep: View {
 }
 
 #Preview {
-    OnboardingProviderStep(isConfigured: .constant(false))
+    OnboardingProviderStep(
+        isConfigured: .constant(false),
+        onProviderConnected: {}
+    )
         .modelContainer(for: LLMProviderRecord.self, inMemory: true)
         .frame(width: 720, height: 450)
 }
