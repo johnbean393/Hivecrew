@@ -788,6 +788,7 @@
       }
     },
     "%lld deliverable%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -6266,6 +6267,7 @@
       }
     },
     "Choose Model" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

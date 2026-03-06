@@ -500,131 +500,164 @@ extension SessionTraceView {
     }
     
     var tracePanelFooter: some View {
-        HStack(spacing: 16) {
-            
-            // Rerun button for inactive tasks
-            if !task.status.isActive {
-                Button(action: { handleRerun() }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.caption2)
-                        Text("Rerun")
-                            .font(.caption)
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-                .help("Create a new task with the same parameters")
-                .sheet(isPresented: $showingMissingAttachments) {
-                    if let validation = missingAttachmentsValidation {
-                        MissingAttachmentsSheet(
-                            task: task,
-                            missingAttachments: validation.missingInfos,
-                            validAttachments: validation.validInfos,
-                            onConfirm: { resolvedAttachments in
-                                showingMissingAttachments = false
-                                Task {
-                                    let rerunTarget = rerunTargetOverride ?? (
-                                        providerId: task.providerId,
-                                        modelId: task.modelId,
-                                        reasoningEnabled: task.reasoningEnabled,
-                                        reasoningEffort: task.reasoningEffort
-                                    )
-                                    defer { rerunTargetOverride = nil }
-                                    try? await taskService.rerunTask(
-                                        task,
-                                        providerId: rerunTarget.providerId,
-                                        modelId: rerunTarget.modelId,
-                                        reasoningEnabled: rerunTarget.reasoningEnabled,
-                                        reasoningEffort: rerunTarget.reasoningEffort,
-                                        withResolvedAttachments: resolvedAttachments
-                                    )
-                                }
-                            },
-                            onCancel: {
-                                showingMissingAttachments = false
-                                rerunTargetOverride = nil
-                            }
-                        )
-                    }
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 16) {
+                footerActionButtons
                 
-                Button {
-                    showingRerunModelSelection = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "brain")
-                            .font(.caption2)
-                        Text("Choose Model")
-                            .font(.caption)
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-                .help("Rerun this task with a different model")
-                .sheet(isPresented: $showingRerunModelSelection) {
-                    RerunModelSelectionSheet(task: task) { providerId, modelId, reasoningEnabled, reasoningEffort in
-                        handleRerun(
-                            providerId: providerId,
-                            modelId: modelId,
-                            reasoningEnabled: reasoningEnabled,
-                            reasoningEffort: reasoningEffort
-                        )
-                    }
+                Spacer(minLength: 12)
+                
+                footerTimestamp
+                
+                footerDoneButton
+            }
+            
+            VStack(alignment: .leading, spacing: 10) {
+                footerActionButtons
+                
+                HStack(spacing: 12) {
+                    footerTimestamp
+                    
+                    Spacer(minLength: 0)
+                    
+                    footerDoneButton
                 }
             }
-            
-            // Show deliverables button
-            if let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
-                Button(action: showDeliverablesInFinder) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder")
-                            .font(.caption2)
-                        Text("\(outputPaths.count) deliverable\(outputPaths.count == 1 ? "" : "s")")
-                            .font(.caption)
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-                .help("Show deliverables in Finder")
-            }
-            
-            // Extract skill button (for completed successful tasks)
-            if canExtractSkill {
-                Button(action: { showingSkillExtraction = true }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.caption2)
-                        Text("Extract Skill")
-                            .font(.caption)
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.purple)
-                .help("Create a reusable skill from this task")
-                .popoverTip(extractSkillTip, arrowEdge: .bottom)
-            }
-            
-            Spacer()
-            
-            // Timestamp range
-            if let firstTimestamp = events.first?.timestamp,
-               let lastTimestamp = events.last?.timestamp {
-                Text("\(formatTimestamp(firstTimestamp)) - \(formatTimestamp(lastTimestamp))")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            
-            Button("Done") {
-                dismiss()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var footerActionButtons: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 16) {
+                footerActionButtonContents
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                footerActionButtonContents
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var footerActionButtonContents: some View {
+        // Rerun button for inactive tasks
+        if !task.status.isActive {
+            Button(action: { handleRerun() }) {
+                footerLabel("arrow.counterclockwise", text: "Rerun")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .help("Create a new task with the same parameters")
+            .sheet(isPresented: $showingMissingAttachments) {
+                if let validation = missingAttachmentsValidation {
+                    MissingAttachmentsSheet(
+                        task: task,
+                        missingAttachments: validation.missingInfos,
+                        validAttachments: validation.validInfos,
+                        onConfirm: { resolvedAttachments in
+                            showingMissingAttachments = false
+                            Task {
+                                let rerunTarget = rerunTargetOverride ?? (
+                                    providerId: task.providerId,
+                                    modelId: task.modelId,
+                                    reasoningEnabled: task.reasoningEnabled,
+                                    reasoningEffort: task.reasoningEffort
+                                )
+                                defer { rerunTargetOverride = nil }
+                                try? await taskService.rerunTask(
+                                    task,
+                                    providerId: rerunTarget.providerId,
+                                    modelId: rerunTarget.modelId,
+                                    reasoningEnabled: rerunTarget.reasoningEnabled,
+                                    reasoningEffort: rerunTarget.reasoningEffort,
+                                    withResolvedAttachments: resolvedAttachments
+                                )
+                            }
+                        },
+                        onCancel: {
+                            showingMissingAttachments = false
+                            rerunTargetOverride = nil
+                        }
+                    )
+                }
+            }
+
+            Button {
+                showingRerunModelSelection = true
+            } label: {
+                footerLabel("brain", text: "Choose Model")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .help("Rerun this task with a different model")
+            .sheet(isPresented: $showingRerunModelSelection) {
+                RerunModelSelectionSheet(task: task) { providerId, modelId, reasoningEnabled, reasoningEffort in
+                    handleRerun(
+                        providerId: providerId,
+                        modelId: modelId,
+                        reasoningEnabled: reasoningEnabled,
+                        reasoningEffort: reasoningEffort
+                    )
+                }
+            }
+        }
+
+        // Show deliverables button
+        if let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
+            Button(action: showDeliverablesInFinder) {
+                footerLabel("folder", text: "\(outputPaths.count) deliverable\(outputPaths.count == 1 ? "" : "s")")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .help("Show deliverables in Finder")
+        }
+
+        // Extract skill button (for completed successful tasks)
+        if canExtractSkill {
+            Button(action: { showingSkillExtraction = true }) {
+                footerLabel("sparkles", text: "Extract Skill")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.purple)
+            .help("Create a reusable skill from this task")
+            .popoverTip(extractSkillTip, arrowEdge: .bottom)
+        }
+    }
+
+    @ViewBuilder
+    private var footerTimestamp: some View {
+        // Keep the timestamp visible when it fits, but let the footer degrade cleanly on narrow panels.
+        if let firstTimestamp = events.first?.timestamp,
+           let lastTimestamp = events.last?.timestamp {
+            Text("\(formatTimestamp(firstTimestamp)) - \(formatTimestamp(lastTimestamp))")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var footerDoneButton: some View {
+        Button("Done") {
+            dismiss()
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .keyboardShortcut(.cancelAction)
+    }
+
+    private func footerLabel(_ systemImage: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .font(.caption2)
+            Text(text)
+                .font(.caption)
+                .lineLimit(1)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
     
     func exportVideo() {
