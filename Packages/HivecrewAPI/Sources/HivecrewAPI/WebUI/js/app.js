@@ -795,7 +795,7 @@ document.addEventListener('alpine:init', () => {
                     const supportedEfforts = capability.supportedEfforts || [];
                     const fallbackEffort = supportedEfforts.includes(capability.defaultEffort)
                         ? capability.defaultEffort
-                        : (supportedEfforts[0] || null);
+                        : (supportedEfforts.includes('medium') ? 'medium' : (supportedEfforts[0] || null));
                     const resolvedEffort = supportedEfforts.includes(reasoningEffort)
                         ? reasoningEffort
                         : fallbackEffort;
