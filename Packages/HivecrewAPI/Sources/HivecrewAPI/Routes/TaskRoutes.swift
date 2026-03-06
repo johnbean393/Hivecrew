@@ -34,6 +34,9 @@ public final class TaskRoutes: Sendable {
         
         // POST /tasks - Create task
         tasks.post(use: createTask)
+
+        // POST /tasks/batch - Create multiple prompt-bar tasks from one submission
+        tasks.post("batch", use: createTaskBatch)
         
         // GET /tasks - List tasks
         tasks.get(use: listTasks)
@@ -153,6 +156,54 @@ public final class TaskRoutes: Sendable {
         )
         
         return try createJSONResponse(task, status: .created)
+    }
+
+    @Sendable
+    func createTaskBatch(request: Request, context: APIRequestContext) async throws -> Response {
+        let contentType = request.headers[.contentType] ?? ""
+
+        var description = ""
+        var targets: [CreateTaskBatchTarget] = []
+        var uploadedFilePaths: [String] = []
+        var planFirst = false
+        var mentionedSkillNames: [String] = []
+
+        if contentType.contains("multipart/form-data") {
+            let result = try await parseTaskBatchMultipartForm(request: request)
+            description = result.description
+            targets = result.targets
+            uploadedFilePaths = result.filePaths
+            planFirst = result.planFirst
+            mentionedSkillNames = result.mentionedSkillNames
+        } else {
+            let body = try await request.body.collect(upTo: 1024 * 1024)
+            let batchRequest = try makeISO8601Decoder().decode(CreateTaskBatchRequest.self, from: body)
+            description = batchRequest.description
+            targets = batchRequest.targets
+            planFirst = batchRequest.planFirst ?? false
+            mentionedSkillNames = batchRequest.mentionedSkillNames ?? []
+        }
+
+        guard !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw APIError.badRequest("Missing required field: description")
+        }
+
+        let expandedTargets = TaskBatchRequestSupport.expandedTargets(
+            try TaskBatchRequestSupport.validatedTargets(targets)
+        )
+
+        let createdTasks = try await serviceProvider.createTaskBatch(
+            description: description,
+            targets: expandedTargets,
+            attachedFilePaths: uploadedFilePaths,
+            planFirst: planFirst,
+            mentionedSkillNames: mentionedSkillNames
+        )
+
+        return try createJSONResponse(
+            CreateTaskBatchResponse(tasks: createdTasks),
+            status: .created
+        )
     }
     
     @Sendable
@@ -387,6 +438,14 @@ public final class TaskRoutes: Sendable {
         let reasoningEffort: String?
         let mentionedSkillNames: [String]
     }
+
+    private struct TaskBatchMultipartFormResult {
+        let description: String
+        let targets: [CreateTaskBatchTarget]
+        let filePaths: [String]
+        let planFirst: Bool
+        let mentionedSkillNames: [String]
+    }
     
     private func parseTaskMultipartForm(request: Request) async throws -> TaskMultipartFormResult {
         var description = ""
@@ -461,5 +520,68 @@ public final class TaskRoutes: Sendable {
             reasoningEffort: reasoningEffort,
             mentionedSkillNames: mentionedSkillNames
         )
+    }
+
+    private func parseTaskBatchMultipartForm(request: Request) async throws -> TaskBatchMultipartFormResult {
+        var description = ""
+        var targets: [CreateTaskBatchTarget] = []
+        var filePaths: [String] = []
+        var planFirst = false
+        var mentionedSkillNames: [String] = []
+
+        let uploadId = UUID().uuidString
+        let bodyData = try await request.body.collect(upTo: maxTotalUploadSize)
+        let boundary = try extractMultipartBoundary(from: request)
+        let parts = parseMultipartData(data: Data(buffer: bodyData), boundary: boundary)
+
+        for part in parts {
+            guard let name = part.name else { continue }
+
+            if name == "description" {
+                description = String(data: part.data, encoding: .utf8) ?? ""
+            } else if name == "targets" {
+                targets = try parseTaskBatchTargets(part.data)
+            } else if name == "planFirst" {
+                if let value = String(data: part.data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) {
+                    planFirst = value == "true" || value == "1"
+                }
+            } else if name == "mentionedSkillNames" || name == "mentionedSkillNames[]" {
+                if let value = String(data: part.data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    !value.isEmpty {
+                    mentionedSkillNames.append(value)
+                }
+            } else if name == "files" {
+                let filename = part.filename ?? "file_\(filePaths.count)"
+                if part.data.count > maxFileSize {
+                    throw APIError.payloadTooLarge(
+                        "File '\(filename)' exceeds maximum size of \(maxFileSize / 1024 / 1024)MB"
+                    )
+                }
+                let savedURL = try await fileStorage.saveUploadedFile(
+                    data: part.data,
+                    filename: filename,
+                    taskId: uploadId
+                )
+                filePaths.append(savedURL.path)
+            }
+        }
+
+        return TaskBatchMultipartFormResult(
+            description: description,
+            targets: targets,
+            filePaths: filePaths,
+            planFirst: planFirst,
+            mentionedSkillNames: mentionedSkillNames
+        )
+    }
+
+    private func parseTaskBatchTargets(_ data: Data) throws -> [CreateTaskBatchTarget] {
+        do {
+            return try JSONDecoder().decode([CreateTaskBatchTarget].self, from: data)
+        } catch {
+            throw APIError.badRequest("Invalid targets payload")
+        }
     }
 }

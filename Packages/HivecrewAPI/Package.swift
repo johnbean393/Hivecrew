@@ -21,6 +21,10 @@ let package = Package(
             resources: [
                 .copy("WebUI")
             ]
+        ),
+        .testTarget(
+            name: "HivecrewAPITests",
+            dependencies: ["HivecrewAPI"]
         )
     ]
 )

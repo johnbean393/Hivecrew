@@ -83,6 +83,58 @@ public struct CreateTaskRequest: Codable, Sendable {
     }
 }
 
+/// One execution target in a multi-model batch prompt-bar submission.
+public struct CreateTaskBatchTarget: Codable, Sendable, Equatable {
+    public let providerId: String
+    public let modelId: String
+    public let copyCount: Int
+    public let reasoningEnabled: Bool?
+    public let reasoningEffort: String?
+
+    public init(
+        providerId: String,
+        modelId: String,
+        copyCount: Int = 1,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil
+    ) {
+        self.providerId = providerId
+        self.modelId = modelId
+        self.copyCount = copyCount
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
+    }
+}
+
+/// Request for POST /tasks/batch (JSON body or multipart targets field)
+public struct CreateTaskBatchRequest: Codable, Sendable {
+    public let description: String
+    public let planFirst: Bool?
+    public let mentionedSkillNames: [String]?
+    public let targets: [CreateTaskBatchTarget]
+
+    public init(
+        description: String,
+        planFirst: Bool? = nil,
+        mentionedSkillNames: [String]? = nil,
+        targets: [CreateTaskBatchTarget]
+    ) {
+        self.description = description
+        self.planFirst = planFirst
+        self.mentionedSkillNames = mentionedSkillNames
+        self.targets = targets
+    }
+}
+
+/// Response for POST /tasks/batch
+public struct CreateTaskBatchResponse: Codable, Sendable {
+    public let tasks: [APITask]
+
+    public init(tasks: [APITask]) {
+        self.tasks = tasks
+    }
+}
+
 /// Request for PATCH /tasks/:id
 public struct UpdateTaskRequest: Codable, Sendable {
     public let action: APITaskAction

@@ -8,11 +8,11 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=39">
+    <link rel="stylesheet" href="/web/css/styles.css?v=40">
     <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=40"></script>
+    <script defer src="/web/js/app.js?v=41"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -362,36 +362,115 @@
                                         class="prompt-model-search"
                                         x-ref="modelSearch"
                                         x-model="modelSearchQuery"
-                                        placeholder="Search or enter model ID..."
-                                        @keydown.enter.prevent="selectCustomModel()"
+                                        :placeholder="quickUseMultipleModels ? 'Search models...' : 'Search or enter model ID...'"
+                                        @keydown.enter.prevent="if (!quickUseMultipleModels) selectCustomModel()"
                                         @keydown.escape.prevent="modelDropdownOpen = false"
                                     >
                                     <div class="prompt-model-options">
                                         <template x-for="model in filteredModels" :key="model.optionKey">
-                                            <button
-                                                type="button"
+                                            <div
                                                 class="prompt-model-option"
-                                                :class="{ selected: quickProviderId === model.providerId && quickModelId === model.id }"
-                                                @click="selectModel(model)"
+                                                :class="{ selected: isQuickModelSelected(model), 'is-multi': quickUseMultipleModels }"
                                             >
-                                                <span class="prompt-model-option-name" x-text="model.name"></span>
-                                                <span class="prompt-model-option-id" x-text="`${model.providerDisplayName} • ${model.id}`"></span>
+                                                <button
+                                                    type="button"
+                                                    class="prompt-model-option-main"
+                                                    @click="quickUseMultipleModels ? selectQuickMultiModel(model) : selectModel(model)"
+                                                >
+                                                    <span
+                                                        class="prompt-model-option-marker"
+                                                        x-show="quickUseMultipleModels"
+                                                        :class="{ active: isQuickModelSelected(model) }"
+                                                    ></span>
+                                                    <span class="prompt-model-option-text">
+                                                        <span class="prompt-model-option-name" x-text="model.name"></span>
+                                                        <span class="prompt-model-option-id" x-text="`${model.providerDisplayName} • ${model.id}`"></span>
+                                                    </span>
+                                                </button>
+                                                <template x-if="quickUseMultipleModels && getQuickMultiModelSelection(model.providerId, model.id)">
+                                                    <div class="prompt-model-option-details">
+                                                        <div class="prompt-model-option-detail">
+                                                            <span class="prompt-model-option-detail-label">Copies</span>
+                                                            <div class="prompt-model-option-inline-select">
+                                                                <select
+                                                                    :value="getQuickMultiModelSelection(model.providerId, model.id)?.copyCount"
+                                                                    @click.stop
+                                                                    @change="updateQuickMultiModelCopyCount(model.providerId, model.id, $event.target.value)"
+                                                                >
+                                                                    <template x-for="count in copyCountOptions" :key="`${model.optionKey}-copy-${count}`">
+                                                                        <option :value="count" x-text="copyCountLabel(count)"></option>
+                                                                    </template>
+                                                                </select>
+                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
+                                                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                        <template x-if="model.reasoningCapability?.kind === 'toggle'">
+                                                            <label class="prompt-model-option-toggle checkbox-label">
+                                                                <span class="prompt-model-option-detail-label">Reasoning</span>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    :checked="getQuickMultiModelSelection(model.providerId, model.id)?.reasoningEnabled ?? model.reasoningCapability.defaultEnabled"
+                                                                    @click.stop
+                                                                    @change="updateQuickMultiModelReasoning(model.providerId, model.id, { reasoningEnabled: $event.target.checked, reasoningEffort: null })"
+                                                                >
+                                                                <span class="checkbox-toggle"></span>
+                                                            </label>
+                                                        </template>
+                                                        <template x-if="model.reasoningCapability?.kind === 'effort'">
+                                                            <div class="prompt-model-option-detail">
+                                                                <span class="prompt-model-option-detail-label">Reasoning</span>
+                                                                <div class="prompt-model-option-inline-select">
+                                                                    <select
+                                                                        :value="getQuickMultiModelSelection(model.providerId, model.id)?.reasoningEffort ?? model.reasoningCapability.defaultEffort"
+                                                                        @click.stop
+                                                                        @change="updateQuickMultiModelReasoning(model.providerId, model.id, { reasoningEnabled: null, reasoningEffort: $event.target.value })"
+                                                                    >
+                                                                        <template x-for="effort in model.reasoningCapability.supportedEfforts" :key="`${model.optionKey}-effort-${effort}`">
+                                                                            <option :value="effort" x-text="formatReasoningEffortLabel(effort)"></option>
+                                                                        </template>
+                                                                    </select>
+                                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
+                                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                                    </svg>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!quickUseMultipleModels && modelSearchQuery.trim() && filteredModels.length === 0">
+                                            <button type="button" class="prompt-model-option prompt-model-option-main" @click="selectCustomModel()">
+                                                <span class="prompt-model-option-text">
+                                                    <span class="prompt-model-option-name">Use custom model</span>
+                                                    <span class="prompt-model-option-id" x-text="modelSearchQuery.trim()"></span>
+                                                </span>
                                             </button>
                                         </template>
-                                        <template x-if="modelSearchQuery.trim() && filteredModels.length === 0">
-                                            <button type="button" class="prompt-model-option" @click="selectCustomModel()">
-                                                <span class="prompt-model-option-name">Use custom model</span>
-                                                <span class="prompt-model-option-id" x-text="modelSearchQuery.trim()"></span>
-                                            </button>
+                                        <template x-if="quickUseMultipleModels && modelSearchQuery.trim() && filteredModels.length === 0">
+                                            <div class="prompt-model-empty">No matching models</div>
                                         </template>
                                         <template x-if="quickModelOptions.length === 0 && !modelSearchQuery.trim()">
-                                            <div class="prompt-model-empty">Type a model ID and press Enter</div>
+                                            <div class="prompt-model-empty" x-text="quickUseMultipleModels ? 'No models available' : 'Type a model ID and press Enter'"></div>
                                         </template>
+                                    </div>
+                                    <div class="prompt-model-footer">
+                                        <label class="prompt-model-multi-toggle checkbox-label">
+                                            <input
+                                                type="checkbox"
+                                                :checked="quickUseMultipleModels"
+                                                @change="setQuickUseMultipleModels($event.target.checked)"
+                                            >
+                                            <span class="checkbox-toggle"></span>
+                                            <span>Use Multiple Models</span>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
 
-                            <template x-if="quickReasoningKind === 'toggle'">
+                            <template x-if="!quickUseMultipleModels && quickReasoningKind === 'toggle'">
                                 <button
                                     type="button"
                                     class="prompt-toolbar-pill prompt-toolbar-reasoning-toggle"
@@ -409,7 +488,7 @@
                                 </button>
                             </template>
 
-                            <template x-if="quickReasoningKind === 'effort'">
+                            <template x-if="!quickUseMultipleModels && quickReasoningKind === 'effort'">
                                 <div class="prompt-toolbar-select-wrap">
                                     <select
                                         class="prompt-toolbar-select"
@@ -417,6 +496,23 @@
                                     >
                                         <template x-for="effort in quickReasoningSupportedEfforts" :key="effort">
                                             <option :value="effort" x-text="formatReasoningEffortLabel(effort)"></option>
+                                        </template>
+                                    </select>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </template>
+
+                            <template x-if="!quickUseMultipleModels">
+                                <div class="prompt-toolbar-select-wrap prompt-toolbar-copycount-select">
+                                    <select
+                                        class="prompt-toolbar-select"
+                                        x-model="quickCopyCount"
+                                        @change="saveQuickCopyCount()"
+                                    >
+                                        <template x-for="count in copyCountOptions" :key="`quick-copy-${count}`">
+                                            <option :value="count" x-text="copyCountLabel(count)"></option>
                                         </template>
                                     </select>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
@@ -445,7 +541,7 @@
                             <button
                                 class="btn btn-primary btn-icon-only"
                                 @click="quickCreateTask()"
-                                :disabled="quickCreating || !quickTaskDescription.trim()"
+                                :disabled="quickCreating || !quickTaskDescription.trim() || !hasQuickExecutionTarget"
                                 title="Run task"
                             >
                                 <span x-show="quickCreating" x-cloak class="spinner-small"></span>

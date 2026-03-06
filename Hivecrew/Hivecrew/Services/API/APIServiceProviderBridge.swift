@@ -79,6 +79,61 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         
         return convertToAPITask(task)
     }
+
+    func createTaskBatch(
+        description: String,
+        targets: [CreateTaskBatchTarget],
+        attachedFilePaths: [String],
+        planFirst: Bool,
+        mentionedSkillNames: [String]
+    ) async throws -> [APITask] {
+        guard !targets.isEmpty else {
+            return []
+        }
+
+        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDescription.isEmpty else {
+            throw APIError.badRequest("Missing required field: description")
+        }
+
+        let providerDescriptor = FetchDescriptor<LLMProviderRecord>()
+        let availableProviders = try modelContext.fetch(providerDescriptor)
+        let knownProviderIds = Set(availableProviders.map(\.id))
+
+        for target in targets {
+            if !knownProviderIds.contains(target.providerId) {
+                throw APIError.notFound("Provider with ID '\(target.providerId)' not found")
+            }
+        }
+
+        let requests = targets.flatMap { target in
+            Array(
+                repeating: TaskCreationRequest(
+                    description: trimmedDescription,
+                    providerId: target.providerId,
+                    modelId: target.modelId,
+                    reasoningEnabled: target.reasoningEnabled,
+                    reasoningEffort: target.reasoningEffort,
+                    attachedFilePaths: attachedFilePaths,
+                    attachmentInfos: nil,
+                    outputDirectory: nil,
+                    mentionedSkillNames: mentionedSkillNames,
+                    retrievalContextPackId: nil,
+                    retrievalInlineContextBlocks: [],
+                    retrievalContextAttachmentPaths: [],
+                    retrievalSelectedSuggestionIds: [],
+                    retrievalModeOverrides: [:],
+                    planFirstEnabled: planFirst,
+                    planMarkdown: nil,
+                    planSelectedSkillNames: nil
+                ),
+                count: max(target.copyCount, 1)
+            )
+        }
+
+        let createdTasks = try await taskService.createTasks(requests)
+        return createdTasks.map(convertToAPITask)
+    }
     
     func getTasks(
         status: [APITaskStatus]?,

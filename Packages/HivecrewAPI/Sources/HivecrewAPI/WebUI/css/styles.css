@@ -932,15 +932,13 @@ body {
 .prompt-model-option {
     display: flex;
     flex-direction: column;
-    gap: 1px;
     width: 100%;
-    padding: 8px 10px;
     border: none;
     background: transparent;
     text-align: left;
     border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: background 0.1s ease;
+    transition: background 0.1s ease, border-color 0.1s ease;
+    overflow: hidden;
 }
 
 .prompt-model-option:hover {
@@ -949,6 +947,43 @@ body {
 
 .prompt-model-option.selected {
     background: var(--accent-light);
+}
+
+.prompt-model-option-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.prompt-model-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1;
+}
+
+.prompt-model-option-marker {
+    width: 14px;
+    height: 14px;
+    margin-top: 2px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-window);
+    flex-shrink: 0;
+    transition: all 0.12s ease;
+}
+
+.prompt-model-option-marker.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: inset 0 0 0 2px var(--bg-elevated);
 }
 
 .prompt-model-option-name {
@@ -968,6 +1003,86 @@ body {
     text-align: center;
     font-size: 13px;
     color: var(--text-tertiary);
+}
+
+.prompt-model-option-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 10px 10px 34px;
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg-elevated) 94%, var(--accent-light) 6%);
+}
+
+.prompt-model-option-detail,
+.prompt-model-option-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.prompt-model-option-detail-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.prompt-model-option-inline-select {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 112px;
+    max-width: 160px;
+}
+
+.prompt-model-option-inline-select select {
+    width: 100%;
+    height: 30px;
+    padding: 0 28px 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-window);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--font-family);
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+}
+
+.prompt-model-option-inline-select svg {
+    position: absolute;
+    right: 9px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+}
+
+.prompt-model-option-toggle {
+    margin: 0;
+}
+
+.prompt-model-option-toggle .checkbox-toggle,
+.prompt-model-multi-toggle .checkbox-toggle {
+    flex-shrink: 0;
+}
+
+.prompt-model-footer {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-window);
+}
+
+.prompt-model-multi-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
 }
 
 .prompt-mode-toggle {

@@ -43,6 +43,15 @@ public protocol APIServiceProvider: Sendable {
         contextInlineBlocks: [String],
         contextAttachmentPaths: [String]
     ) async throws -> APITask
+
+    /// Create multiple prompt-bar tasks from a shared description/files payload.
+    func createTaskBatch(
+        description: String,
+        targets: [CreateTaskBatchTarget],
+        attachedFilePaths: [String],
+        planFirst: Bool,
+        mentionedSkillNames: [String]
+    ) async throws -> [APITask]
     
     /// List tasks with optional status filtering, pagination, and sorting.
     func getTasks(

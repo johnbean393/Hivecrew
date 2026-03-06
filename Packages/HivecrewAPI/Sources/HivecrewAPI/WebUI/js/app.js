@@ -46,6 +46,13 @@ document.addEventListener('alpine:init', () => {
         quickFiles: [],
         quickProviderId: localStorage.getItem('hivecrew_provider_id') || '',
         quickModelId: localStorage.getItem('hivecrew_model_id') || '',
+        quickCopyCount: (() => {
+            const raw = Number.parseInt(localStorage.getItem('hivecrew_prompt_copy_count') || '1', 10);
+            return Number.isFinite(raw) ? Math.min(8, Math.max(1, raw)) : 1;
+        })(),
+        quickUseMultipleModels: localStorage.getItem('hivecrew_use_multiple_prompt_models') === 'true',
+        quickMultiModelSelections: [],
+        copyCountOptions: [1, 2, 3, 4, 5, 6, 7, 8],
         quickReasoningEnabled: null,
         quickReasoningEffort: null,
         isDraggingFiles: false,
@@ -212,6 +219,8 @@ document.addEventListener('alpine:init', () => {
         restoreSelections() {
             const savedProviderId = localStorage.getItem('hivecrew_provider_id');
             const savedModelId = localStorage.getItem('hivecrew_model_id');
+            const savedCopyCount = Number.parseInt(localStorage.getItem('hivecrew_prompt_copy_count') || '1', 10);
+            const rawSelections = localStorage.getItem('hivecrew_prompt_model_selections');
             
             if (savedProviderId && this.providers.some(p => p.id === savedProviderId)) {
                 this.newTask.providerId = savedProviderId;
@@ -221,6 +230,170 @@ document.addEventListener('alpine:init', () => {
             if (savedModelId) {
                 this.newTask.modelId = savedModelId;
                 this.quickModelId = savedModelId;
+            }
+            this.quickCopyCount = this.normalizeCopyCount(savedCopyCount);
+            this.quickUseMultipleModels = localStorage.getItem('hivecrew_use_multiple_prompt_models') === 'true';
+            this.quickMultiModelSelections = this.parseQuickMultiModelSelections(rawSelections);
+            this.normalizeQuickSelection();
+            this.normalizeQuickMultiModelSelections();
+            this.syncTaskReasoningSelection();
+            this.syncQuickReasoningSelection();
+        },
+
+        normalizeCopyCount(value) {
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isFinite(parsed)) {
+                return 1;
+            }
+            return Math.min(8, Math.max(1, parsed));
+        },
+
+        copyCountLabel(value) {
+            return `×${this.normalizeCopyCount(value)}`;
+        },
+
+        parseQuickMultiModelSelections(rawSelections) {
+            if (!rawSelections) {
+                return [];
+            }
+
+            try {
+                const decoded = JSON.parse(rawSelections);
+                if (!Array.isArray(decoded)) {
+                    return [];
+                }
+                return decoded
+                    .map(selection => ({
+                        providerId: typeof selection.providerId === 'string' ? selection.providerId.trim() : '',
+                        modelId: typeof selection.modelId === 'string' ? selection.modelId.trim() : '',
+                        copyCount: this.normalizeCopyCount(selection.copyCount),
+                        reasoningEnabled: typeof selection.reasoningEnabled === 'boolean'
+                            ? selection.reasoningEnabled
+                            : null,
+                        reasoningEffort: typeof selection.reasoningEffort === 'string'
+                            ? selection.reasoningEffort.trim() || null
+                            : null
+                    }))
+                    .filter(selection => selection.providerId && selection.modelId);
+            } catch {
+                return [];
+            }
+        },
+
+        modelSelectionKey(providerId, modelId) {
+            return `${providerId}::${modelId}`;
+        },
+
+        deduplicateQuickMultiModelSelections(selections) {
+            const orderedKeys = [];
+            const keyedSelections = new Map();
+
+            for (const selection of selections) {
+                const providerId = (selection.providerId || '').trim();
+                const modelId = (selection.modelId || '').trim();
+                if (!providerId || !modelId) {
+                    continue;
+                }
+
+                const key = this.modelSelectionKey(providerId, modelId);
+                if (!keyedSelections.has(key)) {
+                    orderedKeys.push(key);
+                }
+                keyedSelections.set(key, {
+                    providerId,
+                    modelId,
+                    copyCount: this.normalizeCopyCount(selection.copyCount),
+                    reasoningEnabled: typeof selection.reasoningEnabled === 'boolean'
+                        ? selection.reasoningEnabled
+                        : null,
+                    reasoningEffort: typeof selection.reasoningEffort === 'string'
+                        ? selection.reasoningEffort.trim() || null
+                        : null
+                });
+            }
+
+            return orderedKeys.map(key => keyedSelections.get(key));
+        },
+
+        persistQuickMultiModelSelections() {
+            const deduped = this.deduplicateQuickMultiModelSelections(this.quickMultiModelSelections);
+            this.quickMultiModelSelections = deduped;
+            localStorage.setItem('hivecrew_use_multiple_prompt_models', this.quickUseMultipleModels ? 'true' : 'false');
+            localStorage.setItem('hivecrew_prompt_model_selections', JSON.stringify(deduped));
+        },
+
+        saveQuickCopyCount() {
+            this.quickCopyCount = this.normalizeCopyCount(this.quickCopyCount);
+            localStorage.setItem('hivecrew_prompt_copy_count', String(this.quickCopyCount));
+        },
+
+        setQuickUseMultipleModels(isEnabled) {
+            const enabled = !!isEnabled;
+            if (this.quickUseMultipleModels === enabled) {
+                return;
+            }
+
+            this.quickUseMultipleModels = enabled;
+            if (enabled) {
+                this.quickMultiModelSelections = [];
+            }
+            this.persistQuickMultiModelSelections();
+        },
+
+        getQuickModelMetadata(providerId, modelId) {
+            return (this.modelsByProviderId[providerId] || []).find(model => model.id === modelId) || null;
+        },
+
+        getQuickMultiModelSelection(providerId, modelId) {
+            return this.quickMultiModelSelections.find(selection =>
+                selection.providerId === providerId && selection.modelId === modelId
+            ) || null;
+        },
+
+        quickMultiModelSelectionIndex(providerId, modelId) {
+            return this.quickMultiModelSelections.findIndex(selection =>
+                selection.providerId === providerId && selection.modelId === modelId
+            );
+        },
+
+        normalizeQuickMultiModelSelections() {
+            const deduped = this.deduplicateQuickMultiModelSelections(this.quickMultiModelSelections);
+            const normalized = deduped.filter(selection => {
+                if (!this.providers.some(provider => provider.id === selection.providerId)) {
+                    return false;
+                }
+                return !!this.getQuickModelMetadata(selection.providerId, selection.modelId);
+            }).map(selection => {
+                const model = this.getQuickModelMetadata(selection.providerId, selection.modelId);
+                const resolved = this.resolveReasoningSelection(
+                    model?.reasoningCapability || this.emptyReasoningCapability(),
+                    selection.reasoningEnabled,
+                    selection.reasoningEffort
+                );
+                return {
+                    ...selection,
+                    copyCount: this.normalizeCopyCount(selection.copyCount),
+                    reasoningEnabled: resolved.reasoningEnabled,
+                    reasoningEffort: resolved.reasoningEffort
+                };
+            });
+
+            if (JSON.stringify(normalized) !== JSON.stringify(this.quickMultiModelSelections)) {
+                this.quickMultiModelSelections = normalized;
+            }
+            this.persistQuickMultiModelSelections();
+        },
+
+        persistQuickProviderAndModel(providerId = this.quickProviderId, modelId = this.quickModelId) {
+            if (providerId) {
+                this.quickProviderId = providerId;
+                this.newTask.providerId = providerId;
+                localStorage.setItem('hivecrew_provider_id', providerId);
+            }
+            if (modelId) {
+                this.quickModelId = modelId;
+                this.newTask.modelId = modelId;
+                localStorage.setItem('hivecrew_model_id', modelId);
             }
             this.normalizeQuickSelection();
             this.syncTaskReasoningSelection();
@@ -616,9 +789,10 @@ document.addEventListener('alpine:init', () => {
         },
         
         get filteredModels() {
-            if (!this.modelSearchQuery.trim()) return this.quickModelOptions;
+            const orderedOptions = this.orderedQuickModelOptions();
+            if (!this.modelSearchQuery.trim()) return orderedOptions;
             const q = this.modelSearchQuery.toLowerCase();
-            return this.quickModelOptions.filter(m =>
+            return orderedOptions.filter(m =>
                 m.id.toLowerCase().includes(q)
                 || m.name.toLowerCase().includes(q)
                 || m.providerDisplayName.toLowerCase().includes(q)
@@ -640,8 +814,59 @@ document.addEventListener('alpine:init', () => {
         },
 
         get quickModelDisplayValue() {
+            if (this.quickUseMultipleModels) {
+                if (this.quickMultiModelSelections.length === 0) {
+                    return 'Select models';
+                }
+                if (this.quickMultiModelSelections.length === 1) {
+                    return this.quickMultiModelSelections[0].modelId;
+                }
+                return this.quickMultiModelSelections.map(selection => selection.modelId).join(', ');
+            }
+
             const selectedModel = this.resolveQuickModelSelection();
             return selectedModel?.id || this.quickModelId || 'Select model...';
+        },
+
+        get hasQuickExecutionTarget() {
+            if (this.quickUseMultipleModels) {
+                return this.quickMultiModelSelections.length > 0;
+            }
+            return !!this.quickModelId.trim();
+        },
+
+        orderedQuickModelOptions() {
+            const options = [...this.quickModelOptions];
+
+            if (this.quickUseMultipleModels) {
+                const selectionOrder = this.quickMultiModelSelections.map(selection =>
+                    this.modelSelectionKey(selection.providerId, selection.modelId)
+                );
+                const selectedKeys = new Set(selectionOrder);
+                const selectedOptions = selectionOrder
+                    .map(key => options.find(model =>
+                        this.modelSelectionKey(model.providerId, model.id) === key
+                    ))
+                    .filter(Boolean);
+                const unselectedOptions = options.filter(model =>
+                    !selectedKeys.has(this.modelSelectionKey(model.providerId, model.id))
+                );
+                return [...selectedOptions, ...unselectedOptions];
+            }
+
+            const selectedKey = this.modelSelectionKey(this.quickProviderId, this.quickModelId);
+            const selectedOption = options.find(model =>
+                this.modelSelectionKey(model.providerId, model.id) === selectedKey
+            );
+            if (!selectedOption) {
+                return options;
+            }
+            return [
+                selectedOption,
+                ...options.filter(model =>
+                    this.modelSelectionKey(model.providerId, model.id) !== selectedKey
+                )
+            ];
         },
 
         findQuickModelMatches(modelId) {
@@ -782,6 +1007,7 @@ document.addEventListener('alpine:init', () => {
             if (resolvedModel) {
                 this.quickProviderId = resolvedModel.providerId;
             }
+            this.normalizeQuickMultiModelSelections();
         },
 
         resolveReasoningSelection(capability, reasoningEnabled, reasoningEffort) {
@@ -849,6 +1075,104 @@ document.addEventListener('alpine:init', () => {
             );
             this.quickReasoningEnabled = resolved.reasoningEnabled;
             this.quickReasoningEffort = resolved.reasoningEffort;
+        },
+
+        isQuickModelSelected(model) {
+            if (this.quickUseMultipleModels) {
+                return this.quickMultiModelSelectionIndex(model.providerId, model.id) !== -1;
+            }
+            return this.quickProviderId === model.providerId && this.quickModelId === model.id;
+        },
+
+        selectQuickMultiModel(model) {
+            const index = this.quickMultiModelSelectionIndex(model.providerId, model.id);
+            this.persistQuickProviderAndModel(model.providerId, model.id);
+
+            if (index >= 0) {
+                this.quickMultiModelSelections.splice(index, 1);
+                this.persistQuickMultiModelSelections();
+                return;
+            }
+
+            const resolved = this.resolveReasoningSelection(
+                model.reasoningCapability || this.emptyReasoningCapability(),
+                null,
+                null
+            );
+            this.quickMultiModelSelections = [
+                ...this.quickMultiModelSelections,
+                {
+                    providerId: model.providerId,
+                    modelId: model.id,
+                    copyCount: this.normalizeCopyCount(this.quickCopyCount),
+                    reasoningEnabled: resolved.reasoningEnabled,
+                    reasoningEffort: resolved.reasoningEffort
+                }
+            ];
+            this.persistQuickMultiModelSelections();
+        },
+
+        updateQuickMultiModelCopyCount(providerId, modelId, value) {
+            const index = this.quickMultiModelSelectionIndex(providerId, modelId);
+            if (index === -1) {
+                return;
+            }
+            this.quickMultiModelSelections[index].copyCount = this.normalizeCopyCount(value);
+            this.persistQuickMultiModelSelections();
+        },
+
+        updateQuickMultiModelReasoning(providerId, modelId, updates) {
+            const index = this.quickMultiModelSelectionIndex(providerId, modelId);
+            const model = this.getQuickModelMetadata(providerId, modelId);
+            if (index === -1 || !model) {
+                return;
+            }
+            const resolved = this.resolveReasoningSelection(
+                model.reasoningCapability || this.emptyReasoningCapability(),
+                Object.prototype.hasOwnProperty.call(updates, 'reasoningEnabled')
+                    ? updates.reasoningEnabled
+                    : this.quickMultiModelSelections[index].reasoningEnabled,
+                Object.prototype.hasOwnProperty.call(updates, 'reasoningEffort')
+                    ? updates.reasoningEffort
+                    : this.quickMultiModelSelections[index].reasoningEffort
+            );
+            this.quickMultiModelSelections[index].reasoningEnabled = resolved.reasoningEnabled;
+            this.quickMultiModelSelections[index].reasoningEffort = resolved.reasoningEffort;
+            this.persistQuickMultiModelSelections();
+        },
+
+        resolvedQuickExecutionTargets() {
+            if (this.quickUseMultipleModels) {
+                return this.deduplicateQuickMultiModelSelections(this.quickMultiModelSelections)
+                    .filter(selection => selection.providerId && selection.modelId)
+                    .map(selection => ({
+                        providerId: selection.providerId,
+                        modelId: selection.modelId,
+                        copyCount: this.normalizeCopyCount(selection.copyCount),
+                        reasoningEnabled: selection.reasoningEnabled,
+                        reasoningEffort: selection.reasoningEffort
+                    }));
+            }
+
+            const modelId = this.quickModelId.trim();
+            const providerId = this.quickProviderId || this.getDefaultProviderId();
+            if (!providerId || !modelId) {
+                return [];
+            }
+
+            return [{
+                providerId,
+                modelId,
+                copyCount: this.normalizeCopyCount(this.quickCopyCount),
+                reasoningEnabled: this.quickReasoningEnabled,
+                reasoningEffort: this.quickReasoningEffort
+            }];
+        },
+
+        quickSubmissionTaskCount() {
+            return this.resolvedQuickExecutionTargets().reduce((total, target) =>
+                total + this.normalizeCopyCount(target.copyCount), 0
+            );
         },
 
         // -------------------------------------------------------------------
@@ -1392,18 +1716,10 @@ document.addEventListener('alpine:init', () => {
         // -------------------------------------------------------------------
 
         saveQuickModelSelection() {
+            this.persistQuickProviderAndModel(this.quickProviderId, this.quickModelId);
             if (this.quickProviderId) {
-                localStorage.setItem('hivecrew_provider_id', this.quickProviderId);
-                this.newTask.providerId = this.quickProviderId;
                 this.loadModelsForProvider(this.quickProviderId);
             }
-            if (this.quickModelId) {
-                localStorage.setItem('hivecrew_model_id', this.quickModelId);
-                this.newTask.modelId = this.quickModelId;
-            }
-            this.normalizeQuickSelection();
-            this.syncTaskReasoningSelection();
-            this.syncQuickReasoningSelection();
         },
         
         selectModel(model) {
@@ -1415,6 +1731,9 @@ document.addEventListener('alpine:init', () => {
         },
         
         selectCustomModel() {
+            if (this.quickUseMultipleModels) {
+                return;
+            }
             const custom = this.modelSearchQuery.trim();
             if (custom) {
                 if (!this.quickProviderId) {
@@ -1462,40 +1781,47 @@ document.addEventListener('alpine:init', () => {
             if (this.quickCreating) return;
             const description = this.getPromptText().trim();
             if (!description) return;
-            
+
             this.normalizeQuickSelection();
-            const provider = this.providers.find(p => p.id === this.quickProviderId)
-                || this.providers.find(p => p.id === this.getDefaultProviderId())
-                || this.providers[0];
-            
-            if (!provider) {
+            const executionTargets = this.resolvedQuickExecutionTargets();
+            if (executionTargets.length === 0) {
+                this.showToast(
+                    this.quickUseMultipleModels
+                        ? 'Select at least one model in the prompt bar.'
+                        : 'Enter a model ID in the prompt bar.',
+                    'error'
+                );
+                return;
+            }
+
+            if (!this.providers.length) {
                 this.showToast('No providers configured. Add one in the Hivecrew app.', 'error');
                 return;
             }
-            
-            const modelId = this.quickModelId.trim();
-            if (!modelId) {
-                this.showToast('Enter a model ID in the prompt bar.', 'error');
-                return;
-            }
-            
+
             this.quickCreating = true;
             
             try {
-                const providerName = provider.displayName || provider.id;
                 let response;
-                
+                const payload = {
+                    description,
+                    planFirst: this.quickPlanFirst,
+                    targets: executionTargets.map(target => ({
+                        providerId: target.providerId,
+                        modelId: target.modelId,
+                        copyCount: this.normalizeCopyCount(target.copyCount),
+                        reasoningEnabled: target.reasoningEnabled,
+                        reasoningEffort: target.reasoningEffort
+                    }))
+                };
+                if (this.mentionedSkills.length > 0) {
+                    payload.mentionedSkillNames = this.mentionedSkills;
+                }
+
                 if (this.quickFiles.length > 0) {
                     const formData = new FormData();
                     formData.append('description', description);
-                    formData.append('providerName', providerName);
-                    formData.append('modelId', modelId);
-                    if (this.quickReasoningEnabled !== null) {
-                        formData.append('reasoningEnabled', this.quickReasoningEnabled ? 'true' : 'false');
-                    }
-                    if (this.quickReasoningEffort) {
-                        formData.append('reasoningEffort', this.quickReasoningEffort);
-                    }
+                    formData.append('targets', JSON.stringify(payload.targets));
                     if (this.quickPlanFirst) {
                         formData.append('planFirst', 'true');
                     }
@@ -1505,23 +1831,12 @@ document.addEventListener('alpine:init', () => {
                     for (const file of this.quickFiles) {
                         formData.append('files', file);
                     }
-                    response = await this.apiFetch('/api/v1/tasks', {
+                    response = await this.apiFetch('/api/v1/tasks/batch', {
                         method: 'POST',
                         body: formData
                     });
                 } else {
-                    const payload = {
-                        description,
-                        providerName,
-                        modelId,
-                        reasoningEnabled: this.quickReasoningEnabled,
-                        reasoningEffort: this.quickReasoningEffort,
-                        planFirst: this.quickPlanFirst
-                    };
-                    if (this.mentionedSkills.length > 0) {
-                        payload.mentionedSkillNames = this.mentionedSkills;
-                    }
-                    response = await this.apiFetch('/api/v1/tasks', {
+                    response = await this.apiFetch('/api/v1/tasks/batch', {
                         method: 'POST',
                         body: JSON.stringify(payload)
                     });
@@ -1531,10 +1846,22 @@ document.addEventListener('alpine:init', () => {
                     const errorData = await response.json();
                     throw new Error(errorData.error?.message || 'Failed to create task');
                 }
-                
+
+                const data = await response.json();
+                const createdCount = Array.isArray(data.tasks) ? data.tasks.length : this.quickSubmissionTaskCount();
+                const modelCount = executionTargets.length;
                 this.clearPrompt();
                 this.quickFiles = [];
-                this.showToast('Task created', 'success');
+                if (!this.quickUseMultipleModels) {
+                    this.quickCopyCount = 1;
+                    this.saveQuickCopyCount();
+                }
+                this.showToast(
+                    createdCount === 1
+                        ? 'Task created'
+                        : `Created ${createdCount} tasks across ${modelCount} model${modelCount === 1 ? '' : 's'}`,
+                    'success'
+                );
                 await this.loadTasks();
                 
             } catch (error) {
