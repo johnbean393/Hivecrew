@@ -7786,6 +7786,9 @@
         }
       }
     },
+    "Connect your ChatGPT account before saving this provider." : {
+
+    },
     "Connected" : {
       "localizations" : {
         "de" : {
@@ -23441,6 +23444,9 @@
         }
       }
     },
+    "Reconnect ChatGPT" : {
+
+    },
     "Recurring" : {
       "localizations" : {
         "de" : {
@@ -26478,6 +26484,7 @@
       }
     },
     "Save the provider, then connect your ChatGPT account from Provider Settings." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

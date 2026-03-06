@@ -115,6 +115,11 @@ struct PlanReviewStreamingContent: View {
                 .foregroundStyle(.red)
                 
                 Spacer()
+
+                Button("Done") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
                 
                 Button {
                     // Dismiss immediately, then start execution in background
@@ -529,6 +534,11 @@ struct PlanReviewStaticContent: View {
             .foregroundStyle(.red)
             
             Spacer()
+
+            Button("Done") {
+                dismiss()
+            }
+            .keyboardShortcut(.cancelAction)
             
             Button {
                 // Save any edits

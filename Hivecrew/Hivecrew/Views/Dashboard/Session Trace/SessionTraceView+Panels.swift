@@ -614,6 +614,13 @@ extension SessionTraceView {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
+            
+            Button("Done") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

@@ -17,6 +17,7 @@ import MarkdownView
 struct SessionTraceView: View {
     
     let task: TaskRecord
+    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var taskService: TaskService
     
     @State private var traceContent: String = ""
