@@ -170,7 +170,11 @@ class TaskService: ObservableObject {
         var createdTasks: [(task: TaskRecord, request: TaskCreationRequest)] = []
         createdTasks.reserveCapacity(requests.count)
 
-        for request in requests {
+        for (index, existingTask) in tasks.enumerated() {
+            existingTask.sortOrder = index + requests.count
+        }
+
+        for (index, request) in requests.enumerated() {
             let quickTitle = titleGenerator.generateQuickTitle(from: request.description)
             let mergedAttachedFilePaths = Array(
                 Set(request.attachedFilePaths + request.retrievalContextAttachmentPaths)
@@ -189,6 +193,7 @@ class TaskService: ObservableObject {
                 title: quickTitle,
                 taskDescription: request.description,
                 status: .queued,
+                sortOrder: index,
                 providerId: request.providerId,
                 modelId: request.modelId,
                 reasoningEnabled: request.reasoningEnabled,
@@ -358,14 +363,47 @@ class TaskService: ObservableObject {
             planSelectedSkillNames: originalTask.planSelectedSkillNames
         )
     }
+
+    /// Persist a user-edited title for an existing task.
+    func renameTask(_ task: TaskRecord, to newTitle: String) {
+        let trimmedTitle = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        guard task.title != trimmedTitle else { return }
+
+        task.title = trimmedTitle
+        try? modelContext?.save()
+        objectWillChange.send()
+    }
+
+    /// Persist a drag-and-drop reorder from the dashboard task list.
+    func moveTasks(fromOffsets sourceOffsets: IndexSet, toOffset destination: Int) {
+        guard !sourceOffsets.isEmpty else { return }
+
+        let movingTasks = sourceOffsets.sorted().map { tasks[$0] }
+        var reorderedTasks = tasks.enumerated()
+            .filter { !sourceOffsets.contains($0.offset) }
+            .map(\.element)
+
+        let adjustedDestination = max(
+            0,
+            min(destination - sourceOffsets.filter { $0 < destination }.count, reorderedTasks.count)
+        )
+        reorderedTasks.insert(contentsOf: movingTasks, at: adjustedDestination)
+
+        applyTaskOrder(reorderedTasks)
+    }
     
     /// Generate a better title using LLM and update the task
     private func generateAndUpdateTitle(for task: TaskRecord, description: String, providerId: String, modelId: String) async {
         do {
+            let existingTitle = task.title
             // Use required worker model for background title generation.
             let client = try await createWorkerLLMClient(fallbackProviderId: providerId, fallbackModelId: modelId)
             let betterTitle = try await titleGenerator.generateTitle(from: description, using: client)
             
+            // Do not overwrite a title that changed while generation was running.
+            guard task.title == existingTitle else { return }
+
             // Update the task title if LLM generation succeeded
             task.title = betterTitle
             try? modelContext?.save()
@@ -383,8 +421,14 @@ class TaskService: ObservableObject {
         guard let context = modelContext else { return }
         
         do {
-            let descriptor = FetchDescriptor<TaskRecord>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+            let descriptor = FetchDescriptor<TaskRecord>(
+                sortBy: [
+                    SortDescriptor(\.sortOrder, order: .forward),
+                    SortDescriptor(\.createdAt, order: .reverse)
+                ]
+            )
             tasks = try context.fetch(descriptor)
+            normalizeTaskOrderIfNeeded()
             
             // Recover orphaned tasks - tasks that were active when the app was killed
             recoverOrphanedTasks()
@@ -517,6 +561,26 @@ class TaskService: ObservableObject {
                 publisher.providePermissionResponse(approved)
             }
         }
+    }
+
+    private func normalizeTaskOrderIfNeeded() {
+        let needsNormalization = tasks.enumerated().contains { index, task in
+            task.sortOrder != index
+        }
+
+        guard needsNormalization else { return }
+        applyTaskOrder(tasks)
+    }
+
+    private func applyTaskOrder(_ orderedTasks: [TaskRecord]) {
+        tasks = orderedTasks
+
+        for (index, task) in tasks.enumerated() {
+            task.sortOrder = index
+        }
+
+        try? modelContext?.save()
+        objectWillChange.send()
     }
 }
 

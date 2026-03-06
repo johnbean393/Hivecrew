@@ -790,6 +790,9 @@ extension TaskService {
         // Remove from local state
         tasks.removeAll { $0.id == task.id }
         statePublishers.removeValue(forKey: task.id)
+        for (index, remainingTask) in tasks.enumerated() {
+            remainingTask.sortOrder = index
+        }
         
         // Delete from SwiftData
         context.delete(task)

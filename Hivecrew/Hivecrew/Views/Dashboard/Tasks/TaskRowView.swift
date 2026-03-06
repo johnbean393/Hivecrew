@@ -14,12 +14,15 @@ struct TaskRowView: View {
     let task: TaskRecord
     @EnvironmentObject var taskService: TaskService
     @State private var isHovered: Bool = false
+    @State private var isRenaming: Bool = false
+    @State private var draftTitle: String = ""
     @State private var showingTrace: Bool = false
     @State private var showingPlanReview: Bool = false
     @State private var showingRerunModelSelection: Bool = false
     @State private var showingMissingAttachments: Bool = false
     @State private var missingAttachmentsValidation: RerunAttachmentValidation?
     @State private var rerunTargetOverride: (providerId: String, modelId: String, reasoningEnabled: Bool?, reasoningEffort: String?)?
+    @FocusState private var isTitleEditorFocused: Bool
     
     // Tips
     private let showDeliverableTip = ShowDeliverableTip()
@@ -66,185 +69,14 @@ struct TaskRowView: View {
     }
     
     var body: some View {
-        Button(action: handleRowTap) {
-            HStack(spacing: 12) {
-                // Status indicator
-                if effectiveStatus == .planning {
-                    // Spinner for planning state
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 14, height: 14)
-                } else if effectiveStatus == .planReview {
-                    // Blue clipboard icon for plan review
-                    Image(systemName: "list.bullet.clipboard.fill")
-                        .foregroundStyle(.blue)
-                        .font(.system(size: 14))
-                        .frame(width: 14, height: 14)
-                } else if let icon = completionIcon {
-                    // Show checkmark or X for completed tasks
-                    Image(systemName: icon)
-                        .foregroundStyle(statusColor)
-                        .font(.system(size: 14))
-                        .frame(width: 14, height: 14)
-                } else {
-                    // Status dot for active/other tasks
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 10, height: 10)
-                        .overlay(
-                            Circle()
-                                .stroke(statusColor.opacity(0.3), lineWidth: 2)
-                        )
-                }
-                
-                // Task info
-                VStack(alignment: .leading, spacing: 2) {
-                    // Title
-                    Text(task.title)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    
-                    // Status text
-                    HStack(spacing: 8) {
-                        // Show verified status for completed tasks
-                        if effectiveStatus == .completed, let success = task.wasSuccessful {
-                            Text(success ? String(localized: "Verified Complete") : String(localized: "Incomplete"))
-                                .font(.caption)
-                                .foregroundStyle(success ? .green : .red)
-                        } else {
-                            Text(effectiveStatus.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        // Show duration for completed tasks
-                        if !effectiveStatus.isActive, task.completedAt != nil {
-                            Text("•")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            Text(task.durationString)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                        
-                        // Show elapsed time for running tasks
-                        if effectiveStatus == .running, let startedAt = task.startedAt {
-                            Text("•")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            ElapsedTimeView(startDate: startedAt)
-                        }
-                        
-                        // Show deliverable count for completed tasks with outputs
-                        if !effectiveStatus.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
-                            Text("•")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            Button(action: { showDeliverablesInFinder() }) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "doc.fill")
-                                        .font(.caption2)
-                                    Text("\(outputPaths.count)")
-                                        .font(.caption)
-                                }
-                                .foregroundStyle(.blue)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Show deliverables in Finder")
-                            .popoverTip(showDeliverableTip, arrowEdge: .bottom)
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                // Actions (shown on hover or always for planReview)
-                if isHovered || effectiveStatus == .planReview {
-                    HStack(spacing: 8) {
-                        // Plan Review actions
-                        if effectiveStatus == .planReview {
-                            Button {
-                                showingPlanReview = true
-                            } label: {
-                                Text("Review")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.blue)
-                            .controlSize(.small)
-                            .help("Review and edit the execution plan")
-                            
-                            Button {
-                                Task { await taskService.executePlan(for: task) }
-                            } label: {
-                                Image(systemName: "play.fill")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.green)
-                            .controlSize(.small)
-                            .help("Execute the plan now")
-                            
-                            Button {
-                                Task { await taskService.cancelPlanning(for: task) }
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(.red)
-                            .controlSize(.small)
-                            .help("Cancel task")
-                        } else {
-                            // Rerun button for inactive tasks
-                            if !effectiveStatus.isActive {
-                                Button(action: { handleRerun() }) {
-                                    Image(systemName: "arrow.counterclockwise")
-                                        .foregroundStyle(.blue)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Rerun task")
-                            }
-                            
-                            // Cancel button for planning state
-                            if effectiveStatus == .planning {
-                                Button(action: { Task { await taskService.cancelPlanning(for: task) } }) {
-                                    Image(systemName: "xmark.circle")
-                                        .foregroundStyle(.orange)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Cancel planning")
-                            } else if effectiveStatus.isActive {
-                                Button(action: { Task { await taskService.cancelTask(task) } }) {
-                                    Image(systemName: "xmark.circle")
-                                        .foregroundStyle(.orange)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Cancel task")
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
-        )
+        rowContainer
         .onHover { hovering in
             isHovered = hovering
+        }
+        .onChange(of: isTitleEditorFocused) { _, isFocused in
+            if !isFocused {
+                submitRename()
+            }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             // Only show delete action for non-active tasks
@@ -312,6 +144,12 @@ struct TaskRowView: View {
             } label: {
                 Label("View Trace", systemImage: "list.bullet.rectangle")
             }
+
+            Button {
+                beginRenaming()
+            } label: {
+                Label("Rename", systemImage: "pencil")
+            }
             
             // Rerun option for inactive tasks
             if !effectiveStatus.isActive {
@@ -358,6 +196,225 @@ struct TaskRowView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var rowContainer: some View {
+        if isRenaming {
+            rowContent
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(rowBackground)
+                .overlay(rowBorder)
+        } else {
+            Button(action: handleRowTap) {
+                rowContent
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(rowBackground)
+            .overlay(rowBorder)
+        }
+    }
+
+    private var rowBackground: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var rowBorder: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: 12) {
+            // Status indicator
+            if effectiveStatus == .planning {
+                // Spinner for planning state
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .frame(width: 14, height: 14)
+            } else if effectiveStatus == .planReview {
+                // Blue clipboard icon for plan review
+                Image(systemName: "list.bullet.clipboard.fill")
+                    .foregroundStyle(.blue)
+                    .font(.system(size: 14))
+                    .frame(width: 14, height: 14)
+            } else if let icon = completionIcon {
+                // Show checkmark or X for completed tasks
+                Image(systemName: icon)
+                    .foregroundStyle(statusColor)
+                    .font(.system(size: 14))
+                    .frame(width: 14, height: 14)
+            } else {
+                // Status dot for active/other tasks
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 10, height: 10)
+                    .overlay(
+                        Circle()
+                            .stroke(statusColor.opacity(0.3), lineWidth: 2)
+                    )
+            }
+
+            // Task info
+            VStack(alignment: .leading, spacing: 2) {
+                titleView
+
+                // Status text
+                HStack(spacing: 8) {
+                    // Show verified status for completed tasks
+                    if effectiveStatus == .completed, let success = task.wasSuccessful {
+                        Text(success ? String(localized: "Verified Complete") : String(localized: "Incomplete"))
+                            .font(.caption)
+                            .foregroundStyle(success ? .green : .red)
+                    } else {
+                        Text(effectiveStatus.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Show duration for completed tasks
+                    if !effectiveStatus.isActive, task.completedAt != nil {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Text(task.durationString)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    // Show elapsed time for running tasks
+                    if effectiveStatus == .running, let startedAt = task.startedAt {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        ElapsedTimeView(startDate: startedAt)
+                    }
+
+                    // Show deliverable count for completed tasks with outputs
+                    if !effectiveStatus.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Button(action: { showDeliverablesInFinder() }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "doc.fill")
+                                    .font(.caption2)
+                                Text("\(outputPaths.count)")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Show deliverables in Finder")
+                        .popoverTip(showDeliverableTip, arrowEdge: .bottom)
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Actions (shown on hover or always for planReview)
+            if !isRenaming && (isHovered || effectiveStatus == .planReview) {
+                HStack(spacing: 8) {
+                    // Plan Review actions
+                    if effectiveStatus == .planReview {
+                        Button {
+                            showingPlanReview = true
+                        } label: {
+                            Text("Review")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                        .controlSize(.small)
+                        .help("Review and edit the execution plan")
+
+                        Button {
+                            Task { await taskService.executePlan(for: task) }
+                        } label: {
+                            Image(systemName: "play.fill")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+                        .controlSize(.small)
+                        .help("Execute the plan now")
+
+                        Button {
+                            Task { await taskService.cancelPlanning(for: task) }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                        .controlSize(.small)
+                        .help("Cancel task")
+                    } else {
+                        // Rerun button for inactive tasks
+                        if !effectiveStatus.isActive {
+                            Button(action: { handleRerun() }) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .foregroundStyle(.blue)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Rerun task")
+                        }
+
+                        // Cancel button for planning state
+                        if effectiveStatus == .planning {
+                            Button(action: { Task { await taskService.cancelPlanning(for: task) } }) {
+                                Image(systemName: "xmark.circle")
+                                    .foregroundStyle(.orange)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Cancel planning")
+                        } else if effectiveStatus.isActive {
+                            Button(action: { Task { await taskService.cancelTask(task) } }) {
+                                Image(systemName: "xmark.circle")
+                                    .foregroundStyle(.orange)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Cancel task")
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var titleView: some View {
+        if isRenaming {
+            TextField("", text: $draftTitle)
+                .textFieldStyle(.roundedBorder)
+                .font(.body)
+                .fontWeight(.medium)
+                .focused($isTitleEditorFocused)
+                .onSubmit {
+                    submitRename()
+                }
+                .onAppear {
+                    if draftTitle.isEmpty {
+                        draftTitle = task.title
+                    }
+                    DispatchQueue.main.async {
+                        isTitleEditorFocused = true
+                    }
+                }
+        } else {
+            Text(task.title)
+                .font(.body)
+                .fontWeight(.medium)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+    }
     
     private func handleRowTap() {
         if effectiveStatus == .planning || effectiveStatus == .planReview {
@@ -379,6 +436,26 @@ struct TaskRowView: View {
             object: nil,
             userInfo: ["taskId": taskId]
         )
+    }
+
+    private func beginRenaming() {
+        draftTitle = task.title
+        isRenaming = true
+    }
+
+    private func submitRename() {
+        guard isRenaming else { return }
+
+        let trimmedTitle = draftTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTitle.isEmpty {
+            taskService.renameTask(task, to: trimmedTitle)
+            draftTitle = trimmedTitle
+        } else {
+            draftTitle = task.title
+        }
+
+        isRenaming = false
+        isTitleEditorFocused = false
     }
     
     /// Handle rerun button tap - checks for missing attachments first

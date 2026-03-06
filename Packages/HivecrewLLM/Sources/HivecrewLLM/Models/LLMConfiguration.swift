@@ -180,11 +180,11 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
             case "low":
                 return 150
             case "medium":
-                return 450
+                return 300
             case "high":
-                return 900
+                return 600
             case "xhigh":
-                return 1_800
+                return 1200
             default:
                 return 450
             }

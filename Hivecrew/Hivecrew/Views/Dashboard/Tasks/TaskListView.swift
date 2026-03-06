@@ -47,17 +47,15 @@ struct TaskListView: View {
                 emptyState
             } else {
                 List {
-                    ForEach(filteredTasks, id: \.id) { task in
-                        TaskRowView(task: task)
-                            .listRowInsets(EdgeInsets(
-                                top: 4,
-                                leading: -listRowHorizontalInset,
-                                bottom: 4,
-                                trailing: -listRowHorizontalInset
-                            ))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .padding(.bottom, 6)
+                    if searchText.isEmpty {
+                        ForEach(taskService.tasks, id: \.id) { task in
+                            taskRow(for: task)
+                        }
+                        .onMove(perform: taskService.moveTasks)
+                    } else {
+                        ForEach(filteredTasks, id: \.id) { task in
+                            taskRow(for: task)
+                        }
                     }
                 }
                 .listStyle(.plain)
@@ -155,6 +153,19 @@ struct TaskListView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
+    }
+
+    private func taskRow(for task: TaskRecord) -> some View {
+        TaskRowView(task: task)
+            .listRowInsets(EdgeInsets(
+                top: 4,
+                leading: -listRowHorizontalInset,
+                bottom: 4,
+                trailing: -listRowHorizontalInset
+            ))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .padding(.bottom, 6)
     }
 }
 

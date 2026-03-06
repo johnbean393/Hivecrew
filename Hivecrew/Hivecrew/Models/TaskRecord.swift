@@ -79,6 +79,9 @@ final class TaskRecord {
     
     /// When the task was created
     var createdAt: Date
+
+    /// Sort order for UI display (lower = higher in the list)
+    var sortOrder: Int = Int.max
     
     /// When the task started running
     var startedAt: Date?
@@ -242,6 +245,7 @@ final class TaskRecord {
         taskDescription: String,
         status: TaskStatus = .queued,
         createdAt: Date = Date(),
+        sortOrder: Int = Int.max,
         startedAt: Date? = nil,
         completedAt: Date? = nil,
         assignedVMId: String? = nil,
@@ -271,6 +275,7 @@ final class TaskRecord {
         self.taskDescription = taskDescription
         self.statusRaw = status.rawValue
         self.createdAt = createdAt
+        self.sortOrder = sortOrder
         self.startedAt = startedAt
         self.completedAt = completedAt
         self.assignedVMId = assignedVMId
