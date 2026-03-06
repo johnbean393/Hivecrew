@@ -10,6 +10,13 @@ import SwiftData
 import HivecrewLLM
 
 struct RerunModelSelectionSheet: View {
+    private enum Layout {
+        static let sheetWidth: CGFloat = 520
+        static let sheetHeight: CGFloat = 680
+        static let modelListMinHeight: CGFloat = 180
+        static let modelListMaxHeight: CGFloat = 360
+    }
+
     let task: TaskRecord
     let onConfirm: (_ providerId: String, _ modelId: String, _ reasoningEnabled: Bool?, _ reasoningEffort: String?) -> Void
     
@@ -92,7 +99,7 @@ struct RerunModelSelectionSheet: View {
             Divider()
             footer
         }
-        .frame(width: 520, height: 560)
+        .frame(width: Layout.sheetWidth, height: Layout.sheetHeight)
         .onAppear {
             ensureValidProviderSelection()
             loadModels()
@@ -261,7 +268,7 @@ struct RerunModelSelectionSheet: View {
                     }
                 }
             }
-            .frame(minHeight: 180, maxHeight: 250)
+            .frame(minHeight: Layout.modelListMinHeight, maxHeight: Layout.modelListMaxHeight)
         }
     }
     

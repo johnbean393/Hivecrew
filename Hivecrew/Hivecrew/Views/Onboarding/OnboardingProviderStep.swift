@@ -5,12 +5,15 @@
 //  LLM Provider setup step of the onboarding wizard
 //
 
+import AppKit
 import SwiftUI
 import SwiftData
 import HivecrewLLM
 
 /// LLM Provider configuration step
 struct OnboardingProviderStep: View {
+    private static let oauthAuthAutoRefreshIntervalNanoseconds: UInt64 = 3_000_000_000
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \LLMProviderRecord.displayName) private var providers: [LLMProviderRecord]
     
@@ -24,19 +27,35 @@ struct OnboardingProviderStep: View {
     @State private var isTesting = false
     @State private var testResult: ConnectionTestResult?
     @State private var hasSaved = false
+    @State private var draftProviderId: String = UUID().uuidString
+    @State private var oauthAuthState: CodexOAuthAuthState = .unauthenticated
+    @State private var oauthLoginId: String?
+    @State private var oauthLastAuthURL: String?
+    @State private var oauthAuthMessage: String?
+    @State private var isAuthenticatingOAuth = false
 
     private var isCodexMode: Bool {
         backendMode == .codexOAuth
     }
 
-    private var codexModeVisible: Bool {
-        ProviderFeatureFlags.codexModeEnabled || backendMode == .codexOAuth
+    private var activeProviderId: String {
+        draftProviderId
+    }
+
+    private var activeOAuthLoginId: String? {
+        oauthLoginId
+    }
+
+    private var shouldAutoRefreshOAuthAuth: Bool {
+        isCodexMode && oauthAuthState == .pending && !isAuthenticatingOAuth
     }
 
     private var canSaveProvider: Bool {
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return false }
-        if isCodexMode { return true }
+        if isCodexMode {
+            return oauthAuthState == .authenticated || CodexOAuthTokenStore.retrieve(providerId: activeProviderId) != nil
+        }
         return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
@@ -76,9 +95,7 @@ struct OnboardingProviderStep: View {
                     Picker("Backend Mode", selection: $backendMode) {
                         Text("Chat Completions").tag(LLMBackendMode.chatCompletions)
                         Text("Responses API").tag(LLMBackendMode.responses)
-                        if codexModeVisible {
-                            Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
-                        }
+                        Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
                     }
                     .pickerStyle(.menu)
                     .onChange(of: backendMode) { _, newValue in
@@ -88,12 +105,6 @@ struct OnboardingProviderStep: View {
                             displayName = "ChatGPT OAuth"
                         }
                     }
-
-                    if !codexModeVisible {
-                        Text("ChatGPT OAuth mode is disabled in this build.")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
                 }
 
                 if isCodexMode {
@@ -101,9 +112,7 @@ struct OnboardingProviderStep: View {
                         Text("ChatGPT OAuth")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("Save the provider, then connect your ChatGPT account from Provider Settings.")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        oauthAuthContent
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
@@ -147,7 +156,7 @@ struct OnboardingProviderStep: View {
                         Text("Test Connection")
                     }
                 }
-                .disabled((!isCodexMode && apiKey.isEmpty) || isTesting)
+                .disabled((!isCodexMode && apiKey.isEmpty) || (isCodexMode && !canSaveProvider) || isTesting)
                 
                 if let result = testResult {
                     ConnectionTestResultView(result: result, style: .compact)
@@ -180,8 +189,98 @@ struct OnboardingProviderStep: View {
         .onChange(of: providers.count) { _, newCount in
             isConfigured = newCount > 0
         }
+        .task(id: shouldAutoRefreshOAuthAuth) {
+            guard shouldAutoRefreshOAuthAuth else { return }
+
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: Self.oauthAuthAutoRefreshIntervalNanoseconds)
+                if Task.isCancelled {
+                    break
+                }
+
+                await MainActor.run {
+                    guard shouldAutoRefreshOAuthAuth else { return }
+                    refreshOAuthStatus()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard shouldAutoRefreshOAuthAuth else { return }
+            refreshOAuthStatus()
+        }
         .onAppear {
             isConfigured = !providers.isEmpty
+        }
+    }
+
+    @ViewBuilder
+    private var oauthAuthContent: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(oauthStatusText)
+                    .foregroundStyle(oauthStatusColor)
+                if let oauthAuthMessage, !oauthAuthMessage.isEmpty {
+                    Text(oauthAuthMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Text("Connect your ChatGPT account before saving this provider.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            Spacer()
+
+            Button {
+                refreshOAuthStatus()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .help("Refresh auth status")
+            .disabled(isAuthenticatingOAuth)
+
+            Button {
+                startOAuthAuth()
+            } label: {
+                HStack(spacing: 6) {
+                    if isAuthenticatingOAuth {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 14, height: 14)
+                    }
+                    Text(oauthAuthState == .authenticated ? "Reconnect ChatGPT" : "Connect ChatGPT")
+                }
+            }
+            .disabled(isAuthenticatingOAuth)
+            .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var oauthStatusText: String {
+        switch oauthAuthState {
+        case .unauthenticated:
+            return "Not connected"
+        case .pending:
+            return "Waiting for ChatGPT sign-in"
+        case .authenticated:
+            return "Connected to ChatGPT"
+        case .failed:
+            return "Connection failed"
+        }
+    }
+
+    private var oauthStatusColor: Color {
+        switch oauthAuthState {
+        case .unauthenticated:
+            return .secondary
+        case .pending:
+            return .orange
+        case .authenticated:
+            return .green
+        case .failed:
+            return .red
         }
     }
     
@@ -194,7 +293,8 @@ struct OnboardingProviderStep: View {
                 baseURL: baseURL,
                 apiKey: apiKey,
                 backendMode: backendMode,
-                authMode: authMode
+                authMode: authMode,
+                oauthProviderId: isCodexMode ? activeProviderId : nil
             )
             await MainActor.run {
                 testResult = result
@@ -202,15 +302,20 @@ struct OnboardingProviderStep: View {
             }
         }
     }
-    
+
     private func saveProvider() {
         let provider = LLMProviderRecord(
+            id: draftProviderId,
             displayName: displayName,
             baseURL: isCodexMode ? nil : normalizedOptional(baseURL),
             organizationId: nil,
             backendMode: backendMode,
             authMode: isCodexMode ? .chatGPTOAuth : .apiKey,
-            oauthAuthState: .unauthenticated,
+            oauthAuthState: oauthAuthState,
+            oauthLoginId: oauthLoginId,
+            oauthLastAuthURL: oauthLastAuthURL,
+            oauthAuthUpdatedAt: isCodexMode ? Date() : nil,
+            oauthAuthMessage: oauthAuthMessage,
             isDefault: providers.isEmpty, // First provider is default
             timeoutInterval: 120
         )
@@ -229,6 +334,44 @@ struct OnboardingProviderStep: View {
         apiKey = ""
         baseURL = ""
         testResult = nil
+        draftProviderId = UUID().uuidString
+        oauthAuthState = .unauthenticated
+        oauthLoginId = nil
+        oauthLastAuthURL = nil
+        oauthAuthMessage = nil
+    }
+
+    private func startOAuthAuth() {
+        isAuthenticatingOAuth = true
+        oauthAuthMessage = nil
+
+        Task {
+            do {
+                let startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
+
+                await MainActor.run {
+                    oauthLoginId = startResult.loginId
+                    oauthLastAuthURL = startResult.authURL.absoluteString
+                    oauthAuthState = .pending
+                    oauthAuthMessage = startResult.message
+                    isAuthenticatingOAuth = false
+                }
+            } catch {
+                await MainActor.run {
+                    oauthAuthState = .failed
+                    oauthAuthMessage = error.localizedDescription
+                    isAuthenticatingOAuth = false
+                }
+            }
+        }
+    }
+
+    private func refreshOAuthStatus() {
+        let snapshot = CodexOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
+        oauthAuthState = snapshot.status
+        oauthLoginId = snapshot.loginId
+        oauthLastAuthURL = snapshot.authURL?.absoluteString ?? oauthLastAuthURL
+        oauthAuthMessage = snapshot.message
     }
 
     private func normalizedOptional(_ value: String) -> String? {

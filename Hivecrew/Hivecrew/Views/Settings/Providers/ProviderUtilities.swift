@@ -29,21 +29,6 @@ struct LLMProviderPreset: Identifiable {
     ]
 }
 
-enum ProviderFeatureFlags {
-    private static let codexModeEnabledDefaultsKey = "codexModeEnabled"
-
-    static var codexModeEnabled: Bool {
-        if let override = UserDefaults.standard.object(forKey: codexModeEnabledDefaultsKey) as? Bool {
-            return override
-        }
-#if DEBUG
-        return true
-#else
-        return false
-#endif
-    }
-}
-
 // MARK: - Provider URL Picker Menu
 
 /// Reusable menu for selecting from preset provider URLs

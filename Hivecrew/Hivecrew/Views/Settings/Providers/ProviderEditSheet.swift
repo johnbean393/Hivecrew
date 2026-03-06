@@ -61,10 +61,6 @@ struct ProviderEditSheet: View {
         provider?.oauthLoginId ?? oauthLoginId
     }
 
-    private var codexModeVisible: Bool {
-        ProviderFeatureFlags.codexModeEnabled || backendMode == .codexOAuth
-    }
-
     private var shouldAutoRefreshOAuthAuth: Bool {
         isCodexMode && oauthAuthState == .pending && !isAuthenticatingOAuth
     }
@@ -102,9 +98,7 @@ struct ProviderEditSheet: View {
                     Picker("Backend", selection: $backendMode) {
                         Text("Chat Completions").tag(LLMBackendMode.chatCompletions)
                         Text("Responses API").tag(LLMBackendMode.responses)
-                        if codexModeVisible {
-                            Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
-                        }
+                        Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
                     }
                     .pickerStyle(.menu)
                     .onChange(of: backendMode) { _, newValue in
@@ -114,12 +108,6 @@ struct ProviderEditSheet: View {
                                 displayName = "ChatGPT OAuth"
                             }
                         }
-                    }
-
-                    if !codexModeVisible {
-                        Text("ChatGPT OAuth mode is disabled in this build.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
 
                     if !isCodexMode {

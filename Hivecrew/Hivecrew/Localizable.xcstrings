@@ -5942,52 +5942,6 @@
         }
       }
     },
-    "ChatGPT OAuth mode is disabled in this build." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT OAuth-Modus ist in diesem Build deaktiviert."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El modo ChatGPT OAuth está desactivado en esta compilación."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le mode OAuth ChatGPT est désactivé dans cette version."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La modalità ChatGPT OAuth è disabilitata in questa build."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT OAuth モードはこのビルドで無効です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 빌드에서 ChatGPT OAuth 모드가 비활성화되었습니다."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ChatGPT OAuth 模式在此版本中已禁用。"
-          }
-        }
-      }
-    },
     "Check for Updates…" : {
       "localizations" : {
         "de" : {
