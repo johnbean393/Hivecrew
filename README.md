@@ -36,6 +36,7 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
 
 - [Features](#features)
   - [Task Management](#task-management)
+  - [Personal Context](#personal-context)
   - [Subagent System](#subagent-system)
   - [LLM Providers](#llm-providers)
   - [Safety Controls](#safety-controls)
@@ -65,8 +66,15 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
 
 - **Natural Language Tasks**: Describe what you want done in plain language; agents handle the rest
 - **File Attachments**: Attach input files using @ mentions or drag-and-drop, and specify output directories for deliverables
+- **Multi-Model Runs**: Launch the same prompt across multiple provider/model combinations in parallel, with per-model copy counts
 - **Batch Execution**: Run multiple copies of the same task (1x, 2x, 4x, 8x) across parallel agents
 - **Task Queue**: Queue tasks for later and monitor status (queued, running, completed, failed)
+
+### Personal Context
+
+- **Retrieval-Backed Suggestions**: Hivecrew can suggest relevant files and snippets from your computer as you draft a task
+- **Context Packs**: Attach suggested files, inline excerpts, or structured summaries to give agents higher-quality context up front
+- **Indexed Folder Control**: Choose which folders are included in the personal context index and monitor indexing progress from the app
 
 ### Subagent System
 
@@ -101,6 +109,7 @@ Codex OAuth mode is rollout-gated in release builds (`UserDefaults` key: `codexM
 
 - **Full Isolation**: Each agent runs in its own macOS VM—your host system stays protected
 - **Network Control**: Configure per-VM network access (internet, offline, or host-only)
+- **VM Provisioning**: Preconfigure environment variables, startup commands, and injected files for every new VM
 - **Timeouts & Limits**: Set task timeouts and iteration limits
 - **Emergency Stop**: Instantly halt any agent at any time
 
