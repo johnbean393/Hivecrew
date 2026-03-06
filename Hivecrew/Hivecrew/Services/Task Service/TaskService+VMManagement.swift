@@ -153,9 +153,19 @@ extension TaskService {
             apiKey = ""
         }
 
-        let config = provider.makeLLMConfiguration(
-            model: modelId,
+        let config = LLMConfiguration(
+            id: provider.id,
+            displayName: provider.displayName,
+            baseURL: provider.backendMode == .codexOAuth ? nil : provider.parsedBaseURL,
             apiKey: apiKey,
+            model: modelId,
+            organizationId: provider.organizationId,
+            backendMode: provider.backendMode,
+            authMode: provider.authMode,
+            timeoutInterval: LLMConfiguration.timeoutIntervalForReasoning(
+                reasoningEnabled: reasoningEnabled,
+                reasoningEffort: reasoningEffort
+            ),
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort
         )

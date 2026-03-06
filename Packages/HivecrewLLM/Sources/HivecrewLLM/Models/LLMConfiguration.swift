@@ -163,8 +163,39 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
     /// Optional reasoning effort for providers that expose explicit effort levels.
     public let reasoningEffort: String?
 
-    /// Default timeout interval (60 seconds)
+    /// Default timeout interval for non-reasoning requests.
     public static let defaultTimeout: TimeInterval = 300.0
+
+    /// Derive a request timeout for agent runs from the active reasoning mode.
+    public static func timeoutIntervalForReasoning(
+        reasoningEnabled: Bool?,
+        reasoningEffort: String?
+    ) -> TimeInterval {
+        let normalizedEffort = reasoningEffort?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if let normalizedEffort, !normalizedEffort.isEmpty {
+            switch normalizedEffort {
+            case "low":
+                return 150
+            case "medium":
+                return 450
+            case "high":
+                return 900
+            case "xhigh":
+                return 1_800
+            default:
+                return 450
+            }
+        }
+
+        if reasoningEnabled == true {
+            return 450
+        }
+
+        return defaultTimeout
+    }
 
     public init(
         id: String = UUID().uuidString,

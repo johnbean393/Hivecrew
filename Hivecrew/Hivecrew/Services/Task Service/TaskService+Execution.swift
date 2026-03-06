@@ -436,8 +436,8 @@ extension TaskService {
                 statePublisher: statePublisher,
                 inputFileNames: inputFileNames,
                 matchedSkills: skillsToUse,
-                maxSteps: maxIterations > 0 ? maxIterations : 100,
-                timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 30,
+                maxSteps: maxIterations > 0 ? maxIterations : 300,
+                timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 90,
                 taskService: self,
                 supportsVision: visionCapability.supportsVision
             )

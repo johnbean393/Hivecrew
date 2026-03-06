@@ -783,8 +783,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         
         return APISystemConfig(
             maxConcurrentVMs: maxConcurrent > 0 ? maxConcurrent : 2,
-            defaultTimeoutMinutes: timeout > 0 ? timeout : 30,
-            defaultMaxIterations: maxIterations > 0 ? maxIterations : 100,
+            defaultTimeoutMinutes: timeout > 0 ? timeout : 90,
+            defaultMaxIterations: maxIterations > 0 ? maxIterations : 300,
             defaultTemplateId: defaultTemplate,
             apiPort: apiPort > 0 ? apiPort : 5482
         )

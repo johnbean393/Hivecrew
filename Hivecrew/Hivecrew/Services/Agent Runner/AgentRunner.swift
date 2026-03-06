@@ -123,8 +123,8 @@ final class AgentRunner {
         statePublisher: AgentStatePublisher,
         inputFileNames: [String] = [],
         matchedSkills: [Skill] = [],
-        maxSteps: Int = 100,
-        timeoutMinutes: Int = 30,
+        maxSteps: Int = 300,
+        timeoutMinutes: Int = 90,
         taskService: TaskService,
         supportsVision: Bool = true
     ) throws {
@@ -287,7 +287,7 @@ final class AgentRunner {
         // Start timeout timer
         timeoutTask = Task { [weak self] in
             do {
-                try await Task.sleep(nanoseconds: UInt64(self?.timeoutMinutes ?? 30) * 60 * 1_000_000_000)
+                try await Task.sleep(nanoseconds: UInt64(self?.timeoutMinutes ?? 90) * 60 * 1_000_000_000)
                 await MainActor.run {
                     self?.isTimedOut = true
                     self?.cancelInFlightLLMRequest(reason: "agent timeout reached")

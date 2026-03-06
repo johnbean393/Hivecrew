@@ -180,6 +180,41 @@ final class TextImageInputTests: XCTestCase {
         XCTAssertEqual(config.scheme, "https")
         XCTAssertEqual(config.basePath, "/v1")
     }
+
+    func testReasoningTimeoutMapping() {
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: false, reasoningEffort: nil),
+            300
+        )
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: nil, reasoningEffort: nil),
+            300
+        )
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: true, reasoningEffort: nil),
+            450
+        )
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: nil, reasoningEffort: "low"),
+            150
+        )
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: nil, reasoningEffort: "medium"),
+            450
+        )
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: nil, reasoningEffort: "high"),
+            900
+        )
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: nil, reasoningEffort: "xhigh"),
+            1_800
+        )
+        XCTAssertEqual(
+            LLMConfiguration.timeoutIntervalForReasoning(reasoningEnabled: nil, reasoningEffort: "experimental"),
+            450
+        )
+    }
     
     // MARK: - Response Tests
     

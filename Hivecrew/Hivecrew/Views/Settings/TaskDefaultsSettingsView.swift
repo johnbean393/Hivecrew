@@ -17,8 +17,8 @@ struct TaskDefaultsSettingsView: View {
     @Query private var providers: [LLMProviderRecord]
     
     // Task limits
-    @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 30
-    @AppStorage("defaultMaxIterations") private var defaultMaxIterations = 100
+    @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 90
+    @AppStorage("defaultMaxIterations") private var defaultMaxIterations = 300
     @AppStorage("maxCompletionAttempts") private var maxCompletionAttempts = 3
     @AppStorage("outputDirectoryPath") private var outputDirectoryPath: String = ""
     
