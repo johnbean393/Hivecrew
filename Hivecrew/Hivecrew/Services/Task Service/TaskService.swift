@@ -13,6 +13,26 @@ import HivecrewLLM
 import HivecrewShared
 import UserNotifications
 
+struct TaskCreationRequest {
+    let description: String
+    let providerId: String
+    let modelId: String
+    let reasoningEnabled: Bool?
+    let reasoningEffort: String?
+    let attachedFilePaths: [String]
+    let attachmentInfos: [AttachmentInfo]?
+    let outputDirectory: String?
+    let mentionedSkillNames: [String]
+    let retrievalContextPackId: String?
+    let retrievalInlineContextBlocks: [String]
+    let retrievalContextAttachmentPaths: [String]
+    let retrievalSelectedSuggestionIds: [String]
+    let retrievalModeOverrides: [String: String]
+    let planFirstEnabled: Bool
+    let planMarkdown: String?
+    let planSelectedSkillNames: [String]?
+}
+
 /// Service for managing tasks and agent execution
 @MainActor
 class TaskService: ObservableObject {
@@ -107,6 +127,36 @@ class TaskService: ObservableObject {
         planMarkdown: String? = nil,
         planSelectedSkillNames: [String]? = nil
     ) async throws -> TaskRecord {
+        let request = TaskCreationRequest(
+            description: description,
+            providerId: providerId,
+            modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
+            attachedFilePaths: attachedFilePaths,
+            attachmentInfos: attachmentInfos,
+            outputDirectory: outputDirectory,
+            mentionedSkillNames: mentionedSkillNames,
+            retrievalContextPackId: retrievalContextPackId,
+            retrievalInlineContextBlocks: retrievalInlineContextBlocks,
+            retrievalContextAttachmentPaths: retrievalContextAttachmentPaths,
+            retrievalSelectedSuggestionIds: retrievalSelectedSuggestionIds,
+            retrievalModeOverrides: retrievalModeOverrides,
+            planFirstEnabled: planFirstEnabled,
+            planMarkdown: planMarkdown,
+            planSelectedSkillNames: planSelectedSkillNames
+        )
+
+        guard let task = try await createTasks([request]).first else {
+            throw TaskServiceError.noModelContext
+        }
+        return task
+    }
+
+    func createTasks(_ requests: [TaskCreationRequest]) async throws -> [TaskRecord] {
+        guard !requests.isEmpty else {
+            return []
+        }
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
         }
@@ -116,72 +166,78 @@ class TaskService: ObservableObject {
               !workerModelId.isEmpty else {
             throw TaskServiceError.workerModelNotConfigured
         }
-        
-        // Use quick fallback title immediately for instant UI feedback
-        let quickTitle = titleGenerator.generateQuickTitle(from: description)
-        
-        // Combine explicit user attachments with retrieval-derived file refs.
-        let mergedAttachedFilePaths = Array(
-            Set(attachedFilePaths + retrievalContextAttachmentPaths)
-        ).sorted()
 
-        // Prepare attachment metadata (files are copied later when session starts)
-        let preparedInfos: [AttachmentInfo]?
-        if let existingInfos = attachmentInfos {
-            // Use pre-processed infos (from rerun)
-            preparedInfos = existingInfos
-        } else if !mergedAttachedFilePaths.isEmpty {
-            // Prepare metadata for new file paths (no copying yet)
-            preparedInfos = AttachmentManager.prepareAttachmentInfos(filePaths: mergedAttachedFilePaths)
-        } else {
-            preparedInfos = nil
+        var createdTasks: [(task: TaskRecord, request: TaskCreationRequest)] = []
+        createdTasks.reserveCapacity(requests.count)
+
+        for request in requests {
+            let quickTitle = titleGenerator.generateQuickTitle(from: request.description)
+            let mergedAttachedFilePaths = Array(
+                Set(request.attachedFilePaths + request.retrievalContextAttachmentPaths)
+            ).sorted()
+
+            let preparedInfos: [AttachmentInfo]?
+            if let existingInfos = request.attachmentInfos {
+                preparedInfos = existingInfos
+            } else if !mergedAttachedFilePaths.isEmpty {
+                preparedInfos = AttachmentManager.prepareAttachmentInfos(filePaths: mergedAttachedFilePaths)
+            } else {
+                preparedInfos = nil
+            }
+
+            let task = TaskRecord(
+                title: quickTitle,
+                taskDescription: request.description,
+                status: .queued,
+                providerId: request.providerId,
+                modelId: request.modelId,
+                reasoningEnabled: request.reasoningEnabled,
+                reasoningEffort: request.reasoningEffort,
+                attachmentInfos: preparedInfos,
+                outputDirectory: request.outputDirectory,
+                mentionedSkillNames: request.mentionedSkillNames.isEmpty ? nil : request.mentionedSkillNames,
+                retrievalContextPackId: request.retrievalContextPackId,
+                retrievalInlineContextBlocks: request.retrievalInlineContextBlocks,
+                retrievalContextAttachmentPaths: request.retrievalContextAttachmentPaths.isEmpty ? nil : request.retrievalContextAttachmentPaths,
+                retrievalSelectedSuggestionIds: request.retrievalSelectedSuggestionIds.isEmpty ? nil : request.retrievalSelectedSuggestionIds,
+                retrievalModeOverrides: request.retrievalModeOverrides.isEmpty ? nil : request.retrievalModeOverrides,
+                planFirstEnabled: request.planFirstEnabled
+            )
+
+            if let planMarkdown = request.planMarkdown {
+                task.planMarkdown = planMarkdown
+                task.planSelectedSkillNames = request.planSelectedSkillNames
+            }
+
+            context.insert(task)
+            createdTasks.append((task, request))
         }
-        
-        // Create task record with attachment metadata
-        let task = TaskRecord(
-            title: quickTitle,
-            taskDescription: description,
-            status: .queued,
-            providerId: providerId,
-            modelId: modelId,
-            reasoningEnabled: reasoningEnabled,
-            reasoningEffort: reasoningEffort,
-            attachmentInfos: preparedInfos,
-            outputDirectory: outputDirectory,
-            mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames,
-            retrievalContextPackId: retrievalContextPackId,
-            retrievalInlineContextBlocks: retrievalInlineContextBlocks,
-            retrievalContextAttachmentPaths: retrievalContextAttachmentPaths.isEmpty ? nil : retrievalContextAttachmentPaths,
-            retrievalSelectedSuggestionIds: retrievalSelectedSuggestionIds.isEmpty ? nil : retrievalSelectedSuggestionIds,
-            retrievalModeOverrides: retrievalModeOverrides.isEmpty ? nil : retrievalModeOverrides,
-            planFirstEnabled: planFirstEnabled
-        )
-        
-        // If reusing a plan from a previous task, set it directly
-        if let planMarkdown = planMarkdown {
-            task.planMarkdown = planMarkdown
-            task.planSelectedSkillNames = planSelectedSkillNames
-        }
-        
-        // Save to SwiftData
-        context.insert(task)
+
         try context.save()
-        
-        // Update local state immediately
-        tasks.insert(task, at: 0)
+
+        tasks.insert(contentsOf: createdTasks.map(\.task), at: 0)
         objectWillChange.send()
-        
-        // Generate LLM title in the background and update task
-        Task {
-            await generateAndUpdateTitle(for: task, description: description, providerId: providerId, modelId: modelId)
+
+        for created in createdTasks {
+            let task = created.task
+            let request = created.request
+
+            Task {
+                await generateAndUpdateTitle(
+                    for: task,
+                    description: request.description,
+                    providerId: request.providerId,
+                    modelId: request.modelId
+                )
+            }
+
+            Task {
+                await startTask(task)
+            }
         }
-        
-        // Start the task execution
-        Task {
-            await startTask(task)
-        }
-        
-        return task
+
+        print("TaskService: Created \(createdTasks.count) task(s)")
+        return createdTasks.map(\.task)
     }
     
     /// Validate attachments for a task rerun

@@ -165,27 +165,33 @@ struct TaskInputView: View {
             let inlineContext = contextPack?.inlinePromptBlocks ?? []
             let selectedSuggestionIds = contextProvider.selectedSuggestionIDs()
             let modeOverrides = contextProvider.selectedModeOverrides()
-            
-            // Create one task per model target and requested copy count.
-            for target in executionTargets {
-                for _ in 0..<target.copyCount {
-                    _ = try await taskService.createTask(
+
+            let taskRequests = executionTargets.flatMap { target in
+                Array(
+                    repeating: TaskCreationRequest(
                         description: trimmedDescription,
                         providerId: target.providerId,
                         modelId: target.modelId,
                         reasoningEnabled: target.reasoningEnabled,
                         reasoningEffort: target.reasoningEffort,
                         attachedFilePaths: filePaths,
+                        attachmentInfos: nil,
+                        outputDirectory: nil,
                         mentionedSkillNames: mentionedSkillNames,
                         retrievalContextPackId: contextPack?.id,
                         retrievalInlineContextBlocks: inlineContext,
                         retrievalContextAttachmentPaths: contextAttachmentPaths,
                         retrievalSelectedSuggestionIds: selectedSuggestionIds,
                         retrievalModeOverrides: modeOverrides,
-                        planFirstEnabled: planFirstEnabled
-                    )
-                }
+                        planFirstEnabled: planFirstEnabled,
+                        planMarkdown: nil,
+                        planSelectedSkillNames: nil
+                    ),
+                    count: target.copyCount
+                )
             }
+
+            _ = try await taskService.createTasks(taskRequests)
             
             // Track task creation for tips
             TipStore.shared.donateTaskCreated()
