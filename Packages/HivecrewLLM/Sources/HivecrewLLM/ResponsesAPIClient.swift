@@ -207,7 +207,8 @@ private extension ResponsesAPIClient {
             return decoded.data
                 .filter(\.isSupportedInAPI)
                 .map { model in
-                    LLMProviderModel(
+                    let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
+                    return LLMProviderModel(
                         id: model.id,
                         name: model.name,
                         description: model.description,
@@ -215,7 +216,15 @@ private extension ResponsesAPIClient {
                         createdAt: model.created.map { Date(timeIntervalSince1970: TimeInterval($0)) },
                         inputModalities: model.inputModalities,
                         outputModalities: model.outputModalities,
-                        supportsVisionInput: model.supportsVision
+                        supportsVisionInput: model.supportsVision,
+                        reasoningCapability: supportedEfforts.isEmpty
+                            ? .none
+                            : LLMReasoningCapability(
+                                kind: .effort,
+                                supportedEfforts: supportedEfforts,
+                                defaultEffort: model.defaultReasoningLevel,
+                                defaultEnabled: false
+                            )
                     )
                 }
                 .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
@@ -367,6 +376,14 @@ private extension ResponsesAPIClient {
             body["tool_choice"] = "auto"
         }
 
+        if let reasoningEffort = configuration.reasoningEffort?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !reasoningEffort.isEmpty {
+            body["reasoning"] = ["effort": reasoningEffort]
+        } else if configuration.reasoningEnabled == true {
+            body["reasoning"] = ["enabled": true]
+        }
+
         return body
     }
 
@@ -502,6 +519,81 @@ func buildCodexOAuthRequestBodyForTests(
     return try client.buildRequestBody(messages: messages, tools: tools, stream: stream)
 }
 
+func buildResponsesRequestBodyForTests(
+    model: String,
+    backendMode: LLMBackendMode = .responses,
+    authMode: LLMAuthMode = .apiKey,
+    reasoningEnabled: Bool? = nil,
+    reasoningEffort: String? = nil,
+    messages: [LLMMessage],
+    tools: [LLMToolDefinition]?,
+    stream: Bool
+) throws -> [String: Any] {
+    let configuration = LLMConfiguration(
+        id: "responses-test",
+        displayName: "Responses Test",
+        baseURL: URL(string: "https://example.com/v1"),
+        apiKey: "test-key",
+        model: model,
+        organizationId: nil,
+        backendMode: backendMode,
+        authMode: authMode,
+        reasoningEnabled: reasoningEnabled,
+        reasoningEffort: reasoningEffort
+    )
+    let client = ResponsesAPIClient(configuration: configuration)
+    return try client.buildRequestBody(messages: messages, tools: tools, stream: stream)
+}
+
+func parseResponsesModelsForTests(
+    _ data: Data,
+    backendMode: LLMBackendMode = .responses
+) throws -> [LLMProviderModel] {
+    let configuration = LLMConfiguration(
+        id: "responses-models-test",
+        displayName: "Responses Models Test",
+        baseURL: URL(string: "https://example.com/v1"),
+        apiKey: "test-key",
+        model: "test-model",
+        organizationId: nil,
+        backendMode: backendMode,
+        authMode: backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey
+    )
+
+    do {
+        let decoded = try JSONDecoder().decode(StrictModelsResponse.self, from: data)
+        return decoded.data
+            .filter(\.isSupportedInAPI)
+            .map { model in
+                let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
+                return LLMProviderModel(
+                    id: model.id,
+                    name: model.name,
+                    description: model.description,
+                    contextLength: model.contextLength,
+                    createdAt: model.created.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                    inputModalities: model.inputModalities,
+                    outputModalities: model.outputModalities,
+                    supportsVisionInput: model.supportsVision,
+                    reasoningCapability: supportedEfforts.isEmpty
+                        ? .none
+                        : LLMReasoningCapability(
+                            kind: .effort,
+                            supportedEfforts: supportedEfforts,
+                            defaultEffort: model.defaultReasoningLevel,
+                            defaultEnabled: false
+                        )
+                )
+            }
+            .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+            .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
+    } catch {
+        return try parseModelsResponse(data)
+            .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+            .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
+    }
+}
+
 func normalizeProviderModelMetadata(
     _ model: LLMProviderModel,
     backendMode: LLMBackendMode
@@ -518,7 +610,8 @@ func normalizeProviderModelMetadata(
         createdAt: model.createdAt,
         inputModalities: mergeModalities(model.inputModalities, ["text", "image"]),
         outputModalities: model.outputModalities,
-        supportsVisionInput: true
+        supportsVisionInput: true,
+        reasoningCapability: model.reasoningCapability
     )
 }
 
@@ -995,6 +1088,7 @@ private func parseModelPayload(_ payload: [String: Any]) -> LLMProviderModel? {
     let architecture = payload["architecture"] as? [String: Any]
     let modalities = payload["modalities"] as? [String: Any]
     let capabilities = payload["capabilities"] as? [String: Any]
+    let supportedReasoningLevels = payload["supported_reasoning_levels"] as? [[String: Any]]
 
     let inputModalities = mergeModalities(
         firstStringArray(in: architecture, keys: ["input_modalities", "inputModalities"]),
@@ -1026,6 +1120,31 @@ private func parseModelPayload(_ payload: [String: Any]) -> LLMProviderModel? {
         "imageInput"
     ]) ?? inputModalities?.contains(where: { $0.caseInsensitiveCompare("image") == .orderedSame })
 
+    let reasoningCapability: LLMReasoningCapability
+    if let supportedReasoningLevels,
+       !supportedReasoningLevels.isEmpty {
+        let efforts = supportedReasoningLevels.compactMap { level in
+            firstString(in: level, keys: ["effort"])
+        }
+        let defaultEffort = firstString(in: payload, keys: ["default_reasoning_level", "defaultReasoningLevel"])
+        reasoningCapability = LLMReasoningCapability(
+            kind: efforts.isEmpty ? .none : .effort,
+            supportedEfforts: efforts,
+            defaultEffort: defaultEffort,
+            defaultEnabled: false
+        )
+    } else if let supportedParameters = firstStringArray(in: payload, keys: ["supported_parameters", "supportedParameters"]),
+              supportedParameters.contains(where: { $0.caseInsensitiveCompare("reasoning") == .orderedSame }) {
+        reasoningCapability = LLMReasoningCapability(
+            kind: .toggle,
+            supportedEfforts: [],
+            defaultEffort: nil,
+            defaultEnabled: true
+        )
+    } else {
+        reasoningCapability = .none
+    }
+
     return LLMProviderModel(
         id: id,
         name: name,
@@ -1034,7 +1153,8 @@ private func parseModelPayload(_ payload: [String: Any]) -> LLMProviderModel? {
         createdAt: created,
         inputModalities: inputModalities,
         outputModalities: outputModalities,
-        supportsVisionInput: supportsVision
+        supportsVisionInput: supportsVision,
+        reasoningCapability: reasoningCapability
     )
 }
 
@@ -1168,7 +1288,13 @@ private struct StrictModelsResponse: Decodable {
         let inputModalities: [String]?
         let outputModalities: [String]?
         let supportsVision: Bool?
+        let supportedReasoningLevels: [ReasoningLevel]?
+        let defaultReasoningLevel: String?
         let isSupportedInAPI: Bool
+
+        struct ReasoningLevel: Decodable {
+            let effort: String
+        }
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -1192,6 +1318,8 @@ private struct StrictModelsResponse: Decodable {
             case supportsVision = "supports_vision"
             case supportsVisionCamel = "supportsVision"
             case supportsImageDetailOriginal = "supports_image_detail_original"
+            case supportedReasoningLevels = "supported_reasoning_levels"
+            case defaultReasoningLevel = "default_reasoning_level"
             case supportedInAPI = "supported_in_api"
         }
 
@@ -1244,6 +1372,8 @@ private struct StrictModelsResponse: Decodable {
                 keys: [.supportsVision, .supportsVisionCamel, .vision, .supportsImageDetailOriginal]
             ) ?? inputModalities?.contains(where: { $0.caseInsensitiveCompare("image") == .orderedSame })
 
+            supportedReasoningLevels = try? container.decodeIfPresent([ReasoningLevel].self, forKey: .supportedReasoningLevels)
+            defaultReasoningLevel = try? container.decodeIfPresent(String.self, forKey: .defaultReasoningLevel)
             isSupportedInAPI = (try? container.decodeIfPresent(Bool.self, forKey: .supportedInAPI)) ?? true
         }
 

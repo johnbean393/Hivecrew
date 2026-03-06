@@ -36,7 +36,7 @@ struct SessionTraceView: View {
     @State var showingRerunModelSelection: Bool = false
     @State var showingMissingAttachments: Bool = false
     @State var missingAttachmentsValidation: RerunAttachmentValidation? = nil
-    @State var rerunTargetOverride: (providerId: String, modelId: String)? = nil
+    @State var rerunTargetOverride: (providerId: String, modelId: String, reasoningEnabled: Bool?, reasoningEffort: String?)? = nil
     
     enum TraceTab: String, CaseIterable {
         case trace = "Trace"

@@ -724,6 +724,27 @@ body {
     color: var(--text-primary);
 }
 
+.prompt-toolbar-pill,
+.prompt-toolbar-select {
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-window);
+    color: var(--text-primary);
+    font-size: 13px;
+    padding: 0 10px;
+}
+
+.prompt-toolbar-pill {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.prompt-toolbar-select {
+    min-width: 132px;
+}
+
 .prompt-file-input {
     position: absolute;
     width: 0;

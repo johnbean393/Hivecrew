@@ -45,6 +45,8 @@ document.addEventListener('alpine:init', () => {
         quickPlanFirst: localStorage.getItem('hivecrew_plan_first') === 'true',
         quickFiles: [],
         quickModelId: localStorage.getItem('hivecrew_model_id') || '',
+        quickReasoningEnabled: null,
+        quickReasoningEffort: null,
         isDraggingFiles: false,
         
         // Create Task
@@ -57,6 +59,8 @@ document.addEventListener('alpine:init', () => {
             description: '',
             providerId: '',
             modelId: '',
+            reasoningEnabled: null,
+            reasoningEffort: null,
             planFirst: false,
             isRecurring: false,
             scheduleDate: '',
@@ -178,12 +182,14 @@ document.addEventListener('alpine:init', () => {
                 localStorage.setItem('hivecrew_model_id', this.newTask.modelId);
                 this.quickModelId = this.newTask.modelId;
             }
+            this.syncTaskReasoningSelection();
         },
-        
+
         saveProviderSelection() {
             if (this.newTask.providerId) {
                 localStorage.setItem('hivecrew_provider_id', this.newTask.providerId);
             }
+            this.loadModelsForProvider(this.newTask.providerId);
         },
         
         restoreSelections() {
@@ -198,6 +204,8 @@ document.addEventListener('alpine:init', () => {
                 this.newTask.modelId = savedModelId;
                 this.quickModelId = savedModelId;
             }
+            this.syncTaskReasoningSelection();
+            this.syncQuickReasoningSelection();
         },
 
         // -------------------------------------------------------------------
@@ -596,6 +604,79 @@ document.addEventListener('alpine:init', () => {
             );
         },
 
+        get quickReasoningCapability() {
+            return this.getReasoningCapabilityForModel(this.quickModelId);
+        },
+
+        get taskReasoningCapability() {
+            return this.getReasoningCapabilityForModel(this.newTask.modelId);
+        },
+
+        getReasoningCapabilityForModel(modelId) {
+            const matched = this.availableModels.find(model => model.id === modelId);
+            return matched?.reasoningCapability || {
+                kind: 'none',
+                supportedEfforts: [],
+                defaultEffort: null,
+                defaultEnabled: false
+            };
+        },
+
+        resolveReasoningSelection(capability, reasoningEnabled, reasoningEffort) {
+            switch (capability?.kind) {
+                case 'toggle':
+                    return {
+                        reasoningEnabled: reasoningEnabled ?? capability.defaultEnabled ?? false,
+                        reasoningEffort: null
+                    };
+                case 'effort': {
+                    const supportedEfforts = capability.supportedEfforts || [];
+                    const fallbackEffort = supportedEfforts.includes(capability.defaultEffort)
+                        ? capability.defaultEffort
+                        : (supportedEfforts[0] || null);
+                    const resolvedEffort = supportedEfforts.includes(reasoningEffort)
+                        ? reasoningEffort
+                        : fallbackEffort;
+                    return {
+                        reasoningEnabled: null,
+                        reasoningEffort: resolvedEffort
+                    };
+                }
+                default:
+                    return { reasoningEnabled: null, reasoningEffort: null };
+            }
+        },
+
+        formatReasoningEffortLabel(effort) {
+            const normalized = (effort || '').trim().toLowerCase();
+            if (normalized === 'xhigh') {
+                return 'Extra High';
+            }
+            return normalized
+                .replaceAll('_', ' ')
+                .replace(/\b\w/g, character => character.toUpperCase());
+        },
+
+        syncTaskReasoningSelection() {
+            const resolved = this.resolveReasoningSelection(
+                this.taskReasoningCapability,
+                this.newTask.reasoningEnabled,
+                this.newTask.reasoningEffort
+            );
+            this.newTask.reasoningEnabled = resolved.reasoningEnabled;
+            this.newTask.reasoningEffort = resolved.reasoningEffort;
+        },
+
+        syncQuickReasoningSelection() {
+            const resolved = this.resolveReasoningSelection(
+                this.quickReasoningCapability,
+                this.quickReasoningEnabled,
+                this.quickReasoningEffort
+            );
+            this.quickReasoningEnabled = resolved.reasoningEnabled;
+            this.quickReasoningEffort = resolved.reasoningEffort;
+        },
+
         // -------------------------------------------------------------------
         // --- Skills & @ Mentions -------------------------------------------
         // -------------------------------------------------------------------
@@ -992,6 +1073,18 @@ document.addEventListener('alpine:init', () => {
                 if (response.ok) {
                     const data = await response.json();
                     this.availableModels = data.models || [];
+                    if (this.newTask.providerId === providerId) {
+                        if (this.newTask.modelId && !this.availableModels.some(model => model.id === this.newTask.modelId)) {
+                            this.newTask.modelId = '';
+                        }
+                        this.syncTaskReasoningSelection();
+                    }
+                    if (this.quickModelId && !this.availableModels.some(model => model.id === this.quickModelId)) {
+                        this.quickReasoningEnabled = null;
+                        this.quickReasoningEffort = null;
+                    } else {
+                        this.syncQuickReasoningSelection();
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load models:', error);
@@ -1112,6 +1205,7 @@ document.addEventListener('alpine:init', () => {
                 localStorage.setItem('hivecrew_model_id', this.quickModelId);
                 this.newTask.modelId = this.quickModelId;
             }
+            this.syncQuickReasoningSelection();
         },
         
         selectModel(modelId) {
@@ -1195,6 +1289,12 @@ document.addEventListener('alpine:init', () => {
                     formData.append('description', description);
                     formData.append('providerName', providerName);
                     formData.append('modelId', modelId);
+                    if (this.quickReasoningEnabled !== null) {
+                        formData.append('reasoningEnabled', this.quickReasoningEnabled ? 'true' : 'false');
+                    }
+                    if (this.quickReasoningEffort) {
+                        formData.append('reasoningEffort', this.quickReasoningEffort);
+                    }
                     if (this.quickPlanFirst) {
                         formData.append('planFirst', 'true');
                     }
@@ -1213,6 +1313,8 @@ document.addEventListener('alpine:init', () => {
                         description,
                         providerName,
                         modelId,
+                        reasoningEnabled: this.quickReasoningEnabled,
+                        reasoningEffort: this.quickReasoningEffort,
                         planFirst: this.quickPlanFirst
                     };
                     if (this.mentionedSkills.length > 0) {
@@ -1319,6 +1421,8 @@ document.addEventListener('alpine:init', () => {
                 description: '',
                 providerId: defaultProviderId,
                 modelId: savedModelId || '',
+                reasoningEnabled: null,
+                reasoningEffort: null,
                 planFirst: false,
                 isRecurring: false,
                 scheduleDate: tomorrow.toISOString().split('T')[0],
@@ -1328,6 +1432,11 @@ document.addEventListener('alpine:init', () => {
                 dayOfMonth: 1,
                 files: []
             };
+            if (defaultProviderId) {
+                this.loadModelsForProvider(defaultProviderId);
+            } else {
+                this.syncTaskReasoningSelection();
+            }
             
             // Clear file input if it exists
             const fileInput = document.getElementById('task-files-input');
@@ -1411,6 +1520,12 @@ document.addEventListener('alpine:init', () => {
                 formData.append('description', this.newTask.description.trim());
                 formData.append('providerName', providerName);
                 formData.append('modelId', this.newTask.modelId);
+                if (this.newTask.reasoningEnabled !== null) {
+                    formData.append('reasoningEnabled', this.newTask.reasoningEnabled ? 'true' : 'false');
+                }
+                if (this.newTask.reasoningEffort) {
+                    formData.append('reasoningEffort', this.newTask.reasoningEffort);
+                }
                 formData.append('schedule', JSON.stringify(schedule));
                 
                 for (const file of this.newTask.files) {
@@ -1427,6 +1542,8 @@ document.addEventListener('alpine:init', () => {
                     description: this.newTask.description.trim(),
                     providerName: providerName,
                     modelId: this.newTask.modelId,
+                    reasoningEnabled: this.newTask.reasoningEnabled,
+                    reasoningEffort: this.newTask.reasoningEffort,
                     schedule: schedule
                 };
                 
@@ -1455,6 +1572,8 @@ document.addEventListener('alpine:init', () => {
                 description: this.newTask.description.trim(),
                 providerName: providerName,
                 modelId: this.newTask.modelId,
+                reasoningEnabled: this.newTask.reasoningEnabled,
+                reasoningEffort: this.newTask.reasoningEffort,
                 planFirst: this.newTask.planFirst || false
             };
             
@@ -1466,6 +1585,12 @@ document.addEventListener('alpine:init', () => {
                 formData.append('description', body.description);
                 formData.append('providerName', body.providerName);
                 formData.append('modelId', body.modelId);
+                if (body.reasoningEnabled !== null) {
+                    formData.append('reasoningEnabled', body.reasoningEnabled ? 'true' : 'false');
+                }
+                if (body.reasoningEffort) {
+                    formData.append('reasoningEffort', body.reasoningEffort);
+                }
                 if (body.planFirst) {
                     formData.append('planFirst', 'true');
                 }

@@ -391,6 +391,27 @@
                                 </div>
                             </div>
 
+                            <template x-if="quickReasoningCapability.kind === 'toggle'">
+                                <button
+                                    type="button"
+                                    class="prompt-toolbar-pill"
+                                    @click="quickReasoningEnabled = !(quickReasoningEnabled ?? quickReasoningCapability.defaultEnabled)"
+                                >
+                                    <span x-text="(quickReasoningEnabled ?? quickReasoningCapability.defaultEnabled) ? 'Reasoning On' : 'Reasoning Off'"></span>
+                                </button>
+                            </template>
+
+                            <template x-if="quickReasoningCapability.kind === 'effort'">
+                                <select
+                                    class="prompt-toolbar-select"
+                                    x-model="quickReasoningEffort"
+                                >
+                                    <template x-for="effort in quickReasoningCapability.supportedEfforts" :key="effort">
+                                        <option :value="effort" x-text="formatReasoningEffortLabel(effort)"></option>
+                                    </template>
+                                </select>
+                            </template>
+
                             <!-- Direct / Plan mode toggle -->
                             <div class="prompt-mode-toggle">
                                 <button
@@ -600,6 +621,30 @@
                                     >
                                 </div>
                             </div>
+
+                            <template x-if="taskReasoningCapability.kind !== 'none'">
+                                <div class="form-group">
+                                    <label>Reasoning</label>
+                                    <template x-if="taskReasoningCapability.kind === 'toggle'">
+                                        <label class="checkbox-label">
+                                            <input
+                                                type="checkbox"
+                                                :checked="newTask.reasoningEnabled ?? taskReasoningCapability.defaultEnabled"
+                                                @change="newTask.reasoningEnabled = $event.target.checked; newTask.reasoningEffort = null"
+                                            >
+                                            <span class="checkbox-toggle"></span>
+                                            <span class="checkbox-text">Enable reasoning</span>
+                                        </label>
+                                    </template>
+                                    <template x-if="taskReasoningCapability.kind === 'effort'">
+                                        <select x-model="newTask.reasoningEffort">
+                                            <template x-for="effort in taskReasoningCapability.supportedEfforts" :key="effort">
+                                                <option :value="effort" x-text="formatReasoningEffortLabel(effort)"></option>
+                                            </template>
+                                        </select>
+                                    </template>
+                                </div>
+                            </template>
 
                             <!-- File Attachments -->
                             <div class="form-group file-upload-group">

@@ -33,6 +33,10 @@ public struct CreateTaskRequest: Codable, Sendable {
     public let outputDirectory: String?
     /// Whether to generate a plan before executing the task
     public let planFirst: Bool?
+    /// Optional reasoning toggle for providers that expose boolean reasoning.
+    public let reasoningEnabled: Bool?
+    /// Optional reasoning effort for providers that expose explicit effort levels.
+    public let reasoningEffort: String?
     /// Names of skills explicitly mentioned by the user via @skill-name
     public let mentionedSkillNames: [String]?
     /// Optional retrieval context pack id approved by the user.
@@ -53,6 +57,8 @@ public struct CreateTaskRequest: Codable, Sendable {
         priority: APITaskPriority? = nil,
         outputDirectory: String? = nil,
         planFirst: Bool? = nil,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         mentionedSkillNames: [String]? = nil,
         contextPackId: String? = nil,
         contextSuggestionIds: [String]? = nil,
@@ -66,6 +72,8 @@ public struct CreateTaskRequest: Codable, Sendable {
         self.priority = priority
         self.outputDirectory = outputDirectory
         self.planFirst = planFirst
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
         self.mentionedSkillNames = mentionedSkillNames
         self.contextPackId = contextPackId
         self.contextSuggestionIds = contextSuggestionIds
@@ -123,6 +131,8 @@ public struct CreateScheduleRequest: Codable, Sendable {
     public let description: String
     public let providerName: String
     public let modelId: String
+    public let reasoningEnabled: Bool?
+    public let reasoningEffort: String?
     public let outputDirectory: String?
     public let schedule: APISchedule
     
@@ -131,6 +141,8 @@ public struct CreateScheduleRequest: Codable, Sendable {
         description: String,
         providerName: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         outputDirectory: String? = nil,
         schedule: APISchedule
     ) {
@@ -138,6 +150,8 @@ public struct CreateScheduleRequest: Codable, Sendable {
         self.description = description
         self.providerName = providerName
         self.modelId = modelId
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
         self.outputDirectory = outputDirectory
         self.schedule = schedule
     }

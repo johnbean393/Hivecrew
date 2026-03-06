@@ -61,6 +61,8 @@ public final class ScheduleRoutes: Sendable {
         var description: String = ""
         var providerName: String = ""
         var modelId: String = ""
+        var reasoningEnabled: Bool?
+        var reasoningEffort: String?
         var outputDirectory: String?
         var schedule: APISchedule?
         var uploadedFilePaths: [String] = []
@@ -71,6 +73,8 @@ public final class ScheduleRoutes: Sendable {
             description = result.description
             providerName = result.providerName
             modelId = result.modelId
+            reasoningEnabled = result.reasoningEnabled
+            reasoningEffort = result.reasoningEffort
             outputDirectory = result.outputDirectory
             schedule = result.schedule
             uploadedFilePaths = result.filePaths
@@ -82,6 +86,8 @@ public final class ScheduleRoutes: Sendable {
             description = createRequest.description
             providerName = createRequest.providerName
             modelId = createRequest.modelId
+            reasoningEnabled = createRequest.reasoningEnabled
+            reasoningEffort = createRequest.reasoningEffort
             outputDirectory = createRequest.outputDirectory
             schedule = createRequest.schedule
         }
@@ -116,6 +122,8 @@ public final class ScheduleRoutes: Sendable {
             description: description,
             providerName: providerName,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
             attachedFilePaths: uploadedFilePaths,
             outputDirectory: outputDirectory,
             schedule: schedule
@@ -198,6 +206,8 @@ public final class ScheduleRoutes: Sendable {
         let description: String
         let providerName: String
         let modelId: String
+        let reasoningEnabled: Bool?
+        let reasoningEffort: String?
         let outputDirectory: String?
         let schedule: APISchedule?
         let filePaths: [String]
@@ -208,6 +218,8 @@ public final class ScheduleRoutes: Sendable {
         var description = ""
         var providerName = ""
         var modelId = ""
+        var reasoningEnabled: Bool?
+        var reasoningEffort: String?
         var outputDirectory: String?
         var scheduleJSON: String?
         var filePaths: [String] = []
@@ -228,6 +240,12 @@ public final class ScheduleRoutes: Sendable {
                     providerName = String(data: part.data, encoding: .utf8) ?? ""
                 case "modelId":
                     modelId = String(data: part.data, encoding: .utf8) ?? ""
+                case "reasoningEnabled":
+                    if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                        reasoningEnabled = value == "true" || value == "1"
+                    }
+                case "reasoningEffort":
+                    reasoningEffort = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
                 case "outputDirectory":
                     outputDirectory = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
                 case "schedule":
@@ -260,6 +278,8 @@ public final class ScheduleRoutes: Sendable {
             description: description,
             providerName: providerName,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
             outputDirectory: outputDirectory,
             schedule: schedule,
             filePaths: filePaths

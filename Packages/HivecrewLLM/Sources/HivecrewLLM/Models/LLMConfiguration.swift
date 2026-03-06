@@ -157,6 +157,12 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
     /// Request timeout interval in seconds
     public let timeoutInterval: TimeInterval
 
+    /// Optional reasoning toggle for providers that expose reasoning as on/off.
+    public let reasoningEnabled: Bool?
+
+    /// Optional reasoning effort for providers that expose explicit effort levels.
+    public let reasoningEffort: String?
+
     /// Default timeout interval (60 seconds)
     public static let defaultTimeout: TimeInterval = 300.0
 
@@ -169,7 +175,9 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
         organizationId: String? = nil,
         backendMode: LLMBackendMode = .chatCompletions,
         authMode: LLMAuthMode = .apiKey,
-        timeoutInterval: TimeInterval = LLMConfiguration.defaultTimeout
+        timeoutInterval: TimeInterval = LLMConfiguration.defaultTimeout,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -180,6 +188,8 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
         self.backendMode = backendMode
         self.authMode = authMode
         self.timeoutInterval = timeoutInterval
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
     }
 
     /// Extract host from baseURL if provided

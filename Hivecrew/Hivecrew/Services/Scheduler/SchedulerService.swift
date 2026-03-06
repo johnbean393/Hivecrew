@@ -136,6 +136,8 @@ class SchedulerService: ObservableObject {
                 description: schedule.taskDescription,
                 providerId: schedule.providerId,
                 modelId: schedule.modelId,
+                reasoningEnabled: schedule.reasoningEnabled,
+                reasoningEffort: schedule.reasoningEffort,
                 attachedFilePaths: schedule.attachedFilePaths,
                 outputDirectory: schedule.outputDirectory,
                 mentionedSkillNames: schedule.mentionedSkillNames ?? []
@@ -182,6 +184,8 @@ class SchedulerService: ObservableObject {
         taskDescription: String,
         providerId: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         attachedFilePaths: [String] = [],
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
@@ -198,6 +202,8 @@ class SchedulerService: ObservableObject {
             taskDescription: taskDescription,
             providerId: providerId,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
             attachedFilePaths: attachedFilePaths,
             outputDirectory: outputDirectory,
             mentionedSkillNames: mentionedSkillNames,
@@ -226,6 +232,9 @@ class SchedulerService: ObservableObject {
         taskDescription: String? = nil,
         providerId: String? = nil,
         modelId: String? = nil,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
+        shouldUpdateReasoning: Bool = false,
         attachedFilePaths: [String]? = nil,
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
@@ -242,6 +251,10 @@ class SchedulerService: ObservableObject {
         if let taskDescription = taskDescription { schedule.taskDescription = taskDescription }
         if let providerId = providerId { schedule.providerId = providerId }
         if let modelId = modelId { schedule.modelId = modelId }
+        if shouldUpdateReasoning {
+            schedule.reasoningEnabled = reasoningEnabled
+            schedule.reasoningEffort = reasoningEffort
+        }
         if let attachedFilePaths = attachedFilePaths { schedule.attachedFilePaths = attachedFilePaths }
         if let outputDirectory = outputDirectory { schedule.outputDirectory = outputDirectory }
         if let mentionedSkillNames = mentionedSkillNames { schedule.mentionedSkillNames = mentionedSkillNames }

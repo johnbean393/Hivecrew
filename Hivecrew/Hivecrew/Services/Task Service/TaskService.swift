@@ -92,6 +92,8 @@ class TaskService: ObservableObject {
         description: String,
         providerId: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         attachedFilePaths: [String] = [],
         attachmentInfos: [AttachmentInfo]? = nil,
         outputDirectory: String? = nil,
@@ -142,6 +144,8 @@ class TaskService: ObservableObject {
             status: .queued,
             providerId: providerId,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
             attachmentInfos: preparedInfos,
             outputDirectory: outputDirectory,
             mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames,
@@ -206,7 +210,13 @@ class TaskService: ObservableObject {
     ///   - modelId: Model ID to use for the new task
     /// - Returns: The newly created task
     /// - Note: Use `validateRerunAttachments` first to check for missing files
-    func rerunTask(_ originalTask: TaskRecord, providerId: String, modelId: String) async throws -> TaskRecord {
+    func rerunTask(
+        _ originalTask: TaskRecord,
+        providerId: String,
+        modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil
+    ) async throws -> TaskRecord {
         // Prepare attachment infos for rerun (validates files exist, keeps references)
         // Actual copying happens when the new session starts
         let originalInfos = originalTask.attachmentInfos
@@ -216,6 +226,8 @@ class TaskService: ObservableObject {
             from: originalTask,
             providerId: providerId,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled ?? originalTask.reasoningEnabled,
+            reasoningEffort: reasoningEffort ?? originalTask.reasoningEffort,
             attachmentInfos: newInfos.isEmpty ? nil : newInfos
         )
     }
@@ -246,12 +258,16 @@ class TaskService: ObservableObject {
         _ originalTask: TaskRecord,
         providerId: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         withResolvedAttachments resolvedAttachments: [AttachmentInfo]
     ) async throws -> TaskRecord {
         return try await createRerunTask(
             from: originalTask,
             providerId: providerId,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled ?? originalTask.reasoningEnabled,
+            reasoningEffort: reasoningEffort ?? originalTask.reasoningEffort,
             attachmentInfos: resolvedAttachments.isEmpty ? nil : resolvedAttachments
         )
     }
@@ -261,6 +277,8 @@ class TaskService: ObservableObject {
         from originalTask: TaskRecord,
         providerId: String,
         modelId: String,
+        reasoningEnabled: Bool?,
+        reasoningEffort: String?,
         attachmentInfos: [AttachmentInfo]?
     ) async throws -> TaskRecord {
         // If the original task had a plan, reuse it to skip the planning phase
@@ -269,6 +287,8 @@ class TaskService: ObservableObject {
             description: originalTask.taskDescription,
             providerId: providerId,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
             attachmentInfos: attachmentInfos,
             outputDirectory: originalTask.outputDirectory,
             mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
@@ -449,4 +469,3 @@ class TaskService: ObservableObject {
 extension TaskService: CreateWorkerClientProtocol {
     // Already implemented in TaskService+VMManagement.swift
 }
-

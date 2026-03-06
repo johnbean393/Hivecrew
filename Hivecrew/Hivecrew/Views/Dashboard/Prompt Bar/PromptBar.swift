@@ -10,6 +10,49 @@ import SwiftData
 import TipKit
 import UniformTypeIdentifiers
 import QuickLook
+import HivecrewLLM
+
+struct ReasoningSelectionResolution {
+    let enabled: Bool?
+    let effort: String?
+}
+
+func resolveReasoningSelection(
+    capability: LLMReasoningCapability,
+    currentEnabled: Bool?,
+    currentEffort: String?
+) -> ReasoningSelectionResolution {
+    switch capability.kind {
+    case .none:
+        return ReasoningSelectionResolution(enabled: nil, effort: nil)
+    case .toggle:
+        return ReasoningSelectionResolution(
+            enabled: currentEnabled ?? capability.defaultEnabled,
+            effort: nil
+        )
+    case .effort:
+        let supportedEfforts = capability.supportedEfforts
+        let fallbackEffort = capability.defaultEffort.flatMap { defaultEffort in
+            supportedEfforts.contains(defaultEffort) ? defaultEffort : nil
+        } ?? supportedEfforts.first
+        let resolvedEffort = currentEffort.flatMap { effort in
+            supportedEfforts.contains(effort) ? effort : nil
+        } ?? fallbackEffort
+        return ReasoningSelectionResolution(enabled: nil, effort: resolvedEffort)
+    }
+}
+
+func reasoningEffortDisplayName(_ effort: String) -> String {
+    let normalized = effort.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    switch normalized {
+    case "xhigh":
+        return "Extra High"
+    default:
+        return normalized
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+}
 
 /// Configuration for send key behavior
 enum SendKeyMode: String, CaseIterable, Identifiable {
@@ -47,6 +90,8 @@ struct PromptBar: View {
     // Model selection state
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var reasoningEnabled: Bool?
+    @Binding var reasoningEffort: String?
     
     // Copy count selection state
     @Binding var copyCount: TaskCopyCount
@@ -266,6 +311,8 @@ struct PromptBar: View {
                     PromptModelButton(
                         selectedProviderId: $selectedProviderId,
                         selectedModelId: $selectedModelId,
+                        reasoningEnabled: $reasoningEnabled,
+                        reasoningEffort: $reasoningEffort,
                         copyCount: $copyCount,
                         useMultipleModels: $useMultipleModels,
                         multiModelSelections: $multiModelSelections,
@@ -274,6 +321,15 @@ struct PromptBar: View {
                     )
                     
                     if !useMultipleModels {
+                        PromptReasoningButton(
+                            selectedProviderId: $selectedProviderId,
+                            selectedModelId: $selectedModelId,
+                            reasoningEnabled: $reasoningEnabled,
+                            reasoningEffort: $reasoningEffort,
+                            providers: Array(providers),
+                            isFocused: isFocused
+                        )
+
                         PromptCopyCountButton(
                             copyCount: $copyCount,
                             isFocused: isFocused
@@ -556,6 +612,229 @@ struct PromptBar: View {
     }
 }
 
+struct PromptReasoningButton: View {
+    @Binding var selectedProviderId: String
+    @Binding var selectedModelId: String
+    @Binding var reasoningEnabled: Bool?
+    @Binding var reasoningEffort: String?
+    let providers: [LLMProviderRecord]
+    var isFocused: Bool = false
+
+    @State private var availableModels: [LLMProviderModel] = []
+    @State private var anchorView: NSView?
+
+    private var selectedProvider: LLMProviderRecord? {
+        providers.first(where: { $0.id == selectedProviderId })
+    }
+
+    private var selectedModel: LLMProviderModel? {
+        availableModels.first(where: { $0.id == selectedModelId })
+    }
+
+    private var capability: LLMReasoningCapability {
+        selectedModel?.reasoningCapability ?? .none
+    }
+
+    private var isActive: Bool {
+        switch capability.kind {
+        case .none:
+            return false
+        case .toggle:
+            return reasoningEnabled ?? capability.defaultEnabled
+        case .effort:
+            return true
+        }
+    }
+
+    private var selectedTextColor: Color {
+        if isFocused {
+            return .accentColor
+        }
+        return .primary.opacity(0.5)
+    }
+
+    private var selectedBackgroundColor: Color {
+        if isFocused {
+            return Color.accentColor.opacity(0.3)
+        }
+        return .white.opacity(0.0001)
+    }
+
+    private var unselectedTextColor: Color {
+        .secondary.opacity(0.8)
+    }
+
+    private var unselectedBorderColor: Color {
+        return .primary.opacity(0.3)
+    }
+
+    private var menuLabelColor: NSColor {
+        isFocused ? .controlAccentColor : NSColor(Color.primary.opacity(0.5))
+    }
+
+    private var loadToken: String {
+        let providerToken = providers.map(\.id).joined(separator: "|")
+        return "\(selectedProviderId)::\(providerToken)"
+    }
+
+    var body: some View {
+        ZStack {
+            switch capability.kind {
+            case .none:
+                EmptyView()
+            case .toggle:
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        reasoningEnabled = !(reasoningEnabled ?? capability.defaultEnabled)
+                    }
+                } label: {
+                    capsuleLabel(
+                        systemImage: "brain.head.profile",
+                        title: "Reason"
+                    )
+                }
+                .buttonStyle(.plain)
+            case .effort:
+                effortMenuButton
+            }
+        }
+        .task(id: loadToken) {
+            loadModels()
+        }
+        .onChange(of: selectedModelId) { _, _ in
+            synchronizeSelection()
+        }
+        .onChange(of: availableModels.map(\.id)) { _, _ in
+            synchronizeSelection()
+        }
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isActive)
+    }
+
+    private var effortMenuButton: some View {
+        HStack(spacing: 0) {
+            CopyCountAnchorRepresentable(view: $anchorView)
+                .frame(width: 0.1, height: 0.1)
+
+            HStack(spacing: 4) {
+                Image(systemName: "brain.head.profile")
+                    .font(.caption)
+                Text("Reason")
+                    .font(.caption)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(selectedTextColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+
+            Rectangle()
+                .fill(isFocused ? selectedBackgroundColor : unselectedBorderColor)
+                .frame(width: 0.5, height: 18)
+
+            CopyCountMenuIcon(
+                iconName: "chevron.down",
+                color: menuLabelColor,
+                menu: NSMenu.fromReasoningEffortOptions(options: capability.supportedEfforts) { effort in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        reasoningEffort = effort
+                    }
+                },
+                anchorViewProvider: {
+                    anchorView
+                }
+            )
+            .frame(width: 18, height: 18)
+            .padding(.trailing, 2)
+        }
+        .background {
+            ZStack {
+                Capsule()
+                    .fill(selectedBackgroundColor)
+                Capsule()
+                    .stroke(style: StrokeStyle(lineWidth: 0.3))
+                    .fill(isFocused ? selectedBackgroundColor : unselectedBorderColor)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func capsuleLabel(systemImage: String, title: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .font(.caption)
+            Text(title)
+                .font(.caption)
+                .lineLimit(1)
+        }
+        .foregroundStyle(isActive ? selectedTextColor : unselectedTextColor)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background {
+            if isActive {
+                ZStack {
+                    Capsule()
+                        .fill(selectedBackgroundColor)
+                    Capsule()
+                        .stroke(style: StrokeStyle(lineWidth: 0.3))
+                        .fill(isFocused ? selectedBackgroundColor : unselectedBorderColor)
+                }
+            } else {
+                Capsule()
+                    .stroke(unselectedBorderColor, lineWidth: 0.5)
+            }
+        }
+    }
+
+    private func loadModels() {
+        guard let provider = selectedProvider else {
+            availableModels = []
+            synchronizeSelection()
+            return
+        }
+
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let stored = provider.retrieveAPIKey() else {
+                availableModels = []
+                synchronizeSelection()
+                return
+            }
+            apiKey = stored
+        } else {
+            apiKey = ""
+        }
+
+        Task {
+            do {
+                let config = provider.makeLLMConfiguration(
+                    model: provider.backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder",
+                    apiKey: apiKey
+                )
+                let client = LLMService.shared.createClient(from: config)
+                let models = try await client.listModelsDetailed()
+                await MainActor.run {
+                    availableModels = models
+                    synchronizeSelection()
+                }
+            } catch {
+                await MainActor.run {
+                    availableModels = []
+                    synchronizeSelection()
+                }
+            }
+        }
+    }
+
+    private func synchronizeSelection() {
+        let resolution = resolveReasoningSelection(
+            capability: capability,
+            currentEnabled: reasoningEnabled,
+            currentEffort: reasoningEffort
+        )
+        reasoningEnabled = resolution.enabled
+        reasoningEffort = resolution.effort
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -581,6 +860,8 @@ struct PromptBar: View {
                     ghostSuggestions: [],
                     selectedProviderId: $providerId,
                     selectedModelId: $modelId,
+                    reasoningEnabled: .constant(nil),
+                    reasoningEffort: .constant(nil),
                     copyCount: $copyCount,
                     useMultipleModels: $useMultipleModels,
                     multiModelSelections: $multiModelSelections,

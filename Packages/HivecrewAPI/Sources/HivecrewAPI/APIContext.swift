@@ -31,6 +31,8 @@ public protocol APIServiceProvider: Sendable {
         description: String,
         providerName: String,
         modelId: String,
+        reasoningEnabled: Bool?,
+        reasoningEffort: String?,
         attachedFilePaths: [String],
         outputDirectory: String?,
         planFirst: Bool,
@@ -114,6 +116,8 @@ public protocol APIServiceProvider: Sendable {
         description: String,
         providerName: String,
         modelId: String,
+        reasoningEnabled: Bool?,
+        reasoningEffort: String?,
         attachedFilePaths: [String],
         outputDirectory: String?,
         schedule: APISchedule

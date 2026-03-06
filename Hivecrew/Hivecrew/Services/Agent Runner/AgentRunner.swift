@@ -188,7 +188,9 @@ final class AgentRunner {
                 }
                 return try await taskService.createLLMClient(
                     providerId: task.providerId,
-                    modelId: task.modelId
+                    modelId: task.modelId,
+                    reasoningEnabled: task.reasoningEnabled,
+                    reasoningEffort: task.reasoningEffort
                 )
             },
             visionCapabilityResolver: { modelId, client in

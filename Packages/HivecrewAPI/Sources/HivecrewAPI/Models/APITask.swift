@@ -101,6 +101,8 @@ public struct APITask: Codable, Sendable {
     public let status: APITaskStatus
     public let providerName: String
     public let modelId: String
+    public let reasoningEnabled: Bool?
+    public let reasoningEffort: String?
     public let createdAt: Date
     public let startedAt: Date?
     public let completedAt: Date?
@@ -128,6 +130,8 @@ public struct APITask: Codable, Sendable {
         status: APITaskStatus,
         providerName: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         createdAt: Date,
         startedAt: Date? = nil,
         completedAt: Date? = nil,
@@ -154,6 +158,8 @@ public struct APITask: Codable, Sendable {
         self.status = status
         self.providerName = providerName
         self.modelId = modelId
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
         self.createdAt = createdAt
         self.startedAt = startedAt
         self.completedAt = completedAt

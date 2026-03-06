@@ -12,6 +12,8 @@ struct PromptModelButton: View {
     
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var reasoningEnabled: Bool?
+    @Binding var reasoningEffort: String?
     @Binding var copyCount: TaskCopyCount
     @Binding var useMultipleModels: Bool
     @Binding var multiModelSelections: [PromptModelSelection]
@@ -96,6 +98,8 @@ struct PromptModelButton: View {
             PromptModelPopover(
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
+                reasoningEnabled: $reasoningEnabled,
+                reasoningEffort: $reasoningEffort,
                 copyCount: $copyCount,
                 useMultipleModels: $useMultipleModels,
                 multiModelSelections: $multiModelSelections,
@@ -130,6 +134,8 @@ struct PromptModelButton: View {
             PromptModelButton(
                 selectedProviderId: $providerId,
                 selectedModelId: $modelId,
+                reasoningEnabled: .constant(nil),
+                reasoningEffort: .constant(nil),
                 copyCount: $copyCount,
                 useMultipleModels: $useMultipleModels,
                 multiModelSelections: $multiSelections,

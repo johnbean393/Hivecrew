@@ -7,6 +7,31 @@
 
 import Foundation
 
+public enum APIReasoningCapabilityKind: String, Codable, Sendable, CaseIterable {
+    case none = "none"
+    case toggle = "toggle"
+    case effort = "effort"
+}
+
+public struct APIReasoningCapability: Codable, Sendable {
+    public let kind: APIReasoningCapabilityKind
+    public let supportedEfforts: [String]
+    public let defaultEffort: String?
+    public let defaultEnabled: Bool
+
+    public init(
+        kind: APIReasoningCapabilityKind = .none,
+        supportedEfforts: [String] = [],
+        defaultEffort: String? = nil,
+        defaultEnabled: Bool = false
+    ) {
+        self.kind = kind
+        self.supportedEfforts = supportedEfforts
+        self.defaultEffort = defaultEffort
+        self.defaultEnabled = defaultEnabled
+    }
+}
+
 public enum APIProviderBackendMode: String, Codable, Sendable, CaseIterable {
     case chatCompletions = "chat_completions"
     case responses = "responses"
@@ -133,11 +158,18 @@ public struct APIModel: Codable, Sendable {
     public let id: String
     public let name: String
     public let contextLength: Int?
+    public let reasoningCapability: APIReasoningCapability
 
-    public init(id: String, name: String, contextLength: Int? = nil) {
+    public init(
+        id: String,
+        name: String,
+        contextLength: Int? = nil,
+        reasoningCapability: APIReasoningCapability = APIReasoningCapability()
+    ) {
         self.id = id
         self.name = name
         self.contextLength = contextLength
+        self.reasoningCapability = reasoningCapability
     }
 }
 

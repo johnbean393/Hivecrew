@@ -7,6 +7,33 @@
 
 import Foundation
 
+public enum LLMReasoningCapabilityKind: String, Sendable, Codable, Hashable {
+    case none
+    case toggle
+    case effort
+}
+
+public struct LLMReasoningCapability: Sendable, Codable, Hashable {
+    public let kind: LLMReasoningCapabilityKind
+    public let supportedEfforts: [String]
+    public let defaultEffort: String?
+    public let defaultEnabled: Bool
+
+    public init(
+        kind: LLMReasoningCapabilityKind = .none,
+        supportedEfforts: [String] = [],
+        defaultEffort: String? = nil,
+        defaultEnabled: Bool = false
+    ) {
+        self.kind = kind
+        self.supportedEfforts = supportedEfforts
+        self.defaultEffort = defaultEffort
+        self.defaultEnabled = defaultEnabled
+    }
+
+    public static let none = LLMReasoningCapability()
+}
+
 /// A normalized model descriptor for model-picking UIs.
 ///
 /// Fields are intentionally optional so clients can parse richer providers
@@ -38,6 +65,9 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
     /// When present, this takes precedence over inferred modality parsing.
     public let supportsVisionInput: Bool?
 
+    /// Provider-supplied reasoning configuration support.
+    public let reasoningCapability: LLMReasoningCapability
+
     public init(
         id: String,
         name: String? = nil,
@@ -46,7 +76,8 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         createdAt: Date? = nil,
         inputModalities: [String]? = nil,
         outputModalities: [String]? = nil,
-        supportsVisionInput: Bool? = nil
+        supportsVisionInput: Bool? = nil,
+        reasoningCapability: LLMReasoningCapability = .none
     ) {
         self.id = id
         self.name = name
@@ -56,6 +87,7 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         self.inputModalities = inputModalities
         self.outputModalities = outputModalities
         self.supportsVisionInput = supportsVisionInput
+        self.reasoningCapability = reasoningCapability
     }
 
     /// Fallback-safe display title for UI surfaces.
@@ -73,6 +105,10 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         return inputModalities.contains { modality in
             Self.isVisionModality(modality)
         }
+    }
+
+    public var supportsReasoningControl: Bool {
+        reasoningCapability.kind != .none
     }
 
     private static func isVisionModality(_ rawValue: String) -> Bool {

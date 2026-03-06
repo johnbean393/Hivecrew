@@ -97,6 +97,12 @@ final class TaskRecord {
     
     /// Model ID to use (e.g., "moonshotai/kimi-k2.5", "claude-3-opus")
     var modelId: String
+
+    /// Optional reasoning toggle persisted for models with boolean reasoning support.
+    var reasoningEnabled: Bool?
+
+    /// Optional reasoning effort persisted for models with explicit effort support.
+    var reasoningEffort: String?
     
     /// Summary of the task result (on completion)
     var resultSummary: String?
@@ -242,6 +248,8 @@ final class TaskRecord {
         sessionId: String? = nil,
         providerId: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         resultSummary: String? = nil,
         errorMessage: String? = nil,
         attachedFilePaths: [String] = [],
@@ -269,6 +277,8 @@ final class TaskRecord {
         self.sessionId = sessionId
         self.providerId = providerId
         self.modelId = modelId
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
         self.resultSummary = resultSummary
         self.errorMessage = errorMessage
         self.outputFilePaths = outputFilePaths

@@ -122,7 +122,12 @@ extension TaskService {
     }
     
     /// Create an LLM client from provider configuration
-    func createLLMClient(providerId: String, modelId: String) async throws -> any LLMClientProtocol {
+    func createLLMClient(
+        providerId: String,
+        modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil
+    ) async throws -> any LLMClientProtocol {
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
         }
@@ -148,7 +153,12 @@ extension TaskService {
             apiKey = ""
         }
 
-        let config = provider.makeLLMConfiguration(model: modelId, apiKey: apiKey)
+        let config = provider.makeLLMConfiguration(
+            model: modelId,
+            apiKey: apiKey,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort
+        )
         return LLMService.shared.createClient(from: config)
     }
     

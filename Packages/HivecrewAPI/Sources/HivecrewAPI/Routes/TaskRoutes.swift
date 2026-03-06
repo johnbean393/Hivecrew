@@ -85,6 +85,8 @@ public final class TaskRoutes: Sendable {
         var uploadedFilePaths: [String] = []
         var outputDirectory: String?
         var planFirst: Bool = false
+        var reasoningEnabled: Bool?
+        var reasoningEffort: String?
         var mentionedSkillNames: [String] = []
         var contextPackId: String?
         var contextSuggestionIds: [String] = []
@@ -100,6 +102,8 @@ public final class TaskRoutes: Sendable {
             uploadedFilePaths = result.filePaths
             outputDirectory = result.outputDirectory
             planFirst = result.planFirst
+            reasoningEnabled = result.reasoningEnabled
+            reasoningEffort = result.reasoningEffort
             mentionedSkillNames = result.mentionedSkillNames
         } else {
             let body = try await request.body.collect(upTo: 1024 * 1024)
@@ -110,6 +114,8 @@ public final class TaskRoutes: Sendable {
             modelId = createRequest.modelId
             outputDirectory = createRequest.outputDirectory
             planFirst = createRequest.planFirst ?? false
+            reasoningEnabled = createRequest.reasoningEnabled
+            reasoningEffort = createRequest.reasoningEffort
             mentionedSkillNames = createRequest.mentionedSkillNames ?? []
             contextPackId = createRequest.contextPackId
             contextSuggestionIds = createRequest.contextSuggestionIds ?? []
@@ -133,6 +139,8 @@ public final class TaskRoutes: Sendable {
             description: description,
             providerName: providerName,
             modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
             attachedFilePaths: uploadedFilePaths,
             outputDirectory: outputDirectory,
             planFirst: planFirst,
@@ -375,6 +383,8 @@ public final class TaskRoutes: Sendable {
         let filePaths: [String]
         let outputDirectory: String?
         let planFirst: Bool
+        let reasoningEnabled: Bool?
+        let reasoningEffort: String?
         let mentionedSkillNames: [String]
     }
     
@@ -386,6 +396,8 @@ public final class TaskRoutes: Sendable {
         var filePaths: [String] = []
         var outputDirectory: String?
         var planFirst = false
+        var reasoningEnabled: Bool?
+        var reasoningEffort: String?
         var mentionedSkillNames: [String] = []
         
         let taskId = UUID().uuidString
@@ -412,6 +424,12 @@ public final class TaskRoutes: Sendable {
                     if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
                         planFirst = value == "true" || value == "1"
                     }
+                } else if name == "reasoningEnabled" {
+                    if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                        reasoningEnabled = value == "true" || value == "1"
+                    }
+                } else if name == "reasoningEffort" {
+                    reasoningEffort = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
                 } else if name == "mentionedSkillNames" || name == "mentionedSkillNames[]" {
                     if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
                         mentionedSkillNames.append(value)
@@ -439,6 +457,8 @@ public final class TaskRoutes: Sendable {
             filePaths: filePaths,
             outputDirectory: outputDirectory,
             planFirst: planFirst,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
             mentionedSkillNames: mentionedSkillNames
         )
     }

@@ -160,7 +160,12 @@ final class LLMProviderRecord {
     }
 
     /// Build an LLM configuration for a specific model selection.
-    func makeLLMConfiguration(model: String, apiKey: String) -> LLMConfiguration {
+    func makeLLMConfiguration(
+        model: String,
+        apiKey: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil
+    ) -> LLMConfiguration {
         LLMConfiguration(
             id: id,
             displayName: displayName,
@@ -170,7 +175,9 @@ final class LLMProviderRecord {
             organizationId: organizationId,
             backendMode: backendMode,
             authMode: authMode,
-            timeoutInterval: timeoutInterval
+            timeoutInterval: timeoutInterval,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort
         )
     }
 }

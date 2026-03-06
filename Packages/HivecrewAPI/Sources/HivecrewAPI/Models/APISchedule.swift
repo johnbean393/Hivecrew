@@ -70,6 +70,8 @@ public struct APIScheduledTask: Codable, Sendable {
     public let description: String
     public let providerName: String
     public let modelId: String
+    public let reasoningEnabled: Bool?
+    public let reasoningEffort: String?
     public let isEnabled: Bool
     public let scheduleType: String
     public let scheduledAt: Date?
@@ -86,6 +88,8 @@ public struct APIScheduledTask: Codable, Sendable {
         description: String,
         providerName: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         isEnabled: Bool,
         scheduleType: String,
         scheduledAt: Date?,
@@ -101,6 +105,8 @@ public struct APIScheduledTask: Codable, Sendable {
         self.description = description
         self.providerName = providerName
         self.modelId = modelId
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
         self.isEnabled = isEnabled
         self.scheduleType = scheduleType
         self.scheduledAt = scheduledAt
@@ -134,19 +140,25 @@ public struct UpdateScheduleRequest: Codable, Sendable {
     public let description: String?
     public let scheduledAt: Date?
     public let recurrence: APIRecurrence?
+    public let reasoningEnabled: Bool?
+    public let reasoningEffort: String?
     public let isEnabled: Bool?
-    
+
     public init(
         title: String? = nil,
         description: String? = nil,
         scheduledAt: Date? = nil,
         recurrence: APIRecurrence? = nil,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         isEnabled: Bool? = nil
     ) {
         self.title = title
         self.description = description
         self.scheduledAt = scheduledAt
         self.recurrence = recurrence
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
         self.isEnabled = isEnabled
     }
 }

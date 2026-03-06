@@ -13,6 +13,8 @@ import HivecrewLLM
 struct PromptModelPopover: View {
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var reasoningEnabled: Bool?
+    @Binding var reasoningEffort: String?
     @Binding var copyCount: TaskCopyCount
     @Binding var useMultipleModels: Bool
     @Binding var multiModelSelections: [PromptModelSelection]
@@ -167,7 +169,11 @@ struct PromptModelPopover: View {
             }
         }
     }
-    
+
+    private var selectedModelMetadata: LLMProviderModel? {
+        providerScopedModels.first(where: { $0.id == selectedModelId })
+    }
+
     // MARK: - Provider Section
     
     private var providerSection: some View {
@@ -303,7 +309,7 @@ struct PromptModelPopover: View {
             Spacer()
         }
     }
-    
+
     private var modelListContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -452,44 +458,50 @@ struct PromptModelPopover: View {
     private func modelRow(_ model: LLMProviderModel) -> some View {
         let isSelected = isModelSelected(model.id)
         let isHovered = model.id == hoveredModelId
-        
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(primaryRowTitle(model))
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                
-                if let secondaryText = secondaryRowText(model) {
-                    Text(secondaryText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+
+        VStack(alignment: .leading, spacing: isSelected && useMultipleModels ? 8 : 0) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(primaryRowTitle(model))
+                        .font(.body)
+                        .fontWeight(.medium)
                         .lineLimit(1)
-                        .truncationMode(.middle)
+                    
+                    if let secondaryText = secondaryRowText(model) {
+                        Text(secondaryText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
-            }
-            
-            Spacer(minLength: 8)
-            
-            if isOpenRouterProvider && model.isVisionCapable {
-                Image(systemName: "eye")
-                    .font(.caption)
-                    .foregroundStyle(.blue)
-            }
-            
-            if useMultipleModels {
-                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                    .font(.body)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 
-                if isSelected {
-                    modelCopyCountMenu(modelId: model.id)
+                Spacer(minLength: 8)
+                
+                if isOpenRouterProvider && model.isVisionCapable {
+                    Image(systemName: "eye")
+                        .font(.caption)
+                        .foregroundStyle(.blue)
                 }
-            } else if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.body)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.accentColor)
+                
+                if useMultipleModels {
+                    Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                        .font(.body)
+                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    
+                    if isSelected {
+                        modelCopyCountMenu(modelId: model.id)
+                    }
+                } else if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+
+            if useMultipleModels, isSelected, model.reasoningCapability.kind != .none {
+                rowReasoningControl(for: model)
             }
         }
         .padding(.horizontal, 10)
@@ -555,6 +567,40 @@ struct PromptModelPopover: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
+    private func rowReasoningControl(for model: LLMProviderModel) -> some View {
+        switch model.reasoningCapability.kind {
+        case .none:
+            EmptyView()
+        case .toggle:
+            HStack(spacing: 8) {
+                Text("Reasoning")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Toggle("Reasoning", isOn: reasoningToggleBinding(for: model))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+        case .effort:
+            HStack(spacing: 8) {
+                Text("Reasoning")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Picker("Reasoning", selection: reasoningEffortBinding(for: model)) {
+                    ForEach(model.reasoningCapability.supportedEfforts, id: \.self) { effort in
+                        Text(reasoningEffortDisplayName(effort)).tag(Optional(effort))
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+            }
+        }
+    }
+
     private func selectionIndex(for modelId: String) -> Int? {
         multiModelSelections.firstIndex(where: { selection in
             selection.providerId == selectedProviderId && selection.modelId == modelId
@@ -587,6 +633,103 @@ struct PromptModelPopover: View {
         multiModelSelections[index].copyCount = copyCount
     }
 
+    private func reasoningToggleBinding(for model: LLMProviderModel) -> Binding<Bool> {
+        Binding(
+            get: {
+                currentReasoningSelection(for: model).enabled ?? model.reasoningCapability.defaultEnabled
+            },
+            set: { newValue in
+                setReasoningSelection(for: model, enabled: newValue, effort: nil)
+            }
+        )
+    }
+
+    private func reasoningEffortBinding(for model: LLMProviderModel) -> Binding<String?> {
+        Binding(
+            get: {
+                currentReasoningSelection(for: model).effort
+            },
+            set: { newValue in
+                setReasoningSelection(for: model, enabled: nil, effort: newValue)
+            }
+        )
+    }
+
+    private func currentReasoningSelection() -> ReasoningSelectionResolution {
+        guard let selectedModelMetadata else {
+            return ReasoningSelectionResolution(enabled: reasoningEnabled, effort: reasoningEffort)
+        }
+        return currentReasoningSelection(for: selectedModelMetadata)
+    }
+
+    private func currentReasoningSelection(for model: LLMProviderModel) -> ReasoningSelectionResolution {
+        if useMultipleModels, let index = selectionIndex(for: model.id) {
+            return resolveReasoningSelection(
+                capability: model.reasoningCapability,
+                currentEnabled: multiModelSelections[index].reasoningEnabled,
+                currentEffort: multiModelSelections[index].reasoningEffort
+            )
+        }
+        return resolveReasoningSelection(
+            capability: model.reasoningCapability,
+            currentEnabled: reasoningEnabled,
+            currentEffort: reasoningEffort
+        )
+    }
+
+    private func setReasoningSelection(enabled: Bool?, effort: String?) {
+        guard let selectedModelMetadata else { return }
+        setReasoningSelection(for: selectedModelMetadata, enabled: enabled, effort: effort)
+    }
+
+    private func setReasoningSelection(for model: LLMProviderModel, enabled: Bool?, effort: String?) {
+        let resolved = resolveReasoningSelection(
+            capability: model.reasoningCapability,
+            currentEnabled: enabled,
+            currentEffort: effort
+        )
+
+        if useMultipleModels, let index = selectionIndex(for: model.id) {
+            multiModelSelections[index].reasoningEnabled = resolved.enabled
+            multiModelSelections[index].reasoningEffort = resolved.effort
+            return
+        }
+
+        reasoningEnabled = resolved.enabled
+        reasoningEffort = resolved.effort
+    }
+
+    private func synchronizeReasoningSelectionForCurrentModel() {
+        let resolved = currentReasoningSelection()
+        if useMultipleModels, let index = selectionIndex(for: selectedModelId) {
+            multiModelSelections[index].reasoningEnabled = resolved.enabled
+            multiModelSelections[index].reasoningEffort = resolved.effort
+        } else {
+            reasoningEnabled = resolved.enabled
+            reasoningEffort = resolved.effort
+        }
+    }
+
+    private func synchronizeReasoningSelectionsForVisibleModels() {
+        if useMultipleModels {
+            for index in multiModelSelections.indices {
+                guard multiModelSelections[index].providerId == selectedProviderId,
+                      let model = providerScopedModels.first(where: { $0.id == multiModelSelections[index].modelId }) else {
+                    continue
+                }
+                let resolved = resolveReasoningSelection(
+                    capability: model.reasoningCapability,
+                    currentEnabled: multiModelSelections[index].reasoningEnabled,
+                    currentEffort: multiModelSelections[index].reasoningEffort
+                )
+                multiModelSelections[index].reasoningEnabled = resolved.enabled
+                multiModelSelections[index].reasoningEffort = resolved.effort
+            }
+        } else {
+            synchronizeReasoningSelectionForCurrentModel()
+        }
+    }
+
     private func handleModelSelectionTap(_ model: LLMProviderModel) {
         resetHoverPanelState()
 
@@ -605,6 +748,7 @@ struct PromptModelPopover: View {
             selectedModelId = model.id
             UserDefaults.standard.set(model.id, forKey: "lastSelectedModelId")
             UserDefaults.standard.synchronize()
+            synchronizeReasoningSelectionForCurrentModel()
             return
         }
 
@@ -613,6 +757,7 @@ struct PromptModelPopover: View {
         // Force UserDefaults to synchronize immediately
         UserDefaults.standard.set(model.id, forKey: "lastSelectedModelId")
         UserDefaults.standard.synchronize()
+        synchronizeReasoningSelectionForCurrentModel()
 
         // Dismiss after a small delay to ensure the binding propagates
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -706,6 +851,7 @@ struct PromptModelPopover: View {
                     self.availableModels = models
                     self.isLoading = false
                     synchronizeSelectionWithVisibleModels()
+                    synchronizeReasoningSelectionsForVisibleModels()
                 }
             } catch {
                 await MainActor.run {
@@ -715,6 +861,7 @@ struct PromptModelPopover: View {
                     // Fallback to hardcoded models on error
                     self.availableModels = [LLMProviderModel(id: "moonshotai/kimi-k2.5")]
                     synchronizeSelectionWithVisibleModels()
+                    synchronizeReasoningSelectionsForVisibleModels()
                 }
             }
         }
@@ -735,6 +882,7 @@ struct PromptModelPopover: View {
             UserDefaults.standard.set(firstVisibleModel.id, forKey: "lastSelectedModelId")
             UserDefaults.standard.synchronize()
         }
+        synchronizeReasoningSelectionForCurrentModel()
     }
     
     private func primaryRowTitle(_ model: LLMProviderModel) -> String {

@@ -10,6 +10,7 @@ import SwiftData
 import TipKit
 import UniformTypeIdentifiers
 import HivecrewShared
+import HivecrewLLM
 
 /// Sheet for creating or editing a scheduled task
 struct ScheduleCreationSheet: View {
@@ -22,8 +23,11 @@ struct ScheduleCreationSheet: View {
     @State private var taskDescription: String
     @State private var selectedProviderId: String
     @State private var selectedModelId: String
+    @State private var reasoningEnabled: Bool?
+    @State private var reasoningEffort: String?
     @State private var attachedFilePaths: [String]
     @State private var mentionedSkillNames: [String]
+    @State private var availableModels: [LLMProviderModel] = []
     
     // Schedule configuration
     @State private var scheduleType: ScheduleType = .recurring
@@ -57,6 +61,8 @@ struct ScheduleCreationSheet: View {
         self._taskDescription = State(initialValue: taskDescription)
         self._selectedProviderId = State(initialValue: providerId)
         self._selectedModelId = State(initialValue: modelId)
+        self._reasoningEnabled = State(initialValue: nil)
+        self._reasoningEffort = State(initialValue: nil)
         self._attachedFilePaths = State(initialValue: attachedFilePaths)
         self._mentionedSkillNames = State(initialValue: mentionedSkillNames)
     }
@@ -67,6 +73,8 @@ struct ScheduleCreationSheet: View {
         self._taskDescription = State(initialValue: schedule.taskDescription)
         self._selectedProviderId = State(initialValue: schedule.providerId)
         self._selectedModelId = State(initialValue: schedule.modelId)
+        self._reasoningEnabled = State(initialValue: schedule.reasoningEnabled)
+        self._reasoningEffort = State(initialValue: schedule.reasoningEffort)
         self._attachedFilePaths = State(initialValue: schedule.attachedFilePaths)
         self._mentionedSkillNames = State(initialValue: schedule.mentionedSkillNames ?? [])
         self._scheduleType = State(initialValue: schedule.scheduleType)
@@ -92,6 +100,14 @@ struct ScheduleCreationSheet: View {
         !taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !selectedProviderId.isEmpty &&
         !selectedModelId.isEmpty
+    }
+
+    private var selectedModelMetadata: LLMProviderModel? {
+        availableModels.first(where: { $0.id == selectedModelId })
+    }
+
+    private var selectedReasoningCapability: LLMReasoningCapability {
+        selectedModelMetadata?.reasoningCapability ?? .none
     }
     
     var body: some View {
@@ -131,6 +147,13 @@ struct ScheduleCreationSheet: View {
         .frame(minHeight: 550)
         .onAppear {
             setupDefaults()
+            loadAvailableModels()
+        }
+        .onChange(of: selectedProviderId) { _, _ in
+            loadAvailableModels()
+        }
+        .onChange(of: selectedModelId) { _, _ in
+            synchronizeReasoningSelection()
         }
     }
     
@@ -574,6 +597,10 @@ struct ScheduleCreationSheet: View {
                             .textFieldStyle(.roundedBorder)
                     }
                 }
+
+                if selectedReasoningCapability.kind != .none {
+                    reasoningControlSection
+                }
             }
             .padding(.top, 8)
         }
@@ -616,6 +643,46 @@ struct ScheduleCreationSheet: View {
             return "Select..."
         }
         return providers.first(where: { $0.id == selectedProviderId })?.displayName ?? "Select..."
+    }
+
+    @ViewBuilder
+    private var reasoningControlSection: some View {
+        switch selectedReasoningCapability.kind {
+        case .none:
+            EmptyView()
+        case .toggle:
+            Toggle("Reasoning", isOn: Binding(
+                get: { reasoningEnabled ?? selectedReasoningCapability.defaultEnabled },
+                set: { newValue in
+                    reasoningEnabled = newValue
+                    reasoningEffort = nil
+                }
+            ))
+            .toggleStyle(.switch)
+        case .effort:
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Reasoning")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("Reasoning", selection: Binding(
+                    get: {
+                        reasoningEffort
+                            ?? selectedReasoningCapability.defaultEffort
+                            ?? selectedReasoningCapability.supportedEfforts.first
+                            ?? ""
+                    },
+                    set: { newValue in
+                        reasoningEnabled = nil
+                        reasoningEffort = newValue
+                    }
+                )) {
+                    ForEach(selectedReasoningCapability.supportedEfforts, id: \.self) { effort in
+                        Text(reasoningEffortDisplayName(effort)).tag(effort)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        }
     }
     
     // MARK: - Footer
@@ -664,6 +731,7 @@ struct ScheduleCreationSheet: View {
         if selectedModelId.isEmpty {
             selectedModelId = UserDefaults.standard.string(forKey: "lastSelectedModelId") ?? "moonshotai/kimi-k2.5"
         }
+        synchronizeReasoningSelection()
     }
     
     private func generateTitle(from description: String) -> String {
@@ -684,7 +752,60 @@ struct ScheduleCreationSheet: View {
             return .monthly(on: dayOfMonth, at: scheduleHour, minute: scheduleMinute)
         }
     }
-    
+
+    private func loadAvailableModels() {
+        guard let provider = providers.first(where: { $0.id == selectedProviderId }) else {
+            availableModels = []
+            synchronizeReasoningSelection()
+            return
+        }
+
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let stored = provider.retrieveAPIKey() else {
+                availableModels = []
+                synchronizeReasoningSelection()
+                return
+            }
+            apiKey = stored
+        } else {
+            apiKey = ""
+        }
+
+        let requestProviderId = provider.id
+        Task {
+            do {
+                let config = provider.makeLLMConfiguration(
+                    model: provider.backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder",
+                    apiKey: apiKey
+                )
+                let client = LLMService.shared.createClient(from: config)
+                let models = try await client.listModelsDetailed()
+                await MainActor.run {
+                    guard requestProviderId == selectedProviderId else { return }
+                    availableModels = models
+                    synchronizeReasoningSelection()
+                }
+            } catch {
+                await MainActor.run {
+                    guard requestProviderId == selectedProviderId else { return }
+                    availableModels = []
+                    synchronizeReasoningSelection()
+                }
+            }
+        }
+    }
+
+    private func synchronizeReasoningSelection() {
+        let resolved = resolveReasoningSelection(
+            capability: selectedReasoningCapability,
+            currentEnabled: reasoningEnabled,
+            currentEffort: reasoningEffort
+        )
+        reasoningEnabled = resolved.enabled
+        reasoningEffort = resolved.effort
+    }
+
     private func saveSchedule() async {
         isSaving = true
         errorMessage = nil
@@ -710,6 +831,9 @@ struct ScheduleCreationSheet: View {
                     taskDescription: taskDescription,
                     providerId: selectedProviderId,
                     modelId: selectedModelId,
+                    reasoningEnabled: reasoningEnabled,
+                    reasoningEffort: reasoningEffort,
+                    shouldUpdateReasoning: true,
                     attachedFilePaths: attachedFilePaths,
                     mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames,
                     scheduleType: scheduleType,
@@ -722,6 +846,8 @@ struct ScheduleCreationSheet: View {
                     taskDescription: taskDescription,
                     providerId: selectedProviderId,
                     modelId: selectedModelId,
+                    reasoningEnabled: reasoningEnabled,
+                    reasoningEffort: reasoningEffort,
                     attachedFilePaths: attachedFilePaths,
                     mentionedSkillNames: mentionedSkillNames.isEmpty ? nil : mentionedSkillNames,
                     scheduleType: scheduleType,

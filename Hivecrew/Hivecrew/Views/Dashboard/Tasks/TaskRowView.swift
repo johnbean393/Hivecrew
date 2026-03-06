@@ -19,7 +19,7 @@ struct TaskRowView: View {
     @State private var showingRerunModelSelection: Bool = false
     @State private var showingMissingAttachments: Bool = false
     @State private var missingAttachmentsValidation: RerunAttachmentValidation?
-    @State private var rerunTargetOverride: (providerId: String, modelId: String)?
+    @State private var rerunTargetOverride: (providerId: String, modelId: String, reasoningEnabled: Bool?, reasoningEffort: String?)?
     
     // Tips
     private let showDeliverableTip = ShowDeliverableTip()
@@ -273,13 +273,17 @@ struct TaskRowView: View {
                         Task {
                             let rerunTarget = rerunTargetOverride ?? (
                                 providerId: task.providerId,
-                                modelId: task.modelId
+                                modelId: task.modelId,
+                                reasoningEnabled: task.reasoningEnabled,
+                                reasoningEffort: task.reasoningEffort
                             )
                             defer { rerunTargetOverride = nil }
                             try? await taskService.rerunTask(
                                 task,
                                 providerId: rerunTarget.providerId,
                                 modelId: rerunTarget.modelId,
+                                reasoningEnabled: rerunTarget.reasoningEnabled,
+                                reasoningEffort: rerunTarget.reasoningEffort,
                                 withResolvedAttachments: resolvedAttachments
                             )
                         }
@@ -292,8 +296,13 @@ struct TaskRowView: View {
             }
         }
         .sheet(isPresented: $showingRerunModelSelection) {
-            RerunModelSelectionSheet(task: task) { providerId, modelId in
-                handleRerun(providerId: providerId, modelId: modelId)
+            RerunModelSelectionSheet(task: task) { providerId, modelId, reasoningEnabled, reasoningEffort in
+                handleRerun(
+                    providerId: providerId,
+                    modelId: modelId,
+                    reasoningEnabled: reasoningEnabled,
+                    reasoningEffort: reasoningEffort
+                )
             }
         }
         .contextMenu {
@@ -373,12 +382,19 @@ struct TaskRowView: View {
     }
     
     /// Handle rerun button tap - checks for missing attachments first
-    private func handleRerun(providerId: String? = nil, modelId: String? = nil) {
+    private func handleRerun(
+        providerId: String? = nil,
+        modelId: String? = nil,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil
+    ) {
         let targetProviderId = providerId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? task.providerId
         let targetModelId = modelId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? task.modelId
         rerunTargetOverride = (
             providerId: targetProviderId.isEmpty ? task.providerId : targetProviderId,
-            modelId: targetModelId.isEmpty ? task.modelId : targetModelId
+            modelId: targetModelId.isEmpty ? task.modelId : targetModelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort
         )
         
         // Validate attachments before rerunning
@@ -389,13 +405,17 @@ struct TaskRowView: View {
             Task {
                 let rerunTarget = rerunTargetOverride ?? (
                     providerId: task.providerId,
-                    modelId: task.modelId
+                    modelId: task.modelId,
+                    reasoningEnabled: task.reasoningEnabled,
+                    reasoningEffort: task.reasoningEffort
                 )
                 defer { rerunTargetOverride = nil }
                 try? await taskService.rerunTask(
                     task,
                     providerId: rerunTarget.providerId,
-                    modelId: rerunTarget.modelId
+                    modelId: rerunTarget.modelId,
+                    reasoningEnabled: rerunTarget.reasoningEnabled,
+                    reasoningEffort: rerunTarget.reasoningEffort
                 )
             }
         } else if validation.hasAttachments {
@@ -407,13 +427,17 @@ struct TaskRowView: View {
             Task {
                 let rerunTarget = rerunTargetOverride ?? (
                     providerId: task.providerId,
-                    modelId: task.modelId
+                    modelId: task.modelId,
+                    reasoningEnabled: task.reasoningEnabled,
+                    reasoningEffort: task.reasoningEffort
                 )
                 defer { rerunTargetOverride = nil }
                 try? await taskService.rerunTask(
                     task,
                     providerId: rerunTarget.providerId,
-                    modelId: rerunTarget.modelId
+                    modelId: rerunTarget.modelId,
+                    reasoningEnabled: rerunTarget.reasoningEnabled,
+                    reasoningEffort: rerunTarget.reasoningEffort
                 )
             }
         }

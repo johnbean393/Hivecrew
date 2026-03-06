@@ -28,6 +28,7 @@ private struct ModelsResponse: Decodable {
         let supportsVisionFlag: Bool?
         let imageInputFlag: Bool?
         let supportsImageInputFlag: Bool?
+        let supportedParameters: [String]?
         
         enum CodingKeys: String, CodingKey {
             case id
@@ -56,6 +57,7 @@ private struct ModelsResponse: Decodable {
             case imageInputFlagCamel = "imageInput"
             case supportsImageInputFlag = "supports_image_input"
             case supportsImageInputFlagCamel = "supportsImageInput"
+            case supportedParameters = "supported_parameters"
         }
         
         struct Architecture: Decodable {
@@ -238,6 +240,7 @@ private struct ModelsResponse: Decodable {
             self.supportsVisionFlag = Self.decodeBool(from: container, keys: [.supportsVisionFlag, .supportsVisionFlagCamel])
             self.imageInputFlag = Self.decodeBool(from: container, keys: [.imageInputFlag, .imageInputFlagCamel])
             self.supportsImageInputFlag = Self.decodeBool(from: container, keys: [.supportsImageInputFlag, .supportsImageInputFlagCamel])
+            self.supportedParameters = try? container.decodeIfPresent([String].self, forKey: .supportedParameters)
         }
 
         var normalizedInputModalities: [String]? {
@@ -289,6 +292,19 @@ private struct ModelsResponse: Decodable {
                 }
             }
             return hasVisionModality ? true : nil
+        }
+
+        var normalizedReasoningCapability: LLMReasoningCapability {
+            let parameters = Set((supportedParameters ?? []).map { $0.lowercased() })
+            guard parameters.contains("reasoning") else {
+                return .none
+            }
+            return LLMReasoningCapability(
+                kind: .toggle,
+                supportedEfforts: [],
+                defaultEffort: nil,
+                defaultEnabled: true
+            )
         }
 
         private static func decodeModalities(
@@ -547,7 +563,8 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
                     createdAt: model.created.map { Date(timeIntervalSince1970: TimeInterval($0)) },
                     inputModalities: model.normalizedInputModalities,
                     outputModalities: model.normalizedOutputModalities,
-                    supportsVisionInput: model.normalizedSupportsVisionInput
+                    supportsVisionInput: model.normalizedSupportsVisionInput,
+                    reasoningCapability: model.normalizedReasoningCapability
                 )
             }
             .sorted {
@@ -604,4 +621,25 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
             return defaultLLMProviderBaseURL.appendingPathComponent("models")
         }
     }
+}
+
+func decodeOpenAICompatibleModelsForTests(from data: Data) throws -> [LLMProviderModel] {
+    let modelsResponse = try JSONDecoder().decode(ModelsResponse.self, from: data)
+    return modelsResponse.data
+        .map { model in
+            LLMProviderModel(
+                id: model.id,
+                name: model.name,
+                description: model.description,
+                contextLength: model.contextLength ?? model.topProvider?.contextLength,
+                createdAt: model.created.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                inputModalities: model.normalizedInputModalities,
+                outputModalities: model.normalizedOutputModalities,
+                supportsVisionInput: model.normalizedSupportsVisionInput,
+                reasoningCapability: model.normalizedReasoningCapability
+            )
+        }
+        .sorted {
+            $0.id.localizedStandardCompare($1.id) == .orderedAscending
+        }
 }

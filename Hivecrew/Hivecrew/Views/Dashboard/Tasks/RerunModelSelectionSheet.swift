@@ -11,23 +11,27 @@ import HivecrewLLM
 
 struct RerunModelSelectionSheet: View {
     let task: TaskRecord
-    let onConfirm: (_ providerId: String, _ modelId: String) -> Void
+    let onConfirm: (_ providerId: String, _ modelId: String, _ reasoningEnabled: Bool?, _ reasoningEffort: String?) -> Void
     
     @Environment(\.dismiss) private var dismiss
     @Query private var providers: [LLMProviderRecord]
     
     @State private var selectedProviderId: String
     @State private var selectedModelId: String
+    @State private var reasoningEnabled: Bool?
+    @State private var reasoningEffort: String?
     @State private var searchText: String = ""
     @State private var availableModels: [LLMProviderModel] = []
     @State private var isLoadingModels: Bool = false
     @State private var modelLoadError: String?
     
-    init(task: TaskRecord, onConfirm: @escaping (_ providerId: String, _ modelId: String) -> Void) {
+    init(task: TaskRecord, onConfirm: @escaping (_ providerId: String, _ modelId: String, _ reasoningEnabled: Bool?, _ reasoningEffort: String?) -> Void) {
         self.task = task
         self.onConfirm = onConfirm
         self._selectedProviderId = State(initialValue: task.providerId)
         self._selectedModelId = State(initialValue: task.modelId)
+        self._reasoningEnabled = State(initialValue: task.reasoningEnabled)
+        self._reasoningEffort = State(initialValue: task.reasoningEffort)
     }
     
     private var selectedProvider: LLMProviderRecord? {
@@ -71,6 +75,14 @@ struct RerunModelSelectionSheet: View {
         let unselected = availableModels.filter { $0.id != selectedModelId }
         return selected + unselected
     }
+
+    private var selectedModelMetadata: LLMProviderModel? {
+        availableModels.first(where: { $0.id == selectedModelId })
+    }
+
+    private var selectedReasoningCapability: LLMReasoningCapability {
+        selectedModelMetadata?.reasoningCapability ?? .none
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -90,6 +102,9 @@ struct RerunModelSelectionSheet: View {
         }
         .onChange(of: selectedProviderId) { _, _ in
             loadModels()
+        }
+        .onChange(of: selectedModelId) { _, _ in
+            synchronizeReasoningSelection()
         }
     }
     
@@ -135,6 +150,10 @@ struct RerunModelSelectionSheet: View {
                 TextField("Model ID", text: $selectedModelId)
                     .textFieldStyle(.roundedBorder)
             }
+
+            if selectedReasoningCapability.kind != .none {
+                reasoningSection
+            }
             
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
@@ -165,7 +184,7 @@ struct RerunModelSelectionSheet: View {
             Spacer()
             
             Button("Rerun with Selected Model") {
-                onConfirm(trimmedProviderId, trimmedModelId)
+                onConfirm(trimmedProviderId, trimmedModelId, reasoningEnabled, reasoningEffort)
                 dismiss()
             }
             .buttonStyle(.borderedProminent)
@@ -306,6 +325,7 @@ struct RerunModelSelectionSheet: View {
         guard let provider = selectedProvider else {
             availableModels = []
             modelLoadError = nil
+            synchronizeReasoningSelection()
             return
         }
         
@@ -314,6 +334,7 @@ struct RerunModelSelectionSheet: View {
             guard let stored = provider.retrieveAPIKey() else {
                 availableModels = []
                 modelLoadError = "No API key configured for this provider."
+                synchronizeReasoningSelection()
                 return
             }
             apiKey = stored
@@ -344,6 +365,7 @@ struct RerunModelSelectionSheet: View {
                     if trimmedModelId.isEmpty, let firstModel = models.first {
                         selectedModelId = firstModel.id
                     }
+                    synchronizeReasoningSelection()
                 }
             } catch {
                 await MainActor.run {
@@ -351,8 +373,59 @@ struct RerunModelSelectionSheet: View {
                     availableModels = []
                     isLoadingModels = false
                     modelLoadError = error.localizedDescription
+                    synchronizeReasoningSelection()
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var reasoningSection: some View {
+        switch selectedReasoningCapability.kind {
+        case .none:
+            EmptyView()
+        case .toggle:
+            Toggle("Reasoning", isOn: Binding(
+                get: { reasoningEnabled ?? selectedReasoningCapability.defaultEnabled },
+                set: { newValue in
+                    reasoningEnabled = newValue
+                    reasoningEffort = nil
+                }
+            ))
+            .toggleStyle(.switch)
+        case .effort:
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Reasoning")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("Reasoning", selection: Binding(
+                    get: {
+                        reasoningEffort
+                            ?? selectedReasoningCapability.defaultEffort
+                            ?? selectedReasoningCapability.supportedEfforts.first
+                            ?? ""
+                    },
+                    set: { newValue in
+                        reasoningEnabled = nil
+                        reasoningEffort = newValue
+                    }
+                )) {
+                    ForEach(selectedReasoningCapability.supportedEfforts, id: \.self) { effort in
+                        Text(reasoningEffortDisplayName(effort)).tag(effort)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        }
+    }
+
+    private func synchronizeReasoningSelection() {
+        let resolved = resolveReasoningSelection(
+            capability: selectedReasoningCapability,
+            currentEnabled: reasoningEnabled,
+            currentEffort: reasoningEffort
+        )
+        reasoningEnabled = resolved.enabled
+        reasoningEffort = resolved.effort
     }
 }

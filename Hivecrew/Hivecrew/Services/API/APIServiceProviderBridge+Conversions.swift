@@ -89,6 +89,8 @@ extension APIServiceProviderBridge {
             status: convertToAPIStatus(task.status),
             providerName: providerName,
             modelId: task.modelId,
+            reasoningEnabled: task.reasoningEnabled,
+            reasoningEffort: task.reasoningEffort,
             createdAt: task.createdAt,
             startedAt: task.startedAt,
             completedAt: task.completedAt,
@@ -215,6 +217,26 @@ extension APIServiceProviderBridge {
 
 extension APIServiceProviderBridge {
 
+    func convertToAPIReasoningCapability(_ capability: LLMReasoningCapability) -> APIReasoningCapability {
+        APIReasoningCapability(
+            kind: convertReasoningCapabilityKind(capability.kind),
+            supportedEfforts: capability.supportedEfforts,
+            defaultEffort: capability.defaultEffort,
+            defaultEnabled: capability.defaultEnabled
+        )
+    }
+
+    func convertReasoningCapabilityKind(_ kind: LLMReasoningCapabilityKind) -> APIReasoningCapabilityKind {
+        switch kind {
+        case .none:
+            return .none
+        case .toggle:
+            return .toggle
+        case .effort:
+            return .effort
+        }
+    }
+    
     func convertBackendMode(_ mode: LLMBackendMode) -> APIProviderBackendMode {
         switch mode {
         case .chatCompletions:
@@ -344,6 +366,8 @@ extension APIServiceProviderBridge {
             description: schedule.taskDescription,
             providerName: providerName,
             modelId: schedule.modelId,
+            reasoningEnabled: schedule.reasoningEnabled,
+            reasoningEffort: schedule.reasoningEffort,
             isEnabled: schedule.isEnabled,
             scheduleType: schedule.scheduleType.displayName.lowercased(),
             scheduledAt: schedule.scheduledDate,
@@ -435,7 +459,8 @@ extension APIServiceProviderBridge {
             APIModel(
                 id: model.id,
                 name: model.displayName,
-                contextLength: model.contextLength
+                contextLength: model.contextLength,
+                reasoningCapability: convertToAPIReasoningCapability(model.reasoningCapability)
             )
         }
     }

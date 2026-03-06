@@ -123,6 +123,12 @@ final class ScheduledTask {
     
     /// Model ID to use (e.g., "moonshotai/kimi-k2.5", "claude-3-opus")
     var modelId: String
+
+    /// Optional reasoning toggle persisted for models with boolean reasoning support.
+    var reasoningEnabled: Bool?
+
+    /// Optional reasoning effort persisted for models with explicit effort support.
+    var reasoningEffort: String?
     
     /// Paths to files attached to this task
     var attachedFilePaths: [String]
@@ -166,6 +172,8 @@ final class ScheduledTask {
         taskDescription: String,
         providerId: String,
         modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
         attachedFilePaths: [String] = [],
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
@@ -180,6 +188,8 @@ final class ScheduledTask {
         self.taskDescription = taskDescription
         self.providerId = providerId
         self.modelId = modelId
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
         self.attachedFilePaths = attachedFilePaths
         self.outputDirectory = outputDirectory
         self.mentionedSkillNames = mentionedSkillNames

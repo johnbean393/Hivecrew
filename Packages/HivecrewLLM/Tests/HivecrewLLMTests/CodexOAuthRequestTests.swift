@@ -15,6 +15,71 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(body["store"] as? Bool, false)
     }
 
+    func testResponsesBodyAddsReasoningEffortWhenConfigured() throws {
+        let body = try buildResponsesRequestBodyForTests(
+            model: "gpt-5-codex",
+            backendMode: .codexOAuth,
+            authMode: .chatGPTOAuth,
+            reasoningEffort: "medium",
+            messages: [.user("Reason carefully")],
+            tools: nil,
+            stream: false
+        )
+
+        let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+        XCTAssertEqual(reasoning["effort"] as? String, "medium")
+    }
+
+    func testResponsesBodyOmitsReasoningWhenUnset() throws {
+        let body = try buildResponsesRequestBodyForTests(
+            model: "gpt-5-codex",
+            messages: [.user("Hello")],
+            tools: nil,
+            stream: false
+        )
+
+        XCTAssertNil(body["reasoning"])
+    }
+
+    func testOpenAICompatibleRawBodyIncludesReasoningOnlyWhenEnabled() throws {
+        let enabledConfiguration = LLMConfiguration(
+            id: "openrouter-enabled",
+            displayName: "OpenRouter",
+            baseURL: URL(string: "https://openrouter.ai/api/v1"),
+            apiKey: "test-key",
+            model: "openai/gpt-4.1",
+            organizationId: nil,
+            backendMode: .chatCompletions,
+            authMode: .apiKey,
+            reasoningEnabled: true
+        )
+        let enabledBody = try buildOpenAICompatibleRawRequestBodyForTests(
+            configuration: enabledConfiguration,
+            messages: [.user("Hello")]
+        )
+        XCTAssertEqual(
+            (enabledBody["reasoning"] as? [String: Bool])?["enabled"],
+            true
+        )
+
+        let disabledConfiguration = LLMConfiguration(
+            id: "openrouter-disabled",
+            displayName: "OpenRouter",
+            baseURL: URL(string: "https://openrouter.ai/api/v1"),
+            apiKey: "test-key",
+            model: "openai/gpt-4.1",
+            organizationId: nil,
+            backendMode: .chatCompletions,
+            authMode: .apiKey,
+            reasoningEnabled: false
+        )
+        let disabledBody = try buildOpenAICompatibleRawRequestBodyForTests(
+            configuration: disabledConfiguration,
+            messages: [.user("Hello")]
+        )
+        XCTAssertNil(disabledBody["reasoning"])
+    }
+
     func testCodexOAuthResponsesBodyAddsDefaultInstructionsWhenMissingSystemPrompt() throws {
         let body = try buildCodexOAuthRequestBodyForTests(
             model: "gpt-5.4",
@@ -112,5 +177,78 @@ final class CodexOAuthRequestTests: XCTestCase {
             components?.queryItems?.first(where: { $0.name == codexOAuthClientVersionQueryName })?.value,
             "0.107.0"
         )
+    }
+
+    func testOpenRouterModelsPayloadWithReasoningMapsToToggleCapability() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "openai/gpt-4.1",
+                  "name": "GPT-4.1",
+                  "supported_parameters": ["reasoning", "include_reasoning"]
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try decodeOpenAICompatibleModelsForTests(from: data)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.reasoningCapability.kind, .toggle)
+        XCTAssertEqual(model.reasoningCapability.supportedEfforts, [])
+        XCTAssertEqual(model.reasoningCapability.defaultEnabled, true)
+    }
+
+    func testOpenRouterModelsPayloadWithoutReasoningMapsToNoCapability() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "openai/gpt-4.1-mini",
+                  "name": "GPT-4.1 mini",
+                  "supported_parameters": ["include_reasoning"]
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try decodeOpenAICompatibleModelsForTests(from: data)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.reasoningCapability.kind, .none)
+    }
+
+    func testCodexModelsPayloadPreservesReasoningEffortsAndDefault() throws {
+        let data = Data(
+            """
+            {
+              "models": [
+                {
+                  "id": "gpt-5-codex",
+                  "name": "GPT-5 Codex",
+                  "supported_in_api": true,
+                  "supported_reasoning_levels": [
+                    { "effort": "low" },
+                    { "effort": "medium" },
+                    { "effort": "high" }
+                  ],
+                  "default_reasoning_level": "medium"
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .codexOAuth)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.reasoningCapability.kind, .effort)
+        XCTAssertEqual(model.reasoningCapability.supportedEfforts, ["low", "medium", "high"])
+        XCTAssertEqual(model.reasoningCapability.defaultEffort, "medium")
     }
 }

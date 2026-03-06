@@ -28,7 +28,7 @@ final class ContextCompactionPolicyTests: XCTestCase {
         )
         XCTAssertTrue(atThreshold.shouldCompact)
         XCTAssertEqual(atThreshold.reason, .threshold85)
-        XCTAssertEqual(atThreshold.fillRatio, 0.85, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(atThreshold.fillRatio), 0.85, accuracy: 0.0001)
 
         let belowThreshold = ContextCompactionPolicy.proactiveDecision(
             estimatedPromptTokens: 849,
@@ -80,7 +80,8 @@ final class ContextCompactionPolicyTests: XCTestCase {
         XCTAssertEqual(first.maxInputTokens, 128000)
         XCTAssertEqual(first.source, .models)
         XCTAssertEqual(second.maxInputTokens, 128000)
-        XCTAssertEqual(await client.detailedCallCount(), 1)
+        let detailedCallCount = await client.detailedCallCount()
+        XCTAssertEqual(detailedCallCount, 1)
     }
 
     func testContextBudgetResolverLearnsAndKeepsStricterLimit() async {

@@ -42,6 +42,8 @@ struct PromptModelSelection: Codable, Identifiable, Hashable {
     let providerId: String
     let modelId: String
     var copyCount: TaskCopyCount
+    var reasoningEnabled: Bool? = nil
+    var reasoningEffort: String? = nil
 
     var id: String {
         "\(providerId)::\(modelId)"
@@ -275,6 +277,27 @@ extension NSMenu {
         }
         return menu
     }
+
+    static func fromReasoningEffortOptions(
+        options: [String],
+        selectionHandler: @escaping (String) -> Void
+    ) -> NSMenu {
+        let menu = NSMenu()
+        for option in options {
+            let item = NSMenuItem(
+                title: reasoningEffortDisplayName(option),
+                action: #selector(ReasoningEffortMenuHandler.handleMenu(_:)),
+                keyEquivalent: ""
+            )
+            item.target = ReasoningEffortMenuHandler.shared
+            item.representedObject = ReasoningEffortMenuHandler.OptionWrapper(
+                option: option,
+                handler: selectionHandler
+            )
+            menu.addItem(item)
+        }
+        return menu
+    }
 }
 
 // MARK: - CopyCountMenuHandler
@@ -289,6 +312,22 @@ fileprivate class CopyCountMenuHandler: NSObject {
         let handler: (TaskCopyCount) -> Void
     }
     
+    @objc func handleMenu(_ sender: NSMenuItem) {
+        if let wrapper = sender.representedObject as? OptionWrapper {
+            wrapper.handler(wrapper.option)
+        }
+    }
+}
+
+fileprivate class ReasoningEffortMenuHandler: NSObject {
+
+    static let shared = ReasoningEffortMenuHandler()
+
+    struct OptionWrapper {
+        let option: String
+        let handler: (String) -> Void
+    }
+
     @objc func handleMenu(_ sender: NSMenuItem) {
         if let wrapper = sender.representedObject as? OptionWrapper {
             wrapper.handler(wrapper.option)

@@ -41,8 +41,7 @@ extension OpenAICompatibleClient {
                 body["tools"] = tools.map { convertToolToDict($0) }
             }
             
-            // Enable reasoning tokens by default for OpenRouter
-            if configuration.isOpenRouter {
+            if configuration.reasoningEnabled == true {
                 body["reasoning"] = ["enabled": true]
             }
             
@@ -304,8 +303,7 @@ extension OpenAICompatibleClient {
                 body["tools"] = tools.map { convertToolToDict($0) }
             }
             
-            // Enable reasoning tokens by default for OpenRouter
-            if configuration.isOpenRouter {
+            if configuration.reasoningEnabled == true {
                 body["reasoning"] = ["enabled": true]
             }
             
@@ -548,4 +546,31 @@ extension OpenAICompatibleClient {
             usage: usage
         )
     }
+}
+
+func buildOpenAICompatibleRawRequestBodyForTests(
+    configuration: LLMConfiguration,
+    messages: [LLMMessage],
+    tools: [LLMToolDefinition]? = nil,
+    stream: Bool = false
+) throws -> [String: Any] {
+    let client = OpenAICompatibleClient(configuration: configuration)
+    var body: [String: Any] = [
+        "model": configuration.model,
+        "messages": try messages.map { try client.convertMessageToDict($0) }
+    ]
+
+    if stream {
+        body["stream"] = true
+    }
+
+    if let tools, !tools.isEmpty {
+        body["tools"] = tools.map { client.convertToolToDict($0) }
+    }
+
+    if configuration.reasoningEnabled == true {
+        body["reasoning"] = ["enabled": true]
+    }
+
+    return body
 }

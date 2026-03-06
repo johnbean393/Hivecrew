@@ -24,6 +24,8 @@ struct TaskInputView: View {
     @State private var mentionedSkillNames: [String] = []
     @State private var copyCount: TaskCopyCount = .one
     @State private var multiModelSelections: [PromptModelSelection] = []
+    @State private var reasoningEnabled: Bool?
+    @State private var reasoningEffort: String?
     @StateObject private var contextProvider = PromptContextSuggestionProvider()
     @State private var hasDonatedGhostContextTip = false
     
@@ -54,6 +56,8 @@ struct TaskInputView: View {
                 },
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
+                reasoningEnabled: $reasoningEnabled,
+                reasoningEffort: $reasoningEffort,
                 copyCount: $copyCount,
                 useMultipleModels: $useMultiplePromptModels,
                 multiModelSelections: $multiModelSelections,
@@ -169,6 +173,8 @@ struct TaskInputView: View {
                         description: trimmedDescription,
                         providerId: target.providerId,
                         modelId: target.modelId,
+                        reasoningEnabled: target.reasoningEnabled,
+                        reasoningEffort: target.reasoningEffort,
                         attachedFilePaths: filePaths,
                         mentionedSkillNames: mentionedSkillNames,
                         retrievalContextPackId: contextPack?.id,
@@ -201,7 +207,7 @@ struct TaskInputView: View {
     private func resolvedExecutionTargets(
         effectiveProviderId: String,
         effectiveModelId: String
-    ) -> [(providerId: String, modelId: String, copyCount: Int)] {
+    ) -> [(providerId: String, modelId: String, copyCount: Int, reasoningEnabled: Bool?, reasoningEffort: String?)] {
         if useMultiplePromptModels {
             let deduped = deduplicatedSelections(multiModelSelections)
             let targets = deduped
@@ -211,7 +217,9 @@ struct TaskInputView: View {
                     (
                         providerId: selection.providerId,
                         modelId: selection.modelId,
-                        copyCount: selection.copyCount.rawValue
+                        copyCount: selection.copyCount.rawValue,
+                        reasoningEnabled: selection.reasoningEnabled,
+                        reasoningEffort: selection.reasoningEffort
                     )
                 }
             if !targets.isEmpty {
@@ -219,7 +227,13 @@ struct TaskInputView: View {
             }
         }
 
-        return [(effectiveProviderId, effectiveModelId, copyCount.rawValue)]
+        return [(
+            providerId: effectiveProviderId,
+            modelId: effectiveModelId,
+            copyCount: copyCount.rawValue,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort
+        )]
     }
 
     private func deduplicatedSelections(_ selections: [PromptModelSelection]) -> [PromptModelSelection] {

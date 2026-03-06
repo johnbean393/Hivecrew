@@ -130,7 +130,12 @@ extension TaskService {
             }
             
             llmClientTask = Task {
-                try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+                try await createLLMClient(
+                    providerId: task.providerId,
+                    modelId: task.modelId,
+                    reasoningEnabled: task.reasoningEnabled,
+                    reasoningEffort: task.reasoningEffort
+                )
             }
             
             // Start skill matching concurrently with VM boot
@@ -859,7 +864,12 @@ extension TaskService {
         
         do {
             // Create LLM client
-            let llmClient = try await createLLMClient(providerId: task.providerId, modelId: task.modelId)
+            let llmClient = try await createLLMClient(
+                providerId: task.providerId,
+                modelId: task.modelId,
+                reasoningEnabled: task.reasoningEnabled,
+                reasoningEffort: task.reasoningEffort
+            )
             
             // Create planning agent
             let planningAgent = PlanningAgent(llmClient: llmClient, embeddingService: skillManager.embeddingService)
