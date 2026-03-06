@@ -808,6 +808,18 @@ body {
     min-width: 132px;
 }
 
+.prompt-toolbar-effort-select {
+    width: 84px;
+    min-width: 84px;
+    max-width: 84px;
+}
+
+.prompt-toolbar-copycount-select {
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
+}
+
 .prompt-toolbar-select {
     width: 100%;
     height: 100%;
@@ -820,6 +832,11 @@ body {
     -webkit-appearance: none;
     outline: none;
     cursor: pointer;
+}
+
+.prompt-toolbar-copycount-select .prompt-toolbar-select {
+    padding-left: 12px;
+    padding-right: 24px;
 }
 
 .prompt-toolbar-select-wrap svg {
@@ -3003,6 +3020,18 @@ label.checkbox-label {
         height: auto;
         max-height: calc(100dvh - 32px);
         border-radius: var(--radius-lg);
+    }
+
+    .prompt-toolbar-effort-select {
+        width: 76px;
+        min-width: 76px;
+        max-width: 76px;
+    }
+
+    .prompt-toolbar-copycount-select {
+        width: 52px;
+        min-width: 52px;
+        max-width: 52px;
     }
     
     .modal-header {

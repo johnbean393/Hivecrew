@@ -8,11 +8,11 @@
     <meta name="theme-color" content="#1c1c1e" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <title>Hivecrew</title>
-    <link rel="stylesheet" href="/web/css/styles.css?v=40">
+    <link rel="stylesheet" href="/web/css/styles.css?v=42">
     <script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script defer src="/web/js/htmx.min.js"></script>
-    <script defer src="/web/js/app.js?v=41"></script>
+    <script defer src="/web/js/app.js?v=43"></script>
     <script defer src="/web/js/alpine.min.js"></script>
 </head>
 <body>
@@ -489,13 +489,14 @@
                             </template>
 
                             <template x-if="!quickUseMultipleModels && quickReasoningKind === 'effort'">
-                                <div class="prompt-toolbar-select-wrap">
+                                <div class="prompt-toolbar-select-wrap prompt-toolbar-effort-select">
                                     <select
                                         class="prompt-toolbar-select"
-                                        x-model="quickReasoningEffort"
+                                        :value="quickResolvedReasoningEffort()"
+                                        @change="quickReasoningEffortTouched = true; quickReasoningEffort = $event.target.value"
                                     >
                                         <template x-for="effort in quickReasoningSupportedEfforts" :key="effort">
-                                            <option :value="effort" x-text="formatReasoningEffortLabel(effort)"></option>
+                                            <option :value="effort" :selected="quickResolvedReasoningEffort() === effort" x-text="formatReasoningEffortLabel(effort)"></option>
                                         </template>
                                     </select>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
@@ -746,9 +747,9 @@
                                         </label>
                                     </template>
                                     <template x-if="taskReasoningKind === 'effort'">
-                                        <select x-model="newTask.reasoningEffort">
+                                        <select :value="taskResolvedReasoningEffort()" @change="taskReasoningEffortTouched = true; newTask.reasoningEffort = $event.target.value">
                                             <template x-for="effort in taskReasoningSupportedEfforts" :key="effort">
-                                                <option :value="effort" x-text="formatReasoningEffortLabel(effort)"></option>
+                                                <option :value="effort" :selected="taskResolvedReasoningEffort() === effort" x-text="formatReasoningEffortLabel(effort)"></option>
                                             </template>
                                         </select>
                                     </template>

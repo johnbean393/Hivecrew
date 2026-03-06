@@ -55,6 +55,7 @@ document.addEventListener('alpine:init', () => {
         copyCountOptions: [1, 2, 3, 4, 5, 6, 7, 8],
         quickReasoningEnabled: null,
         quickReasoningEffort: null,
+        quickReasoningEffortTouched: false,
         isDraggingFiles: false,
         
         // Create Task
@@ -99,6 +100,7 @@ document.addEventListener('alpine:init', () => {
         taskReasoningSupportedEfforts: [],
         taskReasoningDefaultEffort: null,
         taskReasoningDefaultEnabled: false,
+        taskReasoningEffortTouched: false,
         modelDropdownOpen: false,
         modelSearchQuery: '',
         
@@ -395,6 +397,12 @@ document.addEventListener('alpine:init', () => {
                 this.newTask.modelId = modelId;
                 localStorage.setItem('hivecrew_model_id', modelId);
             }
+            this.quickReasoningEnabled = null;
+            this.quickReasoningEffort = null;
+            this.quickReasoningEffortTouched = false;
+            this.newTask.reasoningEnabled = null;
+            this.newTask.reasoningEffort = null;
+            this.taskReasoningEffortTouched = false;
             this.normalizeQuickSelection();
             this.syncTaskReasoningSelection();
             this.syncQuickReasoningSelection();
@@ -887,25 +895,38 @@ document.addEventListener('alpine:init', () => {
                 this.getDefaultProviderId()
             ].filter(Boolean);
 
-            const reasoningMatches = matches.filter(model => model.reasoningCapability?.kind !== 'none');
-            if (reasoningMatches.length > 0) {
-                for (const providerId of preferredProviderIds) {
-                    const providerMatch = reasoningMatches.find(model => model.providerId === providerId);
-                    if (providerMatch) {
-                        return providerMatch;
-                    }
-                }
-                return reasoningMatches[0];
-            }
+            const preferredProviderRank = providerId => {
+                const index = preferredProviderIds.indexOf(providerId);
+                return index === -1 ? -1 : (preferredProviderIds.length - index);
+            };
 
-            for (const providerId of preferredProviderIds) {
-                const providerMatch = matches.find(model => model.providerId === providerId);
-                if (providerMatch) {
-                    return providerMatch;
+            const capabilityRank = model => {
+                const capability = model.reasoningCapability || {};
+                switch (capability.kind) {
+                    case 'effort':
+                        return 300
+                            + (capability.defaultEffort ? 40 : 0)
+                            + ((capability.supportedEfforts || []).includes('medium') ? 10 : 0);
+                    case 'toggle':
+                        return 200;
+                    default:
+                        return 100;
                 }
-            }
+            };
 
-            return matches[0];
+            return [...matches].sort((left, right) => {
+                const capabilityDelta = capabilityRank(right) - capabilityRank(left);
+                if (capabilityDelta !== 0) {
+                    return capabilityDelta;
+                }
+
+                const providerDelta = preferredProviderRank(right.providerId) - preferredProviderRank(left.providerId);
+                if (providerDelta !== 0) {
+                    return providerDelta;
+                }
+
+                return left.optionKey.localeCompare(right.optionKey);
+            })[0] || null;
         },
 
         getQuickModelOption(providerId, modelId) {
@@ -1010,7 +1031,7 @@ document.addEventListener('alpine:init', () => {
             this.normalizeQuickMultiModelSelections();
         },
 
-        resolveReasoningSelection(capability, reasoningEnabled, reasoningEffort) {
+        resolveReasoningSelection(capability, reasoningEnabled, reasoningEffort, preserveEffortSelection = false) {
             switch (capability?.kind) {
                 case 'toggle':
                     return {
@@ -1022,7 +1043,7 @@ document.addEventListener('alpine:init', () => {
                     const fallbackEffort = supportedEfforts.includes(capability.defaultEffort)
                         ? capability.defaultEffort
                         : (supportedEfforts.includes('medium') ? 'medium' : (supportedEfforts[0] || null));
-                    const resolvedEffort = supportedEfforts.includes(reasoningEffort)
+                    const resolvedEffort = preserveEffortSelection && supportedEfforts.includes(reasoningEffort)
                         ? reasoningEffort
                         : fallbackEffort;
                     return {
@@ -1055,7 +1076,8 @@ document.addEventListener('alpine:init', () => {
                     defaultEnabled: this.taskReasoningDefaultEnabled
                 },
                 this.newTask.reasoningEnabled,
-                this.newTask.reasoningEffort
+                this.newTask.reasoningEffort,
+                this.taskReasoningEffortTouched
             );
             this.newTask.reasoningEnabled = resolved.reasoningEnabled;
             this.newTask.reasoningEffort = resolved.reasoningEffort;
@@ -1071,10 +1093,39 @@ document.addEventListener('alpine:init', () => {
                     defaultEnabled: this.quickReasoningDefaultEnabled
                 },
                 this.quickReasoningEnabled,
-                this.quickReasoningEffort
+                this.quickReasoningEffort,
+                this.quickReasoningEffortTouched
             );
             this.quickReasoningEnabled = resolved.reasoningEnabled;
             this.quickReasoningEffort = resolved.reasoningEffort;
+        },
+
+        quickResolvedReasoningEffort() {
+            return this.resolveReasoningSelection(
+                {
+                    kind: this.quickReasoningKind,
+                    supportedEfforts: this.quickReasoningSupportedEfforts,
+                    defaultEffort: this.quickReasoningDefaultEffort,
+                    defaultEnabled: this.quickReasoningDefaultEnabled
+                },
+                this.quickReasoningEnabled,
+                this.quickReasoningEffort,
+                this.quickReasoningEffortTouched
+            ).reasoningEffort;
+        },
+
+        taskResolvedReasoningEffort() {
+            return this.resolveReasoningSelection(
+                {
+                    kind: this.taskReasoningKind,
+                    supportedEfforts: this.taskReasoningSupportedEfforts,
+                    defaultEffort: this.taskReasoningDefaultEffort,
+                    defaultEnabled: this.taskReasoningDefaultEnabled
+                },
+                this.newTask.reasoningEnabled,
+                this.newTask.reasoningEffort,
+                this.taskReasoningEffortTouched
+            ).reasoningEffort;
         },
 
         isQuickModelSelected(model) {
@@ -1960,6 +2011,7 @@ document.addEventListener('alpine:init', () => {
                 dayOfMonth: 1,
                 files: []
             };
+            this.taskReasoningEffortTouched = false;
             if (defaultProviderId) {
                 this.loadModelsForProvider(defaultProviderId);
             } else {
