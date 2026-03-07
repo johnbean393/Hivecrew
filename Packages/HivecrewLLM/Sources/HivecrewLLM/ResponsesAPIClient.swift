@@ -132,6 +132,19 @@ private extension ResponsesAPIClient {
         tools: [LLMToolDefinition]?,
         forceRefresh: Bool
     ) async throws -> LLMResponse {
+        if responsesAPIRequiresStreamingTransport(
+            backendMode: configuration.backendMode,
+            requestedStream: false
+        ) {
+            return try await sendChatWithStreaming(
+                messages: messages,
+                tools: tools,
+                onReasoningUpdate: nil,
+                onContentUpdate: nil,
+                forceRefresh: forceRefresh
+            )
+        }
+
         let request = try await buildRequest(messages: messages, tools: tools, stream: false, forceRefresh: forceRefresh)
         let (data, response) = try await urlSession.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -359,6 +372,10 @@ private extension ResponsesAPIClient {
         tools: [LLMToolDefinition]?,
         stream: Bool
     ) throws -> [String: Any] {
+        let effectiveStream = responsesAPIRequiresStreamingTransport(
+            backendMode: configuration.backendMode,
+            requestedStream: stream
+        )
         let systemTexts = messages
             .filter { $0.role == .system }
             .map(\.textContent)
@@ -370,7 +387,7 @@ private extension ResponsesAPIClient {
         var body: [String: Any] = [
             "model": configuration.model,
             "store": false,
-            "stream": stream,
+            "stream": effectiveStream,
             "input": try nonSystemMessages.flatMap { try convertMessageToInputItems($0) }
         ]
 
@@ -513,6 +530,13 @@ private extension ResponsesAPIClient {
         }
         return configuration.baseURL ?? defaultLLMProviderBaseURL
     }
+}
+
+func responsesAPIRequiresStreamingTransport(
+    backendMode: LLMBackendMode,
+    requestedStream: Bool
+) -> Bool {
+    requestedStream || backendMode == .codexOAuth
 }
 
 func buildCodexOAuthRequestBodyForTests(

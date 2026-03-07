@@ -15,6 +15,19 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(body["store"] as? Bool, false)
     }
 
+    func testCodexOAuthResponsesBodyForcesStreamTrue() throws {
+        let body = try buildCodexOAuthRequestBodyForTests(
+            model: "gpt-5.4",
+            messages: [
+                LLMMessage.user("Summarize this page.")
+            ],
+            tools: nil,
+            stream: false
+        )
+
+        XCTAssertEqual(body["stream"] as? Bool, true)
+    }
+
     func testResponsesBodyAddsReasoningEffortWhenConfigured() throws {
         let body = try buildResponsesRequestBodyForTests(
             model: "gpt-5-codex",
@@ -176,6 +189,27 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(
             components?.queryItems?.first(where: { $0.name == codexOAuthClientVersionQueryName })?.value,
             "0.107.0"
+        )
+    }
+
+    func testCodexOAuthRequiresStreamingTransportEvenWhenCallerRequestsNonStreaming() {
+        XCTAssertTrue(
+            responsesAPIRequiresStreamingTransport(
+                backendMode: .codexOAuth,
+                requestedStream: false
+            )
+        )
+        XCTAssertFalse(
+            responsesAPIRequiresStreamingTransport(
+                backendMode: .responses,
+                requestedStream: false
+            )
+        )
+        XCTAssertTrue(
+            responsesAPIRequiresStreamingTransport(
+                backendMode: .responses,
+                requestedStream: true
+            )
         )
     }
 
