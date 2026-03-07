@@ -403,7 +403,7 @@ final class SubagentToolExecutor {
             endDate = ISO8601DateFormatter().date(from: endDateStr)
         }
         
-        let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "google"
+        let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "duckduckgo"
         let fallbackEngines = fallbackSearchEngines(for: searchEngine)
         var usedEngine = searchEngine
         var results: [SearchResult] = []

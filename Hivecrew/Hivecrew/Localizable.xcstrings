@@ -31931,6 +31931,9 @@
         }
       }
     },
+    "This only works with a ChatGPT Plus or Pro subscription. Free and Go plans are not supported." : {
+
+    },
     "This session did not record any screenshots" : {
       "localizations" : {
         "de" : {

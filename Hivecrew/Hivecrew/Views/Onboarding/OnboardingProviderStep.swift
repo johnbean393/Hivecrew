@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 import SwiftData
+import TipKit
 import HivecrewLLM
 
 /// LLM Provider configuration step
@@ -36,6 +37,8 @@ struct OnboardingProviderStep: View {
     @State private var isAuthenticatingOAuth = false
     @State private var shouldAutoSaveOAuthProvider = false
     @State private var shouldAutoAdvanceAfterOAuth = false
+
+    private let chatGPTSignInSubscriptionTip = ChatGPTSignInSubscriptionTip()
 
     private var isCodexMode: Bool {
         backendMode == .codexOAuth
@@ -204,6 +207,7 @@ struct OnboardingProviderStep: View {
                         .buttonStyle(.bordered)
                         .controlSize(.large)
                         .disabled(isAuthenticatingOAuth)
+                        .popoverTip(chatGPTSignInSubscriptionTip, arrowEdge: .top)
                     }
                     .padding(.horizontal, 60)
                     .padding(.bottom, 20)

@@ -31,7 +31,7 @@ extension ToolExecutor {
         }
         
         // Get search engine preference
-        let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "google"
+        let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "duckduckgo"
         
         let results: [SearchResult]
         switch searchEngine {

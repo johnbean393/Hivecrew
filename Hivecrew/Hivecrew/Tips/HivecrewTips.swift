@@ -133,6 +133,24 @@ struct GhostContextAttachmentsTip: Tip {
     }
 }
 
+/// Tip: Explain ChatGPT OAuth subscription requirements during onboarding.
+struct ChatGPTSignInSubscriptionTip: Tip {
+
+    var id: String { "chatGPTSignInSubscription" }
+
+    var title: Text {
+        Text("Sign in with ChatGPT")
+    }
+
+    var message: Text? {
+        Text("This only works with a ChatGPT Plus or Pro subscription. Free and Go plans are not supported.")
+    }
+
+    var image: Image? {
+        Image("OpenAILogo")
+    }
+}
+
 /// Tip 5: Configure LLM providers
 struct ConfigureProvidersTip: Tip {
     

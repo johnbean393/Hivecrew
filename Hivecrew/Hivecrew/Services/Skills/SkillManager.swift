@@ -41,8 +41,6 @@ public class SkillManager: ObservableObject {
     /// These are the skills available at https://github.com/anthropics/skills/tree/main/skills/
     public static let defaultAnthropicSkills = [
         "skill-creator",
-        "algorithmic-art",
-        "brand-guidelines",
         "canvas-design",
         "doc-coauthoring",
         "docx",

@@ -23,7 +23,7 @@ struct TaskDefaultsSettingsView: View {
     @AppStorage("outputDirectoryPath") private var outputDirectoryPath: String = ""
     
     // Web tools
-    @AppStorage("searchEngine") private var searchEngine: String = "google"
+    @AppStorage("searchEngine") private var searchEngine: String = "duckduckgo"
     @AppStorage("defaultResultCount") private var defaultResultCount: Int = 10
     @State private var searchAPIKey: String = ""
     @State private var serpAPIKey: String = ""
