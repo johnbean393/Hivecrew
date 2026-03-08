@@ -103,17 +103,20 @@ extension ResponsesAPIClient {
         tools: [LLMToolDefinition]?,
         stream: Bool
     ) throws -> [String: Any] {
+        let repairedMessages = LLMConversationRepair
+            .repairIncompleteToolCallHistory(messages)
+            .messages
         let effectiveStream = responsesAPIRequiresStreamingTransport(
             backendMode: configuration.backendMode,
             requestedStream: stream
         )
-        let systemTexts = messages
+        let systemTexts = repairedMessages
             .filter { $0.role == .system }
             .map(\.textContent)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        let nonSystemMessages = messages.filter { $0.role != .system }
+        let nonSystemMessages = repairedMessages.filter { $0.role != .system }
 
         var body: [String: Any] = [
             "model": configuration.model,

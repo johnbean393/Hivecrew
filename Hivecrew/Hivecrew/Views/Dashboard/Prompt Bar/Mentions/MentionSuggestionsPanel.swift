@@ -44,8 +44,15 @@ final class MentionSuggestionsPanelController: ObservableObject {
         
         // Calculate panel size based on content
         let itemHeight: CGFloat = 40
+        let sectionHeaderHeight: CGFloat = 24
         let padding: CGFloat = 8
-        let panelHeight = min(CGFloat(suggestions.count) * itemHeight + padding, 6 * itemHeight + padding)
+        let sectionCount = MentionSuggestion.displayOrder.filter { type in
+            suggestions.contains { $0.type == type }
+        }.count
+        let contentHeight = CGFloat(suggestions.count) * itemHeight
+            + CGFloat(sectionCount) * sectionHeaderHeight
+            + padding
+        let panelHeight = min(contentHeight, 420)
         let panelWidth: CGFloat = 340
         
         // Position panel below the caret
@@ -209,152 +216,76 @@ struct MentionSuggestionsPanelContent: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Current Attachments section
-            if !attachments.isEmpty {
-                SectionHeader(title: "Attachments")
-                    .frame(height: sectionHeaderHeight)
-                
-                ForEach(Array(attachments.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = index
-                    MentionSuggestionPanelRow(
-                        suggestion: suggestion,
-                        isSelected: globalIndex == selectedIndex
-                    )
-                    .frame(height: itemHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSelect(suggestion)
-                    }
-                    .onHover { isHovering in
-                        if isHovering {
-                            onHover(globalIndex)
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Current Attachments section
+                if !attachments.isEmpty {
+                    SectionHeader(title: "Attachments")
+                        .frame(height: sectionHeaderHeight)
+                    
+                    ForEach(Array(attachments.enumerated()), id: \.element.id) { index, suggestion in
+                        let globalIndex = index
+                        suggestionRow(suggestion, globalIndex: globalIndex)
                     }
                 }
-            }
-            
-            // Recent Deliverables section
-            if !deliverables.isEmpty {
-                SectionHeader(title: "Recent Deliverables")
-                    .frame(height: sectionHeaderHeight)
-                    .popoverTip(deliverablesMentionTip, arrowEdge: .trailing)
                 
-                ForEach(Array(deliverables.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + index
-                    MentionSuggestionPanelRow(
-                        suggestion: suggestion,
-                        isSelected: globalIndex == selectedIndex
-                    )
-                    .frame(height: itemHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSelect(suggestion)
-                    }
-                    .onHover { isHovering in
-                        if isHovering {
-                            onHover(globalIndex)
-                        }
+                // Recent Deliverables section
+                if !deliverables.isEmpty {
+                    SectionHeader(title: "Recent Deliverables")
+                        .frame(height: sectionHeaderHeight)
+                        .popoverTip(deliverablesMentionTip, arrowEdge: .trailing)
+                    
+                    ForEach(Array(deliverables.enumerated()), id: \.element.id) { index, suggestion in
+                        let globalIndex = attachments.count + index
+                        suggestionRow(suggestion, globalIndex: globalIndex)
                     }
                 }
-            }
 
-            if !tasks.isEmpty {
-                SectionHeader(title: "Tasks")
-                    .frame(height: sectionHeaderHeight)
+                if !tasks.isEmpty {
+                    SectionHeader(title: "Tasks")
+                        .frame(height: sectionHeaderHeight)
 
-                ForEach(Array(tasks.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + deliverables.count + index
-                    MentionSuggestionPanelRow(
-                        suggestion: suggestion,
-                        isSelected: globalIndex == selectedIndex
-                    )
-                    .frame(height: itemHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSelect(suggestion)
-                    }
-                    .onHover { isHovering in
-                        if isHovering {
-                            onHover(globalIndex)
-                        }
+                    ForEach(Array(tasks.enumerated()), id: \.element.id) { index, suggestion in
+                        let globalIndex = attachments.count + deliverables.count + index
+                        suggestionRow(suggestion, globalIndex: globalIndex)
                     }
                 }
-            }
-            
-            // Skills section
-            if !skills.isEmpty {
-                SectionHeader(title: "Skills")
-                    .frame(height: sectionHeaderHeight)
                 
-                ForEach(Array(skills.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + deliverables.count + tasks.count + index
-                    MentionSuggestionPanelRow(
-                        suggestion: suggestion,
-                        isSelected: globalIndex == selectedIndex
-                    )
-                    .frame(height: itemHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSelect(suggestion)
-                    }
-                    .onHover { isHovering in
-                        if isHovering {
-                            onHover(globalIndex)
-                        }
+                // Skills section
+                if !skills.isEmpty {
+                    SectionHeader(title: "Skills")
+                        .frame(height: sectionHeaderHeight)
+                    
+                    ForEach(Array(skills.enumerated()), id: \.element.id) { index, suggestion in
+                        let globalIndex = attachments.count + deliverables.count + tasks.count + index
+                        suggestionRow(suggestion, globalIndex: globalIndex)
                     }
                 }
-            }
-            
-            // Environment Variables section
-            if !environmentVariables.isEmpty {
-                SectionHeader(title: "Environment Variables")
-                    .frame(height: sectionHeaderHeight)
                 
-                ForEach(Array(environmentVariables.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + deliverables.count + tasks.count + skills.count + index
-                    MentionSuggestionPanelRow(
-                        suggestion: suggestion,
-                        isSelected: globalIndex == selectedIndex
-                    )
-                    .frame(height: itemHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSelect(suggestion)
-                    }
-                    .onHover { isHovering in
-                        if isHovering {
-                            onHover(globalIndex)
-                        }
+                // Environment Variables section
+                if !environmentVariables.isEmpty {
+                    SectionHeader(title: "Environment Variables")
+                        .frame(height: sectionHeaderHeight)
+                    
+                    ForEach(Array(environmentVariables.enumerated()), id: \.element.id) { index, suggestion in
+                        let globalIndex = attachments.count + deliverables.count + tasks.count + skills.count + index
+                        suggestionRow(suggestion, globalIndex: globalIndex)
                     }
                 }
-            }
-            
-            // Injected Files section
-            if !injectedFiles.isEmpty {
-                SectionHeader(title: "Injected Files")
-                    .frame(height: sectionHeaderHeight)
                 
-                ForEach(Array(injectedFiles.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + deliverables.count + tasks.count + skills.count + environmentVariables.count + index
-                    MentionSuggestionPanelRow(
-                        suggestion: suggestion,
-                        isSelected: globalIndex == selectedIndex
-                    )
-                    .frame(height: itemHeight)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onSelect(suggestion)
-                    }
-                    .onHover { isHovering in
-                        if isHovering {
-                            onHover(globalIndex)
-                        }
+                // Injected Files section
+                if !injectedFiles.isEmpty {
+                    SectionHeader(title: "Injected Files")
+                        .frame(height: sectionHeaderHeight)
+                    
+                    ForEach(Array(injectedFiles.enumerated()), id: \.element.id) { index, suggestion in
+                        let globalIndex = attachments.count + deliverables.count + tasks.count + skills.count + environmentVariables.count + index
+                        suggestionRow(suggestion, globalIndex: globalIndex)
                     }
                 }
             }
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
         .background(
             VisualEffectView(material: .popover, blendingMode: .behindWindow)
         )
@@ -363,6 +294,24 @@ struct MentionSuggestionsPanelContent: View {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private func suggestionRow(_ suggestion: MentionSuggestion, globalIndex: Int) -> some View {
+        MentionSuggestionPanelRow(
+            suggestion: suggestion,
+            isSelected: globalIndex == selectedIndex
+        )
+        .frame(height: itemHeight)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect(suggestion)
+        }
+        .onHover { isHovering in
+            if isHovering {
+                onHover(globalIndex)
+            }
+        }
     }
 }
 

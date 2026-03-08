@@ -16,7 +16,7 @@ import HivecrewShared
 struct MentionSuggestion: Identifiable, Equatable {
     
     /// The type/source of this suggestion
-    enum SuggestionType: Equatable {
+    enum SuggestionType: Hashable {
         case attachment
         case deliverable
         case task
@@ -24,6 +24,15 @@ struct MentionSuggestion: Identifiable, Equatable {
         case environmentVariable
         case injectedFile
     }
+
+    static let displayOrder: [SuggestionType] = [
+        .attachment,
+        .deliverable,
+        .task,
+        .skill,
+        .environmentVariable,
+        .injectedFile
+    ]
     
     let id: String
     let displayName: String
@@ -115,6 +124,8 @@ struct MentionSuggestion: Identifiable, Equatable {
 /// Shows current attachments, recent deliverables, and available skills
 @MainActor
 final class MentionSuggestionsProvider: ObservableObject {
+    private static let minimumResultsPerCategory = 3
+    private static let maximumResultsPerCategory = 5
     
     @Published private(set) var suggestions: [MentionSuggestion] = []
     @Published private(set) var isLoading: Bool = false
@@ -283,12 +294,10 @@ final class MentionSuggestionsProvider: ObservableObject {
         }
         
         let lowercaseQuery = query.lowercased()
-        let filtered = allSuggestions.filter { suggestion in
-            suggestion.displayName.lowercased().contains(lowercaseQuery)
-                || suggestion.detail?.lowercased().contains(lowercaseQuery) == true
-        }
-        
-        suggestions = Array(filtered.prefix(8))
+        let matchesByCategory = Dictionary(grouping: allSuggestions) { $0.type }
+            .mapValues { rankedMatches(for: lowercaseQuery, in: $0) }
+
+        suggestions = quotaLimitedSuggestions(from: matchesByCategory)
     }
     
     /// Load environment variables and injected files from VM provisioning config
@@ -315,7 +324,87 @@ final class MentionSuggestionsProvider: ObservableObject {
     
     /// Update displayed suggestions from current state
     private func updateSuggestions() {
-        suggestions = Array(allSuggestions.prefix(8))
+        let suggestionsByCategory = Dictionary(grouping: allSuggestions) { $0.type }
+        suggestions = quotaLimitedSuggestions(from: suggestionsByCategory)
+    }
+
+    private func rankedMatches(for lowercaseQuery: String, in candidates: [MentionSuggestion]) -> [MentionSuggestion] {
+        candidates.enumerated()
+            .compactMap { index, suggestion -> (index: Int, score: Int, suggestion: MentionSuggestion)? in
+                guard let score = matchScore(for: lowercaseQuery, suggestion: suggestion) else {
+                    return nil
+                }
+
+                return (index, score, suggestion)
+            }
+            .sorted {
+                if $0.score != $1.score {
+                    return $0.score < $1.score
+                }
+
+                return $0.index < $1.index
+            }
+            .map(\.suggestion)
+    }
+
+    private func matchScore(for lowercaseQuery: String, suggestion: MentionSuggestion) -> Int? {
+        let displayName = suggestion.displayName.lowercased()
+        let detail = suggestion.detail?.lowercased()
+
+        if displayName == lowercaseQuery {
+            return 0
+        }
+
+        if displayName.hasPrefix(lowercaseQuery) {
+            return 1
+        }
+
+        let terms = displayName.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        if terms.contains(where: { $0.hasPrefix(lowercaseQuery) }) {
+            return 2
+        }
+
+        if displayName.contains(lowercaseQuery) {
+            return 3
+        }
+
+        if detail?.hasPrefix(lowercaseQuery) == true {
+            return 4
+        }
+
+        if detail?.contains(lowercaseQuery) == true {
+            return 5
+        }
+
+        return nil
+    }
+
+    private func quotaLimitedSuggestions(
+        from suggestionsByCategory: [MentionSuggestion.SuggestionType: [MentionSuggestion]]
+    ) -> [MentionSuggestion] {
+        var results: [MentionSuggestion] = []
+
+        for type in MentionSuggestion.displayOrder {
+            let categorySuggestions = suggestionsByCategory[type, default: []]
+            let guaranteedCount = min(categorySuggestions.count, Self.minimumResultsPerCategory)
+            results.append(contentsOf: categorySuggestions.prefix(guaranteedCount))
+
+            guard categorySuggestions.count > guaranteedCount else { continue }
+
+            let extraCount = min(
+                categorySuggestions.count - guaranteedCount,
+                Self.maximumResultsPerCategory - guaranteedCount
+            )
+
+            guard extraCount > 0 else { continue }
+
+            let endIndex = guaranteedCount + extraCount
+            for index in guaranteedCount..<endIndex {
+                results.append(categorySuggestions[index])
+            }
+        }
+
+        return results
     }
 }
 

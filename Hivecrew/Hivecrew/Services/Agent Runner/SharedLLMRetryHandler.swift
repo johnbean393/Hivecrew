@@ -76,6 +76,10 @@ enum SharedLLMRetryHandler {
         var workingMessages = messages
         var workingScaleLevel = imageScaleLevel
 
+        if repairToolCallHistory(&workingMessages, hooks: hooks, reason: "before request replay") {
+            hooks.onMessagesChanged?(workingMessages)
+        }
+
         let initialBudget = await ContextBudgetResolver.shared.resolve(using: llmClient)
         var maxInputTokens = initialBudget.maxInputTokens
 
@@ -132,6 +136,7 @@ enum SharedLLMRetryHandler {
                             hooks.logInfo("Context compaction triggered (\(compactionReason.rawValue)). Downscaling images to \(nextLevel) and retrying...")
                             workingScaleLevel = nextLevel
                             downscaleMessages(&workingMessages, to: nextLevel)
+                            _ = repairToolCallHistory(&workingMessages, hooks: hooks, reason: "after image downscaling")
                             hooks.onImageScaleLevelChanged?(nextLevel)
                             hooks.onMessagesChanged?(workingMessages)
                             continue
@@ -143,6 +148,7 @@ enum SharedLLMRetryHandler {
                             &workingMessages,
                             maxToolResultChars: options.normalToolResultLimit
                         )
+                        _ = repairToolCallHistory(&workingMessages, hooks: hooks, reason: "after aggressive compaction")
                         hooks.onMessagesChanged?(workingMessages)
                         continue
                     }
@@ -162,6 +168,7 @@ enum SharedLLMRetryHandler {
                             maxToolResultChars: options.aggressiveToolResultLimit
                         )
                     }
+                    _ = repairToolCallHistory(&workingMessages, hooks: hooks, reason: "after context compaction")
                     hooks.onMessagesChanged?(workingMessages)
 
                     if let maxInputTokens {
@@ -175,6 +182,12 @@ enum SharedLLMRetryHandler {
                         )
                     }
 
+                    continue
+                }
+
+                if isInvalidToolCallReplayError(error),
+                   repairToolCallHistory(&workingMessages, hooks: hooks, reason: "after provider rejected orphaned tool output") {
+                    hooks.onMessagesChanged?(workingMessages)
                     continue
                 }
 
@@ -556,6 +569,24 @@ enum SharedLLMRetryHandler {
                errorString.contains("no response choices")
     }
 
+    @discardableResult
+    private static func repairToolCallHistory(
+        _ messages: inout [LLMMessage],
+        hooks: Hooks,
+        reason: String
+    ) -> Bool {
+        let repair = LLMConversationRepair.repairIncompleteToolCallHistory(messages)
+        guard repair.changed else {
+            return false
+        }
+
+        messages = repair.messages
+        hooks.logInfo(
+            "Repaired tool replay history \(reason) by removing \(repair.removedAssistantToolCalls) unmatched tool calls and \(repair.removedToolResults) orphaned tool outputs."
+        )
+        return true
+    }
+
     private static func aggressiveCompactMessages(_ messages: inout [LLMMessage]) {
         var foundFirst = false
 
@@ -645,5 +676,25 @@ enum SharedLLMRetryHandler {
         }
 
         return false
+    }
+
+    private static func isInvalidToolCallReplayError(_ error: Error) -> Bool {
+        let message: String
+        if let llmError = error as? LLMError {
+            switch llmError {
+            case .apiError(_, let apiMessage),
+                 .unknown(let apiMessage):
+                message = apiMessage
+            default:
+                message = error.localizedDescription
+            }
+        } else {
+            message = error.localizedDescription
+        }
+
+        let normalized = message.lowercased()
+        return normalized.contains("no tool call found for function call output")
+            || (normalized.contains("function_call_output") && normalized.contains("call_id"))
+            || normalized.contains("tool_call_id")
     }
 }

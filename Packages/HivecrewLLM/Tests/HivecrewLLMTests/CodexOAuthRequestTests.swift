@@ -168,6 +168,58 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertTrue(input.contains(where: { ($0["type"] as? String) == "function_call_output" }))
     }
 
+    func testCodexOAuthRequestBodyDropsOrphanedFunctionCallOutput() throws {
+        let body = try buildCodexOAuthRequestBodyForTests(
+            model: "gpt-5.4",
+            messages: [
+                LLMMessage.user("Continue the task."),
+                LLMMessage.toolResult(toolCallId: "call_orphaned", content: "{\"ok\":false}")
+            ],
+            tools: nil,
+            stream: false
+        )
+
+        let input = try XCTUnwrap(body["input"] as? [[String: Any]])
+        XCTAssertFalse(
+            input.contains(where: {
+                ($0["type"] as? String) == "function_call_output"
+            })
+        )
+    }
+
+    func testCodexOAuthRequestBodyDropsUnmatchedAssistantFunctionCall() throws {
+        let unmatchedToolCall = LLMToolCall(
+            id: "call_unmatched",
+            type: "function",
+            function: LLMFunctionCall(name: "web_search", arguments: "{\"query\":\"Tencent\"}")
+        )
+        let matchedToolCall = LLMToolCall(
+            id: "call_matched",
+            type: "function",
+            function: LLMFunctionCall(name: "read_webpage_content", arguments: "{\"url\":\"https://example.com\"}")
+        )
+
+        let body = try buildCodexOAuthRequestBodyForTests(
+            model: "gpt-5.4",
+            messages: [
+                LLMMessage.user("Research Tencent."),
+                LLMMessage.assistant(
+                    "Checking sources.",
+                    toolCalls: [unmatchedToolCall, matchedToolCall]
+                ),
+                LLMMessage.toolResult(toolCallId: "call_matched", content: "{\"ok\":true}")
+            ],
+            tools: nil,
+            stream: false
+        )
+
+        let input = try XCTUnwrap(body["input"] as? [[String: Any]])
+        let functionCalls = input.filter { ($0["type"] as? String) == "function_call" }
+
+        XCTAssertEqual(functionCalls.count, 1)
+        XCTAssertEqual(functionCalls.first?["call_id"] as? String, "call_matched")
+    }
+
     func testCodexOAuthModelsAreAlwaysMarkedVisionCapable() {
         let model = LLMProviderModel(
             id: "gpt-5.4",

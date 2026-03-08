@@ -260,6 +260,31 @@ final class ToolCallingTests: XCTestCase {
         XCTAssertEqual(response.toolCalls?[0].function.name, "screenshot")
         XCTAssertEqual(response.toolCalls?[1].function.name, "mouse_click")
     }
+
+    func testRepairIncompleteToolCallHistoryRemovesOrphanedOutputs() {
+        let matchedToolCall = LLMToolCall(
+            id: "call_matched",
+            function: LLMFunctionCall(name: "screenshot", arguments: "{}")
+        )
+        let orphanedToolCall = LLMToolCall(
+            id: "call_orphaned",
+            function: LLMFunctionCall(name: "mouse_click", arguments: "{\"x\":10,\"y\":20}")
+        )
+
+        let repair = LLMConversationRepair.repairIncompleteToolCallHistory([
+            .user("Do the work."),
+            .assistant("Working.", toolCalls: [matchedToolCall, orphanedToolCall]),
+            .toolResult(toolCallId: "call_matched", content: "{\"ok\":true}"),
+            .toolResult(toolCallId: "call_missing", content: "{\"ok\":false}")
+        ])
+
+        XCTAssertTrue(repair.changed)
+        XCTAssertEqual(repair.removedAssistantToolCalls, 1)
+        XCTAssertEqual(repair.removedToolResults, 1)
+        XCTAssertEqual(repair.messages.count, 3)
+        XCTAssertEqual(repair.messages[1].toolCalls?.map(\.id), ["call_matched"])
+        XCTAssertEqual(repair.messages[2].toolCallId, "call_matched")
+    }
     
     // MARK: - LLMToolDefinition Tests
     
