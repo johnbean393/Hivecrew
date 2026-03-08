@@ -70,6 +70,9 @@ final class AgentRunner {
     
     /// Skills matched for this task
     private let matchedSkills: [Skill]
+
+    /// Additional inline context blocks materialized at task start.
+    private let additionalContextBlocks: [String]
     
     /// Todo manager for tracking agent tasks
     let todoManager: TodoManager
@@ -123,6 +126,7 @@ final class AgentRunner {
         statePublisher: AgentStatePublisher,
         inputFileNames: [String] = [],
         matchedSkills: [Skill] = [],
+        additionalContextBlocks: [String] = [],
         maxSteps: Int = 300,
         timeoutMinutes: Int = 90,
         taskService: TaskService,
@@ -136,6 +140,7 @@ final class AgentRunner {
         self.sessionPath = sessionPath
         self.inputFileNames = inputFileNames
         self.matchedSkills = matchedSkills
+        self.additionalContextBlocks = additionalContextBlocks
         self.maxSteps = maxSteps
         self.timeoutMinutes = timeoutMinutes
         self.todoManager = TodoManager()
@@ -335,7 +340,7 @@ final class AgentRunner {
             inputFiles: inputFileNames,
             skills: matchedSkills,
             plan: task.planMarkdown,
-            approvedContextBlocks: task.retrievalInlineContextBlocks,
+            approvedContextBlocks: task.retrievalInlineContextBlocks + additionalContextBlocks,
             supportsVision: supportsVision
         )
         conversationHistory = [.system(systemPrompt)]

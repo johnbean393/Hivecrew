@@ -112,6 +112,8 @@ public struct APITask: Codable, Sendable {
     public let outputFiles: [APIFile]
     public let wasSuccessful: Bool?
     public let vmId: String?
+    public let referencedTaskIds: [String]?
+    public let continuationSourceTaskId: String?
     public let duration: Int?
     public let stepCount: Int?
     public let tokenUsage: APITokenUsage?
@@ -141,6 +143,8 @@ public struct APITask: Codable, Sendable {
         outputFiles: [APIFile] = [],
         wasSuccessful: Bool? = nil,
         vmId: String? = nil,
+        referencedTaskIds: [String]? = nil,
+        continuationSourceTaskId: String? = nil,
         duration: Int? = nil,
         stepCount: Int? = nil,
         tokenUsage: APITokenUsage? = nil,
@@ -169,6 +173,8 @@ public struct APITask: Codable, Sendable {
         self.outputFiles = outputFiles
         self.wasSuccessful = wasSuccessful
         self.vmId = vmId
+        self.referencedTaskIds = referencedTaskIds
+        self.continuationSourceTaskId = continuationSourceTaskId
         self.duration = duration
         self.stepCount = stepCount
         self.tokenUsage = tokenUsage

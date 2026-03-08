@@ -69,6 +69,9 @@ struct ContentView: View {
                 selectedTab = .environments
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .continueFromTask)) { _ in
+            selectedTab = .dashboard
+        }
         .agentQuestionSheet($pendingQuestion) { _ in
             if let questionId = pendingQuestion?.id {
                 taskService.answerQuestion(questionId)

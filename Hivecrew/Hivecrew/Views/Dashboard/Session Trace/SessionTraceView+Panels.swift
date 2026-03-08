@@ -585,6 +585,13 @@ extension SessionTraceView {
                 }
             }
 
+            Button(action: { continueFromTask() }) {
+                footerLabel("arrow.turn.down.right", text: "Continue from Task")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .help("Insert this task into the dashboard composer as continuation context")
+
             Button {
                 showingRerunModelSelection = true
             } label: {
@@ -791,6 +798,14 @@ extension SessionTraceView {
             // Select the files in Finder
             NSWorkspace.shared.activateFileViewerSelecting(existingURLs)
         }
+    }
+
+    func continueFromTask() {
+        NotificationCenter.default.post(
+            name: .continueFromTask,
+            object: nil,
+            userInfo: ["taskId": task.id]
+        )
     }
 }
 

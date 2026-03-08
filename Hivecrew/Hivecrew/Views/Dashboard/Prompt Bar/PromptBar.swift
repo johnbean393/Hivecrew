@@ -75,6 +75,7 @@ enum SendKeyMode: String, CaseIterable, Identifiable {
 struct PromptBar: View {
     
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var taskService: TaskService
     @Query private var providers: [LLMProviderRecord]
     
     // Text state
@@ -101,6 +102,7 @@ struct PromptBar: View {
     
     // Mentioned skill names (populated on submit)
     @Binding var mentionedSkillNames: [String]
+    @Binding var referencedTaskIds: [String]
     
     // Send key configuration
     @AppStorage("useCommandReturn") private var useCommandReturn: Bool = true
@@ -123,7 +125,7 @@ struct PromptBar: View {
     // Mention suggestions state
     @StateObject private var mentionProvider = MentionSuggestionsProvider()
     @StateObject private var mentionPanelController = MentionSuggestionsPanelController()
-    @StateObject private var mentionInsertionController = MentionInsertionController()
+    @ObservedObject var mentionInsertionController: MentionInsertionController
     @State private var mentionQuery: MentionQuery?
     @State private var mentionScreenPosition: CGPoint?
     @State private var quickLookURL: URL?
@@ -225,6 +227,7 @@ struct PromptBar: View {
             setupMentionPanel()
             // Initialize mention provider with current attachments
             mentionProvider.updateAttachments(attachments)
+            mentionProvider.updateTasks(taskService.inactiveTasksForContinuationSuggestions())
         }
         .onDisappear {
             removeKeyEventMonitor()
@@ -262,6 +265,9 @@ struct PromptBar: View {
         .onChange(of: attachments) { _, newAttachments in
             // Update mention provider with current attachments
             mentionProvider.updateAttachments(newAttachments)
+        }
+        .onChange(of: taskService.tasks) { _, _ in
+            mentionProvider.updateTasks(taskService.inactiveTasksForContinuationSuggestions())
         }
     }
     
@@ -438,6 +444,7 @@ struct PromptBar: View {
         
         // Get mentioned skill names before clearing
         mentionedSkillNames = mentionInsertionController.getMentionedSkillNames()
+        referencedTaskIds = mentionInsertionController.getReferencedTaskIDs()
         
         // Update the text binding with resolved paths before submission
         text = resolvedText
@@ -506,7 +513,7 @@ struct PromptBar: View {
             mentionInsertionController.insert(suggestion: suggestion, at: range)
             
             // Add files as attachments (but not skills)
-            if suggestion.type != .skill, let url = suggestion.url {
+            if suggestion.type == .attachment || suggestion.type == .deliverable, let url = suggestion.url {
                 Task {
                     await addAttachment(url)
                 }
@@ -868,7 +875,9 @@ struct PromptReasoningButton: View {
         @State var multiModelSelections: [PromptModelSelection] = []
         @State var isSubmitting = false
         @State var mentionedSkills: [String] = []
+        @State var referencedTaskIds: [String] = []
         @State var planFirst = false
+        @StateObject var mentionInsertionController = MentionInsertionController()
         
         var body: some View {
             VStack {
@@ -887,6 +896,7 @@ struct PromptReasoningButton: View {
                     useMultipleModels: $useMultipleModels,
                     multiModelSelections: $multiModelSelections,
                     mentionedSkillNames: $mentionedSkills,
+                    referencedTaskIds: $referencedTaskIds,
                     planFirstEnabled: $planFirst,
                     onSubmit: {
                         isSubmitting = true
@@ -895,13 +905,15 @@ struct PromptReasoningButton: View {
                         text = ""
                         attachments = []
                     },
-                    isSubmitting: $isSubmitting
+                    isSubmitting: $isSubmitting,
+                    mentionInsertionController: mentionInsertionController
                 )
                 .padding(.horizontal, 40)
                 .padding(.bottom, 20)
             }
             .frame(width: 600, height: 300)
             .background(Color(nsColor: .windowBackgroundColor))
+            .environmentObject(TaskService())
             .environmentObject(SchedulerService.shared)
             .modelContainer(for: [LLMProviderRecord.self, ScheduledTask.self], inMemory: true)
         }

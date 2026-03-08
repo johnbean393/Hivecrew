@@ -138,6 +138,11 @@ public enum AppPaths {
     public static func sessionAttachmentsDirectory(id: String) -> URL {
         sessionDirectory(id: id).appendingPathComponent("Attachments", isDirectory: true)
     }
+
+    /// Returns the persisted workspace snapshot directory for a specific session.
+    public static func sessionWorkspaceDirectory(id: String) -> URL {
+        sessionDirectory(id: id).appendingPathComponent("workspace", isDirectory: true)
+    }
     
     // MARK: - Templates Storage
     

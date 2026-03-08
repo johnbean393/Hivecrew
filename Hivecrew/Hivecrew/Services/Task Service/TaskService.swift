@@ -24,6 +24,8 @@ struct TaskCreationRequest {
     let attachmentInfos: [AttachmentInfo]?
     let outputDirectory: String?
     let mentionedSkillNames: [String]
+    let referencedTaskIds: [String]
+    let continuationSourceTaskId: String?
     let retrievalContextPackId: String?
     let retrievalInlineContextBlocks: [String]
     let retrievalContextAttachmentPaths: [String]
@@ -120,6 +122,8 @@ class TaskService: ObservableObject {
         attachmentInfos: [AttachmentInfo]? = nil,
         outputDirectory: String? = nil,
         mentionedSkillNames: [String] = [],
+        referencedTaskIds: [String] = [],
+        continuationSourceTaskId: String? = nil,
         retrievalContextPackId: String? = nil,
         retrievalInlineContextBlocks: [String] = [],
         retrievalContextAttachmentPaths: [String] = [],
@@ -140,6 +144,8 @@ class TaskService: ObservableObject {
             attachmentInfos: attachmentInfos,
             outputDirectory: outputDirectory,
             mentionedSkillNames: mentionedSkillNames,
+            referencedTaskIds: referencedTaskIds,
+            continuationSourceTaskId: continuationSourceTaskId,
             retrievalContextPackId: retrievalContextPackId,
             retrievalInlineContextBlocks: retrievalInlineContextBlocks,
             retrievalContextAttachmentPaths: retrievalContextAttachmentPaths,
@@ -205,6 +211,8 @@ class TaskService: ObservableObject {
                 attachmentInfos: preparedInfos,
                 outputDirectory: request.outputDirectory,
                 mentionedSkillNames: request.mentionedSkillNames.isEmpty ? nil : request.mentionedSkillNames,
+                referencedTaskIds: request.referencedTaskIds.isEmpty ? nil : request.referencedTaskIds,
+                continuationSourceTaskId: request.continuationSourceTaskId,
                 retrievalContextPackId: request.retrievalContextPackId,
                 retrievalInlineContextBlocks: request.retrievalInlineContextBlocks,
                 retrievalContextAttachmentPaths: request.retrievalContextAttachmentPaths.isEmpty ? nil : request.retrievalContextAttachmentPaths,
@@ -363,6 +371,8 @@ class TaskService: ObservableObject {
             attachmentInfos: attachmentInfos,
             outputDirectory: originalTask.outputDirectory,
             mentionedSkillNames: originalTask.mentionedSkillNames ?? [],
+            referencedTaskIds: originalTask.referencedTaskIds ?? [],
+            continuationSourceTaskId: originalTask.continuationSourceTaskId,
             retrievalContextPackId: originalTask.retrievalContextPackId,
             retrievalInlineContextBlocks: originalTask.retrievalInlineContextBlocks,
             retrievalContextAttachmentPaths: originalTask.retrievalContextAttachmentPaths ?? [],
@@ -598,4 +608,320 @@ class TaskService: ObservableObject {
 
 extension TaskService: CreateWorkerClientProtocol {
     // Already implemented in TaskService+VMManagement.swift
+}
+
+// MARK: - Task References
+
+extension TaskService {
+    func inactiveTasksForContinuationSuggestions() -> [TaskRecord] {
+        tasks
+            .filter { !isTaskEffectivelyActive($0) }
+            .sorted { lhs, rhs in
+                let lhsDate = lhs.completedAt ?? lhs.createdAt
+                let rhsDate = rhs.completedAt ?? rhs.createdAt
+                if lhsDate == rhsDate {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhsDate > rhsDate
+            }
+    }
+
+    func materializeTaskReferences(for task: TaskRecord, vmId: String) throws -> [String] {
+        let referencedTasks = resolvedDirectReferencedTasks(for: task)
+        guard !referencedTasks.isEmpty else {
+            let referencesRoot = AppPaths.vmWorkspaceDirectory(id: vmId)
+                .appendingPathComponent("references", isDirectory: true)
+            try? FileManager.default.removeItem(at: referencesRoot)
+            return []
+        }
+
+        let fm = FileManager.default
+        let referencesRoot = AppPaths.vmWorkspaceDirectory(id: vmId)
+            .appendingPathComponent("references", isDirectory: true)
+        if fm.fileExists(atPath: referencesRoot.path) {
+            try fm.removeItem(at: referencesRoot)
+        }
+        try fm.createDirectory(at: referencesRoot, withIntermediateDirectories: true)
+
+        var copiedFileSources: [String: URL] = [:]
+        var usedBundleNames = Set<String>()
+        var inlineContextBlocks: [String] = []
+
+        for referencedTask in referencedTasks {
+            let bundleName = uniqueReferenceBundleName(for: referencedTask, usedNames: &usedBundleNames)
+            let bundleRoot = referencesRoot.appendingPathComponent(bundleName, isDirectory: true)
+            let inboxRoot = bundleRoot.appendingPathComponent("inbox", isDirectory: true)
+            let outboxRoot = bundleRoot.appendingPathComponent("outbox", isDirectory: true)
+            let workspaceRoot = bundleRoot.appendingPathComponent("workspace", isDirectory: true)
+
+            try fm.createDirectory(at: inboxRoot, withIntermediateDirectories: true)
+            try fm.createDirectory(at: outboxRoot, withIntermediateDirectories: true)
+            try fm.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+
+            try copyReferenceFiles(
+                from: referencedTask.attachmentInfos.map(\.effectivePath),
+                to: inboxRoot,
+                copiedFileSources: &copiedFileSources
+            )
+            try copyReferenceFiles(
+                from: referencedTask.outputFilePaths ?? [],
+                to: outboxRoot,
+                copiedFileSources: &copiedFileSources
+            )
+            try copyReferenceWorkspace(
+                from: referencedTask.sessionId,
+                to: workspaceRoot
+            )
+
+            let ancestorTasks = resolvedAncestorReferencedTasks(for: referencedTask)
+            let guestBundlePath = "~/Desktop/workspace/references/\(bundleName)"
+            let contextMarkdown = taskReferenceContextMarkdown(
+                for: referencedTask,
+                ancestorTasks: ancestorTasks,
+                guestBundlePath: guestBundlePath
+            )
+            try contextMarkdown.write(
+                to: bundleRoot.appendingPathComponent("context.md"),
+                atomically: true,
+                encoding: .utf8
+            )
+
+            inlineContextBlocks.append(
+                """
+                Previous task "\(referencedTask.title)" has been materialized at `\(guestBundlePath)`.
+                Review `\(guestBundlePath)/context.md` for prompt history and provenance.
+                Reuse files from `\(guestBundlePath)/inbox/`, `\(guestBundlePath)/outbox/`, and `\(guestBundlePath)/workspace/` as needed.
+                """
+            )
+        }
+
+        return inlineContextBlocks
+    }
+
+    private func resolvedDirectReferencedTasks(for task: TaskRecord) -> [TaskRecord] {
+        let ids = task.referencedTaskIds ?? []
+        var seen = Set<String>()
+        return ids.compactMap { id in
+            guard seen.insert(id).inserted else { return nil }
+            return tasks.first(where: { $0.id == id })
+        }
+    }
+
+    private func resolvedAncestorReferencedTasks(for task: TaskRecord) -> [TaskRecord] {
+        var seen = Set<String>()
+        var orderedAncestors: [TaskRecord] = []
+
+        func visit(_ current: TaskRecord) {
+            for referencedID in current.referencedTaskIds ?? [] {
+                guard seen.insert(referencedID).inserted else { continue }
+                guard let ancestor = tasks.first(where: { $0.id == referencedID }) else { continue }
+                orderedAncestors.append(ancestor)
+                visit(ancestor)
+            }
+        }
+
+        visit(task)
+        return orderedAncestors
+    }
+
+    private func taskReferenceContextMarkdown(
+        for task: TaskRecord,
+        ancestorTasks: [TaskRecord],
+        guestBundlePath: String
+    ) -> String {
+        var sections: [String] = []
+        sections.append("# \(task.title)")
+        sections.append(
+            """
+            - Task ID: `\(task.id)`
+            - Status: \(task.status.displayName)
+            - Created: \(task.createdAt.formatted(date: .abbreviated, time: .shortened))
+            - Bundle Path: `\(guestBundlePath)`
+            """
+        )
+        sections.append(
+            """
+            ## Original Prompt
+            \(task.taskDescription)
+            """
+        )
+
+        let inlineBlocks = task.retrievalInlineContextBlocks
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !inlineBlocks.isEmpty {
+            let rendered = inlineBlocks.enumerated().map { index, block in
+                "### Injected Prompt \(index + 1)\n\(block)"
+            }.joined(separator: "\n\n")
+            sections.append("## Injected Prompts\n\(rendered)")
+        }
+
+        if let resultSummary = task.resultSummary?.trimmingCharacters(in: .whitespacesAndNewlines), !resultSummary.isEmpty {
+            sections.append("## Result Summary\n\(resultSummary)")
+        }
+
+        if let traceSummary = sessionEndSummary(for: task)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !traceSummary.isEmpty,
+           traceSummary != task.resultSummary?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            sections.append("## Session Trace Summary\n\(traceSummary)")
+        }
+
+        sections.append(
+            """
+            ## Materialized Files
+            - Prior inbox snapshot: `\(guestBundlePath)/inbox/`
+            - Prior outbox snapshot: `\(guestBundlePath)/outbox/`
+            - Prior workspace snapshot: `\(guestBundlePath)/workspace/`
+            """
+        )
+
+        if !ancestorTasks.isEmpty {
+            let provenance = ancestorTasks.map { ancestor in
+                var lines: [String] = []
+                lines.append("### \(ancestor.title)")
+                lines.append("- Task ID: `\(ancestor.id)`")
+                lines.append("- Status: \(ancestor.status.displayName)")
+                lines.append("- Prompt: \(ancestor.taskDescription)")
+                if let summary = ancestor.resultSummary?.trimmingCharacters(in: .whitespacesAndNewlines), !summary.isEmpty {
+                    lines.append("- Result Summary: \(summary)")
+                }
+                if let traceSummary = sessionEndSummary(for: ancestor)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !traceSummary.isEmpty {
+                    lines.append("- Trace Summary: \(traceSummary)")
+                }
+                return lines.joined(separator: "\n")
+            }.joined(separator: "\n\n")
+            sections.append("## Referenced Ancestors\n\(provenance)")
+        }
+
+        return sections.joined(separator: "\n\n")
+    }
+
+    private func sessionEndSummary(for task: TaskRecord) -> String? {
+        guard let sessionId = task.sessionId else { return nil }
+        let traceURL = AppPaths.sessionDirectory(id: sessionId).appendingPathComponent("trace.jsonl")
+        guard let contents = try? String(contentsOf: traceURL, encoding: .utf8) else { return nil }
+
+        for line in contents.components(separatedBy: .newlines).reversed() where !line.isEmpty {
+            guard let data = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let type = json["type"] as? String,
+                  type == "session_end",
+                  let eventData = json["data"] as? [String: Any],
+                  let sessionEnd = eventData["sessionEnd"] as? [String: Any],
+                  let inner = sessionEnd["_0"] as? [String: Any],
+                  let summary = inner["summary"] as? String,
+                  !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                continue
+            }
+            return summary
+        }
+
+        return nil
+    }
+
+    private func copyReferenceWorkspace(
+        from sessionId: String?,
+        to destinationDirectory: URL
+    ) throws {
+        guard let sessionId else { return }
+
+        let sourceDirectory = AppPaths.sessionWorkspaceDirectory(id: sessionId)
+        guard FileManager.default.fileExists(atPath: sourceDirectory.path) else { return }
+
+        let fm = FileManager.default
+        if fm.fileExists(atPath: destinationDirectory.path) {
+            try fm.removeItem(at: destinationDirectory)
+        }
+        try fm.copyItem(at: sourceDirectory, to: destinationDirectory)
+    }
+
+    private func copyReferenceFiles(
+        from paths: [String],
+        to destinationDirectory: URL,
+        copiedFileSources: inout [String: URL]
+    ) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+
+        for path in paths {
+            let sourceURL = URL(fileURLWithPath: path)
+            guard fm.fileExists(atPath: sourceURL.path) else { continue }
+
+            var destinationURL = destinationDirectory.appendingPathComponent(sourceURL.lastPathComponent)
+            destinationURL = uniqueFileURL(for: destinationURL)
+            try copyReferenceFile(
+                from: sourceURL,
+                to: destinationURL,
+                copiedFileSources: &copiedFileSources
+            )
+        }
+    }
+
+    private func copyReferenceFile(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        copiedFileSources: inout [String: URL]
+    ) throws {
+        let fm = FileManager.default
+        let canonicalSourcePath = sourceURL.resolvingSymlinksInPath().standardizedFileURL.path
+
+        if let existingDestination = copiedFileSources[canonicalSourcePath],
+           fm.fileExists(atPath: existingDestination.path) {
+            do {
+                try fm.linkItem(at: existingDestination, to: destinationURL)
+                return
+            } catch {
+                // Fall back to a normal copy.
+            }
+        }
+
+        try fm.copyItem(at: sourceURL, to: destinationURL)
+        copiedFileSources[canonicalSourcePath] = destinationURL
+    }
+
+    private func uniqueFileURL(for url: URL) -> URL {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return url }
+
+        let baseName = url.deletingPathExtension().lastPathComponent
+        let pathExtension = url.pathExtension
+        let directory = url.deletingLastPathComponent()
+
+        var counter = 2
+        while true {
+            let candidateName: String
+            if pathExtension.isEmpty {
+                candidateName = "\(baseName)-\(counter)"
+            } else {
+                candidateName = "\(baseName)-\(counter).\(pathExtension)"
+            }
+
+            let candidate = directory.appendingPathComponent(candidateName)
+            if !fm.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            counter += 1
+        }
+    }
+
+    private func uniqueReferenceBundleName(for task: TaskRecord, usedNames: inout Set<String>) -> String {
+        let rawSlug = task.title
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+        let slug = rawSlug.isEmpty ? "task" : String(rawSlug.prefix(40))
+        let baseName = "\(slug)-\(task.id.prefix(8))"
+
+        var candidate = baseName
+        var counter = 2
+        while usedNames.contains(candidate) {
+            candidate = "\(baseName)-\(counter)"
+            counter += 1
+        }
+        usedNames.insert(candidate)
+        return candidate
+    }
 }

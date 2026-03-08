@@ -26,6 +26,23 @@ final class MentionInsertionController: ObservableObject {
         guard let textView = textView, let coordinator = coordinator else { return }
         coordinator.insertMention(suggestion: suggestion, at: range, in: textView)
     }
+
+    func insertAtCurrentCursor(suggestion: MentionSuggestion) {
+        guard let textView = textView, let coordinator = coordinator else { return }
+        let selection = textView.selectedRange()
+        let insertionRange: NSRange
+        if selection.location != NSNotFound {
+            insertionRange = selection
+        } else {
+            insertionRange = NSRange(location: textView.string.count, length: 0)
+        }
+        coordinator.insertMention(suggestion: suggestion, at: insertionRange, in: textView)
+    }
+
+    func focusTextView() {
+        guard let textView = textView else { return }
+        textView.window?.makeFirstResponder(textView)
+    }
     
     /// Clear the text view content directly
     func clearTextView() {
@@ -63,6 +80,8 @@ final class MentionInsertionController: ObservableObject {
                         let vmPath = "/Users/hivecrew/Desktop/inbox/\(filename)"
                         resolvedText += "\"\(vmPath)\""
                     }
+                case .task:
+                    resolvedText += "continue from previous task \"\(attachment.displayName)\""
                 case .skill:
                     // Replace skill mention with "{skill-name} skill" format
                     // Avoid duplicating "skill" if the name already ends with it
@@ -118,6 +137,31 @@ final class MentionInsertionController: ObservableObject {
         }
         
         return skillNames
+    }
+
+    func getReferencedTaskIDs() -> [String] {
+        guard let textView = textView,
+              let textStorage = textView.textStorage else {
+            return []
+        }
+
+        var taskIDs: [String] = []
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+
+        textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, _, _ in
+            guard let attachment = attributes[.attachment] as? MentionTextAttachment,
+                  attachment.mentionType == .task,
+                  let taskId = attachment.referencedTaskId,
+                  !taskId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return
+            }
+
+            if !taskIDs.contains(taskId) {
+                taskIDs.append(taskId)
+            }
+        }
+
+        return taskIDs
     }
 }
 
@@ -396,6 +440,11 @@ struct PromptTextEditor: NSViewRepresentable {
             // Create the mention attachment based on type
             let attachment: MentionTextAttachment
             switch suggestion.type {
+            case .task:
+                attachment = MentionTextAttachment(
+                    displayName: suggestion.displayName,
+                    referencedTaskId: suggestion.taskId ?? suggestion.id
+                )
             case .skill:
                 attachment = MentionTextAttachment(
                     displayName: suggestion.displayName,

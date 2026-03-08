@@ -191,6 +191,10 @@ struct MentionSuggestionsPanelContent: View {
     private var deliverables: [MentionSuggestion] {
         suggestions.filter { $0.type == .deliverable }
     }
+
+    private var tasks: [MentionSuggestion] {
+        suggestions.filter { $0.type == .task }
+    }
     
     private var skills: [MentionSuggestion] {
         suggestions.filter { $0.type == .skill }
@@ -254,6 +258,29 @@ struct MentionSuggestionsPanelContent: View {
                     }
                 }
             }
+
+            if !tasks.isEmpty {
+                SectionHeader(title: "Tasks")
+                    .frame(height: sectionHeaderHeight)
+
+                ForEach(Array(tasks.enumerated()), id: \.element.id) { index, suggestion in
+                    let globalIndex = attachments.count + deliverables.count + index
+                    MentionSuggestionPanelRow(
+                        suggestion: suggestion,
+                        isSelected: globalIndex == selectedIndex
+                    )
+                    .frame(height: itemHeight)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelect(suggestion)
+                    }
+                    .onHover { isHovering in
+                        if isHovering {
+                            onHover(globalIndex)
+                        }
+                    }
+                }
+            }
             
             // Skills section
             if !skills.isEmpty {
@@ -261,7 +288,7 @@ struct MentionSuggestionsPanelContent: View {
                     .frame(height: sectionHeaderHeight)
                 
                 ForEach(Array(skills.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + deliverables.count + index
+                    let globalIndex = attachments.count + deliverables.count + tasks.count + index
                     MentionSuggestionPanelRow(
                         suggestion: suggestion,
                         isSelected: globalIndex == selectedIndex
@@ -285,7 +312,7 @@ struct MentionSuggestionsPanelContent: View {
                     .frame(height: sectionHeaderHeight)
                 
                 ForEach(Array(environmentVariables.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + deliverables.count + skills.count + index
+                    let globalIndex = attachments.count + deliverables.count + tasks.count + skills.count + index
                     MentionSuggestionPanelRow(
                         suggestion: suggestion,
                         isSelected: globalIndex == selectedIndex
@@ -309,7 +336,7 @@ struct MentionSuggestionsPanelContent: View {
                     .frame(height: sectionHeaderHeight)
                 
                 ForEach(Array(injectedFiles.enumerated()), id: \.element.id) { index, suggestion in
-                    let globalIndex = attachments.count + deliverables.count + skills.count + environmentVariables.count + index
+                    let globalIndex = attachments.count + deliverables.count + tasks.count + skills.count + environmentVariables.count + index
                     MentionSuggestionPanelRow(
                         suggestion: suggestion,
                         isSelected: globalIndex == selectedIndex
@@ -363,6 +390,10 @@ struct MentionSuggestionPanelRow: View {
         HStack(spacing: 10) {
             // Icon based on type
             switch suggestion.type {
+            case .task:
+                Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                    .frame(width: 22, height: 22)
+                    .foregroundStyle(.blue)
             case .skill:
                 Image(systemName: "sparkles")
                     .frame(width: 22, height: 22)

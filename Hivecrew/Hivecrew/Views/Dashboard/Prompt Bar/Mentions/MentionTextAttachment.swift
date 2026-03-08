@@ -10,6 +10,7 @@ import AppKit
 /// Type of mention represented by the attachment
 enum MentionType {
     case file
+    case task
     case skill
     case environmentVariable
     case injectedFile
@@ -21,6 +22,7 @@ class MentionTextAttachment: NSTextAttachment {
     let displayName: String
     let fileURL: URL?
     let skillName: String?
+    let referencedTaskId: String?
     let mentionType: MentionType
     
     /// The environment variable key (for .environmentVariable type)
@@ -35,6 +37,7 @@ class MentionTextAttachment: NSTextAttachment {
         self.displayName = displayName
         self.fileURL = fileURL
         self.skillName = nil
+        self.referencedTaskId = nil
         self.mentionType = .file
         self.envKey = nil
         self.envValue = nil
@@ -44,12 +47,28 @@ class MentionTextAttachment: NSTextAttachment {
         // Render and set the image immediately
         self.image = renderTagImage()
     }
+
+    /// Initialize with a referenced task ID.
+    init(displayName: String, referencedTaskId: String) {
+        self.displayName = displayName
+        self.fileURL = nil
+        self.skillName = nil
+        self.referencedTaskId = referencedTaskId
+        self.mentionType = .task
+        self.envKey = nil
+        self.envValue = nil
+        self.guestPath = nil
+        super.init(data: nil, ofType: nil)
+
+        self.image = renderTagImage()
+    }
     
     /// Initialize with a skill name
     init(displayName: String, skillName: String) {
         self.displayName = displayName
         self.fileURL = nil
         self.skillName = skillName
+        self.referencedTaskId = nil
         self.mentionType = .skill
         self.envKey = nil
         self.envValue = nil
@@ -65,6 +84,7 @@ class MentionTextAttachment: NSTextAttachment {
         self.displayName = displayName
         self.fileURL = nil
         self.skillName = nil
+        self.referencedTaskId = nil
         self.mentionType = .environmentVariable
         self.envKey = envKey
         self.envValue = envValue
@@ -79,6 +99,7 @@ class MentionTextAttachment: NSTextAttachment {
         self.displayName = displayName
         self.fileURL = assetFileURL
         self.skillName = nil
+        self.referencedTaskId = nil
         self.mentionType = .injectedFile
         self.envKey = nil
         self.envValue = nil
@@ -139,6 +160,8 @@ class MentionTextAttachment: NSTextAttachment {
             switch self.mentionType {
             case .file:
                 bgColor = NSColor.systemBlue.withAlphaComponent(0.4)
+            case .task:
+                bgColor = NSColor.systemTeal.withAlphaComponent(0.4)
             case .skill:
                 bgColor = NSColor.systemPurple.withAlphaComponent(0.4)
             case .environmentVariable:
@@ -167,6 +190,8 @@ class MentionTextAttachment: NSTextAttachment {
                     fileIcon.draw(in: iconRect)
                 }
                 symbolName = ""
+            case .task:
+                symbolName = "clock.arrow.trianglehead.counterclockwise.rotate.90"
             case .skill:
                 symbolName = "sparkles"
             case .environmentVariable:

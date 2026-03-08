@@ -37,6 +37,8 @@ public protocol APIServiceProvider: Sendable {
         outputDirectory: String?,
         planFirst: Bool,
         mentionedSkillNames: [String],
+        referencedTaskIds: [String],
+        continuationSourceTaskId: String?,
         contextPackId: String?,
         contextSuggestionIds: [String],
         contextModeOverrides: [String: String],

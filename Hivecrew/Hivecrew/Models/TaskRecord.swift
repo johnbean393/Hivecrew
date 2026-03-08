@@ -138,6 +138,12 @@ final class TaskRecord {
     /// These skills will be force-included in addition to auto-matched skills
     var mentionedSkillNames: [String]?
 
+    /// Direct task references selected by the user for continuation context.
+    var referencedTaskIds: [String]?
+
+    /// The primary source task when a continuation was initiated from a task action.
+    var continuationSourceTaskId: String?
+
     /// Approved retrieval context pack ID used for this task (if any).
     var retrievalContextPackId: String?
 
@@ -266,6 +272,8 @@ final class TaskRecord {
         outputFilePaths: [String]? = nil,
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
+        referencedTaskIds: [String]? = nil,
+        continuationSourceTaskId: String? = nil,
         retrievalContextPackId: String? = nil,
         retrievalInlineContextBlocks: [String] = [],
         retrievalContextAttachmentPaths: [String]? = nil,
@@ -295,6 +303,8 @@ final class TaskRecord {
         self.outputFilePaths = outputFilePaths
         self.outputDirectory = outputDirectory
         self.mentionedSkillNames = mentionedSkillNames
+        self.referencedTaskIds = referencedTaskIds
+        self.continuationSourceTaskId = continuationSourceTaskId
         self.retrievalContextPackId = retrievalContextPackId
         self.retrievalContextAttachmentPaths = retrievalContextAttachmentPaths
         self.retrievalSelectedSuggestionIds = retrievalSelectedSuggestionIds

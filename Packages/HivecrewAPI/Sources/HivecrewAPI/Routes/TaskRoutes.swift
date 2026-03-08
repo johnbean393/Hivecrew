@@ -91,6 +91,8 @@ public final class TaskRoutes: Sendable {
         var reasoningEnabled: Bool?
         var reasoningEffort: String?
         var mentionedSkillNames: [String] = []
+        var referencedTaskIds: [String] = []
+        var continuationSourceTaskId: String?
         var contextPackId: String?
         var contextSuggestionIds: [String] = []
         var contextModeOverrides: [String: String] = [:]
@@ -108,6 +110,8 @@ public final class TaskRoutes: Sendable {
             reasoningEnabled = result.reasoningEnabled
             reasoningEffort = result.reasoningEffort
             mentionedSkillNames = result.mentionedSkillNames
+            referencedTaskIds = result.referencedTaskIds
+            continuationSourceTaskId = result.continuationSourceTaskId
         } else {
             let body = try await request.body.collect(upTo: 1024 * 1024)
             let createRequest = try makeISO8601Decoder().decode(CreateTaskRequest.self, from: body)
@@ -120,6 +124,8 @@ public final class TaskRoutes: Sendable {
             reasoningEnabled = createRequest.reasoningEnabled
             reasoningEffort = createRequest.reasoningEffort
             mentionedSkillNames = createRequest.mentionedSkillNames ?? []
+            referencedTaskIds = createRequest.referencedTaskIds ?? []
+            continuationSourceTaskId = createRequest.continuationSourceTaskId
             contextPackId = createRequest.contextPackId
             contextSuggestionIds = createRequest.contextSuggestionIds ?? []
             contextModeOverrides = createRequest.contextModeOverrides ?? [:]
@@ -148,6 +154,8 @@ public final class TaskRoutes: Sendable {
             outputDirectory: outputDirectory,
             planFirst: planFirst,
             mentionedSkillNames: mentionedSkillNames,
+            referencedTaskIds: referencedTaskIds,
+            continuationSourceTaskId: continuationSourceTaskId,
             contextPackId: contextPackId,
             contextSuggestionIds: contextSuggestionIds,
             contextModeOverrides: contextModeOverrides,
@@ -437,6 +445,8 @@ public final class TaskRoutes: Sendable {
         let reasoningEnabled: Bool?
         let reasoningEffort: String?
         let mentionedSkillNames: [String]
+        let referencedTaskIds: [String]
+        let continuationSourceTaskId: String?
     }
 
     private struct TaskBatchMultipartFormResult {
@@ -458,6 +468,8 @@ public final class TaskRoutes: Sendable {
         var reasoningEnabled: Bool?
         var reasoningEffort: String?
         var mentionedSkillNames: [String] = []
+        var referencedTaskIds: [String] = []
+        var continuationSourceTaskId: String?
         
         let taskId = UUID().uuidString
         let bodyData = try await request.body.collect(upTo: maxTotalUploadSize)
@@ -493,6 +505,13 @@ public final class TaskRoutes: Sendable {
                     if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
                         mentionedSkillNames.append(value)
                     }
+                } else if name == "referencedTaskIds" || name == "referencedTaskIds[]" {
+                    if let value = String(data: part.data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+                        referencedTaskIds.append(value)
+                    }
+                } else if name == "continuationSourceTaskId" {
+                    continuationSourceTaskId = String(data: part.data, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
                 } else if name == "files" {
                     let filename = part.filename ?? "file_\(filePaths.count)"
                     if part.data.count > maxFileSize {
@@ -518,7 +537,9 @@ public final class TaskRoutes: Sendable {
             planFirst: planFirst,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
-            mentionedSkillNames: mentionedSkillNames
+            mentionedSkillNames: mentionedSkillNames,
+            referencedTaskIds: referencedTaskIds,
+            continuationSourceTaskId: continuationSourceTaskId
         )
     }
 

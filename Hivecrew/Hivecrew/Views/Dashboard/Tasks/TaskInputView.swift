@@ -22,12 +22,15 @@ struct TaskInputView: View {
     @State private var attachments: [PromptAttachment] = []
     @State private var isSubmitting: Bool = false
     @State private var mentionedSkillNames: [String] = []
+    @State private var referencedTaskIds: [String] = []
+    @State private var continuationSourceTaskId: String?
     @State private var copyCount: TaskCopyCount = .one
     @State private var multiModelSelections: [PromptModelSelection] = []
     @State private var reasoningEnabled: Bool?
     @State private var reasoningEffort: String?
     @State private var serviceTier: LLMServiceTier?
     @StateObject private var contextProvider = PromptContextSuggestionProvider()
+    @StateObject private var mentionInsertionController = MentionInsertionController()
     @State private var hasDonatedGhostContextTip = false
     
     // Persisted selections
@@ -65,11 +68,13 @@ struct TaskInputView: View {
                 useMultipleModels: $useMultiplePromptModels,
                 multiModelSelections: $multiModelSelections,
                 mentionedSkillNames: $mentionedSkillNames,
+                referencedTaskIds: $referencedTaskIds,
                 planFirstEnabled: $planFirstEnabled,
                 onSubmit: {
                     await submitTask()
                 },
-                isSubmitting: $isSubmitting
+                isSubmitting: $isSubmitting,
+                mentionInsertionController: mentionInsertionController
             )
             .padding(.horizontal, 40)
 
@@ -126,6 +131,19 @@ struct TaskInputView: View {
         }
         .onChange(of: serviceTier) { _, newValue in
             persistServiceTier(newValue, for: selectedProviderId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .continueFromTask)) { notification in
+            guard let taskId = notification.userInfo?["taskId"] as? String,
+                  let task = taskService.tasks.first(where: { $0.id == taskId }) else {
+                return
+            }
+
+            continuationSourceTaskId = task.id
+            let suggestion = MentionSuggestion(task: task)
+            DispatchQueue.main.async {
+                mentionInsertionController.focusTextView()
+                mentionInsertionController.insertAtCurrentCursor(suggestion: suggestion)
+            }
         }
     }
     
@@ -195,6 +213,8 @@ struct TaskInputView: View {
                         attachmentInfos: nil,
                         outputDirectory: nil,
                         mentionedSkillNames: mentionedSkillNames,
+                        referencedTaskIds: referencedTaskIds,
+                        continuationSourceTaskId: resolvedContinuationSourceTaskID,
                         retrievalContextPackId: contextPack?.id,
                         retrievalInlineContextBlocks: inlineContext,
                         retrievalContextAttachmentPaths: contextAttachmentPaths,
@@ -218,6 +238,8 @@ struct TaskInputView: View {
             taskDescription = ""
             attachments = []
             mentionedSkillNames = []
+            referencedTaskIds = []
+            continuationSourceTaskId = nil
             if !useMultiplePromptModels {
                 copyCount = .one  // Reset to single copy after submission
             }
@@ -225,6 +247,14 @@ struct TaskInputView: View {
         } catch {
             print("Failed to create task: \(error)")
         }
+    }
+
+    private var resolvedContinuationSourceTaskID: String? {
+        guard let continuationSourceTaskId,
+              referencedTaskIds.contains(continuationSourceTaskId) else {
+            return nil
+        }
+        return continuationSourceTaskId
     }
 
     private func resolvedExecutionTargets(

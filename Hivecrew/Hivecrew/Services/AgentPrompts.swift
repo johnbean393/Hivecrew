@@ -195,7 +195,7 @@ SCREEN DIMENSIONS:
 FILE LOCATIONS:
 - Input files from the user are in ~/Desktop/inbox/
 - Save all output files and deliverables to ~/Desktop/outbox/
-- Use ~/Desktop/ or ~/Documents/ for temporary/working files
+- Use ~/Desktop/workspace/ for intermediate and working files
 - Files in ~/Desktop/outbox/ will be automatically delivered to the user when the task completes
 
 \(workflowSection)

@@ -100,6 +100,8 @@ extension APIServiceProviderBridge {
             outputFiles: outputFiles,
             wasSuccessful: task.wasSuccessful,
             vmId: task.assignedVMId,
+            referencedTaskIds: task.referencedTaskIds,
+            continuationSourceTaskId: task.continuationSourceTaskId,
             duration: task.startedAt.map { Int(Date().timeIntervalSince($0)) },
             stepCount: publisher?.currentStep,
             tokenUsage: tokenUsage,

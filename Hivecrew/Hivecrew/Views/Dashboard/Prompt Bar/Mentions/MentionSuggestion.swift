@@ -19,6 +19,7 @@ struct MentionSuggestion: Identifiable, Equatable {
     enum SuggestionType: Equatable {
         case attachment
         case deliverable
+        case task
         case skill
         case environmentVariable
         case injectedFile
@@ -33,6 +34,8 @@ struct MentionSuggestion: Identifiable, Equatable {
     
     /// For skill suggestions, the skill name
     let skillName: String?
+    /// For task suggestions, the referenced task ID.
+    let taskId: String?
     
     /// Initialize with a file URL (for attachments and deliverables)
     init(url: URL, type: SuggestionType) {
@@ -43,6 +46,7 @@ struct MentionSuggestion: Identifiable, Equatable {
         self.type = type
         self.icon = NSWorkspace.shared.icon(forFile: url.path)
         self.skillName = nil
+        self.taskId = nil
     }
     
     /// Initialize with a skill
@@ -54,6 +58,20 @@ struct MentionSuggestion: Identifiable, Equatable {
         self.type = .skill
         self.icon = nil
         self.skillName = skill.name
+        self.taskId = nil
+    }
+
+    /// Initialize with a task reference.
+    init(task: TaskRecord) {
+        self.id = "task:\(task.id)"
+        self.displayName = task.title
+        let date = (task.completedAt ?? task.createdAt).formatted(date: .abbreviated, time: .omitted)
+        self.detail = "\(task.status.displayName) • \(date)"
+        self.url = nil
+        self.type = .task
+        self.icon = nil
+        self.skillName = nil
+        self.taskId = task.id
     }
     
     /// Initialize with an environment variable from VM provisioning config
@@ -65,6 +83,7 @@ struct MentionSuggestion: Identifiable, Equatable {
         self.type = .environmentVariable
         self.icon = nil
         self.skillName = nil
+        self.taskId = nil
     }
     
     /// Initialize with an injected file from VM provisioning config
@@ -74,6 +93,7 @@ struct MentionSuggestion: Identifiable, Equatable {
         self.detail = injectedFile.guestPath.isEmpty ? "No VM path set" : injectedFile.guestPath
         self.type = .injectedFile
         self.skillName = nil
+        self.taskId = nil
         
         // Resolve icon from live source first, then legacy asset fallback
         let sourceURL = VMProvisioningService.shared.hostFileURL(for: injectedFile)
@@ -107,6 +127,9 @@ final class MentionSuggestionsProvider: ObservableObject {
     
     /// Available skill suggestions
     private var skillSuggestions: [MentionSuggestion] = []
+
+    /// Recent inactive task suggestions.
+    private var taskSuggestions: [MentionSuggestion] = []
     
     /// Environment variable suggestions from VM provisioning config
     private var environmentVariableSuggestions: [MentionSuggestion] = []
@@ -128,7 +151,7 @@ final class MentionSuggestionsProvider: ObservableObject {
             return !attachmentURLs.contains(url)
         }
         
-        return attachmentSuggestions + filteredDeliverables + skillSuggestions + environmentVariableSuggestions + injectedFileSuggestions
+        return attachmentSuggestions + filteredDeliverables + taskSuggestions + skillSuggestions + environmentVariableSuggestions + injectedFileSuggestions
     }
     
     /// The configured output directory for deliverables
@@ -145,6 +168,11 @@ final class MentionSuggestionsProvider: ObservableObject {
         loadDeliverables()
         loadSkills()
         loadProvisioningItems()
+    }
+
+    func updateTasks(_ tasks: [TaskRecord]) {
+        taskSuggestions = tasks.map { MentionSuggestion(task: $0) }
+        updateSuggestions()
     }
     
     /// Update the current attachments to show in suggestions
@@ -257,6 +285,7 @@ final class MentionSuggestionsProvider: ObservableObject {
         let lowercaseQuery = query.lowercased()
         let filtered = allSuggestions.filter { suggestion in
             suggestion.displayName.lowercased().contains(lowercaseQuery)
+                || suggestion.detail?.lowercased().contains(lowercaseQuery) == true
         }
         
         suggestions = Array(filtered.prefix(8))

@@ -39,6 +39,10 @@ public struct CreateTaskRequest: Codable, Sendable {
     public let reasoningEffort: String?
     /// Names of skills explicitly mentioned by the user via @skill-name
     public let mentionedSkillNames: [String]?
+    /// Direct task references selected for continuation context.
+    public let referencedTaskIds: [String]?
+    /// Primary source task when the task was initiated as a continuation.
+    public let continuationSourceTaskId: String?
     /// Optional retrieval context pack id approved by the user.
     public let contextPackId: String?
     /// Optional selected retrieval suggestion IDs used for context pack creation.
@@ -60,6 +64,8 @@ public struct CreateTaskRequest: Codable, Sendable {
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
         mentionedSkillNames: [String]? = nil,
+        referencedTaskIds: [String]? = nil,
+        continuationSourceTaskId: String? = nil,
         contextPackId: String? = nil,
         contextSuggestionIds: [String]? = nil,
         contextModeOverrides: [String: String]? = nil,
@@ -75,6 +81,8 @@ public struct CreateTaskRequest: Codable, Sendable {
         self.reasoningEnabled = reasoningEnabled
         self.reasoningEffort = reasoningEffort
         self.mentionedSkillNames = mentionedSkillNames
+        self.referencedTaskIds = referencedTaskIds
+        self.continuationSourceTaskId = continuationSourceTaskId
         self.contextPackId = contextPackId
         self.contextSuggestionIds = contextSuggestionIds
         self.contextModeOverrides = contextModeOverrides

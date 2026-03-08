@@ -455,7 +455,7 @@ final class SubagentManager {
     
     private func requiresFileIO(_ goal: String) -> Bool {
         let lowered = goal.lowercased()
-        if lowered.contains("outbox") || lowered.contains("inbox") {
+        if lowered.contains("outbox") || lowered.contains("inbox") || lowered.contains("workspace") {
             return true
         }
         if lowered.contains("~/") || lowered.contains("/desktop/") || lowered.contains("/documents/") {

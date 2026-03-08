@@ -117,8 +117,8 @@ public enum PlanningPrompts {
            Example (presentation/deck):
            - Spawn 15 subagents (one per slide) in `mixed` domain
            - Each subagent produces:
-             - `~/Desktop/working/slide_plans/slide_XX.md`
-             - `~/Desktop/working/slide_images/slide_XX.png`
+             - `~/Desktop/workspace/slide_plans/slide_XX.md`
+             - `~/Desktop/workspace/slide_images/slide_XX.png`
            - Each subagent moves its final outputs into:
              - `~/Desktop/outbox/slide_plans/`
              - `~/Desktop/outbox/slide_images/`
@@ -127,7 +127,7 @@ public enum PlanningPrompts {
         ## File Paths
         - Input files are located at: `~/Desktop/inbox/{filename}`
         - Output files should be saved to: `~/Desktop/outbox/{filename}`
-        - Use `~/Desktop/` or `~/Documents/` for temporary/working files
+        - Use `~/Desktop/workspace/` for temporary/working files
         
         ---
         

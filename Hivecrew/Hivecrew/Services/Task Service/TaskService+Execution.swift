@@ -94,6 +94,7 @@ extension TaskService {
         var skillMatchingTask: Task<[Skill], Never>?
         var llmClientTask: Task<any LLMClientProtocol, Error>?
         var vmCreationTask: Task<String?, Error>?
+        var taskReferenceContextBlocks: [String] = []
         
         func abortIfInactive(stage: String) async -> Bool {
             guard task.status.isActive else {
@@ -224,15 +225,25 @@ extension TaskService {
             
             // Prepare shared folder (inbox/outbox/workspace) on the HOST
             let inputFileNames = try prepareSharedFolder(vmId: vmId!, attachedFilePaths: task.attachedFilePaths)
-            
-            // Prepare Desktop inbox/outbox on the GUEST and copy attachments
+
+            if !(task.referencedTaskIds ?? []).isEmpty {
+                do {
+                    taskReferenceContextBlocks = try materializeTaskReferences(for: task, vmId: vmId!)
+                    print("TaskService: Materialized \(taskReferenceContextBlocks.count) task reference context block(s)")
+                } catch {
+                    print("TaskService: Failed to materialize task references (non-fatal): \(error)")
+                }
+            }
+
+            // Prepare Desktop inbox/outbox/workspace on the GUEST and copy attachments
             // This avoids VirtioFS issues with GUI apps saving files
-            print("TaskService: Setting up guest Desktop inbox/outbox...")
+            print("TaskService: Setting up guest Desktop inbox/outbox/workspace...")
             do {
                 let setupResult = try await connection.runShell(command: """
-                    mkdir -p ~/Desktop/inbox ~/Desktop/outbox && \
-                    rm -rf ~/Desktop/inbox/* ~/Desktop/outbox/* 2>/dev/null; \
+                    mkdir -p ~/Desktop/inbox ~/Desktop/outbox ~/Desktop/workspace && \
+                    rm -rf ~/Desktop/inbox/* ~/Desktop/outbox/* ~/Desktop/workspace/* 2>/dev/null; \
                     cp -R /Volumes/Shared/inbox/* ~/Desktop/inbox/ 2>/dev/null; \
+                    cp -R /Volumes/Shared/workspace/* ~/Desktop/workspace/ 2>/dev/null; \
                     echo "Setup complete. Inbox contents:" && ls -la ~/Desktop/inbox/
                     """, timeout: 30)
                 print("TaskService: Guest setup result:\n\(setupResult.stdout)")
@@ -437,6 +448,7 @@ extension TaskService {
                 statePublisher: statePublisher,
                 inputFileNames: inputFileNames,
                 matchedSkills: skillsToUse,
+                additionalContextBlocks: taskReferenceContextBlocks,
                 maxSteps: maxIterations > 0 ? maxIterations : 300,
                 timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 90,
                 taskService: self,
@@ -456,7 +468,7 @@ extension TaskService {
             
         } catch {
             // Handle failure
-            await handleTaskFailure(task: task, error: error, vmId: vmId, context: context)
+            await handleTaskFailure(task: task, error: error, connection: connection, vmId: vmId, sessionId: task.sessionId, context: context)
         }
         
         objectWillChange.send()
@@ -514,14 +526,16 @@ extension TaskService {
             }
         }
         
-        // Move files from ~/Desktop/outbox to /Volumes/Shared/outbox
-        print("TaskService: Moving deliverables from guest Desktop to shared folder...")
+        // Move files from the guest Desktop back to the shared folder.
+        print("TaskService: Syncing guest Desktop outbox/workspace to shared folder...")
         do {
             // First show what's in the guest Desktop outbox
             let lsResult = try await connection.runShell(command: "ls -la ~/Desktop/outbox/ 2>&1", timeout: 30)
             print("TaskService: Guest ~/Desktop/outbox contents:\n\(lsResult.stdout)")
+            let workspaceLsResult = try await connection.runShell(command: "ls -la ~/Desktop/workspace/ 2>&1", timeout: 30)
+            print("TaskService: Guest ~/Desktop/workspace contents:\n\(workspaceLsResult.stdout)")
             
-            // Move files from ~/Desktop/outbox to /Volumes/Shared/outbox
+            // Move files from ~/Desktop/outbox and ~/Desktop/workspace back to the shared folder.
             let moveResult = try await connection.runShell(command: """
                 if [ "$(ls -A ~/Desktop/outbox 2>/dev/null)" ]; then
                     cp -R ~/Desktop/outbox/* /Volumes/Shared/outbox/ && \
@@ -530,9 +544,18 @@ extension TaskService {
                 else
                     echo "No files in ~/Desktop/outbox to move"
                 fi && \
+                rm -rf /Volumes/Shared/workspace/* 2>/dev/null; \
+                if [ "$(ls -A ~/Desktop/workspace 2>/dev/null)" ]; then
+                    cp -R ~/Desktop/workspace/* /Volumes/Shared/workspace/ && \
+                    echo "Moved workspace to shared workspace"
+                else
+                    echo "No files in ~/Desktop/workspace to move"
+                fi && \
                 sync; sync; sync && \
                 echo "=== /Volumes/Shared/outbox contents ===" && \
-                ls -la /Volumes/Shared/outbox/
+                ls -la /Volumes/Shared/outbox/ && \
+                echo "=== /Volumes/Shared/workspace contents ===" && \
+                ls -la /Volumes/Shared/workspace/
                 """, timeout: 60)
             print("TaskService: Move result:\n\(moveResult.stdout)")
             if !moveResult.stderr.isEmpty {
@@ -544,6 +567,8 @@ extension TaskService {
         
         // Wait for VirtioFS to propagate writes to host
         try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+
+        persistWorkspaceSnapshot(vmId: vmId, sessionId: sessionId)
         
         // Copy outbox files to output directory BEFORE deleting the VM
         // Files are saved into a subfolder named after the task title + timestamp
@@ -591,7 +616,9 @@ extension TaskService {
     private func handleTaskFailure(
         task: TaskRecord,
         error: Error,
+        connection: GuestAgentConnection?,
         vmId: String?,
+        sessionId: String?,
         context: ModelContext
     ) async {
         print("TaskService: Task '\(task.title)' failed with error: \(error)")
@@ -609,6 +636,23 @@ extension TaskService {
         task.errorMessage = error.localizedDescription
         task.completedAt = Date()
         try? context.save()
+
+        if let connection, let vmId, let sessionId {
+            do {
+                _ = try await connection.runShell(command: """
+                    rm -rf /Volumes/Shared/workspace/* 2>/dev/null; \
+                    mkdir -p /Volumes/Shared/workspace ~/Desktop/workspace && \
+                    if [ "$(ls -A ~/Desktop/workspace 2>/dev/null)" ]; then
+                        cp -R ~/Desktop/workspace/* /Volumes/Shared/workspace/
+                    fi && \
+                    sync; sync; sync
+                    """, timeout: 30)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                persistWorkspaceSnapshot(vmId: vmId, sessionId: sessionId)
+            } catch {
+                print("TaskService: Failed to persist workspace during failure handling: \(error)")
+            }
+        }
         
         // Send failure notification
         sendTaskCompletionNotification(task: task)

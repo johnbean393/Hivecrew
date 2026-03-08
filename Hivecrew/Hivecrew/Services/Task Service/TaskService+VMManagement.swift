@@ -232,6 +232,13 @@ extension TaskService {
                 try? fm.removeItem(at: item)
             }
         }
+
+        // Clear workspace so each task starts from a clean persisted snapshot.
+        if let workspaceContents = try? fm.contentsOfDirectory(at: workspacePath, includingPropertiesForKeys: nil) {
+            for item in workspaceContents {
+                try? fm.removeItem(at: item)
+            }
+        }
         
         // Copy attached files to inbox
         var copiedFileNames: [String] = []
@@ -356,6 +363,27 @@ extension TaskService {
         }
         
         return copiedPaths
+    }
+
+    /// Copy a VM workspace snapshot into the durable session artifacts directory.
+    func persistWorkspaceSnapshot(vmId: String, sessionId: String) {
+        let fm = FileManager.default
+        let sourceDirectory = AppPaths.vmWorkspaceDirectory(id: vmId)
+        let destinationDirectory = AppPaths.sessionWorkspaceDirectory(id: sessionId)
+
+        guard fm.fileExists(atPath: sourceDirectory.path) else {
+            return
+        }
+
+        do {
+            if fm.fileExists(atPath: destinationDirectory.path) {
+                try fm.removeItem(at: destinationDirectory)
+            }
+            try fm.copyItem(at: sourceDirectory, to: destinationDirectory)
+            print("TaskService: Persisted workspace snapshot to \(destinationDirectory.path)")
+        } catch {
+            print("TaskService: Failed to persist workspace snapshot: \(error)")
+        }
     }
     
     /// Generate a subfolder name for task output based on title and timestamp

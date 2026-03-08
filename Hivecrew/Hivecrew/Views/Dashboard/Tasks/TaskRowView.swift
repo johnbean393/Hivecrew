@@ -158,6 +158,12 @@ struct TaskRowView: View {
                 } label: {
                     Label("Rerun", systemImage: "arrow.counterclockwise")
                 }
+
+                Button {
+                    continueFromTask()
+                } label: {
+                    Label("Continue from Task", systemImage: "arrow.turn.down.right")
+                }
                 
                 Button {
                     showingRerunModelSelection = true
@@ -361,6 +367,13 @@ struct TaskRowView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Rerun task")
+
+                            Button(action: { continueFromTask() }) {
+                                Image(systemName: "arrow.turn.down.right")
+                                    .foregroundStyle(.blue)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Continue from task")
                         }
 
                         // Cancel button for planning state
@@ -544,11 +557,20 @@ struct TaskRowView: View {
             NSWorkspace.shared.activateFileViewerSelecting(existingURLs)
         }
     }
+
+    private func continueFromTask() {
+        NotificationCenter.default.post(
+            name: .continueFromTask,
+            object: nil,
+            userInfo: ["taskId": task.id]
+        )
+    }
 }
 
 // Notification for navigation
 extension Notification.Name {
     static let navigateToTask = Notification.Name("navigateToTask")
+    static let continueFromTask = Notification.Name("continueFromTask")
 }
 
 #Preview {
