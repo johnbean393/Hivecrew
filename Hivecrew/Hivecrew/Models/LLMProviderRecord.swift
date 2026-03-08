@@ -70,7 +70,7 @@ final class LLMProviderRecord {
         baseURL: String? = nil,
         apiKeyRef: String? = nil,
         organizationId: String? = nil,
-        backendMode: LLMBackendMode = .chatCompletions,
+        backendMode: LLMBackendMode = .responses,
         authMode: LLMAuthMode = .apiKey,
         oauthAuthState: CodexOAuthAuthState = .unauthenticated,
         oauthLoginId: String? = nil,

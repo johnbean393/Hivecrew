@@ -24,7 +24,7 @@ struct ProviderEditSheet: View {
     let initialBackendMode: LLMBackendMode
 
     @State private var displayName: String = ""
-    @State private var backendMode: LLMBackendMode = .chatCompletions
+    @State private var backendMode: LLMBackendMode = .responses
     @State private var authMode: LLMAuthMode = .apiKey
 
     @State private var baseURL: String = ""
@@ -66,7 +66,7 @@ struct ProviderEditSheet: View {
         isCodexMode && oauthAuthState == .pending && !isAuthenticatingOAuth
     }
 
-    init(provider: LLMProviderRecord?, initialBackendMode: LLMBackendMode = .chatCompletions) {
+    init(provider: LLMProviderRecord?, initialBackendMode: LLMBackendMode = .responses) {
         self.provider = provider
         self.initialBackendMode = initialBackendMode
     }

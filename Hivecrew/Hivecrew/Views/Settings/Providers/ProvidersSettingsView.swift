@@ -114,12 +114,12 @@ struct ProvidersSettingsView: View {
 
     private var addProviderMenuLabel: some View {
         Menu {
-            Button("Chat Completions") {
-                addProviderPreset = .chatCompletions
+            Button("Responses API") {
+                addProviderPreset = .responses
             }
 
-            Button("Responses") {
-                addProviderPreset = .responses
+            Button("Chat Completions") {
+                addProviderPreset = .chatCompletions
             }
 
             Button {

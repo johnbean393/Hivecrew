@@ -22,7 +22,7 @@ struct OnboardingProviderStep: View {
     let onProviderConnected: () -> Void
     
     @State private var displayName: String = "OpenRouter"
-    @State private var backendMode: LLMBackendMode = .chatCompletions
+    @State private var backendMode: LLMBackendMode = .responses
     @State private var authMode: LLMAuthMode = .apiKey
     @State private var baseURL: String = ""
     @State private var apiKey: String = ""
@@ -373,7 +373,7 @@ struct OnboardingProviderStep: View {
         
         // Clear form for potential additional providers
         displayName = ""
-        backendMode = .chatCompletions
+        backendMode = .responses
         authMode = .apiKey
         apiKey = ""
         baseURL = ""

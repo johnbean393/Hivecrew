@@ -514,7 +514,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             throw APIError.badRequest("displayName is required")
         }
 
-        let backendMode = request.backendMode.map(convertBackendModeFromAPI) ?? .chatCompletions
+        let backendMode = request.backendMode.map(convertBackendModeFromAPI) ?? .responses
         let authMode = backendMode == .codexOAuth
             ? .chatGPTOAuth
             : (request.authMode.map(convertAuthModeFromAPI) ?? .apiKey)
