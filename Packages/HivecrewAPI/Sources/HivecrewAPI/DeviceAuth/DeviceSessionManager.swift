@@ -10,44 +10,32 @@ import CryptoKit
 import Security
 import Logging
 
-// MARK: - Delegate Protocol
-
-/// Protocol for notifying the host app about pairing requests
-public protocol DeviceAuthDelegate: AnyObject, Sendable {
-    /// Called when a new device pairing request is created
-    @MainActor func pairingRequested(_ request: APIPairingRequest)
-    /// Called when the list of authorized devices changes
-    @MainActor func devicesChanged(_ devices: [APIDeviceSession])
-}
-
-// MARK: - Device Session Manager
-
 /// Actor that manages all device pairing and session state
 public actor DeviceSessionManager {
     
     /// In-memory pending pairing requests (keyed by pairing ID)
-    private var pendingPairings: [String: APIPairingRequest] = [:]
+    var pendingPairings: [String: APIPairingRequest] = [:]
     
     /// Persisted authorized device sessions
-    private var authorizedDevices: [APIDeviceSession] = []
+    var authorizedDevices: [APIDeviceSession] = []
     
     /// HMAC signing key for session tokens
-    private let signingKey: SymmetricKey
+    let signingKey: SymmetricKey
     
     /// Session max age in seconds
-    private let sessionMaxAge: TimeInterval
+    let sessionMaxAge: TimeInterval
     
     /// File URL for persisting device sessions
-    private let storageURL: URL
+    let storageURL: URL
     
     /// Delegate for notifying the host app
-    private weak var delegate: (any DeviceAuthDelegate)?
+    weak var delegate: (any DeviceAuthDelegate)?
     
     /// Logger
-    private let logger: Logger
+    let logger: Logger
     
     /// Cleanup task
-    private var cleanupTask: Task<Void, Never>?
+    var cleanupTask: Task<Void, Never>?
     
     // MARK: - Initialization
     
@@ -295,157 +283,4 @@ public actor DeviceSessionManager {
         return true
     }
     
-    // MARK: - Token Generation & Verification
-    
-    /// Generate a signed session token encoding the device ID and expiry
-    private func generateSessionToken(deviceId: String) -> String {
-        let expiry = Date().addingTimeInterval(sessionMaxAge)
-        let expiryTimestamp = Int(expiry.timeIntervalSince1970)
-        let payload = "\(deviceId).\(expiryTimestamp)"
-        let payloadData = Data(payload.utf8)
-        
-        let signature = HMAC<SHA256>.authenticationCode(for: payloadData, using: signingKey)
-        let signatureHex = signature.map { String(format: "%02x", $0) }.joined()
-        
-        // Token format: base64(payload).signature
-        let payloadBase64 = payloadData.base64EncodedString()
-        return "\(payloadBase64).\(signatureHex)"
-    }
-    
-    /// Verify a session token and return the device ID if valid
-    private func verifySessionToken(_ token: String) -> String? {
-        let parts = token.split(separator: ".", maxSplits: 1)
-        guard parts.count == 2 else { return nil }
-        
-        let payloadBase64 = String(parts[0])
-        let signatureHex = String(parts[1])
-        
-        // Decode payload
-        guard let payloadData = Data(base64Encoded: payloadBase64),
-              let payload = String(data: payloadData, encoding: .utf8) else {
-            return nil
-        }
-        
-        // Verify HMAC
-        let expectedSignature = HMAC<SHA256>.authenticationCode(for: payloadData, using: signingKey)
-        let expectedHex = expectedSignature.map { String(format: "%02x", $0) }.joined()
-        
-        guard signatureHex == expectedHex else { return nil }
-        
-        // Parse payload: deviceId.expiryTimestamp
-        let payloadParts = payload.split(separator: ".", maxSplits: 1)
-        guard payloadParts.count == 2,
-              let expiryTimestamp = Int(payloadParts[1]) else {
-            return nil
-        }
-        
-        // Check expiry
-        let expiry = Date(timeIntervalSince1970: TimeInterval(expiryTimestamp))
-        guard expiry > Date() else { return nil }
-        
-        return String(payloadParts[0])
-    }
-    
-    /// SHA-256 hash of a token for storage (we never store raw tokens)
-    private func hashToken(_ token: String) -> String {
-        let digest = SHA256.hash(data: Data(token.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-    
-    // MARK: - Code & ID Generation
-    
-    /// Generate a cryptographically random 6-digit pairing code
-    private func generatePairingCode() -> String {
-        var bytes = [UInt8](repeating: 0, count: 4)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        let value = (UInt32(bytes[0]) << 24 | UInt32(bytes[1]) << 16 | UInt32(bytes[2]) << 8 | UInt32(bytes[3])) % 1_000_000
-        return String(format: "%06d", value)
-    }
-    
-    /// Generate a unique pairing request ID
-    private func generatePairingId() -> String {
-        UUID().uuidString.lowercased()
-    }
-    
-    // MARK: - Persistence
-    
-    /// Load authorized devices from disk
-    private func loadDevices() {
-        guard FileManager.default.fileExists(atPath: storageURL.path) else {
-            logger.info("No device storage file found, starting fresh")
-            return
-        }
-        
-        do {
-            let data = try Data(contentsOf: storageURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            authorizedDevices = try decoder.decode([APIDeviceSession].self, from: data)
-            logger.info("Loaded \(authorizedDevices.count) authorized device(s)")
-        } catch {
-            logger.error("Failed to load authorized devices: \(error)")
-        }
-    }
-    
-    /// Save authorized devices to disk
-    private func saveDevices() {
-        do {
-            // Ensure directory exists
-            let directory = storageURL.deletingLastPathComponent()
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(authorizedDevices)
-            try data.write(to: storageURL, options: .atomic)
-        } catch {
-            logger.error("Failed to save authorized devices: \(error)")
-        }
-    }
-    
-    // MARK: - Cleanup
-    
-    /// Remove expired pairing requests from memory
-    private func cleanupExpiredPairings() {
-        let now = Date()
-        
-        // Mark pending pairings as expired if past TTL
-        let expired = pendingPairings.filter { $0.value.isExpired && $0.value.status == .pending }
-        for (id, _) in expired {
-            pendingPairings[id]?.status = .expired
-        }
-        
-        // Remove rejected/expired pairings older than 5 minutes
-        // Approved pairings are cleaned up by their own scheduled Task (30s after approval)
-        pendingPairings = pendingPairings.filter { _, request in
-            switch request.status {
-            case .pending, .approved:
-                return true
-            case .rejected, .expired:
-                return now.timeIntervalSince(request.createdAt) < 300
-            }
-        }
-    }
-    
-    /// Start periodic cleanup of expired pairings
-    private func startCleanupTimer() {
-        cleanupTask?.cancel()
-        cleanupTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(60))
-                await self?.cleanupExpiredPairings()
-            }
-        }
-    }
-    
-    // MARK: - Delegate Notification
-    
-    private func notifyDevicesChanged() {
-        let devices = authorizedDevices
-        let delegate = self.delegate
-        Task { @MainActor in
-            delegate?.devicesChanged(devices)
-        }
-    }
 }

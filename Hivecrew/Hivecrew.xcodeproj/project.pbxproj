@@ -160,6 +160,9 @@
 		20B8994D2F1FAEE1003887A3 /* ScheduledTaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8994A2F1FAEE1003887A3 /* ScheduledTaskRowView.swift */; };
 		20B8994E2F1FAEE1003887A3 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B899492F1FAEE1003887A3 /* ScheduleCreationSheet.swift */; };
 		20B8994F2F1FAEE1003887A3 /* ScheduledTasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B8994B2F1FAEE1003887A3 /* ScheduledTasksView.swift */; };
+		20F0A0012F900001003887A3 /* ScheduleCreationSheet+Content.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F0A0002F900001003887A3 /* ScheduleCreationSheet+Content.swift */; };
+		20F0A0032F900002003887A3 /* ScheduleCreationSheet+Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F0A0022F900002003887A3 /* ScheduleCreationSheet+Components.swift */; };
+		20F0A0052F900003003887A3 /* ScheduleCreationSheet+ModelOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F0A0042F900003003887A3 /* ScheduleCreationSheet+ModelOptions.swift */; };
 		20C413E42F14163200C6E8A9 /* AgentTracePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */; };
 		20C413E82F142C4A00C6E8A9 /* AppTerminationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */; };
 		20C413EC2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C413EA2F142C6B00C6E8A9 /* TerminationConfirmationSheet.swift */; };
@@ -399,6 +402,9 @@
 		20B899492F1FAEE1003887A3 /* ScheduleCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCreationSheet.swift; sourceTree = "<group>"; };
 		20B8994A2F1FAEE1003887A3 /* ScheduledTaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledTaskRowView.swift; sourceTree = "<group>"; };
 		20B8994B2F1FAEE1003887A3 /* ScheduledTasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledTasksView.swift; sourceTree = "<group>"; };
+		20F0A0002F900001003887A3 /* ScheduleCreationSheet+Content.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleCreationSheet+Content.swift"; sourceTree = "<group>"; };
+		20F0A0022F900002003887A3 /* ScheduleCreationSheet+Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleCreationSheet+Components.swift"; sourceTree = "<group>"; };
+		20F0A0042F900003003887A3 /* ScheduleCreationSheet+ModelOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScheduleCreationSheet+ModelOptions.swift"; sourceTree = "<group>"; };
 		20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTracePanel.swift; sourceTree = "<group>"; };
 		20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTerminationManager.swift; sourceTree = "<group>"; };
 		20C413E92F142C6B00C6E8A9 /* QueuedTasksStartupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedTasksStartupSheet.swift; sourceTree = "<group>"; };
@@ -889,6 +895,9 @@
 			isa = PBXGroup;
 			children = (
 				20B899492F1FAEE1003887A3 /* ScheduleCreationSheet.swift */,
+				20F0A0002F900001003887A3 /* ScheduleCreationSheet+Content.swift */,
+				20F0A0022F900002003887A3 /* ScheduleCreationSheet+Components.swift */,
+				20F0A0042F900003003887A3 /* ScheduleCreationSheet+ModelOptions.swift */,
 				20B8994A2F1FAEE1003887A3 /* ScheduledTaskRowView.swift */,
 				20B8994B2F1FAEE1003887A3 /* ScheduledTasksView.swift */,
 			);
@@ -1291,6 +1300,9 @@
 				20E22E082F3EC873003EFCE4 /* ActiveTaskRowView.swift in Sources */,
 				20E22E092F3EC873003EFCE4 /* DeveloperVMRowView.swift in Sources */,
 				20B8994E2F1FAEE1003887A3 /* ScheduleCreationSheet.swift in Sources */,
+				20F0A0012F900001003887A3 /* ScheduleCreationSheet+Content.swift in Sources */,
+				20F0A0032F900002003887A3 /* ScheduleCreationSheet+Components.swift in Sources */,
+				20F0A0052F900003003887A3 /* ScheduleCreationSheet+ModelOptions.swift in Sources */,
 				20B8994F2F1FAEE1003887A3 /* ScheduledTasksView.swift in Sources */,
 				204DF41C2F14D5E7004AB99B /* OnboardingWelcomeStep.swift in Sources */,
 				204DF41D2F14D5E7004AB99B /* OnboardingCompleteStep.swift in Sources */,
