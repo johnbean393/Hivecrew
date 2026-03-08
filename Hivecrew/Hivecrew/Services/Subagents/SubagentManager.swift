@@ -110,6 +110,7 @@ final class SubagentManager {
         let id = UUID().uuidString
         let normalizedTodos = normalizedTodoItems(todoItems)
         let allowlist = normalizedAllowlist(goal: goal, domain: domain, requested: toolAllowlist, todoItems: normalizedTodos)
+        let normalizedModelOverride = normalizedModelOverride(modelOverride)
         let subagentDir = sessionPath.appendingPathComponent("subagents").appendingPathComponent(id)
         let tracePath = subagentDir.appendingPathComponent("trace.jsonl")
         let relativeTracePath = "subagents/\(id)/trace.jsonl"
@@ -163,7 +164,7 @@ final class SubagentManager {
         
         let task = Task { @MainActor [weak self] () -> SubagentRunner.Result in
             guard let self = self else { throw CancellationError() }
-            let client = try await self.llmClientFactory(modelOverride)
+            let client = try await self.llmClientFactory(normalizedModelOverride)
             let resolvedModelId = client.configuration.model
             let supportsVision = await self.visionCapabilityResolver(resolvedModelId, client)
             self.toolExecutor.registerVisionCapability(subagentId: id, supportsVision: supportsVision)
@@ -439,6 +440,15 @@ final class SubagentManager {
         return items
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    private func normalizedModelOverride(_ modelOverride: String?) -> String? {
+        guard let trimmed = modelOverride?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+
+        return trimmed.caseInsensitiveCompare("default") == .orderedSame ? nil : trimmed
     }
     
     private func isResearchGoal(_ goal: String) -> Bool {
