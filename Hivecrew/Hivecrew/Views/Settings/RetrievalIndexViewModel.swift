@@ -198,11 +198,18 @@ final class RetrievalIndexViewModel: ObservableObject {
 
     func sourceDetail(for entry: RetrievalSidebarEntry, enabled: Bool) -> RetrievalSourceDetailModel {
         guard let sourceKey = entry.sourceKey else {
-            return emptySourceDetail(entry: entry, status: enabled ? .unavailable : .disabled)
+            return RetrievalIndexStateDeriver.emptySourceDetail(
+                entry: entry,
+                status: enabled ? .unavailable : .disabled
+            )
         }
-        let status = sourceStatus(for: sourceKey, enabled: enabled)
-        let runtime = runtimeRow(for: sourceKey)
-        let stats = statsRow(for: sourceKey)
+        let status = RetrievalIndexStateDeriver.sourceStatus(
+            for: sourceKey,
+            enabled: enabled,
+            snapshot: snapshot
+        )
+        let runtime = RetrievalIndexStateDeriver.runtimeRow(for: sourceKey, snapshot: snapshot)
+        let stats = RetrievalIndexStateDeriver.statsRow(for: sourceKey, snapshot: snapshot)
         let indexedItems = stats?.documentCount ?? 0
         let queueDepth = runtime?.queueDepth ?? 0
         let denominator = indexedItems + queueDepth
@@ -218,7 +225,10 @@ final class RetrievalIndexViewModel: ObservableObject {
             queueDepth: queueDepth,
             inFlightCount: runtime?.inFlightCount ?? 0,
             cumulativeProcessedCount: runtime?.cumulativeProcessedCount ?? 0,
-            scopeCount: max(progressRows(for: sourceKey).count, runtime?.queueDepth == nil ? 0 : 1),
+            scopeCount: max(
+                RetrievalIndexStateDeriver.progressRows(for: sourceKey, snapshot: snapshot).count,
+                runtime?.queueDepth == nil ? 0 : 1
+            ),
             lastUpdatedAt: stats?.lastDocumentUpdatedAt ?? runtime?.updatedAt,
             currentOperation: runtime?.currentOperation.replacingOccurrences(of: "_", with: " ").capitalized ?? RetrievalOperationPayload.idle.rawValue.capitalized,
             currentItemPath: runtime?.currentItemPath,
@@ -234,7 +244,7 @@ final class RetrievalIndexViewModel: ObservableObject {
     }
 
     func overallModel(enabled: Bool) -> RetrievalOverallDetailModel {
-        let status = overallStatus(enabled: enabled)
+        let status = RetrievalIndexStateDeriver.overallStatus(enabled: enabled, snapshot: snapshot)
         let state = snapshot
         let health = state?.health
         let queueActivity = state?.queueActivity
@@ -279,26 +289,10 @@ final class RetrievalIndexViewModel: ObservableObject {
     }
 
     private func nextPollingDelaySeconds() -> Double {
-        if consecutiveErrorCount > 0 {
-            return min(20, pow(2, Double(consecutiveErrorCount)) * 1.2)
-        }
-        if isIndexingNow {
-            return 3
-        }
-        return 4
-    }
-
-    private var isIndexingNow: Bool {
-        guard let snapshot else { return false }
-        if snapshot.health.inFlightCount > 0 {
-            return true
-        }
-        if snapshot.queueActivity.queueDepth > 0 {
-            return true
-        }
-        return snapshot.sourceRuntime.contains {
-            $0.inFlightCount > 0 || $0.queueDepth > 0 || $0.currentOperation != RetrievalOperationPayload.idle.rawValue
-        }
+        RetrievalIndexStateDeriver.nextPollingDelaySeconds(
+            consecutiveErrorCount: consecutiveErrorCount,
+            snapshot: snapshot
+        )
     }
 
     private func refreshState() async {
@@ -335,181 +329,4 @@ final class RetrievalIndexViewModel: ObservableObject {
             allowlistRoots = RetrievalDaemonManager.shared.allowlistRootsForDisplay()
         }
     }
-
-    // MARK: - State Derivation
-
-    private func overallStatus(enabled: Bool) -> RetrievalIndexStatusKind {
-        guard enabled else { return .disabled }
-        guard let snapshot else { return .unavailable }
-        if let error = snapshot.health.lastError, !error.isEmpty {
-            return .needsAttention
-        }
-        if !snapshot.health.running {
-            return .unavailable
-        }
-        if snapshot.health.inFlightCount > 0 || snapshot.queueActivity.queueDepth > 0 {
-            return .indexing
-        }
-        if snapshot.sourceRuntime.contains(where: { $0.inFlightCount > 0 || $0.queueDepth > 0 }) {
-            return .indexing
-        }
-        if snapshot.indexStats.totalDocumentCount == 0 {
-            return .notStarted
-        }
-        return .ready
-    }
-
-    private func sourceStatus(for sourceKey: String, enabled: Bool) -> RetrievalIndexStatusKind {
-        guard enabled else { return .disabled }
-        guard let snapshot else { return .unavailable }
-        if let error = snapshot.health.lastError, !error.isEmpty {
-            return .needsAttention
-        }
-        guard snapshot.health.running else { return .unavailable }
-        let runtime = runtimeRow(for: sourceKey)
-        let progressRows = progressRows(for: sourceKey)
-        let checkpointTerminal = progressRows.allSatisfy { isTerminalCheckpointStatus($0.status) }
-        let indexed = statsRow(for: sourceKey)?.documentCount ?? 0
-        if (runtime?.inFlightCount ?? 0) > 0 || (runtime?.queueDepth ?? 0) > 0 {
-            return .indexing
-        }
-        if !checkpointTerminal && !progressRows.isEmpty {
-            return .indexing
-        }
-        if (indexed > 0 || (runtime?.cumulativeProcessedCount ?? 0) > 0) && checkpointTerminal {
-            return .ready
-        }
-        return .notStarted
-    }
-
-    private func runtimeRow(for sourceKey: String) -> RetrievalSourceRuntimePayload? {
-        snapshot?.sourceRuntime.first(where: { $0.sourceType.lowercased() == sourceKey.lowercased() })
-    }
-
-    private func statsRow(for sourceKey: String) -> RetrievalSourceStatsPayload? {
-        snapshot?.indexStats.sources.first(where: { $0.sourceType.lowercased() == sourceKey.lowercased() })
-    }
-
-    private func progressRows(for sourceKey: String) -> [RetrievalProgressPayload] {
-        (snapshot?.progress ?? []).filter { $0.sourceType.lowercased() == sourceKey.lowercased() }
-    }
-
-    private func isTerminalCheckpointStatus(_ status: String) -> Bool {
-        let normalized = status.lowercased()
-        return normalized == "idle" || normalized == "completed" || normalized == "complete" || normalized == "paused"
-    }
-
-    private func emptySourceDetail(entry: RetrievalSidebarEntry, status: RetrievalIndexStatusKind) -> RetrievalSourceDetailModel {
-        RetrievalSourceDetailModel(
-            entry: entry,
-            status: status,
-            progress: 0,
-            indexedItems: 0,
-            queueDepth: 0,
-            inFlightCount: 0,
-            cumulativeProcessedCount: 0,
-            scopeCount: 0,
-            lastUpdatedAt: nil,
-            currentOperation: RetrievalOperationPayload.idle.rawValue.capitalized,
-            currentItemPath: nil,
-            scanCandidatesSeen: 0,
-            scanCandidatesSkippedExcluded: 0,
-            scanEventsEmitted: 0,
-            extractionSuccessCount: 0,
-            extractionPartialCount: 0,
-            extractionFailedCount: 0,
-            extractionUnsupportedCount: 0,
-            extractionOCRCount: 0
-        )
-    }
-}
-
-// MARK: - Payloads
-
-private struct RetrievalStatePayload: Decodable {
-    let health: RetrievalHealthPayloadV2
-    let progress: [RetrievalProgressPayload]
-    let indexStats: RetrievalIndexStatsPayloadV2
-    let queueActivity: RetrievalQueueActivityPayloadV2
-    let sourceRuntime: [RetrievalSourceRuntimePayload]
-    let currentOperation: String
-    let currentOperationSourceType: String?
-    let currentItemPath: String?
-    let updatedAt: Date
-}
-
-private struct RetrievalHealthPayloadV2: Decodable {
-    let daemonVersion: String?
-    let running: Bool
-    let queueDepth: Int
-    let inFlightCount: Int
-    let lastError: String?
-    let currentOperation: String
-    let currentOperationSourceType: String?
-    let currentItemPath: String?
-    let extractionSuccessCount: Int
-    let extractionPartialCount: Int
-    let extractionFailedCount: Int
-    let extractionUnsupportedCount: Int
-    let extractionOCRCount: Int
-}
-
-private struct RetrievalProgressPayload: Decodable {
-    let sourceType: String
-    let scopeLabel: String
-    let status: String
-    let itemsProcessed: Int
-    let itemsSkipped: Int
-    let estimatedTotal: Int
-    let percentComplete: Double
-    let etaSeconds: Int?
-    let checkpointUpdatedAt: Date
-}
-
-private struct RetrievalSourceStatsPayload: Decodable {
-    let sourceType: String
-    let documentCount: Int
-    let lastDocumentUpdatedAt: Date?
-}
-
-private struct RetrievalIndexStatsPayloadV2: Decodable {
-    let totalDocumentCount: Int
-    let sources: [RetrievalSourceStatsPayload]
-}
-
-private struct RetrievalQueueSourcePayload: Decodable {
-    let sourceType: String
-    let queuedItemCount: Int
-}
-
-private struct RetrievalQueueActivityPayloadV2: Decodable {
-    let queueDepth: Int
-    let sources: [RetrievalQueueSourcePayload]
-}
-
-private struct RetrievalSourceRuntimePayload: Decodable {
-    let sourceType: String
-    let queueDepth: Int
-    let inFlightCount: Int
-    let cumulativeProcessedCount: Int
-    let extractionSuccessCount: Int
-    let extractionPartialCount: Int
-    let extractionFailedCount: Int
-    let extractionUnsupportedCount: Int
-    let extractionOCRCount: Int
-    let lastScanCandidatesSeen: Int
-    let lastScanCandidatesSkippedExcluded: Int
-    let lastScanEventsEmitted: Int
-    let lastScanAt: Date?
-    let currentOperation: String
-    let currentItemPath: String?
-    let updatedAt: Date
-}
-
-private enum RetrievalOperationPayload: String {
-    case idle
-    case scanning
-    case extracting
-    case ingesting
-    case backfilling
 }

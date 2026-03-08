@@ -177,7 +177,7 @@ public actor DeviceSessionManager {
         // Clean up the pairing after a short delay (let the browser poll pick it up)
         Task {
             try? await Task.sleep(for: .seconds(30))
-            await self.removePairing(id: id)
+            self.removePairing(id: id)
         }
         
         return sessionToken
@@ -193,7 +193,7 @@ public actor DeviceSessionManager {
         // Clean up after a short delay
         Task {
             try? await Task.sleep(for: .seconds(10))
-            await self.removePairing(id: id)
+            self.removePairing(id: id)
         }
     }
     

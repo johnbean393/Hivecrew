@@ -16,7 +16,7 @@ import HivecrewLLM
 struct ProviderEditSheet: View {
     private static let oauthAuthAutoRefreshIntervalNanoseconds: UInt64 = 3_000_000_000
 
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \LLMProviderRecord.displayName) private var allProviders: [LLMProviderRecord]
 
@@ -32,10 +32,10 @@ struct ProviderEditSheet: View {
     @State private var existingAPIKey: String = ""
     @State private var organizationId: String = ""
 
-    @State private var oauthAuthState: CodexOAuthAuthState = .unauthenticated
-    @State private var oauthLoginId: String?
-    @State private var oauthLastAuthURL: String?
-    @State private var oauthAuthMessage: String?
+    @State var oauthAuthState: CodexOAuthAuthState = .unauthenticated
+    @State var oauthLoginId: String?
+    @State var oauthLastAuthURL: String?
+    @State var oauthAuthMessage: String?
 
     @State private var isDefault: Bool = false
     @State private var timeoutInterval: Double = 120.0
@@ -44,25 +44,25 @@ struct ProviderEditSheet: View {
     @State private var isTesting = false
     @State private var testResult: ConnectionTestResult?
 
-    @State private var isAuthenticatingOAuth = false
+    @State var isAuthenticatingOAuth = false
 
     var isEditing: Bool {
         provider != nil
     }
 
-    private var activeProviderId: String {
+    var activeProviderId: String {
         provider?.id ?? draftProviderId
     }
 
-    private var isCodexMode: Bool {
+    var isCodexMode: Bool {
         backendMode == .codexOAuth
     }
 
-    private var activeOAuthLoginId: String? {
+    var activeOAuthLoginId: String? {
         provider?.oauthLoginId ?? oauthLoginId
     }
 
-    private var shouldAutoRefreshOAuthAuth: Bool {
+    var shouldAutoRefreshOAuthAuth: Bool {
         isCodexMode && oauthAuthState == .pending && !isAuthenticatingOAuth
     }
 
@@ -215,93 +215,6 @@ struct ProviderEditSheet: View {
         }
     }
 
-    @ViewBuilder
-    private var oauthAuthContent: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(oauthStatusText)
-                    .font(.body)
-                    .foregroundStyle(oauthStatusColor)
-                if let oauthAuthMessage, !oauthAuthMessage.isEmpty {
-                    Text(oauthAuthMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            Button {
-                refreshOAuthStatus()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.borderless)
-            .help("Refresh auth status")
-            .disabled(isAuthenticatingOAuth)
-
-            if oauthAuthState == .authenticated {
-                Button("Disconnect") {
-                    logoutOAuth()
-                }
-                .disabled(isAuthenticatingOAuth)
-            } else {
-                Button {
-                    startOAuthAuth()
-                } label: {
-                    HStack(spacing: 6) {
-                        if isAuthenticatingOAuth {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .frame(width: 14, height: 14)
-                        }
-                        Image("OpenAILogo")
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
-                            .foregroundStyle(.primary)
-                        Text("Sign in with ChatGPT")
-                    }
-                }
-                .disabled(isAuthenticatingOAuth)
-                .buttonStyle(.borderedProminent)
-            }
-        }
-
-        if !isEditing {
-            Text("You can connect now. Auth state and tokens will be retained when you click Save.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var oauthStatusText: String {
-        switch oauthAuthState {
-        case .unauthenticated:
-            return "Not connected"
-        case .pending:
-            return "Waiting for ChatGPT sign-in"
-        case .authenticated:
-            return "Connected to ChatGPT"
-        case .failed:
-            return "Connection failed"
-        }
-    }
-
-    private var oauthStatusColor: Color {
-        switch oauthAuthState {
-        case .unauthenticated:
-            return .secondary
-        case .pending:
-            return .orange
-        case .authenticated:
-            return .green
-        case .failed:
-            return .red
-        }
-    }
-
     private var isValid: Bool {
         !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -436,103 +349,6 @@ struct ProviderEditSheet: View {
                 isTesting = false
             }
         }
-    }
-
-    private func startOAuthAuth() {
-        isAuthenticatingOAuth = true
-        oauthAuthMessage = nil
-
-        Task { @MainActor in
-            do {
-                let startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
-
-                persistOAuthStateIfNeeded(
-                    authState: .pending,
-                    loginId: startResult.loginId,
-                    authURL: startResult.authURL.absoluteString,
-                    message: startResult.message
-                )
-
-                NSWorkspace.shared.open(startResult.authURL)
-
-                oauthLoginId = startResult.loginId
-                oauthLastAuthURL = startResult.authURL.absoluteString
-                oauthAuthState = .pending
-                oauthAuthMessage = startResult.message
-                isAuthenticatingOAuth = false
-            } catch {
-                oauthAuthState = .failed
-                oauthAuthMessage = error.localizedDescription
-                isAuthenticatingOAuth = false
-                persistOAuthStateIfNeeded(
-                    authState: .failed,
-                    loginId: activeOAuthLoginId,
-                    authURL: oauthLastAuthURL,
-                    message: error.localizedDescription
-                )
-            }
-        }
-    }
-
-    private func refreshOAuthStatus() {
-        if isAuthenticatingOAuth {
-            return
-        }
-
-        isAuthenticatingOAuth = true
-
-        Task { @MainActor in
-            let snapshot = CodexOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
-
-            persistOAuthStateIfNeeded(
-                authState: snapshot.status,
-                loginId: snapshot.loginId,
-                authURL: snapshot.authURL?.absoluteString ?? oauthLastAuthURL,
-                message: snapshot.message
-            )
-
-            oauthAuthState = snapshot.status
-            oauthLoginId = snapshot.loginId
-            oauthLastAuthURL = snapshot.authURL?.absoluteString ?? oauthLastAuthURL
-            oauthAuthMessage = snapshot.message
-            isAuthenticatingOAuth = false
-        }
-    }
-
-    private func logoutOAuth() {
-        isAuthenticatingOAuth = true
-
-        Task { @MainActor in
-            CodexOAuthCoordinator.shared.logout(providerId: activeProviderId)
-
-            persistOAuthStateIfNeeded(
-                authState: .unauthenticated,
-                loginId: nil,
-                authURL: nil,
-                message: nil
-            )
-
-            oauthAuthState = .unauthenticated
-            oauthLoginId = nil
-            oauthLastAuthURL = nil
-            oauthAuthMessage = nil
-            isAuthenticatingOAuth = false
-        }
-    }
-
-    private func persistOAuthStateIfNeeded(
-        authState: CodexOAuthAuthState,
-        loginId: String?,
-        authURL: String?,
-        message: String?
-    ) {
-        guard let provider else { return }
-        provider.oauthAuthState = authState
-        provider.oauthLoginId = loginId
-        provider.oauthLastAuthURL = authURL
-        provider.oauthAuthUpdatedAt = Date()
-        provider.oauthAuthMessage = message
-        try? modelContext.save()
     }
 
     private func normalizedOptional(_ value: String) -> String? {
