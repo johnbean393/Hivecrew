@@ -184,13 +184,18 @@ final class AgentRunner {
             vmScheduler: vmToolScheduler,
             llmClientFactory: { modelOverride in
                 if let override = modelOverride, !override.isEmpty {
-                    return try await taskService.createLLMClient(providerId: task.providerId, modelId: override)
+                    return try await taskService.createLLMClient(
+                        providerId: task.providerId,
+                        modelId: override,
+                        serviceTier: task.serviceTier
+                    )
                 }
                 return try await taskService.createLLMClient(
                     providerId: task.providerId,
                     modelId: task.modelId,
                     reasoningEnabled: task.reasoningEnabled,
-                    reasoningEffort: task.reasoningEffort
+                    reasoningEffort: task.reasoningEffort,
+                    serviceTier: task.serviceTier
                 )
             },
             visionCapabilityResolver: { modelId, client in

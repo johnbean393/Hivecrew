@@ -15,6 +15,7 @@ struct PromptModelPopover: View {
     @Binding var selectedModelId: String
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
+    @Binding var serviceTier: LLMServiceTier?
     @Binding var copyCount: TaskCopyCount
     @Binding var useMultipleModels: Bool
     @Binding var multiModelSelections: [PromptModelSelection]
@@ -50,6 +51,10 @@ struct PromptModelPopover: View {
             return false
         }
         return host.contains("openrouter.ai")
+    }
+
+    var isCodexProvider: Bool {
+        selectedProvider?.backendMode == .codexOAuth
     }
     
     var popoverWidth: CGFloat {
@@ -119,6 +124,11 @@ struct PromptModelPopover: View {
             modelList
 
             Divider()
+
+            if isCodexProvider {
+                codexFastModeRow
+                Divider()
+            }
 
             multiModelToggleRow
         }
@@ -219,6 +229,19 @@ struct PromptModelPopover: View {
     private var multiModelToggleRow: some View {
         HStack(spacing: 0) {
             Toggle("Use Multiple Models", isOn: $useMultipleModels)
+                .font(.caption)
+                .fontWeight(.medium)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var codexFastModeRow: some View {
+        HStack(spacing: 0) {
+            Toggle("Fast Mode", isOn: codexFastModeBinding)
                 .font(.caption)
                 .fontWeight(.medium)
                 .toggleStyle(.switch)
@@ -614,6 +637,23 @@ struct PromptModelPopover: View {
         multiModelSelections[index].copyCount = copyCount
     }
 
+    private var codexFastModeBinding: Binding<Bool> {
+        Binding(
+            get: {
+                currentServiceTierForSelectedProvider() == .priority
+            },
+            set: { isEnabled in
+                let updatedTier: LLMServiceTier? = isEnabled ? .priority : nil
+                serviceTier = updatedTier
+
+                guard useMultipleModels else { return }
+                for index in multiModelSelections.indices where multiModelSelections[index].providerId == selectedProviderId {
+                    multiModelSelections[index].serviceTier = updatedTier
+                }
+            }
+        )
+    }
+
     private func reasoningToggleBinding(for model: LLMProviderModel) -> Binding<Bool> {
         Binding(
             get: {
@@ -685,6 +725,7 @@ struct PromptModelPopover: View {
         if useMultipleModels, let index = selectionIndex(for: selectedModelId) {
             multiModelSelections[index].reasoningEnabled = resolved.enabled
             multiModelSelections[index].reasoningEffort = resolved.effort
+            multiModelSelections[index].serviceTier = currentServiceTierForSelectedProvider()
         } else {
             reasoningEnabled = resolved.enabled
             reasoningEffort = resolved.effort
@@ -722,7 +763,8 @@ struct PromptModelPopover: View {
                     PromptModelSelection(
                         providerId: selectedProviderId,
                         modelId: model.id,
-                        copyCount: copyCount
+                        copyCount: copyCount,
+                        serviceTier: isCodexProvider ? currentServiceTierForSelectedProvider() : nil
                     )
                 )
             }
@@ -744,6 +786,19 @@ struct PromptModelPopover: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             isPresented = false
         }
+    }
+
+    private func currentServiceTierForSelectedProvider() -> LLMServiceTier? {
+        guard isCodexProvider else { return nil }
+        if useMultipleModels {
+            let providerSelections = multiModelSelections.filter { $0.providerId == selectedProviderId }
+            if !providerSelections.isEmpty {
+                if providerSelections.allSatisfy({ $0.serviceTier == .priority }) {
+                    return .priority
+                }
+            }
+        }
+        return serviceTier
     }
 
     private func scheduleHoverPanelOpen(for model: LLMProviderModel) {

@@ -164,7 +164,8 @@ final class LLMProviderRecord {
         model: String,
         apiKey: String,
         reasoningEnabled: Bool? = nil,
-        reasoningEffort: String? = nil
+        reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil
     ) -> LLMConfiguration {
         LLMConfiguration(
             id: id,
@@ -177,7 +178,8 @@ final class LLMProviderRecord {
             authMode: authMode,
             timeoutInterval: timeoutInterval,
             reasoningEnabled: reasoningEnabled,
-            reasoningEffort: reasoningEffort
+            reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier
         )
     }
 }

@@ -45,13 +45,9 @@ public class SkillManager: ObservableObject {
         "doc-coauthoring",
         "docx",
         "frontend-design",
-        "internal-comms",
-        "mcp-builder",
         "pdf",
         "pptx",
-        "slack-gif-creator",
         "theme-factory",
-        "web-artifacts-builder",
         "webapp-testing",
         "xlsx"
     ]
@@ -62,12 +58,9 @@ public class SkillManager: ObservableObject {
         ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/analyzing-financial-statements", "analyzing-financial-statements"),
         ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/applying-brand-guidelines", "applying-brand-guidelines"),
         ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/creating-financial-models", "creating-financial-models"),
-        ("https://github.com/ryanbbrown/revealjs-skill/tree/main/skills/revealjs", "revealjs"),
-        ("https://github.com/coffeefuelbump/csv-data-summarizer-claude-skill", "csv-data-summarizer-claude-skill"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/biopython", "biopython"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/clinical-reports", "clinical-reports"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/clinical-decision-support", "clinical-decision-support"),
-        ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/latex-posters", "latex-posters"),
         ("https://github.com/K-Dense-AI/claude-scientific-skills/tree/main/scientific-skills/market-research-reports", "market-research-reports"),
     ]
     
@@ -79,7 +72,7 @@ public class SkillManager: ObservableObject {
             // First ensure all default skills are installed (downloads any missing defaults)
             await bootstrapDefaultSkillsIfNeeded()
             // Then load all skills
-            try? await loadAllSkills()
+            let _ = try? await loadAllSkills()
         }
     }
     

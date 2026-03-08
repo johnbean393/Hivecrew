@@ -43,6 +43,34 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(reasoning["effort"] as? String, "medium")
     }
 
+    func testCodexOAuthResponsesBodyAddsServiceTierWhenConfigured() throws {
+        let body = try buildResponsesRequestBodyForTests(
+            model: "gpt-5.4",
+            backendMode: .codexOAuth,
+            authMode: .chatGPTOAuth,
+            serviceTier: .priority,
+            messages: [.user("Hello")],
+            tools: nil,
+            stream: false
+        )
+
+        XCTAssertEqual(body["service_tier"] as? String, "priority")
+    }
+
+    func testResponsesBodyOmitsServiceTierForNonCodexBackends() throws {
+        let body = try buildResponsesRequestBodyForTests(
+            model: "gpt-5.4",
+            backendMode: .responses,
+            authMode: .apiKey,
+            serviceTier: .priority,
+            messages: [.user("Hello")],
+            tools: nil,
+            stream: false
+        )
+
+        XCTAssertNil(body["service_tier"])
+    }
+
     func testResponsesBodyOmitsReasoningWhenUnset() throws {
         let body = try buildResponsesRequestBodyForTests(
             model: "gpt-5-codex",

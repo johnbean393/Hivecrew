@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import Combine
 import UserNotifications
+import HivecrewLLM
 
 /// Service that monitors scheduled tasks and triggers them when due
 @MainActor
@@ -138,6 +139,7 @@ class SchedulerService: ObservableObject {
                 modelId: schedule.modelId,
                 reasoningEnabled: schedule.reasoningEnabled,
                 reasoningEffort: schedule.reasoningEffort,
+                serviceTier: schedule.serviceTier,
                 attachedFilePaths: schedule.attachedFilePaths,
                 outputDirectory: schedule.outputDirectory,
                 mentionedSkillNames: schedule.mentionedSkillNames ?? []
@@ -186,6 +188,7 @@ class SchedulerService: ObservableObject {
         modelId: String,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil,
         attachedFilePaths: [String] = [],
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
@@ -204,6 +207,7 @@ class SchedulerService: ObservableObject {
             modelId: modelId,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier,
             attachedFilePaths: attachedFilePaths,
             outputDirectory: outputDirectory,
             mentionedSkillNames: mentionedSkillNames,

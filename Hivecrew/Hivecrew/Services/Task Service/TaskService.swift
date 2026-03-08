@@ -19,6 +19,7 @@ struct TaskCreationRequest {
     let modelId: String
     let reasoningEnabled: Bool?
     let reasoningEffort: String?
+    let serviceTier: LLMServiceTier?
     let attachedFilePaths: [String]
     let attachmentInfos: [AttachmentInfo]?
     let outputDirectory: String?
@@ -114,6 +115,7 @@ class TaskService: ObservableObject {
         modelId: String,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil,
         attachedFilePaths: [String] = [],
         attachmentInfos: [AttachmentInfo]? = nil,
         outputDirectory: String? = nil,
@@ -133,6 +135,7 @@ class TaskService: ObservableObject {
             modelId: modelId,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier,
             attachedFilePaths: attachedFilePaths,
             attachmentInfos: attachmentInfos,
             outputDirectory: outputDirectory,
@@ -198,6 +201,7 @@ class TaskService: ObservableObject {
                 modelId: request.modelId,
                 reasoningEnabled: request.reasoningEnabled,
                 reasoningEffort: request.reasoningEffort,
+                serviceTier: request.serviceTier,
                 attachmentInfos: preparedInfos,
                 outputDirectory: request.outputDirectory,
                 mentionedSkillNames: request.mentionedSkillNames.isEmpty ? nil : request.mentionedSkillNames,
@@ -276,7 +280,8 @@ class TaskService: ObservableObject {
         providerId: String,
         modelId: String,
         reasoningEnabled: Bool? = nil,
-        reasoningEffort: String? = nil
+        reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil
     ) async throws -> TaskRecord {
         // Prepare attachment infos for rerun (validates files exist, keeps references)
         // Actual copying happens when the new session starts
@@ -289,6 +294,7 @@ class TaskService: ObservableObject {
             modelId: modelId,
             reasoningEnabled: reasoningEnabled ?? originalTask.reasoningEnabled,
             reasoningEffort: reasoningEffort ?? originalTask.reasoningEffort,
+            serviceTier: serviceTier ?? originalTask.serviceTier,
             attachmentInfos: newInfos.isEmpty ? nil : newInfos
         )
     }
@@ -321,6 +327,7 @@ class TaskService: ObservableObject {
         modelId: String,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil,
         withResolvedAttachments resolvedAttachments: [AttachmentInfo]
     ) async throws -> TaskRecord {
         return try await createRerunTask(
@@ -329,6 +336,7 @@ class TaskService: ObservableObject {
             modelId: modelId,
             reasoningEnabled: reasoningEnabled ?? originalTask.reasoningEnabled,
             reasoningEffort: reasoningEffort ?? originalTask.reasoningEffort,
+            serviceTier: serviceTier ?? originalTask.serviceTier,
             attachmentInfos: resolvedAttachments.isEmpty ? nil : resolvedAttachments
         )
     }
@@ -340,6 +348,7 @@ class TaskService: ObservableObject {
         modelId: String,
         reasoningEnabled: Bool?,
         reasoningEffort: String?,
+        serviceTier: LLMServiceTier?,
         attachmentInfos: [AttachmentInfo]?
     ) async throws -> TaskRecord {
         // If the original task had a plan, reuse it to skip the planning phase
@@ -350,6 +359,7 @@ class TaskService: ObservableObject {
             modelId: modelId,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier,
             attachmentInfos: attachmentInfos,
             outputDirectory: originalTask.outputDirectory,
             mentionedSkillNames: originalTask.mentionedSkillNames ?? [],

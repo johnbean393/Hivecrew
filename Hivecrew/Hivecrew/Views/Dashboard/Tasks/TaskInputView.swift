@@ -26,6 +26,7 @@ struct TaskInputView: View {
     @State private var multiModelSelections: [PromptModelSelection] = []
     @State private var reasoningEnabled: Bool?
     @State private var reasoningEffort: String?
+    @State private var serviceTier: LLMServiceTier?
     @StateObject private var contextProvider = PromptContextSuggestionProvider()
     @State private var hasDonatedGhostContextTip = false
     
@@ -34,6 +35,7 @@ struct TaskInputView: View {
     @AppStorage("lastSelectedModelId") private var selectedModelId: String = ""
     @AppStorage("useMultiplePromptModels") private var useMultiplePromptModels: Bool = false
     @AppStorage("promptModelSelections") private var promptModelSelectionsData: String = ""
+    @AppStorage("promptServiceTierSelections") private var promptServiceTierSelectionsData: String = ""
     @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
     @AppStorage("workerModelId") private var workerModelId: String?
     
@@ -58,6 +60,7 @@ struct TaskInputView: View {
                 selectedModelId: $selectedModelId,
                 reasoningEnabled: $reasoningEnabled,
                 reasoningEffort: $reasoningEffort,
+                serviceTier: $serviceTier,
                 copyCount: $copyCount,
                 useMultipleModels: $useMultiplePromptModels,
                 multiModelSelections: $multiModelSelections,
@@ -90,6 +93,7 @@ struct TaskInputView: View {
             contextProvider.updateDraft(taskDescription)
             loadPromptModelSelections()
             normalizePromptModelSelections()
+            restorePersistedServiceTierForSelectedProvider()
         }
         .onChange(of: providers) { _, newValue in
             // Update if no provider selected or stored provider was deleted.
@@ -99,6 +103,7 @@ struct TaskInputView: View {
                 selectedProviderId = first.id
             }
             normalizePromptModelSelections()
+            restorePersistedServiceTierForSelectedProvider()
         }
         .onChange(of: taskDescription) { _, newValue in
             contextProvider.updateDraft(newValue)
@@ -117,6 +122,10 @@ struct TaskInputView: View {
         }
         .onChange(of: selectedProviderId) { _, _ in
             normalizePromptModelSelections()
+            restorePersistedServiceTierForSelectedProvider()
+        }
+        .onChange(of: serviceTier) { _, newValue in
+            persistServiceTier(newValue, for: selectedProviderId)
         }
     }
     
@@ -181,6 +190,7 @@ struct TaskInputView: View {
                         modelId: target.modelId,
                         reasoningEnabled: target.reasoningEnabled,
                         reasoningEffort: target.reasoningEffort,
+                        serviceTier: target.serviceTier,
                         attachedFilePaths: filePaths,
                         attachmentInfos: nil,
                         outputDirectory: nil,
@@ -220,7 +230,7 @@ struct TaskInputView: View {
     private func resolvedExecutionTargets(
         effectiveProviderId: String,
         effectiveModelId: String
-    ) -> [(providerId: String, modelId: String, copyCount: Int, reasoningEnabled: Bool?, reasoningEffort: String?)] {
+    ) -> [(providerId: String, modelId: String, copyCount: Int, reasoningEnabled: Bool?, reasoningEffort: String?, serviceTier: LLMServiceTier?)] {
         if useMultiplePromptModels {
             let deduped = normalizedSelections(
                 deduplicatedSelections(multiModelSelections),
@@ -235,7 +245,8 @@ struct TaskInputView: View {
                         modelId: selection.modelId,
                         copyCount: selection.copyCount.rawValue,
                         reasoningEnabled: selection.reasoningEnabled,
-                        reasoningEffort: selection.reasoningEffort
+                        reasoningEffort: selection.reasoningEffort,
+                        serviceTier: selection.serviceTier
                     )
                 }
             if !targets.isEmpty {
@@ -248,7 +259,8 @@ struct TaskInputView: View {
             modelId: effectiveModelId,
             copyCount: copyCount.rawValue,
             reasoningEnabled: reasoningEnabled,
-            reasoningEffort: reasoningEffort
+            reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier
         )]
     }
 
@@ -326,9 +338,62 @@ struct TaskInputView: View {
                 modelId: selection.modelId,
                 copyCount: selection.copyCount,
                 reasoningEnabled: selection.reasoningEnabled,
-                reasoningEffort: selection.reasoningEffort
+                reasoningEffort: selection.reasoningEffort,
+                serviceTier: resolvedServiceTier(
+                    selection.serviceTier,
+                    for: resolvedProviderId
+                )
             )
         }
+    }
+
+    private func restorePersistedServiceTierForSelectedProvider() {
+        let restoredTier = persistedServiceTier(for: selectedProviderId)
+        if serviceTier != restoredTier {
+            serviceTier = restoredTier
+        }
+    }
+
+    private func persistServiceTier(_ tier: LLMServiceTier?, for providerId: String) {
+        let trimmedProviderId = providerId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedProviderId.isEmpty else { return }
+
+        var storedSelections = persistedServiceTierSelections()
+        if let tier, isCodexProvider(id: trimmedProviderId) {
+            storedSelections[trimmedProviderId] = tier.rawValue
+        } else {
+            storedSelections.removeValue(forKey: trimmedProviderId)
+        }
+
+        guard let data = try? JSONEncoder().encode(storedSelections),
+              let encoded = String(data: data, encoding: .utf8) else {
+            promptServiceTierSelectionsData = ""
+            return
+        }
+        promptServiceTierSelectionsData = encoded
+    }
+
+    private func persistedServiceTier(for providerId: String) -> LLMServiceTier? {
+        guard isCodexProvider(id: providerId) else { return nil }
+        guard let rawValue = persistedServiceTierSelections()[providerId] else { return nil }
+        return LLMServiceTier(rawValue: rawValue)
+    }
+
+    private func persistedServiceTierSelections() -> [String: String] {
+        let raw = promptServiceTierSelectionsData.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty, let data = raw.data(using: .utf8) else {
+            return [:]
+        }
+        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    private func resolvedServiceTier(_ currentTier: LLMServiceTier?, for providerId: String) -> LLMServiceTier? {
+        guard isCodexProvider(id: providerId) else { return nil }
+        return currentTier ?? persistedServiceTier(for: providerId)
+    }
+
+    private func isCodexProvider(id: String) -> Bool {
+        providers.first(where: { $0.id == id })?.backendMode == .codexOAuth
     }
 
     private func syncContextAttachmentsIntoPromptBar() {

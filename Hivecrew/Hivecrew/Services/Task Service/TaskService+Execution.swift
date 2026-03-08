@@ -134,7 +134,8 @@ extension TaskService {
                     providerId: task.providerId,
                     modelId: task.modelId,
                     reasoningEnabled: task.reasoningEnabled,
-                    reasoningEffort: task.reasoningEffort
+                    reasoningEffort: task.reasoningEffort,
+                    serviceTier: task.serviceTier
                 )
             }
             
@@ -871,7 +872,8 @@ extension TaskService {
                 providerId: task.providerId,
                 modelId: task.modelId,
                 reasoningEnabled: task.reasoningEnabled,
-                reasoningEffort: task.reasoningEffort
+                reasoningEffort: task.reasoningEffort,
+                serviceTier: task.serviceTier
             )
             
             // Create planning agent

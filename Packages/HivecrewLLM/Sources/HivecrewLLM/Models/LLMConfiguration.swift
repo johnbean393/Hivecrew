@@ -125,6 +125,14 @@ public enum LLMAuthMode: String, Sendable, Codable, CaseIterable {
     case chatGPTOAuth = "chatgpt_oauth"
 }
 
+public enum LLMServiceTier: String, Sendable, Codable, CaseIterable {
+    case auto
+    case `default`
+    case flex
+    case scale
+    case priority
+}
+
 // MARK: - Configuration
 
 /// Configuration for connecting to an LLM provider
@@ -162,6 +170,9 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
 
     /// Optional reasoning effort for providers that expose explicit effort levels.
     public let reasoningEffort: String?
+
+    /// Optional request processing tier for providers that expose service tiers.
+    public let serviceTier: LLMServiceTier?
 
     /// Default timeout interval for non-reasoning requests.
     public static let defaultTimeout: TimeInterval = 300.0
@@ -208,7 +219,8 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
         authMode: LLMAuthMode = .apiKey,
         timeoutInterval: TimeInterval = LLMConfiguration.defaultTimeout,
         reasoningEnabled: Bool? = nil,
-        reasoningEffort: String? = nil
+        reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -221,6 +233,7 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
         self.timeoutInterval = timeoutInterval
         self.reasoningEnabled = reasoningEnabled
         self.reasoningEffort = reasoningEffort
+        self.serviceTier = serviceTier
     }
 
     /// Extract host from baseURL if provided

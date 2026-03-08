@@ -126,7 +126,8 @@ extension TaskService {
         providerId: String,
         modelId: String,
         reasoningEnabled: Bool? = nil,
-        reasoningEffort: String? = nil
+        reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil
     ) async throws -> any LLMClientProtocol {
         guard let context = modelContext else {
             throw TaskServiceError.noModelContext
@@ -167,7 +168,8 @@ extension TaskService {
                 reasoningEffort: reasoningEffort
             ),
             reasoningEnabled: reasoningEnabled,
-            reasoningEffort: reasoningEffort
+            reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier
         )
         return LLMService.shared.createClient(from: config)
     }

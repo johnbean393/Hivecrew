@@ -92,6 +92,7 @@ struct PromptBar: View {
     @Binding var selectedModelId: String
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
+    @Binding var serviceTier: LLMServiceTier?
     
     // Copy count selection state
     @Binding var copyCount: TaskCopyCount
@@ -314,6 +315,7 @@ struct PromptBar: View {
                         selectedModelId: $selectedModelId,
                         reasoningEnabled: $reasoningEnabled,
                         reasoningEffort: $reasoningEffort,
+                        serviceTier: $serviceTier,
                         copyCount: $copyCount,
                         useMultipleModels: $useMultipleModels,
                         multiModelSelections: $multiModelSelections,
@@ -860,6 +862,7 @@ struct PromptReasoningButton: View {
         @State var attachments: [PromptAttachment] = []
         @State var providerId = ""
         @State var modelId = ""
+        @State var serviceTier: LLMServiceTier?
         @State var copyCount: TaskCopyCount = .one
         @State var useMultipleModels = false
         @State var multiModelSelections: [PromptModelSelection] = []
@@ -879,6 +882,7 @@ struct PromptReasoningButton: View {
                     selectedModelId: $modelId,
                     reasoningEnabled: .constant(nil),
                     reasoningEffort: .constant(nil),
+                    serviceTier: $serviceTier,
                     copyCount: $copyCount,
                     useMultipleModels: $useMultipleModels,
                     multiModelSelections: $multiModelSelections,

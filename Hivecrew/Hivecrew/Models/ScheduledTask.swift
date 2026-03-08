@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import HivecrewLLM
 
 /// Type of schedule
 enum ScheduleType: Int, Codable, CaseIterable {
@@ -129,6 +130,9 @@ final class ScheduledTask {
 
     /// Optional reasoning effort persisted for models with explicit effort support.
     var reasoningEffort: String?
+
+    /// Optional service tier persisted for providers that expose serving tiers.
+    var serviceTier: LLMServiceTier?
     
     /// Paths to files attached to this task
     var attachedFilePaths: [String]
@@ -174,6 +178,7 @@ final class ScheduledTask {
         modelId: String,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil,
         attachedFilePaths: [String] = [],
         outputDirectory: String? = nil,
         mentionedSkillNames: [String]? = nil,
@@ -190,6 +195,7 @@ final class ScheduledTask {
         self.modelId = modelId
         self.reasoningEnabled = reasoningEnabled
         self.reasoningEffort = reasoningEffort
+        self.serviceTier = serviceTier
         self.attachedFilePaths = attachedFilePaths
         self.outputDirectory = outputDirectory
         self.mentionedSkillNames = mentionedSkillNames

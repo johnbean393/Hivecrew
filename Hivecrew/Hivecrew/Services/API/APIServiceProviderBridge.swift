@@ -114,6 +114,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                     modelId: target.modelId,
                     reasoningEnabled: target.reasoningEnabled,
                     reasoningEffort: target.reasoningEffort,
+                    serviceTier: nil,
                     attachedFilePaths: attachedFilePaths,
                     attachmentInfos: nil,
                     outputDirectory: nil,

@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import HivecrewLLM
 
 /// Status of a task in the queue/execution lifecycle
 enum TaskStatus: Int, Codable, CaseIterable {
@@ -106,6 +107,9 @@ final class TaskRecord {
 
     /// Optional reasoning effort persisted for models with explicit effort support.
     var reasoningEffort: String?
+
+    /// Optional service tier persisted for providers that expose serving tiers.
+    var serviceTier: LLMServiceTier?
     
     /// Summary of the task result (on completion)
     var resultSummary: String?
@@ -254,6 +258,7 @@ final class TaskRecord {
         modelId: String,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil,
         resultSummary: String? = nil,
         errorMessage: String? = nil,
         attachedFilePaths: [String] = [],
@@ -284,6 +289,7 @@ final class TaskRecord {
         self.modelId = modelId
         self.reasoningEnabled = reasoningEnabled
         self.reasoningEffort = reasoningEffort
+        self.serviceTier = serviceTier
         self.resultSummary = resultSummary
         self.errorMessage = errorMessage
         self.outputFilePaths = outputFilePaths

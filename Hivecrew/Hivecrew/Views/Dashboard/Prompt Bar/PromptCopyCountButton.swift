@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import HivecrewLLM
 
 /// Options for number of task copies to create
 enum TaskCopyCount: Int, CaseIterable, Identifiable, Codable {
@@ -44,6 +45,7 @@ struct PromptModelSelection: Codable, Identifiable, Hashable {
     var copyCount: TaskCopyCount
     var reasoningEnabled: Bool? = nil
     var reasoningEffort: String? = nil
+    var serviceTier: LLMServiceTier? = nil
 
     var id: String {
         "\(providerId)::\(modelId)"

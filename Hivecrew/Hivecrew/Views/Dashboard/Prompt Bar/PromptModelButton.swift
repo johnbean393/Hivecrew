@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import HivecrewLLM
 
 /// A capsule-styled button for selecting the LLM model, similar to the Search button design
 struct PromptModelButton: View {
@@ -14,6 +15,7 @@ struct PromptModelButton: View {
     @Binding var selectedModelId: String
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
+    @Binding var serviceTier: LLMServiceTier?
     @Binding var copyCount: TaskCopyCount
     @Binding var useMultipleModels: Bool
     @Binding var multiModelSelections: [PromptModelSelection]
@@ -24,6 +26,10 @@ struct PromptModelButton: View {
     
     var selectedProvider: LLMProviderRecord? {
         providers.first(where: { $0.id == selectedProviderId })
+    }
+
+    var isCodexProvider: Bool {
+        selectedProvider?.backendMode == .codexOAuth
     }
     
     var displayText: String {
@@ -51,6 +57,19 @@ struct PromptModelButton: View {
             return !multiModelSelections.isEmpty
         }
         return !selectedProviderId.isEmpty && !selectedModelId.isEmpty
+    }
+
+    var showsFastModeBadge: Bool {
+        guard isCodexProvider else { return false }
+        if useMultipleModels {
+            let providerSelections = multiModelSelections.filter { $0.providerId == selectedProviderId }
+            if !providerSelections.isEmpty {
+                if providerSelections.allSatisfy({ $0.serviceTier == .priority }) {
+                    return true
+                }
+            }
+        }
+        return serviceTier == .priority
     }
     
     /// Use accent color only when focused and has a valid selection
@@ -80,8 +99,7 @@ struct PromptModelButton: View {
             showingPopover = true
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "brain")
-                    .font(.caption)
+                modelIcon
                 Text(displayText)
                     .font(.caption)
                     .lineLimit(1)
@@ -100,6 +118,7 @@ struct PromptModelButton: View {
                 selectedModelId: $selectedModelId,
                 reasoningEnabled: $reasoningEnabled,
                 reasoningEffort: $reasoningEffort,
+                serviceTier: $serviceTier,
                 copyCount: $copyCount,
                 useMultipleModels: $useMultipleModels,
                 multiModelSelections: $multiModelSelections,
@@ -118,6 +137,21 @@ struct PromptModelButton: View {
                 .fill(bubbleBorderColor)
         }
     }
+
+    private var modelIcon: some View {
+        ZStack {
+            Image(systemName: "brain")
+                .font(.caption)
+                .opacity(showsFastModeBadge ? 0.6 : 1)
+
+            if showsFastModeBadge {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 7, weight: .bold))
+                    .offset(x: 4, y: -4)
+            }
+        }
+        .frame(width: 14, height: 14)
+    }
 }
 
 // MARK: - Preview
@@ -126,6 +160,7 @@ struct PromptModelButton: View {
     struct PreviewWrapper: View {
         @State private var providerId = "test"
         @State private var modelId = "moonshotai/kimi-k2.5"
+        @State private var serviceTier: LLMServiceTier?
         @State private var copyCount: TaskCopyCount = .one
         @State private var useMultipleModels = false
         @State private var multiSelections: [PromptModelSelection] = []
@@ -136,6 +171,7 @@ struct PromptModelButton: View {
                 selectedModelId: $modelId,
                 reasoningEnabled: .constant(nil),
                 reasoningEffort: .constant(nil),
+                serviceTier: $serviceTier,
                 copyCount: $copyCount,
                 useMultipleModels: $useMultipleModels,
                 multiModelSelections: $multiSelections,

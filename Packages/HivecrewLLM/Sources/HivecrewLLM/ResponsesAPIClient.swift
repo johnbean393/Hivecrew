@@ -417,6 +417,11 @@ private extension ResponsesAPIClient {
             body["reasoning"] = ["enabled": true]
         }
 
+        if configuration.backendMode == .codexOAuth,
+           let serviceTier = configuration.serviceTier {
+            body["service_tier"] = serviceTier.rawValue
+        }
+
         return body
     }
 
@@ -565,6 +570,7 @@ func buildResponsesRequestBodyForTests(
     authMode: LLMAuthMode = .apiKey,
     reasoningEnabled: Bool? = nil,
     reasoningEffort: String? = nil,
+    serviceTier: LLMServiceTier? = nil,
     messages: [LLMMessage],
     tools: [LLMToolDefinition]?,
     stream: Bool
@@ -579,7 +585,8 @@ func buildResponsesRequestBodyForTests(
         backendMode: backendMode,
         authMode: authMode,
         reasoningEnabled: reasoningEnabled,
-        reasoningEffort: reasoningEffort
+        reasoningEffort: reasoningEffort,
+        serviceTier: serviceTier
     )
     let client = ResponsesAPIClient(configuration: configuration)
     return try client.buildRequestBody(messages: messages, tools: tools, stream: stream)
