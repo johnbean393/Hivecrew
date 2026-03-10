@@ -9,6 +9,68 @@ import Foundation
 import SwiftUI
 import HivecrewLLM
 
+private enum ModelSelectionDefaultsKeys {
+    static let lastSelectedProviderId = "lastSelectedProviderId"
+    static let lastSelectedModelId = "lastSelectedModelId"
+    static let lastSelectedModelIdsByProvider = "lastSelectedModelIdsByProvider"
+}
+
+private func normalizedModelSelectionValue(_ value: String?) -> String {
+    (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+extension UserDefaults {
+    func persistedModelId(for providerId: String) -> String? {
+        let normalizedProviderId = normalizedModelSelectionValue(providerId)
+        guard !normalizedProviderId.isEmpty else { return nil }
+
+        if let storedModelId = persistedModelIdsByProvider()[normalizedProviderId],
+           !storedModelId.isEmpty {
+            return storedModelId
+        }
+
+        let currentProviderId = normalizedModelSelectionValue(
+            string(forKey: ModelSelectionDefaultsKeys.lastSelectedProviderId)
+        )
+        guard currentProviderId == normalizedProviderId else { return nil }
+
+        let currentModelId = normalizedModelSelectionValue(
+            string(forKey: ModelSelectionDefaultsKeys.lastSelectedModelId)
+        )
+        return currentModelId.isEmpty ? nil : currentModelId
+    }
+
+    func setPersistedModelId(_ modelId: String, for providerId: String) {
+        let normalizedProviderId = normalizedModelSelectionValue(providerId)
+        guard !normalizedProviderId.isEmpty else { return }
+
+        let normalizedModelId = normalizedModelSelectionValue(modelId)
+        var storedModelIds = persistedModelIdsByProvider()
+
+        if normalizedModelId.isEmpty {
+            storedModelIds.removeValue(forKey: normalizedProviderId)
+        } else {
+            storedModelIds[normalizedProviderId] = normalizedModelId
+        }
+
+        set(storedModelIds, forKey: ModelSelectionDefaultsKeys.lastSelectedModelIdsByProvider)
+    }
+
+    private func persistedModelIdsByProvider() -> [String: String] {
+        guard let rawSelections = dictionary(forKey: ModelSelectionDefaultsKeys.lastSelectedModelIdsByProvider) else {
+            return [:]
+        }
+
+        return rawSelections.reduce(into: [:]) { partialResult, entry in
+            guard let modelId = entry.value as? String else { return }
+            let normalizedProviderId = normalizedModelSelectionValue(entry.key)
+            let normalizedModelId = normalizedModelSelectionValue(modelId)
+            guard !normalizedProviderId.isEmpty, !normalizedModelId.isEmpty else { return }
+            partialResult[normalizedProviderId] = normalizedModelId
+        }
+    }
+}
+
 // MARK: - Provider Presets
 
 /// Preset LLM provider configurations

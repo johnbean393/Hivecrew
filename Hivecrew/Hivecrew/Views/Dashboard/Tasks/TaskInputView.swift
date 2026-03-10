@@ -94,6 +94,7 @@ struct TaskInputView: View {
                let defaultProvider = providers.first(where: { $0.isDefault }) ?? providers.first {
                 selectedProviderId = defaultProvider.id
             }
+            restorePersistedModelForSelectedProvider()
             contextProvider.setWorkerClientProvider(taskService)
             contextProvider.updateDraft(taskDescription)
             loadPromptModelSelections()
@@ -107,6 +108,7 @@ struct TaskInputView: View {
                let first = newValue.first(where: { $0.isDefault }) ?? newValue.first {
                 selectedProviderId = first.id
             }
+            restorePersistedModelForSelectedProvider()
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
         }
@@ -126,6 +128,7 @@ struct TaskInputView: View {
             persistPromptModelSelections()
         }
         .onChange(of: selectedProviderId) { _, _ in
+            restorePersistedModelForSelectedProvider()
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
         }
@@ -160,8 +163,8 @@ struct TaskInputView: View {
         defer { isSubmitting = false }
         
         // Read directly from UserDefaults to ensure we have the latest value
-        let currentModelId = UserDefaults.standard.string(forKey: "lastSelectedModelId") ?? selectedModelId
         let currentProviderId = UserDefaults.standard.string(forKey: "lastSelectedProviderId") ?? selectedProviderId
+        let currentModelId = UserDefaults.standard.persistedModelId(for: currentProviderId) ?? selectedModelId
         
         let effectiveModelId = currentModelId.isEmpty ? "moonshotai/kimi-k2.5" : currentModelId
         let effectiveProviderId = currentProviderId.isEmpty ? selectedProviderId : currentProviderId

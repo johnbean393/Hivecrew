@@ -5,6 +5,13 @@ import HivecrewShared
 import HivecrewLLM
 
 extension ScheduleCreationSheet {
+    func restorePersistedModelForSelectedProvider() {
+        let restoredModelId = UserDefaults.standard.persistedModelId(for: selectedProviderId) ?? ""
+        if selectedModelId != restoredModelId {
+            selectedModelId = restoredModelId
+        }
+    }
+
     func toggleSkill(_ skillName: String) {
         if mentionedSkillNames.contains(skillName) {
             mentionedSkillNames.removeAll { $0 == skillName }
@@ -166,7 +173,7 @@ extension ScheduleCreationSheet {
         }
 
         if selectedModelId.isEmpty {
-            selectedModelId = UserDefaults.standard.string(forKey: "lastSelectedModelId") ?? "moonshotai/kimi-k2.5"
+            selectedModelId = UserDefaults.standard.persistedModelId(for: selectedProviderId) ?? "moonshotai/kimi-k2.5"
         }
         synchronizeReasoningSelection()
     }

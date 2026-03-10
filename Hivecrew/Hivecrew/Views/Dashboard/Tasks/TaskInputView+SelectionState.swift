@@ -3,6 +3,13 @@ import HivecrewLLM
 import SwiftUI
 
 extension TaskInputView {
+    func restorePersistedModelForSelectedProvider() {
+        let restoredModelId = UserDefaults.standard.persistedModelId(for: selectedProviderId) ?? ""
+        if selectedModelId != restoredModelId {
+            selectedModelId = restoredModelId
+        }
+    }
+
     func resolvedExecutionTargets(
         effectiveProviderId: String,
         effectiveModelId: String

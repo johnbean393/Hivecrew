@@ -184,17 +184,7 @@ struct PromptModelPopover: View {
         
         return Button(action: {
             selectedProviderId = provider.id
-            
-            // Force UserDefaults to synchronize immediately
-            UserDefaults.standard.set(provider.id, forKey: "lastSelectedProviderId")
-            UserDefaults.standard.synchronize()
-            
-            if !useMultipleModels {
-                // Clear the model selection when switching providers in single mode.
-                selectedModelId = ""
-                UserDefaults.standard.set("", forKey: "lastSelectedModelId")
-                UserDefaults.standard.synchronize()
-            }
+            selectedModelId = UserDefaults.standard.persistedModelId(for: provider.id) ?? ""
         }) {
             Text(provider.displayName)
                 .font(.caption)
@@ -769,17 +759,13 @@ struct PromptModelPopover: View {
                 )
             }
             selectedModelId = model.id
-            UserDefaults.standard.set(model.id, forKey: "lastSelectedModelId")
-            UserDefaults.standard.synchronize()
+            UserDefaults.standard.setPersistedModelId(model.id, for: selectedProviderId)
             synchronizeReasoningSelectionForCurrentModel()
             return
         }
 
         selectedModelId = model.id
-
-        // Force UserDefaults to synchronize immediately
-        UserDefaults.standard.set(model.id, forKey: "lastSelectedModelId")
-        UserDefaults.standard.synchronize()
+        UserDefaults.standard.setPersistedModelId(model.id, for: selectedProviderId)
         synchronizeReasoningSelectionForCurrentModel()
 
         // Dismiss after a small delay to ensure the binding propagates
@@ -861,7 +847,6 @@ struct PromptModelPopover: View {
             guard let stored = provider.retrieveAPIKey() else {
                 errorMessage = "No API key configured"
                 availableModels = []
-                selectedModelId = ""
                 resetHoverPanelState()
                 return
             }
@@ -896,7 +881,6 @@ struct PromptModelPopover: View {
                     
                     // Fallback to hardcoded models on error
                     self.availableModels = [LLMProviderModel(id: "moonshotai/kimi-k2.5")]
-                    synchronizeSelectionWithVisibleModels()
                     synchronizeReasoningSelectionsForVisibleModels()
                 }
             }
@@ -905,9 +889,9 @@ struct PromptModelPopover: View {
     
     private func synchronizeSelectionWithVisibleModels() {
         guard !orderedProviderScopedModels.isEmpty else {
-            selectedModelId = ""
-            UserDefaults.standard.set("", forKey: "lastSelectedModelId")
-            UserDefaults.standard.synchronize()
+            if selectedProvider == nil {
+                selectedModelId = ""
+            }
             resetHoverPanelState()
             return
         }
@@ -915,8 +899,7 @@ struct PromptModelPopover: View {
         let selectedIsVisible = orderedProviderScopedModels.contains { $0.id == selectedModelId }
         if !selectedIsVisible, let firstVisibleModel = orderedProviderScopedModels.first {
             selectedModelId = firstVisibleModel.id
-            UserDefaults.standard.set(firstVisibleModel.id, forKey: "lastSelectedModelId")
-            UserDefaults.standard.synchronize()
+            UserDefaults.standard.setPersistedModelId(firstVisibleModel.id, for: selectedProviderId)
         }
         synchronizeReasoningSelectionForCurrentModel()
     }

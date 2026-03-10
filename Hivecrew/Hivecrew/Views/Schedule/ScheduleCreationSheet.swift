@@ -147,9 +147,11 @@ struct ScheduleCreationSheet: View {
             loadAvailableModels()
         }
         .onChange(of: selectedProviderId) { _, _ in
+            restorePersistedModelForSelectedProvider()
             loadAvailableModels()
         }
         .onChange(of: selectedModelId) { _, _ in
+            UserDefaults.standard.setPersistedModelId(selectedModelId, for: selectedProviderId)
             synchronizeReasoningSelection()
         }
     }

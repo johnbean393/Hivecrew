@@ -537,7 +537,7 @@ struct OnboardingWorkerModelStep: View {
                             set: { newValue in
                                 let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                                 mainModelProviderId = normalized
-                                mainModelId = ""
+                                mainModelId = UserDefaults.standard.persistedModelId(for: normalized) ?? ""
                                 availableMainModels = []
                                 mainModelErrorMessage = nil
                                 loadMainModelsForSelectedProvider()
@@ -587,6 +587,7 @@ struct OnboardingWorkerModelStep: View {
                                 get: { mainModelId },
                                 set: { newValue in
                                     mainModelId = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    UserDefaults.standard.setPersistedModelId(mainModelId, for: mainModelProviderId)
                                     refreshConfiguredState()
                                 }
                             )
@@ -729,7 +730,7 @@ struct OnboardingWorkerModelStep: View {
         let normalizedMainProviderId = mainModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalizedMainProviderId.isEmpty || !providers.contains(where: { $0.id == normalizedMainProviderId }) {
             mainModelProviderId = defaultProviderId
-            mainModelId = ""
+            mainModelId = UserDefaults.standard.persistedModelId(for: defaultProviderId) ?? ""
         }
 
         let normalizedWorkerProviderId = workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -767,9 +768,11 @@ struct OnboardingWorkerModelStep: View {
                     availableMainModels = models
                     isLoadingMainModels = false
                     if models.contains(where: { $0.id == mainModelId }) {
+                        UserDefaults.standard.setPersistedModelId(mainModelId, for: mainModelProviderId)
                         refreshConfiguredState()
                     } else if let firstModel = models.first {
                         mainModelId = firstModel.id
+                        UserDefaults.standard.setPersistedModelId(firstModel.id, for: mainModelProviderId)
                         refreshConfiguredState()
                     } else {
                         mainModelId = ""
