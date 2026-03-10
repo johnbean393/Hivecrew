@@ -45,6 +45,9 @@ struct TaskDefaultsSettingsView: View {
     @AppStorage("notifyTaskTimedOut") private var notifyTaskTimedOut = true
     @AppStorage("notifyTaskMaxIterations") private var notifyTaskMaxIterations = true
     
+    // Local writeback
+    @AppStorage(WritebackAutoApplySettings.attachmentUpdatesKey) private var autoApplyAttachmentUpdates = WritebackAutoApplySettings.defaults.autoApplyAttachmentUpdates
+    
     @State private var showingFolderPicker = false
     
     /// Default output directory (Downloads)
@@ -64,6 +67,7 @@ struct TaskDefaultsSettingsView: View {
         Form {
             limitsSection
             outputSection
+            writebackSection
             notificationsSection
             webToolsSection
             imageGenerationSection
@@ -72,6 +76,7 @@ struct TaskDefaultsSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .onAppear {
+            syncWritebackDefaults()
             loadSearchProviderKeys()
             syncImageGenerationDefaults()
         }
@@ -201,6 +206,18 @@ struct TaskDefaultsSettingsView: View {
     
     // MARK: - Notifications Section
     
+    private var writebackSection: some View {
+        Section("Local Writeback") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Automatically apply edits to attached files", isOn: $autoApplyAttachmentUpdates)
+
+                Text("New files and folder-level changes always stay in Review Changes until the user approves them.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
     private var notificationsSection: some View {
         Section("Notifications") {
             VStack(alignment: .leading, spacing: 8) {
@@ -259,6 +276,12 @@ struct TaskDefaultsSettingsView: View {
         } else {
             SearchProviderKeychain.storeSerpAPIKey(key)
         }
+    }
+
+    private func syncWritebackDefaults() {
+        WritebackAutoApplySettings.migrateLegacyDefaultsIfNeeded()
+        let settings = WritebackAutoApplySettings.load()
+        autoApplyAttachmentUpdates = settings.autoApplyAttachmentUpdates
     }
     
     private func syncImageGenerationDefaults(forceModelReset: Bool = false) {

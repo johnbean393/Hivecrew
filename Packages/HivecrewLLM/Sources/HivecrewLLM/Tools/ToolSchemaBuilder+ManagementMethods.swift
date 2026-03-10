@@ -47,7 +47,7 @@ extension ToolSchemaBuilder {
 
         case .requestUserIntervention:
             return (
-                "Request user intervention when you need the user to perform a manual action like signing in, completing 2FA, or solving a CAPTCHA. The agent will pause until the user confirms completion.",
+                "Request user intervention only when you need the user to perform a manual action like signing in, completing 2FA, or solving a CAPTCHA. Do not use this for staged writeback approval, review, or verification; staged local changes are approved only after the run finishes.",
                 objectSchema(
                     properties: [
                         "message": stringProperty("A message describing what action the user should take"),
@@ -93,6 +93,89 @@ extension ToolSchemaBuilder {
                     ],
                     required: ["prompt"]
                 )
+            )
+
+        case .listLocalEntries:
+            return (
+                "List the contents of a granted local file or folder on the host Mac. Use this for host paths such as Downloads/Desktop/Documents. Do not use VM directory tools for these host paths.",
+                objectSchema(
+                    properties: [
+                        "path": stringProperty("Granted host path to inspect. This must be one of the granted files/folders or a child path inside a granted folder.")
+                    ],
+                    required: ["path"]
+                )
+            )
+
+        case .importLocalFile:
+            return (
+                "Copy granted local content from the host Mac into the VM so you can edit it there. This supports a single file, a single directory, or many files at once. After importing, use VM tools like read_file, write_file, list_directory, and move_file on the VM copy.",
+                objectSchema(
+                    properties: [
+                        "sourcePath": stringProperty("Single granted host file or directory path to import."),
+                        "destinationPath": stringProperty("Destination path inside the VM for a single sourcePath import."),
+                        "sourcePaths": arrayProperty(
+                            "Multiple granted host file or directory paths to import in one call.",
+                            itemType: ["type": "string"]
+                        ),
+                        "destinationDirectory": stringProperty("Destination directory inside the VM for a multi-source import. Imported entries keep their top-level names.")
+                    ],
+                    required: []
+                )
+            )
+
+        case .stageWritebackCopy:
+            return (
+                "Stage copying VM content back to granted local filesystem destinations. This supports a single file or directory, or many VM files/directories at once. You may also provide original local paths that should be deleted after apply when reorganizing a local folder. It only stages the change for review; it does not write to the local filesystem immediately.",
+                objectSchema(
+                    properties: [
+                        "sourcePath": stringProperty("Single source file or directory path inside the VM."),
+                        "destinationPath": stringProperty("Granted local destination path for a single sourcePath stage."),
+                        "sourcePaths": arrayProperty(
+                            "Multiple source file or directory paths inside the VM to stage in one call.",
+                            itemType: ["type": "string"]
+                        ),
+                        "destinationDirectory": stringProperty("Granted local destination folder for a multi-source stage. Each source keeps its top-level name."),
+                        "deleteOriginalLocalPaths": arrayProperty(
+                            "Optional granted host file or directory paths to remove after the staged writeback is successfully applied. Use this for reorganization tasks so the original local items do not remain behind.",
+                            itemType: ["type": "string"]
+                        )
+                    ],
+                    required: []
+                )
+            )
+
+        case .stageWritebackMove:
+            return (
+                "Stage moving a file produced inside the VM back to a granted local filesystem destination. You may also provide original local paths that should be deleted after apply when reorganizing a local folder. This stages a handoff for user review; the destination is not touched until approval.",
+                objectSchema(
+                    properties: [
+                        "sourcePath": stringProperty("Path to the source file inside the VM."),
+                        "destinationPath": stringProperty("Granted local destination path that should receive the moved file."),
+                        "deleteOriginalLocalPaths": arrayProperty(
+                            "Optional granted host file or directory paths to remove after the staged writeback is successfully applied.",
+                            itemType: ["type": "string"]
+                        )
+                    ],
+                    required: ["sourcePath", "destinationPath"]
+                )
+            )
+
+        case .stageAttachedFileUpdate:
+            return (
+                "Stage replacing an attached local file with an updated file from the VM. Use this after editing an attached file inside the VM and before final user review.",
+                objectSchema(
+                    properties: [
+                        "sourcePath": stringProperty("Path to the updated source file inside the VM."),
+                        "attachmentPath": stringProperty("Optional original attached file path to replace. Omit only when there is a single obvious attached file target.")
+                    ],
+                    required: ["sourcePath"]
+                )
+            )
+
+        case .listWritebackTargets:
+            return (
+                "List the local filesystem destinations currently granted for staged writeback, including attached files that can be updated in place.",
+                emptyObjectSchema()
             )
 
         case .spawnSubagent:

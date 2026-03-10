@@ -132,7 +132,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                     retrievalModeOverrides: [:],
                     planFirstEnabled: planFirst,
                     planMarkdown: nil,
-                    planSelectedSkillNames: nil
+                    planSelectedSkillNames: nil,
+                    localAccessGrants: []
                 ),
                 count: max(target.copyCount, 1)
             )
@@ -262,6 +263,26 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                 throw APIError.conflict("Cannot cancel plan for task with status '\(task.status.displayName)'")
             }
             await taskService.cancelPlanning(for: task)
+
+        case .approveWriteback:
+            guard task.status == .writebackReview else {
+                throw APIError.conflict("Cannot approve writeback for task with status '\(task.status.displayName)'")
+            }
+            do {
+                try taskService.approveWriteback(for: task)
+            } catch {
+                throw APIError.conflict(error.localizedDescription)
+            }
+
+        case .discardWriteback:
+            guard task.status == .writebackReview else {
+                throw APIError.conflict("Cannot discard writeback for task with status '\(task.status.displayName)'")
+            }
+            do {
+                try taskService.discardWriteback(for: task)
+            } catch {
+                throw APIError.conflict(error.localizedDescription)
+            }
         }
         
         return convertToAPITask(task)
@@ -326,6 +347,21 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         let mimeType = APIFile.mimeType(for: filename)
         
         return (data, mimeType)
+    }
+
+    func getTaskWritebackReview(id: String) async throws -> APIWritebackReview? {
+        guard let task = taskService.tasks.first(where: { $0.id == id }) else {
+            throw APIError.notFound("Task with ID '\(id)' not found")
+        }
+
+        guard task.hasPendingWriteback else {
+            return nil
+        }
+
+        return convertToAPIWritebackReview(
+            taskId: task.id,
+            review: taskService.writebackReview(for: task)
+        )
     }
     
     // MARK: - Schedule Operations

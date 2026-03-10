@@ -112,6 +112,9 @@ public protocol APIServiceProvider: Sendable {
     ///   - permissionId: The unique identifier of the permission request.
     ///   - approved: Whether the operation is approved (`true`) or denied (`false`).
     func respondToPermission(taskId: String, permissionId: String, approved: Bool) async throws
+
+    /// Retrieve the staged local writeback review payload for a task, if any.
+    func getTaskWritebackReview(id: String) async throws -> APIWritebackReview?
     
     // MARK: - Schedule Operations
     

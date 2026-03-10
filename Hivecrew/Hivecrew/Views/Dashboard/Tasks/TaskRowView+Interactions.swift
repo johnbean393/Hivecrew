@@ -42,6 +42,11 @@ extension TaskRowView {
                     .foregroundStyle(.blue)
                     .font(.system(size: 14))
                     .frame(width: 14, height: 14)
+            } else if effectiveStatus == .writebackReview {
+                Image(systemName: "square.and.arrow.down.on.square.fill")
+                    .foregroundStyle(.blue)
+                    .font(.system(size: 14))
+                    .frame(width: 14, height: 14)
             } else if let icon = completionIcon {
                 Image(systemName: icon)
                     .foregroundStyle(statusColor)
@@ -106,7 +111,7 @@ extension TaskRowView {
 
             Spacer()
 
-            if !isRenaming && (isHovered || effectiveStatus == .planReview) {
+            if !isRenaming && (isHovered || effectiveStatus == .planReview || effectiveStatus == .writebackReview) {
                 taskActions
             }
         }
@@ -178,6 +183,18 @@ extension TaskRowView {
                 .tint(.red)
                 .controlSize(.small)
                 .help("Cancel task")
+            } else if effectiveStatus == .writebackReview {
+                Button {
+                    showingWritebackReview = true
+                } label: {
+                    Text("Review Changes")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .controlSize(.small)
+                .help("Review and apply staged local changes")
             } else {
                 if !effectiveStatus.isActive {
                     Button(action: { handleRerun() }) {
@@ -217,6 +234,8 @@ extension TaskRowView {
     func handleRowTap() {
         if effectiveStatus == .planning || effectiveStatus == .planReview {
             showingPlanReview = true
+        } else if effectiveStatus == .writebackReview {
+            showingWritebackReview = true
         } else if isActivelyRunning {
             navigateToTask(task.id)
         } else {

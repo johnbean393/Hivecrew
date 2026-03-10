@@ -23,6 +23,7 @@ public enum APITaskStatus: String, Codable, Sendable {
     case planning = "planning"
     case planReview = "plan_review"
     case planFailed = "plan_failed"
+    case writebackReview = "writeback_review"
 }
 
 /// Task priority values
@@ -76,6 +77,62 @@ public struct APIPermissionRequest: Codable, Sendable {
     }
 }
 
+public struct APIPendingWriteback: Codable, Sendable {
+    public let count: Int
+    public let hasConflicts: Bool
+
+    public init(count: Int, hasConflicts: Bool) {
+        self.count = count
+        self.hasConflicts = hasConflicts
+    }
+}
+
+public struct APIWritebackReviewItem: Codable, Sendable {
+    public let id: String
+    public let operation: String
+    public let sourceFileName: String
+    public let destinationPath: String
+    public let destinationExists: Bool
+    public let hasConflict: Bool
+    public let conflictReason: String?
+    public let diffPreview: String?
+    public let stagedPreview: String?
+
+    public init(
+        id: String,
+        operation: String,
+        sourceFileName: String,
+        destinationPath: String,
+        destinationExists: Bool,
+        hasConflict: Bool,
+        conflictReason: String? = nil,
+        diffPreview: String? = nil,
+        stagedPreview: String? = nil
+    ) {
+        self.id = id
+        self.operation = operation
+        self.sourceFileName = sourceFileName
+        self.destinationPath = destinationPath
+        self.destinationExists = destinationExists
+        self.hasConflict = hasConflict
+        self.conflictReason = conflictReason
+        self.diffPreview = diffPreview
+        self.stagedPreview = stagedPreview
+    }
+}
+
+public struct APIWritebackReview: Codable, Sendable {
+    public let taskId: String
+    public let items: [APIWritebackReviewItem]
+    public let hasConflicts: Bool
+
+    public init(taskId: String, items: [APIWritebackReviewItem], hasConflicts: Bool) {
+        self.taskId = taskId
+        self.items = items
+        self.hasConflicts = hasConflicts
+    }
+}
+
 // MARK: - Supporting Types
 
 /// Token usage information
@@ -124,6 +181,9 @@ public struct APITask: Codable, Sendable {
     public let contextAttachmentCount: Int?
     public let pendingQuestion: APIAgentQuestion?
     public let pendingPermission: APIPermissionRequest?
+    public let pendingWriteback: APIPendingWriteback?
+    public let pendingWritebackCount: Int?
+    public let appliedWritebackPaths: [String]?
     
     public init(
         id: String,
@@ -154,7 +214,10 @@ public struct APITask: Codable, Sendable {
         contextItemCount: Int? = nil,
         contextAttachmentCount: Int? = nil,
         pendingQuestion: APIAgentQuestion? = nil,
-        pendingPermission: APIPermissionRequest? = nil
+        pendingPermission: APIPermissionRequest? = nil,
+        pendingWriteback: APIPendingWriteback? = nil,
+        pendingWritebackCount: Int? = nil,
+        appliedWritebackPaths: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -185,6 +248,9 @@ public struct APITask: Codable, Sendable {
         self.contextAttachmentCount = contextAttachmentCount
         self.pendingQuestion = pendingQuestion
         self.pendingPermission = pendingPermission
+        self.pendingWriteback = pendingWriteback
+        self.pendingWritebackCount = pendingWritebackCount
+        self.appliedWritebackPaths = appliedWritebackPaths
     }
 }
 

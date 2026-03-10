@@ -159,7 +159,7 @@ struct PromptBar: View {
     private var hasAttachmentPreviews: Bool {
         !attachments.isEmpty || !ghostSuggestions.isEmpty
     }
-    
+
     private var hasText: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -285,7 +285,7 @@ struct PromptBar: View {
             .frame(width: 24)
             .padding(.trailing, 4)
             .popoverTip(attachFilesTip, arrowEdge: .bottom)
-            
+
             .padding(.leading, 8)
             // CENTER: Text field + model picker (leading aligned)
             VStack(
@@ -410,7 +410,7 @@ struct PromptBar: View {
             }
         }
     }
-    
+
     private func handleFileDrop(_ providers: [NSItemProvider]) -> Bool {
         var handled = false
         

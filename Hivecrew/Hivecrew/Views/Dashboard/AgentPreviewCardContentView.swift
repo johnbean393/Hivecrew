@@ -19,6 +19,7 @@ struct AgentPreviewCardContent: View {
     @EnvironmentObject var taskService: TaskService
     @State private var showingTrace: Bool = false
     @State private var showingPlanReview: Bool = false
+    @State private var showingWritebackReview: Bool = false
     
     private var hasPendingQuestion: Bool {
         statePublisher?.pendingQuestion != nil
@@ -29,7 +30,7 @@ struct AgentPreviewCardContent: View {
     }
     
     private var needsIntervention: Bool {
-        hasPendingQuestion || hasPendingPermission || task.status == .planReview
+        hasPendingQuestion || hasPendingPermission || task.status == .planReview || task.status == .writebackReview
     }
     
     private var stepCount: Int {
@@ -66,6 +67,8 @@ struct AgentPreviewCardContent: View {
             return "Generating plan"
         case .planReview:
             return "Awaiting plan review"
+        case .writebackReview:
+            return "Changes ready to apply"
         case .running:
             return "In progress"
         case .paused:
@@ -151,6 +154,9 @@ struct AgentPreviewCardContent: View {
         .sheet(isPresented: $showingPlanReview) {
             PlanReviewWindow(task: task, taskService: taskService)
         }
+        .sheet(isPresented: $showingWritebackReview) {
+            WritebackReviewWindow(task: task, taskService: taskService)
+        }
     }
     
     private var headerRow: some View {
@@ -175,6 +181,9 @@ struct AgentPreviewCardContent: View {
         if task.status == .planReview && !hasPendingQuestion && !hasPendingPermission {
             return "Needs review"
         }
+        if task.status == .writebackReview && !hasPendingQuestion && !hasPendingPermission {
+            return "Review changes"
+        }
         return "Needs input"
     }
     
@@ -182,7 +191,7 @@ struct AgentPreviewCardContent: View {
         switch effectiveStatus {
         case .running: return .green
         case .paused, .queued, .waitingForVM, .planning: return .yellow
-        case .planReview: return .blue
+        case .planReview, .writebackReview: return .blue
         case .failed, .planFailed: return .red
         case .cancelled: return .gray
         case .timedOut, .maxIterations: return .orange
@@ -265,24 +274,39 @@ struct AgentPreviewCardContent: View {
                 .tint(.green)
                 .controlSize(.small)
                 .help("Approve and execute plan")
+            } else if effectiveStatus == .writebackReview {
+                Button {
+                    showingWritebackReview = true
+                } label: {
+                    Image(systemName: "square.and.arrow.down.on.square.fill")
+                        .imageScale(.large)
+                }
+                .buttonStyle(.borderless)
+                .tint(.blue)
+                .controlSize(.small)
+                .help("Review staged local changes")
             }
             
-            Button {
-                stopTask()
-            } label: {
-                Image(systemName: "stop.circle.fill")
-                    .imageScale(.large)
+            if effectiveStatus != .writebackReview {
+                Button {
+                    stopTask()
+                } label: {
+                    Image(systemName: "stop.circle.fill")
+                        .imageScale(.large)
+                }
+                .buttonStyle(.borderless)
+                .tint(.red)
+                .controlSize(.small)
+                .help(stopHelpText)
             }
-            .buttonStyle(.borderless)
-            .tint(.red)
-            .controlSize(.small)
-            .help(stopHelpText)
         }
     }
 
     private func handleCardTap() {
         if effectiveStatus == .planning || effectiveStatus == .planReview {
             showingPlanReview = true
+        } else if effectiveStatus == .writebackReview {
+            showingWritebackReview = true
         } else if effectiveStatus == .running || effectiveStatus == .paused {
             navigateToTask(task.id)
         } else {
@@ -304,6 +328,8 @@ struct AgentPreviewCardContent: View {
             return "Remove from queue"
         case .planning, .planReview:
             return "Cancel planning"
+        case .writebackReview:
+            return "Review staged changes"
         default:
             return "Stop agent"
         }
@@ -315,6 +341,8 @@ struct AgentPreviewCardContent: View {
             Task { await taskService.removeFromQueue(task) }
         case .planning, .planReview:
             Task { await taskService.cancelPlanning(for: task) }
+        case .writebackReview:
+            break
         case .running, .paused:
             Task { await taskService.cancelTask(task) }
         default:

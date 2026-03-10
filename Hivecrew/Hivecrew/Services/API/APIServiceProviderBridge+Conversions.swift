@@ -29,6 +29,7 @@ extension APIServiceProviderBridge {
         case .planning: return .planning
         case .planReview: return .planReview
         case .planFailed: return .planFailed
+        case .writebackReview: return .writebackReview
         }
     }
     
@@ -46,6 +47,7 @@ extension APIServiceProviderBridge {
         case .planning: return .planning
         case .planReview: return .planReview
         case .planFailed: return .planFailed
+        case .writebackReview: return .writebackReview
         }
     }
 }
@@ -81,6 +83,11 @@ extension APIServiceProviderBridge {
         let pendingPermission: APIPermissionRequest? = publisher?.pendingPermissionRequest.flatMap {
             convertToAPIPermissionRequest($0)
         }
+
+        let writebackReview = taskService.writebackReview(for: task)
+        let pendingWriteback: APIPendingWriteback? = task.pendingWritebackOperations.isEmpty
+            ? nil
+            : APIPendingWriteback(count: task.pendingWritebackOperations.count, hasConflicts: writebackReview.hasConflicts)
         
         return APITask(
             id: task.id,
@@ -111,7 +118,10 @@ extension APIServiceProviderBridge {
             contextItemCount: task.retrievalSelectedSuggestionIds?.count,
             contextAttachmentCount: task.retrievalContextAttachmentPaths?.count,
             pendingQuestion: pendingQuestion,
-            pendingPermission: pendingPermission
+            pendingPermission: pendingPermission,
+            pendingWriteback: pendingWriteback,
+            pendingWritebackCount: task.pendingWritebackOperations.count,
+            appliedWritebackPaths: task.appliedWritebackPaths
         )
     }
     
@@ -211,6 +221,26 @@ extension APIServiceProviderBridge {
             toolName: request.toolName,
             details: request.details,
             createdAt: request.createdAt
+        )
+    }
+
+    func convertToAPIWritebackReview(taskId: String, review: WritebackReviewPayload) -> APIWritebackReview {
+        APIWritebackReview(
+            taskId: taskId,
+            items: review.items.map { item in
+                APIWritebackReviewItem(
+                    id: item.id.uuidString,
+                    operation: item.operation.operationType.rawValue,
+                    sourceFileName: item.operation.sourceFileName,
+                    destinationPath: item.operation.destinationPath,
+                    destinationExists: item.destinationExists,
+                    hasConflict: item.hasConflict,
+                    conflictReason: item.conflictReason,
+                    diffPreview: item.diffPreview,
+                    stagedPreview: item.stagedPreview
+                )
+            },
+            hasConflicts: review.hasConflicts
         )
     }
 }

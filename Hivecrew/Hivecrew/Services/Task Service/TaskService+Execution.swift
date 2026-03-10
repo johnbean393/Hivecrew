@@ -489,10 +489,10 @@ extension TaskService {
         // Update task with result based on termination reason
         task.completedAt = Date()
         task.resultSummary = result.summary
-        
+
         // Store verified success status
         task.wasSuccessful = result.success
-        
+
         switch result.terminationReason {
         case .completed:
             task.status = .completed
@@ -592,8 +592,24 @@ extension TaskService {
             session.completionTokens = result.completionTokens
         }
         
+        if task.hasPendingWriteback, result.terminationReason != .cancelled {
+            do {
+                let appliedPaths = try autoApplyConfiguredWriteback(for: task)
+                if !appliedPaths.isEmpty {
+                    statePublishers[task.id]?.logInfo("Applied \(appliedPaths.count) staged local writeback change(s) automatically")
+                }
+            } catch {
+                statePublishers[task.id]?.logInfo("Automatic writeback could not be applied: \(error.localizedDescription)")
+            }
+
+            if task.hasPendingWriteback {
+                task.status = .writebackReview
+                statePublishers[task.id]?.logInfo("Task finished with \(task.pendingWritebackOperations.count) staged local writeback change(s)")
+            }
+        }
+
         try? context.save()
-        
+
         // Send completion notification
         sendTaskCompletionNotification(task: task)
         

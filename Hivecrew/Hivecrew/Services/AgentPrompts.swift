@@ -29,7 +29,8 @@ enum AgentPrompts {
         skills: [Skill] = [],
         plan: String? = nil,
         approvedContextBlocks: [String] = [],
-        supportsVision: Bool = true
+        supportsVision: Bool = true,
+        localAccessGrants: [LocalAccessGrant] = []
     ) -> String {
         var filesSection = ""
         if !inputFiles.isEmpty {
@@ -89,6 +90,7 @@ enum AgentPrompts {
         let coordinateSection: String
         let webTipsSection: String
         let keyboardTipsLine: String
+        let localWritebackSection: String
 
         if supportsVision {
             workflowSection = """
@@ -105,6 +107,8 @@ enum AgentPrompts {
             - open_url: Open a URL in the default browser or appropriate application
             - open_file: Open a file at the specified path, optionally with a specific application
             - read_file: Read file contents (text, PDF, RTF, Office docs, plist, images)
+            - write_file: Write UTF-8 text files inside the VM
+            - list_directory: List directory contents inside the VM
             - move_file: Move or rename a file from source to destination
             - mouse_click: Click at screen coordinates with configurable button (left/right/middle) and click count
             - mouse_move: Move the mouse cursor to coordinates without clicking (useful for hover menus/tooltips)
@@ -117,7 +121,7 @@ enum AgentPrompts {
             - wait: Wait for the specified number of seconds before continuing
             - ask_text_question: Ask the user an open-ended question when you need clarification
             - ask_multiple_choice: Ask the user to select from predefined options
-            - request_user_intervention: Request user to perform manual actions. Only use this if you are absolutely unable to complete the task.
+            - request_user_intervention: Request user to perform manual actions like sign-in, 2FA, or CAPTCHA. Do not use this for staged writeback approval or review.
             - get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
             - web_search: Search the web and get results with URLs, titles, and snippets
             - read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search
@@ -156,11 +160,13 @@ enum AgentPrompts {
             AVAILABLE TOOLS:
             - run_shell: Execute a shell command and return its output
             - read_file: Read file contents (text, PDF, RTF, Office docs, plist; image files return metadata-only text)
+            - write_file: Write UTF-8 text files inside the VM
+            - list_directory: List directory contents inside the VM
             - move_file: Move or rename a file from source to destination
             - wait: Wait for the specified number of seconds before continuing
             - ask_text_question: Ask the user an open-ended question when you need clarification
             - ask_multiple_choice: Ask the user to select from predefined options
-            - request_user_intervention: Request user to perform manual actions. Only use this if you are absolutely unable to complete the task.
+            - request_user_intervention: Request user to perform manual actions like sign-in, 2FA, or CAPTCHA. Do not use this for staged writeback approval or review.
             - get_login_credentials: Get stored credentials as UUID tokens (substituted at typing time, never exposed)
             - web_search: Search the web and get results with URLs, titles, and snippets
             - read_webpage_content: Extract full webpage text content in Markdown format. Use this to dive deeper after using web_search
@@ -177,6 +183,40 @@ enum AgentPrompts {
             - Use `run_shell` with tools like `curl` for downloads or API requests when needed.
             """
             keyboardTipsLine = "- Prefer scriptable CLI workflows over GUI interactions."
+        }
+
+        if localAccessGrants.isEmpty {
+            localWritebackSection = ""
+        } else {
+            let grants = localAccessGrants.map { grant in
+                let kind = grant.scopeKind == .folder ? "folder" : "file"
+                return "- \(grant.displayName) (\(kind)): \(grant.rootPath)"
+            }.joined(separator: "\n")
+
+            localWritebackSection = """
+
+            LOCAL WRITEBACK:
+            - Default behavior is still to deliver final files through `~/Desktop/outbox/`; those files will be copied to the user's configured output directory when the task finishes.
+            - Treat host writeback as an exception. Only use staged writeback when the user explicitly asked you to update a local file, create a new file in a specific local location such as Desktop/Documents, or reorganize files in a local folder.
+            - If a file was attached only as reference material, do not write it back to the host.
+            - Paths shown below are HOST paths, not VM paths. Do not use VM tools like `list_directory` or `read_file` directly on them.
+            - If the user asked you to work on content in Downloads/Desktop/Documents or another granted host location, first use `list_local_entries` to inspect the host folder, then use `import_local_file` to copy the chosen file, a whole directory, or many files into `~/Desktop/workspace/` before editing them.
+            - Edit and create files inside the VM first, preferably in `~/Desktop/workspace/` or `~/Desktop/outbox/`.
+            - When a final VM file should be copied back to the real local filesystem, use one of the staged writeback tools instead of trying to write directly to the host.
+            - If you reorganize a granted local folder and the original local files should disappear after the new organized copies are written back, include those original host paths in `deleteOriginalLocalPaths` on the staged writeback call.
+            - Staged writeback changes are only applied after the user reviews and approves them at the end of the run unless the user's writeback settings allow automatic apply for that exact case.
+            - The user cannot apply staged writeback while you are still running. Never ask the user to apply or verify staged writeback before you finish. Stage the full set of changes, then complete the task normally.
+            - Granted local destinations:
+            \(grants)
+
+            AVAILABLE WRITEBACK TOOLS:
+            - list_local_entries: Inspect granted host folders/files on the local filesystem
+            - import_local_file: Copy granted host files or directories into the VM for editing; supports single-file and batch imports
+            - list_writeback_targets: List granted local destinations that can receive staged changes
+            - stage_writeback_copy: Stage copying VM files or directories to granted local destinations; supports single-item and batch staging, and can optionally remove original host paths after apply
+            - stage_writeback_move: Stage moving a VM file to a granted local destination; can optionally remove original host paths after apply
+            - stage_attached_file_update: Stage replacing an attached local file with an updated VM file
+            """
         }
         
         return """
@@ -204,6 +244,8 @@ FILE LOCATIONS:
 
 \(coordinateSection)
 
+\(localWritebackSection)
+
 TIPS:
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
 \(webTipsSection)
@@ -216,6 +258,7 @@ TIPS:
 
 TO FINISH:
 When the task is complete, stop calling tools and respond with a summary of what you accomplished. 
+If you staged local writeback, do not ask the user to apply it mid-run. Finish the task; the product will present the staged changes for approval afterward.
 \(skillsSection)\(planSection)\(retrievalContextSection)
 """
     }
@@ -343,8 +386,29 @@ When the task is complete, stop calling tools and respond with a summary of what
     
     /// Generate a structured completion verification prompt
     /// Returns JSON with success status and summary
-    static func structuredCompletionCheckPrompt(task: String, agentSummary: String) -> String {
-        """
+    static func structuredCompletionCheckPrompt(
+        task: String,
+        agentSummary: String,
+        executionSummary: String,
+        pendingWritebackOperations: [PendingWritebackOperation]
+    ) -> String {
+        let writebackSummary: String
+        if pendingWritebackOperations.isEmpty {
+            writebackSummary = "None."
+        } else {
+            let operations = pendingWritebackOperations.prefix(12).map { operation in
+                let deleteSuffix = operation.deleteOriginalTargets.isEmpty
+                    ? ""
+                    : " | deletes \(operation.deleteOriginalTargets.count) original local item(s) after apply"
+                return "- \(operation.operationType.rawValue): \(operation.destinationPath)\(deleteSuffix)"
+            }.joined(separator: "\n")
+            writebackSummary = """
+            There are \(pendingWritebackOperations.count) staged writeback operation(s) waiting for post-run approval:
+            \(operations)
+            """
+        }
+
+        return """
         You are evaluating whether an AI agent successfully completed a task.
 
         ORIGINAL TASK: \(task)
@@ -352,9 +416,16 @@ When the task is complete, stop calling tools and respond with a summary of what
         AGENT'S FINAL SUMMARY:
         \(agentSummary)
 
-        Based on the agent's summary, evaluate whether the task was successfully completed.
+        EXECUTION EVIDENCE:
+        \(executionSummary)
 
-        Just evaluate based on whether the deliverables exist (e.g. file created, URL opened, answer provided, etc.).
+        STAGED LOCAL WRITEBACK:
+        \(writebackSummary)
+
+        Determine whether the agent completed the task based on the execution evidence, not just the final summary.
+        In Hivecrew, local filesystem edits may be staged for approval after the run finishes. If the requested local edits or folder reorganization have been fully prepared and staged correctly, that still counts as complete even though the real host files are not changed yet.
+        Do not mark the task incomplete merely because staged writeback still awaits user approval.
+        Mark the task incomplete only if the evidence shows missing work, wrong outputs, missing staging, or unresolved blockers.
 
         Respond with ONLY a valid JSON object in this exact format (no other text):
         {

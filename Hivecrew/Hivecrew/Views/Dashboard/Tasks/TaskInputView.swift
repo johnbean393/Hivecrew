@@ -193,6 +193,7 @@ struct TaskInputView: View {
             let userAttachmentPaths = attachments
                 .filter { $0.origin.indexedSuggestionID == nil }
                 .map { $0.url.path }
+            let localAccessGrants = resolvedLocalAccessGrants(for: trimmedDescription)
             let filePaths = Array(
                 Set(userAttachmentPaths + contextAttachmentPaths)
             ).sorted()
@@ -222,7 +223,8 @@ struct TaskInputView: View {
                         retrievalModeOverrides: modeOverrides,
                         planFirstEnabled: planFirstEnabled,
                         planMarkdown: nil,
-                        planSelectedSkillNames: nil
+                        planSelectedSkillNames: nil,
+                        localAccessGrants: localAccessGrants
                     ),
                     count: target.copyCount
                 )
@@ -247,6 +249,88 @@ struct TaskInputView: View {
         } catch {
             print("Failed to create task: \(error)")
         }
+    }
+
+    private func resolvedLocalAccessGrants(for description: String) -> [LocalAccessGrant] {
+        let attachmentGrants = attachments
+            .filter { $0.origin == .userSelection }
+            .map { LocalAccessGrant.make(from: $0.url, origin: .attachment) }
+        let inferredPromptGrants = inferredPromptLocalAccessGrants(for: description)
+
+        var unique: [String: LocalAccessGrant] = [:]
+        for grant in attachmentGrants + inferredPromptGrants {
+            unique[grant.normalizedRootPath] = grant
+        }
+        return unique.values.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    private func inferredPromptLocalAccessGrants(for description: String) -> [LocalAccessGrant] {
+        let normalized = description.lowercased()
+        let explicitURLs = extractedPromptURLs(from: description)
+
+        let standardLocations: [(phrases: [String], directory: FileManager.SearchPathDirectory)] = [
+            (["desktop", "~/desktop", "on my desktop", "to my desktop", "from my desktop"], .desktopDirectory),
+            (["documents", "document folder", "~/documents", "in my documents", "to my documents"], .documentDirectory),
+            (["downloads", "downloads folder", "~/downloads", "in my downloads", "to my downloads"], .downloadsDirectory),
+            (["pictures", "photos", "picture folder", "~/pictures", "in my pictures"], .picturesDirectory),
+            (["movies", "~/movies", "in my movies"], .moviesDirectory),
+            (["music", "~/music", "in my music"], .musicDirectory)
+        ]
+
+        let inferredStandardURLs = standardLocations.compactMap { location -> URL? in
+            guard location.phrases.contains(where: normalized.contains) else {
+                return nil
+            }
+            return FileManager.default.urls(for: location.directory, in: .userDomainMask).first
+        }
+
+        let grants = explicitURLs.map { LocalAccessGrant.make(from: $0, origin: .explicitGrant) }
+            + inferredStandardURLs.map { LocalAccessGrant.make(from: $0, origin: .explicitGrant) }
+
+        var unique: [String: LocalAccessGrant] = [:]
+        for grant in grants {
+            unique[grant.normalizedRootPath] = grant
+        }
+        return unique.values.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    private func extractedPromptURLs(from description: String) -> [URL] {
+        let patterns = [
+            "`([^`]+)`",
+            "\"([^\"]+)\"",
+            "'([^']+)'",
+            "((?:~|/)[^\\s,;:]+)"
+        ]
+
+        var candidates: [String] = []
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(description.startIndex..<description.endIndex, in: description)
+            for match in regex.matches(in: description, range: range) {
+                let captureIndex = match.numberOfRanges > 1 ? 1 : 0
+                guard let captureRange = Range(match.range(at: captureIndex), in: description) else { continue }
+                candidates.append(String(description[captureRange]))
+            }
+        }
+
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+        let urls = candidates.compactMap { candidate -> URL? in
+            let trimmed = candidate.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters.subtracting(CharacterSet(charactersIn: "/~._-"))))
+            guard trimmed.hasPrefix("/") || trimmed.hasPrefix("~/") else {
+                return nil
+            }
+
+            let resolvedPath = trimmed.hasPrefix("~/")
+                ? homeDirectory + String(trimmed.dropFirst())
+                : trimmed
+            return URL(fileURLWithPath: resolvedPath).standardizedFileURL
+        }
+
+        var unique: [String: URL] = [:]
+        for url in urls {
+            unique[url.path] = url
+        }
+        return unique.values.sorted { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
     }
 
     private var resolvedContinuationSourceTaskID: String? {

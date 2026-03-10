@@ -93,6 +93,10 @@ final class SubagentToolExecutor {
             return try await executeRunShell(args: args)
         case "read_file":
             return try await executeReadFile(args: args, subagentId: subagentId)
+        case "write_file":
+            return try await executeWriteFile(args: args)
+        case "list_directory":
+            return try await executeListDirectory(args: args)
         case "move_file":
             return try await executeMoveFile(args: args)
         case "wait":
@@ -314,6 +318,52 @@ final class SubagentToolExecutor {
             return .text("\(desc). Image content omitted because the active model does not support vision input.")
         }
     }
+
+    private func executeWriteFile(args: [String: Any]) async throws -> ToolResult {
+        let path = args["path"] as? String ?? ""
+        let contents = args["contents"] as? String ?? ""
+        let base64Contents = Data(contents.utf8).base64EncodedString()
+        let command = """
+            mkdir -p "$(dirname \(shellSingleQuoted(path)))" && \
+            printf '%s' \(shellSingleQuoted(base64Contents)) | /usr/bin/base64 -D > \(shellSingleQuoted(path))
+            """
+        let result = try await vmScheduler.run {
+            try await self.connection.runShell(command: command, timeout: 20)
+        }
+        guard result.exitCode == 0 else {
+            throw SubagentToolError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+        return .text("Wrote \(contents.count) bytes to '\(path)'")
+    }
+
+    private func executeListDirectory(args: [String: Any]) async throws -> ToolResult {
+        let path = args["path"] as? String ?? ""
+        let command = """
+            TARGET=\(shellSingleQuoted(path)); export TARGET; /usr/bin/python3 - <<'PY'
+            import json
+            import os
+            path = os.environ["TARGET"]
+            entries = []
+            with os.scandir(path) as iterator:
+                for entry in sorted(iterator, key=lambda item: item.name.lower()):
+                    info = entry.stat(follow_symlinks=False)
+                    entries.append({
+                        "name": entry.name,
+                        "isDirectory": entry.is_dir(follow_symlinks=False),
+                        "size": info.st_size,
+                        "modifiedAt": int(info.st_mtime)
+                    })
+            print(json.dumps(entries, indent=2))
+            PY
+            """
+        let result = try await vmScheduler.run {
+            try await self.connection.runShell(command: command, timeout: 20)
+        }
+        guard result.exitCode == 0 else {
+            throw SubagentToolError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+        return .text(result.stdout)
+    }
     
     private func executeMoveFile(args: [String: Any]) async throws -> ToolResult {
         let source = args["source"] as? String ?? ""
@@ -322,6 +372,10 @@ final class SubagentToolExecutor {
             try await self.connection.moveFile(source: source, destination: destination)
         }
         return .text("Moved file from \(source) to \(destination)")
+    }
+
+    private func shellSingleQuoted(_ string: String) -> String {
+        "'\(string.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
     
     private func executeWait(args: [String: Any]) async throws -> ToolResult {
@@ -975,11 +1029,14 @@ final class SubagentToolExecutor {
 
 enum SubagentToolError: Error, LocalizedError {
     case unknownTool(String)
+    case executionFailed(String)
     
     var errorDescription: String? {
         switch self {
         case .unknownTool(let name):
             return "Unknown tool: \(name)"
+        case .executionFailed(let message):
+            return message
         }
     }
 }

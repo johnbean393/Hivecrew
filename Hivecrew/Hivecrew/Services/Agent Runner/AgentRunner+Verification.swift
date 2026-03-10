@@ -16,10 +16,14 @@ extension AgentRunner {
     /// Returns (success, summary)
     func verifyCompletion(agentSummary: String) async -> (Bool, String?) {
         do {
+            let executionSummary = buildCompletionEvidenceSummary(agentSummary: agentSummary)
+
             // Build the verification prompt
             let verificationPrompt = AgentPrompts.structuredCompletionCheckPrompt(
                 task: task.taskDescription,
-                agentSummary: agentSummary
+                agentSummary: agentSummary,
+                executionSummary: executionSummary,
+                pendingWritebackOperations: task.pendingWritebackOperations
             )
             
             // Make a simple LLM call (no tools) with retry logic
@@ -50,6 +54,78 @@ extension AgentRunner {
             statePublisher.logError("Completion verification failed: \(error.localizedDescription)")
             return (false, "Completion check failed to run.")
         }
+    }
+
+    private func buildCompletionEvidenceSummary(agentSummary: String) -> String {
+        var toolResultsById: [String: String] = [:]
+        for message in conversationHistory {
+            guard message.role == .tool else { continue }
+            if case .toolResult(let toolCallId, let content) = message.content.first {
+                toolResultsById[toolCallId] = summarizeForCompletion(content, maxLength: 320)
+            }
+        }
+
+        var toolEvidence: [String] = []
+        var assistantNotes: [String] = []
+
+        for message in conversationHistory {
+            if message.role == .assistant, let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                for toolCall in toolCalls {
+                    let callLine = "Tool: \(toolCall.function.name) args=\(summarizeArguments(toolCall.function.arguments))"
+                    let resultLine = toolResultsById[toolCall.id].map { "Result: \($0)" } ?? "Result: No tool result recorded"
+                    toolEvidence.append(callLine)
+                    toolEvidence.append(resultLine)
+                }
+            } else if message.role == .assistant {
+                let text = message.textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { continue }
+                assistantNotes.append(summarizeForCompletion(text, maxLength: 240))
+            }
+        }
+
+        if toolEvidence.count > 40 {
+            toolEvidence = Array(toolEvidence.suffix(40))
+        }
+        if assistantNotes.count > 5 {
+            assistantNotes = Array(assistantNotes.suffix(5))
+        }
+
+        var sections: [String] = []
+        sections.append("Final summary: \(summarizeForCompletion(agentSummary, maxLength: 320))")
+
+        if !assistantNotes.isEmpty {
+            sections.append("Recent assistant statements:\n- " + assistantNotes.joined(separator: "\n- "))
+        }
+
+        if !toolEvidence.isEmpty {
+            sections.append("Recent tool activity:\n- " + toolEvidence.joined(separator: "\n- "))
+        }
+
+        if !task.pendingWritebackOperations.isEmpty {
+            let writebackLines = task.pendingWritebackOperations.prefix(12).map { operation in
+                let deleteSuffix = operation.deleteOriginalTargets.isEmpty
+                    ? ""
+                    : "; delete \(operation.deleteOriginalTargets.count) original local item(s) after apply"
+                return "\(operation.operationType.rawValue): \(operation.destinationPath)\(deleteSuffix)"
+            }
+            sections.append("Pending staged writeback:\n- " + writebackLines.joined(separator: "\n- "))
+        }
+
+        return summarizeForCompletion(sections.joined(separator: "\n\n"), maxLength: 7000)
+    }
+
+    private func summarizeArguments(_ rawArguments: String) -> String {
+        summarizeForCompletion(rawArguments, maxLength: 180)
+    }
+
+    private func summarizeForCompletion(_ text: String, maxLength: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\n\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > maxLength else { return normalized }
+        let endIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
+        return String(normalized[..<endIndex]) + "..."
     }
     
     /// Parse the JSON response from completion check

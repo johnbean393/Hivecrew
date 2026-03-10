@@ -36,6 +36,10 @@ class ToolExecutor {
     let modelContext: ModelContext?
     weak var subagentManager: SubagentManager?
     let supportsVision: Bool
+
+    private var concreteTaskService: TaskService? {
+        taskService as? TaskService
+    }
     
     init(
         connection: GuestAgentConnection,
@@ -230,6 +234,12 @@ class ToolExecutor {
                 }
                 return .text("\(desc). Image content omitted because the active model does not support vision input.")
             }
+
+        case "write_file":
+            return try await executeWriteFile(args: args)
+
+        case "list_directory":
+            return try await executeListDirectory(args: args)
             
         case "move_file":
             let source = args["source"] as? String ?? ""
@@ -277,6 +287,24 @@ class ToolExecutor {
             
         case "generate_image":
             return try await executeGenerateImage(args: args)
+
+        case "list_local_entries":
+            return try executeListLocalEntries(args: args)
+
+        case "import_local_file":
+            return try await executeImportLocalFile(args: args)
+
+        case "stage_writeback_copy":
+            return try await executeStageWriteback(args: args, operationType: .copy)
+
+        case "stage_writeback_move":
+            return try await executeStageWriteback(args: args, operationType: .move)
+
+        case "stage_attached_file_update":
+            return try await executeStageAttachedFileUpdate(args: args)
+
+        case "list_writeback_targets":
+            return try executeListWritebackTargets()
             
         case "spawn_subagent":
             return await executeSpawnSubagent(args: args)
@@ -321,6 +349,451 @@ class ToolExecutor {
         if !result.stdout.isEmpty { output += "\nstdout: \(result.stdout.prefix(500))" }
         if !result.stderr.isEmpty { output += "\nstderr: \(result.stderr.prefix(500))" }
         return .text(output)
+    }
+
+    private func executeWriteFile(args: [String: Any]) async throws -> InternalToolResult {
+        let path = args["path"] as? String ?? ""
+        let contents = args["contents"] as? String ?? ""
+        let base64Contents = Data(contents.utf8).base64EncodedString()
+        let quotedPath = shellSingleQuoted(path)
+        let quotedBase64 = shellSingleQuoted(base64Contents)
+
+        let command = """
+            mkdir -p "$(dirname \(quotedPath))" && \
+            printf '%s' \(quotedBase64) | /usr/bin/base64 -D > \(quotedPath)
+            """
+
+        let result = try await connection.runShell(command: command, timeout: 20)
+        guard result.exitCode == 0 else {
+            throw ToolExecutorError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+        return .text("Wrote \(contents.count) bytes to '\(path)'")
+    }
+
+    private func executeListDirectory(args: [String: Any]) async throws -> InternalToolResult {
+        let path = args["path"] as? String ?? ""
+        let quotedPath = shellSingleQuoted(path)
+
+        let command = """
+            TARGET=\(quotedPath); export TARGET; /usr/bin/python3 - <<'PY'
+            import json
+            import os
+            import stat
+            import time
+            path = os.environ["TARGET"]
+            entries = []
+            with os.scandir(path) as iterator:
+                for entry in sorted(iterator, key=lambda item: item.name.lower()):
+                    info = entry.stat(follow_symlinks=False)
+                    entries.append({
+                        "name": entry.name,
+                        "isDirectory": entry.is_dir(follow_symlinks=False),
+                        "size": info.st_size,
+                        "modifiedAt": int(info.st_mtime)
+                    })
+            print(json.dumps(entries, indent=2))
+            PY
+            """
+
+        let result = try await connection.runShell(command: command, timeout: 20)
+        guard result.exitCode == 0 else {
+            throw ToolExecutorError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+        return .text(result.stdout)
+    }
+
+    private func executeStageWriteback(args: [String: Any], operationType: WritebackOperationType) async throws -> InternalToolResult {
+        guard let taskService = concreteTaskService else {
+            throw ToolExecutorError.executionFailed("Writeback staging requires TaskService.")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == taskId }),
+              let sessionId = task.sessionId else {
+            throw WritebackStagingError.missingSession
+        }
+        let deleteOriginalLocalPaths = (args["deleteOriginalLocalPaths"] as? [String] ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if operationType == .copy {
+            let sourcePaths = (args["sourcePaths"] as? [String] ?? [])
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !sourcePaths.isEmpty {
+                let destinationDirectory = (args["destinationDirectory"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !destinationDirectory.isEmpty else {
+                    throw ToolExecutorError.executionFailed("destinationDirectory is required when staging multiple writeback sources.")
+                }
+                return try await stageWritebackSources(
+                    sourcePaths,
+                    toDestinationDirectory: destinationDirectory,
+                    deleteOriginalLocalPaths: deleteOriginalLocalPaths,
+                    taskId: task.id,
+                    sessionId: sessionId,
+                    taskService: taskService
+                )
+            }
+        }
+
+        let sourcePath = (args["sourcePath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let destinationPath = (args["destinationPath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sourcePath.isEmpty, !destinationPath.isEmpty else {
+            throw ToolExecutorError.executionFailed("Provide sourcePath and destinationPath for a single writeback stage.")
+        }
+
+        let operation = try await stageSingleWriteback(
+            sourcePath: sourcePath,
+            destinationPath: destinationPath,
+            operationType: operationType,
+            deleteOriginalLocalPaths: deleteOriginalLocalPaths,
+            taskId: task.id,
+            sessionId: sessionId,
+            taskService: taskService
+        )
+
+        let deleteSuffix = operation.deleteOriginalTargets.isEmpty
+            ? ""
+            : " and will remove \(operation.deleteOriginalTargets.count) original local item(s) on apply"
+        return .text("Staged \(operation.operationType.rawValue) to '\(operation.destinationPath)'\(deleteSuffix)")
+    }
+
+    private func executeStageAttachedFileUpdate(args: [String: Any]) async throws -> InternalToolResult {
+        guard let taskService = concreteTaskService else {
+            throw ToolExecutorError.executionFailed("Writeback staging requires TaskService.")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == taskId }),
+              let sessionId = task.sessionId else {
+            throw WritebackStagingError.missingSession
+        }
+
+        let sourcePath = args["sourcePath"] as? String ?? ""
+        let attachmentPath = args["attachmentPath"] as? String
+        let snapshotURL = try await snapshotVMSourceEntry(at: sourcePath)
+        defer { try? FileManager.default.removeItem(at: snapshotURL.deletingLastPathComponent()) }
+
+        let operation = try taskService.stageAttachedFileUpdate(
+            taskId: task.id,
+            sessionId: sessionId,
+            snapshotURL: snapshotURL,
+            vmSourcePath: sourcePath,
+            attachmentOriginalPath: attachmentPath
+        )
+
+        return .text("Staged update for '\(operation.destinationPath)'")
+    }
+
+    private func executeListWritebackTargets() throws -> InternalToolResult {
+        guard let taskService = concreteTaskService else {
+            throw ToolExecutorError.executionFailed("Writeback staging requires TaskService.")
+        }
+        let targets = try taskService.listWritebackTargets(taskId: taskId)
+        if targets.isEmpty {
+            return .text("No local writeback targets are currently granted.")
+        }
+
+        let lines = targets.map { target in
+            let kind = target.scopeKind == .folder ? "folder" : "file"
+            return "- \(target.displayName) (\(kind)): \(target.rootPath)"
+        }
+        return .text("Granted writeback targets:\n" + lines.joined(separator: "\n"))
+    }
+
+    private func executeListLocalEntries(args: [String: Any]) throws -> InternalToolResult {
+        guard let taskService = concreteTaskService else {
+            throw ToolExecutorError.executionFailed("Local filesystem access requires TaskService.")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == taskId }) else {
+            throw ToolExecutorError.executionFailed("Task '\(taskId)' was not found.")
+        }
+
+        let path = args["path"] as? String ?? ""
+        guard !path.isEmpty else {
+            throw ToolExecutorError.executionFailed("A host path is required.")
+        }
+
+        let grant = try requireLocalGrant(for: path, task: task)
+        let targetURL = URL(fileURLWithPath: path).standardizedFileURL
+        let fileManager = FileManager.default
+
+        return try withScopedLocalAccess(for: grant) {
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: targetURL.path, isDirectory: &isDirectory) else {
+                throw ToolExecutorError.executionFailed("Host path '\(targetURL.path)' does not exist.")
+            }
+
+            if isDirectory.boolValue {
+                let entries = try fileManager.contentsOfDirectory(
+                    at: targetURL,
+                    includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                    options: [.skipsHiddenFiles]
+                )
+                let lines = entries.sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
+                    .map { entry in
+                        let values = try? entry.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey])
+                        let kind = values?.isDirectory == true ? "folder" : "file"
+                        let size = values?.fileSize.map(String.init) ?? "-"
+                        return "- \(entry.lastPathComponent) (\(kind), size: \(size)): \(entry.path)"
+                    }
+                return .text(lines.isEmpty ? "Host folder is empty: \(targetURL.path)" : "Host entries for \(targetURL.path):\n" + lines.joined(separator: "\n"))
+            } else {
+                let attributes = try fileManager.attributesOfItem(atPath: targetURL.path)
+                let size = attributes[.size] as? NSNumber
+                return .text("Host file: \(targetURL.path)\nsize: \(size?.stringValue ?? "-") bytes")
+            }
+        }
+    }
+
+    private func executeImportLocalFile(args: [String: Any]) async throws -> InternalToolResult {
+        guard let taskService = concreteTaskService else {
+            throw ToolExecutorError.executionFailed("Local filesystem access requires TaskService.")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == taskId }) else {
+            throw ToolExecutorError.executionFailed("Task '\(taskId)' was not found.")
+        }
+
+        let sourcePaths = (args["sourcePaths"] as? [String] ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !sourcePaths.isEmpty {
+            let destinationDirectory = (args["destinationDirectory"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !destinationDirectory.isEmpty else {
+                throw ToolExecutorError.executionFailed("destinationDirectory is required when importing multiple sources.")
+            }
+            return try await importLocalSources(sourcePaths, toDirectoryInVM: destinationDirectory, task: task)
+        }
+
+        let sourcePath = (args["sourcePath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let destinationPath = (args["destinationPath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sourcePath.isEmpty, !destinationPath.isEmpty else {
+            throw ToolExecutorError.executionFailed("Provide sourcePath and destinationPath for a single import, or sourcePaths and destinationDirectory for a batch import.")
+        }
+
+        return try await importSingleLocalSource(sourcePath, toPathInVM: destinationPath, task: task)
+    }
+
+    private func importSingleLocalSource(
+        _ sourcePath: String,
+        toPathInVM destinationPath: String,
+        task: TaskRecord
+    ) async throws -> InternalToolResult {
+        let sourceURL = URL(fileURLWithPath: sourcePath).standardizedFileURL
+        let grant = try requireLocalGrant(for: sourceURL.path, task: task)
+        let stagingToken = UUID().uuidString
+        let hostStagingDirectory = AppPaths.vmWorkspaceDirectory(id: vmId)
+            .appendingPathComponent(".hivecrew-local-imports", isDirectory: true)
+            .appendingPathComponent(stagingToken, isDirectory: true)
+
+        try FileManager.default.createDirectory(at: hostStagingDirectory, withIntermediateDirectories: true)
+        let stagedHostURL = hostStagingDirectory.appendingPathComponent(sourceURL.lastPathComponent)
+        defer {
+            try? FileManager.default.removeItem(at: hostStagingDirectory)
+        }
+
+        let isDirectory = try withScopedLocalAccess(for: grant) {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) else {
+                throw ToolExecutorError.executionFailed("Host path '\(sourceURL.path)' does not exist.")
+            }
+            if FileManager.default.fileExists(atPath: stagedHostURL.path) {
+                try FileManager.default.removeItem(at: stagedHostURL)
+            }
+            try FileManager.default.copyItem(at: sourceURL, to: stagedHostURL)
+            return isDirectory.boolValue
+        }
+
+        let guestSourcePath = "/Volumes/Shared/workspace/.hivecrew-local-imports/\(stagingToken)/\(sourceURL.lastPathComponent)"
+        let command: String
+        if isDirectory {
+            command = """
+                mkdir -p "$(dirname \(shellSingleQuoted(destinationPath)))" && \
+                cp -R \(shellSingleQuoted(guestSourcePath)) \(shellSingleQuoted(destinationPath))
+                """
+        } else {
+            command = """
+                mkdir -p "$(dirname \(shellSingleQuoted(destinationPath)))" && \
+                cp -f \(shellSingleQuoted(guestSourcePath)) \(shellSingleQuoted(destinationPath))
+                """
+        }
+        let result = try await connection.runShell(command: command, timeout: 20)
+        guard result.exitCode == 0 else {
+            throw ToolExecutorError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+
+        let kind = isDirectory ? "directory" : "file"
+        return .text("Imported host \(kind) '\(sourceURL.path)' to VM path '\(destinationPath)'")
+    }
+
+    private func importLocalSources(
+        _ sourcePaths: [String],
+        toDirectoryInVM destinationDirectory: String,
+        task: TaskRecord
+    ) async throws -> InternalToolResult {
+        let sourceURLs = sourcePaths.map { URL(fileURLWithPath: $0).standardizedFileURL }
+        let stagingToken = UUID().uuidString
+        let hostStagingDirectory = AppPaths.vmWorkspaceDirectory(id: vmId)
+            .appendingPathComponent(".hivecrew-local-imports", isDirectory: true)
+            .appendingPathComponent(stagingToken, isDirectory: true)
+
+        try FileManager.default.createDirectory(at: hostStagingDirectory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: hostStagingDirectory)
+        }
+
+        for sourceURL in sourceURLs {
+            let grant = try requireLocalGrant(for: sourceURL.path, task: task)
+            try withScopedLocalAccess(for: grant) {
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: sourceURL.path, isDirectory: &isDirectory) else {
+                    throw ToolExecutorError.executionFailed("Host path '\(sourceURL.path)' does not exist.")
+                }
+
+                let stagedHostURL = uniqueImportedStagingURL(
+                    in: hostStagingDirectory,
+                    preferredName: sourceURL.lastPathComponent
+                )
+                try FileManager.default.copyItem(at: sourceURL, to: stagedHostURL)
+            }
+        }
+
+        let guestStagingDirectory = "/Volumes/Shared/workspace/.hivecrew-local-imports/\(stagingToken)"
+        let command = """
+            mkdir -p \(shellSingleQuoted(destinationDirectory)) && \
+            cp -R \(shellSingleQuoted(guestStagingDirectory))/. \(shellSingleQuoted(destinationDirectory))/
+            """
+        let result = try await connection.runShell(command: command, timeout: 60)
+        guard result.exitCode == 0 else {
+            throw ToolExecutorError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+
+        return .text("Imported \(sourceURLs.count) host entr\(sourceURLs.count == 1 ? "y" : "ies") to VM directory '\(destinationDirectory)'")
+    }
+
+    private func stageSingleWriteback(
+        sourcePath: String,
+        destinationPath: String,
+        operationType: WritebackOperationType,
+        deleteOriginalLocalPaths: [String],
+        taskId: String,
+        sessionId: String,
+        taskService: TaskService
+    ) async throws -> PendingWritebackOperation {
+        let snapshotURL = try await snapshotVMSourceEntry(at: sourcePath)
+        defer { try? FileManager.default.removeItem(at: snapshotURL.deletingLastPathComponent()) }
+
+        return try taskService.stageWritebackOperation(
+            taskId: taskId,
+            sessionId: sessionId,
+            snapshotURL: snapshotURL,
+            vmSourcePath: sourcePath,
+            destinationPath: destinationPath,
+            operationType: operationType,
+            deleteOriginalPaths: deleteOriginalLocalPaths
+        )
+    }
+
+    private func stageWritebackSources(
+        _ sourcePaths: [String],
+        toDestinationDirectory destinationDirectory: String,
+        deleteOriginalLocalPaths: [String],
+        taskId: String,
+        sessionId: String,
+        taskService: TaskService
+    ) async throws -> InternalToolResult {
+        var stagedDestinations: [String] = []
+        for (index, sourcePath) in sourcePaths.enumerated() {
+            let sourceURL = URL(fileURLWithPath: sourcePath)
+            let destinationPath = URL(fileURLWithPath: destinationDirectory)
+                .appendingPathComponent(sourceURL.lastPathComponent)
+                .path
+            let operation = try await stageSingleWriteback(
+                sourcePath: sourcePath,
+                destinationPath: destinationPath,
+                operationType: .copy,
+                deleteOriginalLocalPaths: index == 0 ? deleteOriginalLocalPaths : [],
+                taskId: taskId,
+                sessionId: sessionId,
+                taskService: taskService
+            )
+            stagedDestinations.append(operation.destinationPath)
+        }
+
+        let deleteSuffix = deleteOriginalLocalPaths.isEmpty
+            ? ""
+            : " and will remove \(deleteOriginalLocalPaths.count) original local item(s) on apply"
+        return .text("Staged \(stagedDestinations.count) VM entr\(stagedDestinations.count == 1 ? "y" : "ies") for copy into '\(destinationDirectory)'\(deleteSuffix)")
+    }
+
+    private func snapshotVMSourceEntry(at sourcePath: String) async throws -> URL {
+        let token = UUID().uuidString
+        let fileName = URL(fileURLWithPath: sourcePath).lastPathComponent
+        let quotedSource = shellSingleQuoted(sourcePath)
+        let guestStagingDirectory = "/Volumes/Shared/workspace/.hivecrew-writeback-staging/\(token)"
+        let guestStagingPath = "\(guestStagingDirectory)/\(fileName)"
+        let quotedGuestStagingPath = shellSingleQuoted(guestStagingPath)
+
+        let command = """
+            test -e \(quotedSource) && \
+            mkdir -p \(shellSingleQuoted(guestStagingDirectory)) && \
+            cp -R \(quotedSource) \(quotedGuestStagingPath) && \
+            sync
+            """
+
+        let result = try await connection.runShell(command: command, timeout: 20)
+        guard result.exitCode == 0 else {
+            throw ToolExecutorError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+
+        let hostStagingDirectory = AppPaths.vmWorkspaceDirectory(id: vmId)
+            .appendingPathComponent(".hivecrew-writeback-staging", isDirectory: true)
+            .appendingPathComponent(token, isDirectory: true)
+        let hostSnapshotURL = hostStagingDirectory.appendingPathComponent(fileName)
+        guard FileManager.default.fileExists(atPath: hostSnapshotURL.path) else {
+            throw ToolExecutorError.executionFailed("Failed to snapshot '\(sourcePath)' from the VM.")
+        }
+        return hostSnapshotURL
+    }
+
+    private func shellSingleQuoted(_ string: String) -> String {
+        "'\(string.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+
+    private func uniqueImportedStagingURL(in directory: URL, preferredName: String) -> URL {
+        let candidate = directory.appendingPathComponent(preferredName)
+        guard FileManager.default.fileExists(atPath: candidate.path) else {
+            return candidate
+        }
+
+        let suffix = UUID().uuidString.prefix(8)
+        let ext = (preferredName as NSString).pathExtension
+        let base = (preferredName as NSString).deletingPathExtension
+        let uniqueName = ext.isEmpty ? "\(base)-\(suffix)" : "\(base)-\(suffix).\(ext)"
+        return directory.appendingPathComponent(uniqueName)
+    }
+
+    private func requireLocalGrant(for path: String, task: TaskRecord) throws -> LocalAccessGrant {
+        guard let grant = task.localAccessGrants.first(where: { $0.allowsAccess(to: path) }) else {
+            throw ToolExecutorError.executionFailed("No granted local filesystem access allows '\(path)'.")
+        }
+        return grant
+    }
+
+    private func withScopedLocalAccess<T>(for grant: LocalAccessGrant, body: () throws -> T) throws -> T {
+        if let bookmarkData = grant.bookmarkData {
+            var isStale = false
+            let url = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if accessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            return try body()
+        }
+        return try body()
     }
     
     // MARK: - Question Tools

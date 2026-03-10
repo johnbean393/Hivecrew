@@ -88,7 +88,7 @@ struct AgentPreviewStripView: View {
         }
         
         let effectiveStatus = taskService.effectiveStatus(for: item.task)
-        if effectiveStatus == .planReview {
+        if effectiveStatus == .planReview || effectiveStatus == .writebackReview {
             return (0, item.task.createdAt)
         }
         
@@ -99,7 +99,7 @@ struct AgentPreviewStripView: View {
             return (2, item.task.createdAt)
         case .queued, .waitingForVM, .planning:
             return (3, item.task.createdAt)
-        case .planReview:
+        case .planReview, .writebackReview:
             return (0, item.task.createdAt)
         case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed:
             return (4, item.task.createdAt)

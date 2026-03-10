@@ -83,6 +83,7 @@ document.addEventListener('alpine:init', () => {
         // Plan review
         editedPlanMarkdown: '',
         planEditing: false,
+        writebackReview: null,
         
         // Selected schedule (for detail view)
         selectedSchedule: null,
@@ -2224,12 +2225,17 @@ document.addEventListener('alpine:init', () => {
             // Initialize editing state
             this.editedPlanMarkdown = this.selectedTask?.planMarkdown || '';
             this.planEditing = false;
+            this.writebackReview = null;
             this.answerText = '';
             
             // Start screenshot polling and event stream for active tasks
             if (this.isActiveStatus(this.selectedTask?.status)) {
                 this.startScreenshotPolling();
                 this.startEventStream(this.selectedTask.id);
+            }
+
+            if (this.selectedTask?.status === 'writeback_review') {
+                await this.loadWritebackReview(this.selectedTask.id);
             }
             
             // Render Mermaid diagrams after DOM update
@@ -2243,6 +2249,7 @@ document.addEventListener('alpine:init', () => {
         
         closeTaskDetail() {
             this.selectedTask = null;
+            this.writebackReview = null;
             this.stopScreenshotPolling();
             this.stopEventStream();
         },
@@ -2253,6 +2260,21 @@ document.addEventListener('alpine:init', () => {
         
         isPlanReviewStatus(status) {
             return ['planning', 'plan_review'].includes(status);
+        },
+
+        async loadWritebackReview(taskId) {
+            this.writebackReview = null;
+            try {
+                const response = await this.apiFetch(`/api/v1/tasks/${taskId}/writeback`);
+                if (response.status === 204) {
+                    return;
+                }
+                if (response.ok) {
+                    this.writebackReview = await response.json();
+                }
+            } catch (error) {
+                // Silently ignore review loading errors
+            }
         },
         
         startScreenshotPolling() {
@@ -2426,8 +2448,14 @@ document.addEventListener('alpine:init', () => {
                 
                 const updatedTask = await response.json();
                 this.selectedTask = updatedTask;
+
+                if (this.selectedTask?.status === 'writeback_review') {
+                    await this.loadWritebackReview(this.selectedTask.id);
+                } else {
+                    this.writebackReview = null;
+                }
                 
-                this.showToast(`Task ${action}ed successfully`, 'success');
+                this.showToast(this.actionSuccessMessage(action), 'success');
                 await this.loadTasks();
                 
             } catch (error) {
@@ -2496,6 +2524,14 @@ document.addEventListener('alpine:init', () => {
         
         async cancelPlan() {
             await this.performAction('cancel_plan');
+        },
+
+        async approveWriteback() {
+            await this.performAction('approve_writeback');
+        },
+
+        async discardWriteback() {
+            await this.performAction('discard_writeback');
         },
         
         async submitAnswer(answer) {
@@ -2806,10 +2842,36 @@ document.addEventListener('alpine:init', () => {
                 'scheduled': 'Scheduled',
                 'planning': 'Planning',
                 'plan_review': 'Review Plan',
-                'plan_failed': 'Plan Failed'
+                'plan_failed': 'Plan Failed',
+                'writeback_review': 'Review Changes'
             };
             
             return statusMap[status] || status;
+        },
+
+        actionSuccessMessage(action) {
+            const messages = {
+                'cancel': 'Task cancelled',
+                'pause': 'Task paused',
+                'resume': 'Task resumed',
+                'rerun': 'Task rerun started',
+                'instruct': 'Instructions sent',
+                'approve_plan': 'Plan approved',
+                'edit_plan': 'Plan updated and approved',
+                'cancel_plan': 'Planning cancelled',
+                'approve_writeback': 'Local changes applied',
+                'discard_writeback': 'Staged changes discarded'
+            };
+            return messages[action] || 'Task updated';
+        },
+
+        formatWritebackOperation(operation) {
+            const labels = {
+                'copy': 'Copy',
+                'move': 'Move',
+                'replace_file': 'Replace File'
+            };
+            return labels[operation] || operation;
         },
         
         formatDate(dateString) {

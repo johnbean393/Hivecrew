@@ -49,6 +49,10 @@ extension TaskService {
             }
             content.title = String(localized: "Task Hit Max Steps")
             content.body = task.title
+        case .writebackReview:
+            content.title = String(localized: "Review Staged Changes")
+            content.body = task.title
+            content.subtitle = String(localized: "\(task.pendingWritebackOperations.count) local change(s) awaiting approval")
         default:
             return
         }

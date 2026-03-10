@@ -106,6 +106,19 @@ extension TaskRoutes {
     }
 
     @Sendable
+    func getTaskWritebackReview(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+
+        guard let review = try await serviceProvider.getTaskWritebackReview(id: taskId) else {
+            return Response(status: .noContent)
+        }
+
+        return try createJSONResponse(review)
+    }
+
+    @Sendable
     func listTaskFiles(request: Request, context: APIRequestContext) async throws -> Response {
         guard let taskId = context.parameters.get("id") else {
             throw APIError.badRequest("Missing task ID")

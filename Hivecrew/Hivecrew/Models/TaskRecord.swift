@@ -23,6 +23,7 @@ enum TaskStatus: Int, Codable, CaseIterable {
     case planning = 9      // Yellow dot - plan is being generated
     case planReview = 10   // Blue dot - awaiting user review/edit of plan
     case planFailed = 11   // Red dot - planning failed
+    case writebackReview = 12 // Blue dot - awaiting user review/apply for staged local changes
     
     var displayName: String {
         switch self {
@@ -38,6 +39,7 @@ enum TaskStatus: Int, Codable, CaseIterable {
         case .planning: return String(localized: "Generating Plan")
         case .planReview: return String(localized: "Review Plan")
         case .planFailed: return String(localized: "Planning Failed")
+        case .writebackReview: return String(localized: "Review Changes")
         }
     }
     
@@ -50,6 +52,7 @@ enum TaskStatus: Int, Codable, CaseIterable {
         case .cancelled: return "gray"
         case .timedOut, .maxIterations: return "orange"
         case .planReview: return "blue"
+        case .writebackReview: return "blue"
         }
     }
     
@@ -57,7 +60,7 @@ enum TaskStatus: Int, Codable, CaseIterable {
         switch self {
         case .queued, .waitingForVM, .running, .paused, .planning, .planReview:
             return true
-        case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed:
+        case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed, .writebackReview:
             return false
         }
     }
@@ -173,6 +176,15 @@ final class TaskRecord {
     
     /// Names of skills auto-selected during planning
     var planSelectedSkillNames: [String]?
+
+    /// JSON-encoded local destination grants available for staged writeback.
+    private var localAccessGrantsData: Data?
+
+    /// JSON-encoded pending staged writeback operations for this task.
+    private var pendingWritebackOperationsData: Data?
+
+    /// Local paths that were updated by an approved writeback batch.
+    var appliedWritebackPaths: [String]?
     
     /// Computed property for planFirstEnabled with default value
     var planFirstEnabled: Bool {
@@ -210,6 +222,42 @@ final class TaskRecord {
         set {
             retrievalModeOverridesData = try? JSONEncoder().encode(newValue)
         }
+    }
+
+    // MARK: - Writeback Properties
+
+    var localAccessGrants: [LocalAccessGrant] {
+        get {
+            guard
+                let localAccessGrantsData,
+                let decoded = try? JSONDecoder().decode([LocalAccessGrant].self, from: localAccessGrantsData)
+            else {
+                return []
+            }
+            return decoded
+        }
+        set {
+            localAccessGrantsData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    var pendingWritebackOperations: [PendingWritebackOperation] {
+        get {
+            guard
+                let pendingWritebackOperationsData,
+                let decoded = try? JSONDecoder().decode([PendingWritebackOperation].self, from: pendingWritebackOperationsData)
+            else {
+                return []
+            }
+            return decoded
+        }
+        set {
+            pendingWritebackOperationsData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    var hasPendingWriteback: Bool {
+        !pendingWritebackOperations.isEmpty
     }
     
     // MARK: - Attachment Properties
@@ -281,7 +329,10 @@ final class TaskRecord {
         retrievalModeOverrides: [String: String]? = nil,
         planFirstEnabled: Bool = false,
         planMarkdown: String? = nil,
-        planSelectedSkillNames: [String]? = nil
+        planSelectedSkillNames: [String]? = nil,
+        localAccessGrants: [LocalAccessGrant] = [],
+        pendingWritebackOperations: [PendingWritebackOperation] = [],
+        appliedWritebackPaths: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -313,6 +364,9 @@ final class TaskRecord {
         self.planFirstEnabledRaw = planFirstEnabled
         self.planMarkdown = planMarkdown
         self.planSelectedSkillNames = planSelectedSkillNames
+        self.localAccessGrantsData = try? JSONEncoder().encode(localAccessGrants)
+        self.pendingWritebackOperationsData = try? JSONEncoder().encode(pendingWritebackOperations)
+        self.appliedWritebackPaths = appliedWritebackPaths
         
         // Use new attachment infos if provided, otherwise fall back to legacy paths
         if let infos = attachmentInfos {

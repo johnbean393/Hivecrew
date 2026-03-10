@@ -114,3 +114,74 @@ public struct GenerateImageParams: Codable, Sendable {
         self.aspectRatio = aspectRatio
     }
 }
+
+public struct ListLocalEntriesParams: Codable, Sendable {
+    public let path: String
+
+    public init(path: String) {
+        self.path = path
+    }
+}
+
+public struct ImportLocalFileParams: Codable, Sendable {
+    public let sourcePath: String?
+    public let destinationPath: String?
+    public let sourcePaths: [String]?
+    public let destinationDirectory: String?
+
+    public init(
+        sourcePath: String? = nil,
+        destinationPath: String? = nil,
+        sourcePaths: [String]? = nil,
+        destinationDirectory: String? = nil
+    ) {
+        self.sourcePath = sourcePath
+        self.destinationPath = destinationPath
+        self.sourcePaths = sourcePaths
+        self.destinationDirectory = destinationDirectory
+    }
+}
+
+public struct StageWritebackCopyParams: Codable, Sendable {
+    public let sourcePath: String?
+    public let destinationPath: String?
+    public let sourcePaths: [String]?
+    public let destinationDirectory: String?
+    public let deleteOriginalLocalPaths: [String]?
+
+    public init(
+        sourcePath: String? = nil,
+        destinationPath: String? = nil,
+        sourcePaths: [String]? = nil,
+        destinationDirectory: String? = nil,
+        deleteOriginalLocalPaths: [String]? = nil
+    ) {
+        self.sourcePath = sourcePath
+        self.destinationPath = destinationPath
+        self.sourcePaths = sourcePaths
+        self.destinationDirectory = destinationDirectory
+        self.deleteOriginalLocalPaths = deleteOriginalLocalPaths
+    }
+}
+
+public struct StageWritebackMoveParams: Codable, Sendable {
+    public let sourcePath: String
+    public let destinationPath: String
+    public let deleteOriginalLocalPaths: [String]?
+
+    public init(sourcePath: String, destinationPath: String, deleteOriginalLocalPaths: [String]? = nil) {
+        self.sourcePath = sourcePath
+        self.destinationPath = destinationPath
+        self.deleteOriginalLocalPaths = deleteOriginalLocalPaths
+    }
+}
+
+public struct StageAttachedFileUpdateParams: Codable, Sendable {
+    public let sourcePath: String
+    public let attachmentPath: String?
+
+    public init(sourcePath: String, attachmentPath: String? = nil) {
+        self.sourcePath = sourcePath
+        self.attachmentPath = attachmentPath
+    }
+}

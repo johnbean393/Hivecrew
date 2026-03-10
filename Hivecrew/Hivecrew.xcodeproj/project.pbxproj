@@ -202,6 +202,11 @@
 		20F9A1E32F70000100ABCDEF /* PromptModelPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */; };
 		20F9A1E42F70000100ABCDEF /* PromptModelHoverPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */; };
 		20F9A1E62F70000100ABCDEF /* PromptModelButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E52F70000100ABCDEF /* PromptModelButton.swift */; };
+		30C0A0012F91000100A1B2C3 /* LocalAccessGrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0022F91000100A1B2C3 /* LocalAccessGrant.swift */; };
+		30C0A0032F91000200A1B2C3 /* PendingWritebackOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0042F91000200A1B2C3 /* PendingWritebackOperation.swift */; };
+		30C0A0052F91000300A1B2C3 /* TaskService+Writeback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */; };
+		30C0A0072F91000400A1B2C3 /* WritebackStagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0082F91000400A1B2C3 /* WritebackStagingService.swift */; };
+		30C0A00B2F91000600A1B2C3 /* WritebackReviewWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */; };
 		3001B0012F15000000000001 /* TaskRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0012F15000000000001 /* TaskRecord.swift */; };
 		3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0022F15000000000002 /* AgentSessionRecord.swift */; };
 		3001B0032F15000000000003 /* AgentQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0032F15000000000003 /* AgentQuestion.swift */; };
@@ -457,6 +462,11 @@
 		20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelPopover.swift; sourceTree = "<group>"; };
 		20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelHoverPanel.swift; sourceTree = "<group>"; };
 		20F9A1E52F70000100ABCDEF /* PromptModelButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelButton.swift; sourceTree = "<group>"; };
+		30C0A0022F91000100A1B2C3 /* LocalAccessGrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAccessGrant.swift; sourceTree = "<group>"; };
+		30C0A0042F91000200A1B2C3 /* PendingWritebackOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingWritebackOperation.swift; sourceTree = "<group>"; };
+		30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+Writeback.swift"; sourceTree = "<group>"; };
+		30C0A0082F91000400A1B2C3 /* WritebackStagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Writeback/WritebackStagingService.swift"; sourceTree = "<group>"; };
+		30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritebackReviewWindow.swift; sourceTree = "<group>"; };
 		3001A0012F15000000000001 /* TaskRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRecord.swift; sourceTree = "<group>"; };
 		3001A0022F15000000000002 /* AgentSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionRecord.swift; sourceTree = "<group>"; };
 		3001A0032F15000000000003 /* AgentQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentQuestion.swift; sourceTree = "<group>"; };
@@ -659,6 +669,7 @@
 				204DF4342F157397004AB99B /* TaskService+Execution.swift */,
 				204DF4352F157397004AB99B /* TaskService+VMManagement.swift */,
 				20F0A1142F90010B003887A3 /* TaskService+Notifications.swift */,
+				30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */,
 				204DF4372F157398004AB99B /* TaskService+VMCleanup.swift */,
 				207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */,
 				204DF4362F157397004AB99B /* TaskServiceError.swift */,
@@ -738,7 +749,9 @@
 				207B73012F3A586900572AF5 /* VMProvisioningConfig.swift */,
 				202F64E62F2FE35300F6F359 /* MCPServerRecord.swift */,
 				202F64942F2E755A00F6F359 /* AttachmentInfo.swift */,
+				30C0A0022F91000100A1B2C3 /* LocalAccessGrant.swift */,
 				202F64892F2DB8A900F6F359 /* PlanTodoItem.swift */,
+				30C0A0042F91000200A1B2C3 /* PendingWritebackOperation.swift */,
 				20B899442F1FAEB5003887A3 /* ScheduledTask.swift */,
 				3001A0032F15000000000003 /* AgentQuestion.swift */,
 				3001A0022F15000000000002 /* AgentSessionRecord.swift */,
@@ -753,6 +766,7 @@
 			isa = PBXGroup;
 			children = (
 				207B73032F3A587700572AF5 /* VMProvisioningService.swift */,
+				30C0A0082F91000400A1B2C3 /* WritebackStagingService.swift */,
 				20360DC12F38234300A9B998 /* RemoteAccess */,
 				202F64E42F2FE31500F6F359 /* MCP */,
 				202F64832F2DB88700F6F359 /* Planning */,
@@ -1051,6 +1065,7 @@
 				3001A00B2F1500000000000B /* TaskListView.swift */,
 				3001A00C2F1500000000000C /* TaskRowView.swift */,
 				20F0A11A2F90010E003887A3 /* TaskRowView+Interactions.swift */,
+				30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */,
 			);
 			path = Tasks;
 			sourceTree = "<group>";
@@ -1459,6 +1474,8 @@
 				20E22E102F3EC89F003EFCE4 /* MCPServerRowView.swift in Sources */,
 				20E22E112F3EC89F003EFCE4 /* PresetButtonView.swift in Sources */,
 				202F648F2F2DB9E300F6F359 /* PlanReviewWindow.swift in Sources */,
+				30C0A0012F91000100A1B2C3 /* LocalAccessGrant.swift in Sources */,
+				30C0A0032F91000200A1B2C3 /* PendingWritebackOperation.swift in Sources */,
 				3001B0012F15000000000001 /* TaskRecord.swift in Sources */,
 				3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */,
 				202F648A2F2DB8A900F6F359 /* PlanTodoItem.swift in Sources */,
@@ -1479,6 +1496,7 @@
 				207B73042F3A587700572AF5 /* VMProvisioningService.swift in Sources */,
 				202F64E22F2FE30400F6F359 /* MCPSettingsView.swift in Sources */,
 				204DF4372F157397004AB99B /* TaskService+Execution.swift in Sources */,
+				30C0A0052F91000300A1B2C3 /* TaskService+Writeback.swift in Sources */,
 				2052ACBC2F1D1E39007E4475 /* APIServerManager.swift in Sources */,
 				204DF4382F157397004AB99B /* TaskServiceError.swift in Sources */,
 				204DF4392F157397004AB99B /* TaskService+VMManagement.swift in Sources */,
@@ -1509,6 +1527,7 @@
 				20E22E0C2F3EC88B003EFCE4 /* UsernameRowView.swift in Sources */,
 				20E22E0D2F3EC88B003EFCE4 /* TokenCopyRowView.swift in Sources */,
 				3001B0072F15000000000007 /* TaskService.swift in Sources */,
+				30C0A0072F91000400A1B2C3 /* WritebackStagingService.swift in Sources */,
 				209EB6CF2F1E17F000A7F13F /* PromptTextView.swift in Sources */,
 				209EB6D02F1E17F000A7F13F /* MentionTextAttachment.swift in Sources */,
 				2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */,
@@ -1522,6 +1541,7 @@
 				3001B00B2F1500000000000B /* TaskListView.swift in Sources */,
 				3001B00C2F1500000000000C /* TaskRowView.swift in Sources */,
 				20F0A11B2F90010E003887A3 /* TaskRowView+Interactions.swift in Sources */,
+				30C0A00B2F91000600A1B2C3 /* WritebackReviewWindow.swift in Sources */,
 				3001B00D2F1500000000000D /* AgentQuestionSheet.swift in Sources */,
 				20E22DFF2F3EC818003EFCE4 /* ElapsedTimeView.swift in Sources */,
 				3001B00E2F1500000000000E /* AgentActivityStreamView.swift in Sources */,

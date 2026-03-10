@@ -143,6 +143,16 @@ public enum AppPaths {
     public static func sessionWorkspaceDirectory(id: String) -> URL {
         sessionDirectory(id: id).appendingPathComponent("workspace", isDirectory: true)
     }
+
+    /// Returns the directory for staged writeback artifacts for a specific session.
+    public static func sessionWritebackDirectory(id: String) -> URL {
+        sessionDirectory(id: id).appendingPathComponent("writeback", isDirectory: true)
+    }
+
+    /// Returns the directory containing staged artifact snapshots for a specific session.
+    public static func sessionWritebackArtifactsDirectory(id: String) -> URL {
+        sessionWritebackDirectory(id: id).appendingPathComponent("artifacts", isDirectory: true)
+    }
     
     // MARK: - Templates Storage
     

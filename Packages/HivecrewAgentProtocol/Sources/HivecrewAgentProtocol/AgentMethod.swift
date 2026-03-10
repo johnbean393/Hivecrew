@@ -21,6 +21,8 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case scroll = "scroll"
     case runShell = "run_shell"
     case readFile = "read_file"
+    case writeFile = "write_file"
+    case listDirectory = "list_directory"
     case moveFile = "move_file"
     case wait = "wait"
     case askTextQuestion = "ask_text_question"
@@ -35,6 +37,12 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case addTodoItem = "add_todo_item"
     case finishTodoItem = "finish_todo_item"
     case generateImage = "generate_image"
+    case listLocalEntries = "list_local_entries"
+    case importLocalFile = "import_local_file"
+    case stageWritebackCopy = "stage_writeback_copy"
+    case stageWritebackMove = "stage_writeback_move"
+    case stageAttachedFileUpdate = "stage_attached_file_update"
+    case listWritebackTargets = "list_writeback_targets"
     case spawnSubagent = "spawn_subagent"
     case getSubagentStatus = "get_subagent_status"
     case awaitSubagents = "await_subagents"
@@ -48,6 +56,8 @@ public enum AgentMethod: String, CaseIterable, Sendable {
              .getLocation, .createTodoList, .addTodoItem, .finishTodoItem,
              .askTextQuestion, .askMultipleChoice, .requestUserIntervention,
              .getLoginCredentials, .generateImage,
+             .listLocalEntries, .importLocalFile,
+             .stageWritebackCopy, .stageWritebackMove, .stageAttachedFileUpdate, .listWritebackTargets,
              .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents,
              .sendMessage:
             return true

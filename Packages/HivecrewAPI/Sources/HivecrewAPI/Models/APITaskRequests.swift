@@ -19,6 +19,8 @@ public enum APITaskAction: String, Codable, Sendable {
     case approvePlan = "approve_plan"
     case editPlan = "edit_plan"
     case cancelPlan = "cancel_plan"
+    case approveWriteback = "approve_writeback"
+    case discardWriteback = "discard_writeback"
 }
 
 // MARK: - Task Requests

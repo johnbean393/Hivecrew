@@ -34,6 +34,7 @@ struct TaskCreationRequest {
     let planFirstEnabled: Bool
     let planMarkdown: String?
     let planSelectedSkillNames: [String]?
+    let localAccessGrants: [LocalAccessGrant]
 }
 
 /// Service for managing tasks and agent execution
@@ -131,7 +132,8 @@ class TaskService: ObservableObject {
         retrievalModeOverrides: [String: String] = [:],
         planFirstEnabled: Bool = false,
         planMarkdown: String? = nil,
-        planSelectedSkillNames: [String]? = nil
+        planSelectedSkillNames: [String]? = nil,
+        localAccessGrants: [LocalAccessGrant] = []
     ) async throws -> TaskRecord {
         let request = TaskCreationRequest(
             description: description,
@@ -153,7 +155,8 @@ class TaskService: ObservableObject {
             retrievalModeOverrides: retrievalModeOverrides,
             planFirstEnabled: planFirstEnabled,
             planMarkdown: planMarkdown,
-            planSelectedSkillNames: planSelectedSkillNames
+            planSelectedSkillNames: planSelectedSkillNames,
+            localAccessGrants: localAccessGrants
         )
 
         guard let task = try await createTasks([request]).first else {
@@ -218,7 +221,8 @@ class TaskService: ObservableObject {
                 retrievalContextAttachmentPaths: request.retrievalContextAttachmentPaths.isEmpty ? nil : request.retrievalContextAttachmentPaths,
                 retrievalSelectedSuggestionIds: request.retrievalSelectedSuggestionIds.isEmpty ? nil : request.retrievalSelectedSuggestionIds,
                 retrievalModeOverrides: request.retrievalModeOverrides.isEmpty ? nil : request.retrievalModeOverrides,
-                planFirstEnabled: request.planFirstEnabled
+                planFirstEnabled: request.planFirstEnabled,
+                localAccessGrants: request.localAccessGrants
             )
 
             if let planMarkdown = request.planMarkdown {
@@ -380,7 +384,8 @@ class TaskService: ObservableObject {
             retrievalModeOverrides: originalTask.retrievalModeOverrides,
             planFirstEnabled: originalTask.planFirstEnabled,
             planMarkdown: originalTask.planMarkdown,
-            planSelectedSkillNames: originalTask.planSelectedSkillNames
+            planSelectedSkillNames: originalTask.planSelectedSkillNames,
+            localAccessGrants: originalTask.localAccessGrants
         )
     }
 
@@ -527,7 +532,7 @@ class TaskService: ObservableObject {
     /// Derive an effective status that accounts for live agent state.
     func effectiveStatus(for task: TaskRecord) -> TaskStatus {
         switch task.status {
-        case .planning, .planReview, .planFailed:
+        case .planning, .planReview, .planFailed, .writebackReview:
             return task.status
         default:
             break

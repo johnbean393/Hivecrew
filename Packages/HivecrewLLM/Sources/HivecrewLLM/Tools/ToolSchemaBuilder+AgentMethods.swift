@@ -177,6 +177,29 @@ extension ToolSchemaBuilder {
                 )
             )
 
+        case .writeFile:
+            return (
+                "Write UTF-8 text contents to a file inside the VM. Prefer this over shell redirection when you need deterministic text or code edits.",
+                objectSchema(
+                    properties: [
+                        "path": stringProperty("The file path to write"),
+                        "contents": stringProperty("The full file contents to write")
+                    ],
+                    required: ["path", "contents"]
+                )
+            )
+
+        case .listDirectory:
+            return (
+                "List the contents of a directory inside the VM, including file names, sizes, and whether each entry is a directory.",
+                objectSchema(
+                    properties: [
+                        "path": stringProperty("The directory path to inspect")
+                    ],
+                    required: ["path"]
+                )
+            )
+
         case .moveFile:
             return (
                 "Move or rename a file from source to destination. Use this for file organization, renaming, or moving files to the outbox.",
@@ -268,8 +291,10 @@ extension ToolSchemaBuilder {
             )
 
         case .createTodoList, .addTodoItem, .finishTodoItem, .requestUserIntervention,
-             .getLoginCredentials, .generateImage, .spawnSubagent, .getSubagentStatus,
-             .awaitSubagents, .cancelSubagent, .listSubagents, .sendMessage:
+             .getLoginCredentials, .generateImage, .listLocalEntries, .importLocalFile,
+             .stageWritebackCopy, .stageWritebackMove,
+             .stageAttachedFileUpdate, .listWritebackTargets,
+             .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents, .sendMessage:
             fatalError("Management schema cases should be handled before the main switch")
         }
     }

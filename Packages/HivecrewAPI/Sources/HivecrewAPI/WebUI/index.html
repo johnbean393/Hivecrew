@@ -1149,6 +1149,39 @@
                                         <p class="detail-description" x-text="selectedTask?.description"></p>
                                     </div>
 
+                                    <template x-if="selectedTask?.status === 'writeback_review'">
+                                        <div class="detail-section">
+                                            <h4>Review Changes</h4>
+                                            <p class="detail-description">
+                                                The agent edited files inside the VM and staged these local filesystem updates for approval.
+                                            </p>
+                                            <template x-if="selectedTask?.pendingWriteback">
+                                                <p class="detail-result" x-text="`${selectedTask.pendingWriteback.count} staged change(s)${selectedTask.pendingWriteback.hasConflicts ? ' with conflicts' : ''}.`"></p>
+                                            </template>
+                                            <template x-if="writebackReview?.items?.length > 0">
+                                                <div style="display:flex; flex-direction:column; gap:12px; margin-top:12px;">
+                                                    <template x-for="item in writebackReview.items" :key="item.id">
+                                                        <div style="border:1px solid var(--border); border-radius:12px; padding:14px; background:var(--bg-elevated);">
+                                                            <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                                                                <div>
+                                                                    <div style="font-weight:600;" x-text="`${formatWritebackOperation(item.operation)} ${item.sourceFileName}`"></div>
+                                                                    <div style="font-family:var(--font-mono); font-size:12px; color:var(--text-secondary); margin-top:4px;" x-text="item.destinationPath"></div>
+                                                                </div>
+                                                                <span class="task-status" :class="item.hasConflict ? 'status-timed_out' : 'status-plan_review'" x-text="item.hasConflict ? 'Conflict' : 'Ready'"></span>
+                                                            </div>
+                                                            <template x-if="item.conflictReason">
+                                                                <p class="detail-error" style="margin-top:10px;" x-text="item.conflictReason"></p>
+                                                            </template>
+                                                            <template x-if="item.diffPreview || item.stagedPreview">
+                                                                <pre style="margin-top:12px; overflow:auto; background:var(--bg-window); border-radius:10px; padding:12px; font-size:12px; line-height:1.5; white-space:pre-wrap;" x-text="item.diffPreview || item.stagedPreview"></pre>
+                                                            </template>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
                                     <!-- Plan Section (rendered markdown) -->
                                     <template x-if="selectedTask?.planMarkdown">
                                         <div class="detail-section plan-section">
@@ -1370,6 +1403,24 @@
                                             <line x1="18" y1="6" x2="6" y2="18"></line>
                                             <line x1="6" y1="6" x2="18" y2="18"></line>
                                         </svg>
+                                    </button>
+                                </div>
+                            </template>
+                            <template x-if="selectedTask?.status === 'writeback_review'">
+                                <div class="action-buttons">
+                                    <button class="btn btn-primary" @click="approveWriteback()" :disabled="actionLoading || writebackReview?.hasConflicts">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                        Apply Changes
+                                    </button>
+                                    <button class="btn btn-secondary" @click="discardWriteback()" :disabled="actionLoading">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <path d="M3 6h18"></path>
+                                            <path d="M8 6V4h8v2"></path>
+                                            <path d="M19 6l-1 14H6L5 6"></path>
+                                        </svg>
+                                        Discard Changes
                                     </button>
                                 </div>
                             </template>

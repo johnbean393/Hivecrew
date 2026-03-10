@@ -173,6 +173,24 @@ public struct ReadFileParams: Codable, Sendable {
     }
 }
 
+public struct WriteFileParams: Codable, Sendable {
+    public let path: String
+    public let contents: String
+
+    public init(path: String, contents: String) {
+        self.path = path
+        self.contents = contents
+    }
+}
+
+public struct ListDirectoryParams: Codable, Sendable {
+    public let path: String
+
+    public init(path: String) {
+        self.path = path
+    }
+}
+
 public struct MoveFileParams: Codable, Sendable {
     public let source: String
     public let destination: String

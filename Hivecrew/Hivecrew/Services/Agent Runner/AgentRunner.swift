@@ -256,6 +256,17 @@ final class AgentRunner {
             let visionDependentTools = AgentMethod.allCases.filter(\.isVisionDependentTool)
             excludedTools.formUnion(visionDependentTools)
         }
+
+        if task.localAccessGrants.isEmpty {
+            excludedTools.formUnion([
+                .listLocalEntries,
+                .importLocalFile,
+                .stageWritebackCopy,
+                .stageWritebackMove,
+                .stageAttachedFileUpdate,
+                .listWritebackTargets,
+            ])
+        }
         
         if excludedTools.isEmpty {
             self.tools = schemaBuilder.buildCUATools()
@@ -341,7 +352,8 @@ final class AgentRunner {
             skills: matchedSkills,
             plan: task.planMarkdown,
             approvedContextBlocks: task.retrievalInlineContextBlocks + additionalContextBlocks,
-            supportsVision: supportsVision
+            supportsVision: supportsVision,
+            localAccessGrants: task.localAccessGrants
         )
         conversationHistory = [.system(systemPrompt)]
         

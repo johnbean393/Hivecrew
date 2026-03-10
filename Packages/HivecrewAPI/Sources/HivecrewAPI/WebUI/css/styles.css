@@ -1280,6 +1280,11 @@ body {
     color: var(--status-scheduled);
 }
 
+.status-writeback_review {
+    background: rgba(0, 122, 255, 0.15);
+    color: var(--status-scheduled);
+}
+
 .status-plan_failed {
     background: rgba(255, 59, 48, 0.15);
     color: var(--status-failed);

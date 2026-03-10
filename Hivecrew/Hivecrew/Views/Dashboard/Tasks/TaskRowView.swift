@@ -18,6 +18,7 @@ struct TaskRowView: View {
     @State var draftTitle: String = ""
     @State var showingTrace: Bool = false
     @State var showingPlanReview: Bool = false
+    @State var showingWritebackReview: Bool = false
     @State var showingRerunModelSelection: Bool = false
     @State var showingMissingAttachments: Bool = false
     @State var missingAttachmentsValidation: RerunAttachmentValidation?
@@ -56,6 +57,8 @@ struct TaskRowView: View {
                 return .orange
             case .planReview:
                 return .blue
+            case .writebackReview:
+                return .blue
         }
     }
     
@@ -93,6 +96,9 @@ struct TaskRowView: View {
         }
         .sheet(isPresented: $showingPlanReview) {
             PlanReviewWindow(task: task, taskService: taskService)
+        }
+        .sheet(isPresented: $showingWritebackReview) {
+            WritebackReviewWindow(task: task, taskService: taskService)
         }
         .sheet(isPresented: $showingMissingAttachments) {
             if let validation = missingAttachmentsValidation {
@@ -149,6 +155,14 @@ struct TaskRowView: View {
                 beginRenaming()
             } label: {
                 Label("Rename", systemImage: "pencil")
+            }
+
+            if effectiveStatus == .writebackReview {
+                Button {
+                    showingWritebackReview = true
+                } label: {
+                    Label("Review Changes", systemImage: "square.and.arrow.down")
+                }
             }
             
             // Rerun option for inactive tasks

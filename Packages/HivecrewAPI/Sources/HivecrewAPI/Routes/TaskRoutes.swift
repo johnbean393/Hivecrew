@@ -65,6 +65,9 @@ public final class TaskRoutes: Sendable {
         
         // GET /tasks/:id/activity - Poll for activity events
         tasks.get(":id/activity", use: getTaskActivity)
+
+        // GET /tasks/:id/writeback - Pending staged local change review
+        tasks.get(":id/writeback", use: getTaskWritebackReview)
         
         // GET /tasks/:id/files - List task files
         tasks.get(":id/files", use: listTaskFiles)
