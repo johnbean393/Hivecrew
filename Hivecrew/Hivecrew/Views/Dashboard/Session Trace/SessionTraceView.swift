@@ -79,6 +79,18 @@ struct SessionTraceView: View {
         }
         return nil
     }
+
+    var sessionTokenUsage: TraceTokenUsage? {
+        let usage = events.reduce(into: TraceTokenUsage.zero) { partial, event in
+            partial = TraceTokenUsage(
+                prompt: partial.prompt + event.tokenUsage.prompt,
+                completion: partial.completion + event.tokenUsage.completion,
+                total: partial.total + event.tokenUsage.effectiveTotal
+            )
+        }
+
+        return usage.hasUsage ? usage : nil
+    }
     
     var body: some View {
         Group {
@@ -181,6 +193,25 @@ struct SessionTraceView: View {
         }
         
         return timestamp
+    }
+
+    func formatTokenCount(_ value: Int) -> String {
+        switch value {
+        case 1_000_000...:
+            let abbreviated = Double(value) / 1_000_000
+            let formatted = abbreviated.rounded() == abbreviated
+                ? String(Int(abbreviated))
+                : String(format: "%.1f", abbreviated)
+            return "\(formatted)M"
+        case 1_000...:
+            let abbreviated = Double(value) / 1_000
+            let formatted = abbreviated.rounded() == abbreviated
+                ? String(Int(abbreviated))
+                : String(format: "%.1f", abbreviated)
+            return "\(formatted)k"
+        default:
+            return "\(value)"
+        }
     }
     
     // MARK: - Loading View

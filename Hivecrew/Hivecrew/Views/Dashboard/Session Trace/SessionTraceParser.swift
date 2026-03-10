@@ -20,6 +20,7 @@ enum SessionTraceParser {
             var screenshotPath: String?
             var responseText: String?
             var reasoning: String?
+            var tokenUsage: TraceTokenUsage = .zero
             var subagentTracePath: String?
             var subagentId: String?
             var subagentStatus: String?
@@ -33,6 +34,7 @@ enum SessionTraceParser {
                 screenshotPath = extracted.screenshotPath
                 responseText = extracted.responseText
                 reasoning = extracted.reasoning
+                tokenUsage = extracted.tokenUsage
                 subagentTracePath = extracted.subagentTracePath
                 subagentId = extracted.subagentId
                 subagentStatus = extracted.subagentStatus
@@ -51,6 +53,7 @@ enum SessionTraceParser {
                 details: details,
                 responseText: responseText,
                 reasoning: reasoning,
+                tokenUsage: tokenUsage,
                 subagentTracePath: subagentTracePath,
                 subagentId: subagentId,
                 subagentStatus: subagentStatus,
@@ -66,6 +69,7 @@ enum SessionTraceParser {
         screenshotPath: String?,
         responseText: String?,
         reasoning: String?,
+        tokenUsage: TraceTokenUsage,
         subagentTracePath: String?,
         subagentId: String?,
         subagentStatus: String?,
@@ -77,6 +81,7 @@ enum SessionTraceParser {
         var screenshotPath: String?
         var responseText: String?
         var reasoning: String?
+        var tokenUsage: TraceTokenUsage = .zero
         var subagentTracePath: String?
         var subagentId: String?
         var subagentStatus: String?
@@ -123,9 +128,15 @@ enum SessionTraceParser {
                 let toolCallCount = inner["toolCallCount"] as? Int ?? 0
                 let promptTokens = inner["promptTokens"] as? Int ?? 0
                 let completionTokens = inner["completionTokens"] as? Int ?? 0
+                let totalTokens = inner["totalTokens"] as? Int ?? 0
                 let fullResponseText = inner["responseText"] as? String
                 let contentPreview = inner["contentPreview"] as? String
                 reasoning = inner["reasoning"] as? String
+                tokenUsage = TraceTokenUsage(
+                    prompt: promptTokens,
+                    completion: completionTokens,
+                    total: totalTokens
+                )
 
                 if toolCallCount > 0 {
                     summary = "LLM requested \(toolCallCount) tool call(s)"
@@ -135,7 +146,16 @@ enum SessionTraceParser {
                 } else {
                     summary = "LLM responded"
                 }
-                details = "+\(promptTokens) prompt, +\(completionTokens) completion tokens"
+                if tokenUsage.hasUsage {
+                    let usageParts = [
+                        promptTokens > 0 ? "+\(promptTokens) prompt" : nil,
+                        completionTokens > 0 ? "+\(completionTokens) completion" : nil,
+                        totalTokens > 0 ? "\(totalTokens) total" : nil
+                    ]
+                    .compactMap { $0 }
+
+                    details = usageParts.isEmpty ? nil : usageParts.joined(separator: ", ")
+                }
             }
         case "tool_call":
             if let toolCall = data["toolCall"] as? [String: Any],
@@ -213,6 +233,7 @@ enum SessionTraceParser {
             screenshotPath,
             responseText,
             reasoning,
+            tokenUsage,
             subagentTracePath,
             subagentId,
             subagentStatus,

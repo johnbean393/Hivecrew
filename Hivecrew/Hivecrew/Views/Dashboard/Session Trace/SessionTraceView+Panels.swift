@@ -473,6 +473,10 @@ extension SessionTraceView {
                     }
                 }
             }
+
+            if let usage = sessionTokenUsage {
+                traceTokenUsageSummary(usage)
+            }
             
             // Last LLM text response (displayed in a GroupBox with Markdown)
             if let responseText = lastLLMTextResponse {
@@ -490,6 +494,60 @@ extension SessionTraceView {
             }
         }
         .padding()
+    }
+
+    @ViewBuilder
+    private func traceTokenUsageSummary(_ usage: TraceTokenUsage) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                tokenUsageBadge(
+                    systemImage: "textformat.123",
+                    text: "\(formatTokenCount(usage.effectiveTotal)) tokens"
+                )
+                if usage.prompt > 0 {
+                    tokenUsageBadge(text: "\(formatTokenCount(usage.prompt)) prompt")
+                }
+                if usage.completion > 0 {
+                    tokenUsageBadge(text: "\(formatTokenCount(usage.completion)) completion")
+                }
+                Spacer(minLength: 0)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                tokenUsageBadge(
+                    systemImage: "textformat.123",
+                    text: "\(formatTokenCount(usage.effectiveTotal)) tokens"
+                )
+                if usage.prompt > 0 || usage.completion > 0 {
+                    HStack(spacing: 8) {
+                        if usage.prompt > 0 {
+                            tokenUsageBadge(text: "\(formatTokenCount(usage.prompt)) prompt")
+                        }
+                        if usage.completion > 0 {
+                            tokenUsageBadge(text: "\(formatTokenCount(usage.completion)) completion")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func tokenUsageBadge(systemImage: String? = nil, text: String) -> some View {
+        HStack(spacing: 4) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.caption2)
+            }
+
+            Text(text)
+                .font(.caption)
+                .monospacedDigit()
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(Capsule())
     }
     
     /// Whether this task can have a skill extracted

@@ -9,6 +9,22 @@ import SwiftUI
 
 // MARK: - Event Visibility Tracking
 
+struct TraceTokenUsage: Equatable {
+    let prompt: Int
+    let completion: Int
+    let total: Int
+
+    static let zero = TraceTokenUsage(prompt: 0, completion: 0, total: 0)
+
+    var effectiveTotal: Int {
+        total > 0 ? total : prompt + completion
+    }
+
+    var hasUsage: Bool {
+        prompt > 0 || completion > 0 || total > 0
+    }
+}
+
 struct EventVisibility: Equatable {
     let id: String
     let index: Int
@@ -39,6 +55,7 @@ struct TraceEventInfo: Identifiable {
     let responseText: String?
     /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
     let reasoning: String?
+    let tokenUsage: TraceTokenUsage
     /// Subagent trace path (relative to session directory), if this is a subagent lifecycle event
     let subagentTracePath: String?
     let subagentId: String?
@@ -57,6 +74,7 @@ struct TraceEventInfo: Identifiable {
         details: String? = nil,
         responseText: String? = nil,
         reasoning: String? = nil,
+        tokenUsage: TraceTokenUsage = .zero,
         subagentTracePath: String? = nil,
         subagentId: String? = nil,
         subagentStatus: String? = nil,
@@ -73,6 +91,7 @@ struct TraceEventInfo: Identifiable {
         self.details = details
         self.responseText = responseText
         self.reasoning = reasoning
+        self.tokenUsage = tokenUsage
         self.subagentTracePath = subagentTracePath
         self.subagentId = subagentId
         self.subagentStatus = subagentStatus
