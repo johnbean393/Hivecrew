@@ -5,6 +5,7 @@
 //  Tests for the HivecrewMCP package
 //
 
+import Foundation
 import Testing
 @testable import HivecrewMCP
 

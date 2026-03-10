@@ -68,7 +68,7 @@ extension TaskDefaultsSettingsView {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Skills").font(.headline)
+                        Text("Skills")
                         Text("Reusable instructions that enhance agent capabilities")
                             .font(.caption)
                             .foregroundStyle(.secondary)

@@ -46,6 +46,14 @@ public struct RemoteTemplate: Identifiable, Sendable {
 /// Known remote templates available for download
 public enum KnownTemplates {
 
+    public static let goldenV0016 = RemoteTemplate(
+        id: "golden-v0.0.16",
+        name: "Hivecrew Golden Image",
+        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
+        version: "0.0.16",
+        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.16.tar.zst")!
+    )
+    
     public static let goldenV0015 = RemoteTemplate(
         id: "golden-v0.0.15",
         name: "Hivecrew Golden Image",
@@ -53,44 +61,15 @@ public enum KnownTemplates {
         version: "0.0.15",
         url: URL(string: "https://templates.hivecrew.org/golden-v0.0.15.tar.zst")!
     )
-
-    /// The golden template hosted on Cloudflare R2
-    public static let goldenV0014 = RemoteTemplate(
-        id: "golden-v0.0.14",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.14",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.14.tar.zst")!
-    )
-
-    /// The golden template hosted on Cloudflare R2
-    public static let goldenV0013 = RemoteTemplate(
-        id: "golden-v0.0.13",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.13",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.13.tar.zst")!
-    )
-
-    /// The golden template hosted on Cloudflare R2
-    public static let goldenV0012 = RemoteTemplate(
-        id: "golden-v0.0.12",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.12",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.12.tar.zst")!
-    )
     
     /// All available templates for download
     public static let all: [RemoteTemplate] = [
-        goldenV0015,
-        goldenV0014,
-        goldenV0013,
-        goldenV0012
+        goldenV0016,
+        goldenV0015
     ]
 
     /// The default/recommended template
-    public static let `default`: RemoteTemplate = goldenV0015
+    public static let `default`: RemoteTemplate = goldenV0016
     
 }
 
