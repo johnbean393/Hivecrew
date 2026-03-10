@@ -23,6 +23,14 @@ struct TraceTokenUsage: Equatable {
     var hasUsage: Bool {
         prompt > 0 || completion > 0 || total > 0
     }
+
+    func adding(_ other: TraceTokenUsage) -> TraceTokenUsage {
+        TraceTokenUsage(
+            prompt: prompt + other.prompt,
+            completion: completion + other.completion,
+            total: total + other.total
+        )
+    }
 }
 
 struct EventVisibility: Equatable {

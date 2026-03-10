@@ -32,6 +32,7 @@ struct SessionTraceView: View {
     @State var isExportingVideo: Bool = false
     @State var exportProgress: Double = 0
     @State var showingSkillExtraction: Bool = false
+    @State var sessionTokenUsageSummary: TraceTokenUsage? = nil
     @State var selectedTab: TraceTab = .trace
     @State var planState: PlanState? = nil
     @State var showingRerunModelSelection: Bool = false
@@ -80,18 +81,6 @@ struct SessionTraceView: View {
         return nil
     }
 
-    var sessionTokenUsage: TraceTokenUsage? {
-        let usage = events.reduce(into: TraceTokenUsage.zero) { partial, event in
-            partial = TraceTokenUsage(
-                prompt: partial.prompt + event.tokenUsage.prompt,
-                completion: partial.completion + event.tokenUsage.completion,
-                total: partial.total + event.tokenUsage.effectiveTotal
-            )
-        }
-
-        return usage.hasUsage ? usage : nil
-    }
-    
     var body: some View {
         Group {
             if isLoading {
@@ -280,6 +269,10 @@ struct SessionTraceView: View {
         do {
             traceContent = try String(contentsOf: traceFile, encoding: .utf8)
             events = SessionTraceParser.parseEvents(from: traceContent)
+            sessionTokenUsageSummary = calculateSessionTokenUsage(
+                from: events,
+                sessionDirectory: sessionDir
+            )
             screenshotEvents = events.filter { $0.screenshotPath != nil }
             
             // Initialize with first screenshot
@@ -294,6 +287,7 @@ struct SessionTraceView: View {
             isLoading = false
         } catch {
             isLoading = false
+            sessionTokenUsageSummary = nil
             errorMessage = error.localizedDescription
         }
     }
@@ -317,6 +311,66 @@ struct SessionTraceView: View {
 
     func parseTraceEvents(from content: String) -> [TraceEventInfo] {
         SessionTraceParser.parseEvents(from: content)
+    }
+
+    private func calculateSessionTokenUsage(
+        from events: [TraceEventInfo],
+        sessionDirectory: URL
+    ) -> TraceTokenUsage? {
+        var visitedTracePaths: Set<String> = []
+        let usage = aggregateTokenUsage(
+            from: events,
+            sessionDirectory: sessionDirectory,
+            visitedTracePaths: &visitedTracePaths
+        )
+        return usage.hasUsage ? usage : nil
+    }
+
+    private func aggregateTokenUsage(
+        from events: [TraceEventInfo],
+        sessionDirectory: URL,
+        visitedTracePaths: inout Set<String>
+    ) -> TraceTokenUsage {
+        var usage = events.reduce(into: TraceTokenUsage.zero) { partial, event in
+            partial = partial.adding(
+                TraceTokenUsage(
+                    prompt: event.tokenUsage.prompt,
+                    completion: event.tokenUsage.completion,
+                    total: event.tokenUsage.effectiveTotal
+                )
+            )
+        }
+
+        let subagentTracePaths: Set<String> = Set(
+            events.compactMap { event in
+                guard let path = event.subagentTracePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !path.isEmpty else {
+                    return nil
+                }
+                return path
+            }
+        )
+
+        for relativePath in subagentTracePaths {
+            let traceURL = sessionDirectory.appendingPathComponent(relativePath).standardizedFileURL
+            guard visitedTracePaths.insert(traceURL.path).inserted else { continue }
+
+            do {
+                let content = try String(contentsOf: traceURL, encoding: .utf8)
+                let nestedEvents = parseTraceEvents(from: content)
+                usage = usage.adding(
+                    aggregateTokenUsage(
+                        from: nestedEvents,
+                        sessionDirectory: sessionDirectory,
+                        visitedTracePaths: &visitedTracePaths
+                    )
+                )
+            } catch {
+                print("Failed to load subagent trace for token usage: \(error)")
+            }
+        }
+
+        return usage
     }
 }
 

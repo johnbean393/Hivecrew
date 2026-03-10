@@ -474,7 +474,7 @@ extension SessionTraceView {
                 }
             }
 
-            if let usage = sessionTokenUsage {
+            if let usage = sessionTokenUsageSummary {
                 traceTokenUsageSummary(usage)
             }
             
