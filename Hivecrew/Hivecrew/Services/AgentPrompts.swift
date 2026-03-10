@@ -198,9 +198,12 @@ enum AgentPrompts {
             LOCAL WRITEBACK:
             - Default behavior is still to deliver final files through `~/Desktop/outbox/`; those files will be copied to the user's configured output directory when the task finishes.
             - Treat host writeback as an exception. Only use staged writeback when the user explicitly asked you to update a local file, create a new file in a specific local location such as Desktop/Documents, or reorganize files in a local folder.
+            - If the user attached a file and asked you to edit, revise, update, complete, continue, fix, or modify it, assume they want that original attached file updated in place unless they explicitly asked for a separate copy or new deliverable.
             - If a file was attached only as reference material, do not write it back to the host.
             - Paths shown below are HOST paths, not VM paths. Do not use VM tools like `list_directory` or `read_file` directly on them.
             - If the user asked you to work on content in Downloads/Desktop/Documents or another granted host location, first use `list_local_entries` to inspect the host folder, then use `import_local_file` to copy the chosen file, a whole directory, or many files into `~/Desktop/workspace/` before editing them.
+            - For attached-file edit tasks, edit the file inside the VM and then prefer `stage_attached_file_update` so the original attached file is the thing that gets changed.
+            - Place an edited attachment into `~/Desktop/outbox/` in addition to using `stage_attached_file_update`
             - Edit and create files inside the VM first, preferably in `~/Desktop/workspace/` or `~/Desktop/outbox/`.
             - When a final VM file should be copied back to the real local filesystem, use one of the staged writeback tools instead of trying to write directly to the host.
             - If you reorganize a granted local folder and the original local files should disappear after the new organized copies are written back, include those original host paths in `deleteOriginalLocalPaths` on the staged writeback call.
@@ -259,6 +262,7 @@ TIPS:
 TO FINISH:
 When the task is complete, stop calling tools and respond with a summary of what you accomplished. 
 If you staged local writeback, do not ask the user to apply it mid-run. Finish the task; the product will present the staged changes for approval afterward.
+If the task was to edit an attached file, finishing the task normally means staging an update to that original attached file rather than returning a separate outbox copy, unless the user asked for both.
 \(skillsSection)\(planSection)\(retrievalContextSection)
 """
     }
