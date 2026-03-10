@@ -44,8 +44,11 @@ struct StrictModelsResponse: Decodable {
         let description: String?
         let created: Int?
         let contextLength: Int?
+        let architecture: Architecture?
         let inputModalities: [String]?
         let outputModalities: [String]?
+        let modalities: Modalities?
+        let capabilities: Capabilities?
         let supportsVision: Bool?
         let supportedReasoningLevels: [ReasoningLevel]?
         let supportedParameters: [String]?
@@ -54,6 +57,114 @@ struct StrictModelsResponse: Decodable {
 
         struct ReasoningLevel: Decodable {
             let effort: String
+        }
+
+        struct Architecture: Decodable {
+            let modality: String?
+            let inputModalities: [String]?
+            let outputModalities: [String]?
+
+            enum CodingKeys: String, CodingKey {
+                case modality
+                case inputModalities = "input_modalities"
+                case outputModalities = "output_modalities"
+            }
+        }
+
+        struct Modalities: Decodable {
+            let input: [String]?
+            let output: [String]?
+
+            enum CodingKeys: String, CodingKey {
+                case input
+                case inputs
+                case inputModalitiesSnake = "input_modalities"
+                case inputModalitiesCamel = "inputModalities"
+                case output
+                case outputs
+                case outputModalitiesSnake = "output_modalities"
+                case outputModalitiesCamel = "outputModalities"
+            }
+
+            init(from decoder: Decoder) throws {
+                if let singleArray = try? decoder.singleValueContainer().decode([String].self) {
+                    self.input = singleArray
+                    self.output = nil
+                    return
+                }
+
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                self.input = Self.decodeStringArray(
+                    from: container,
+                    keys: [.input, .inputs, .inputModalitiesSnake, .inputModalitiesCamel]
+                )
+                self.output = Self.decodeStringArray(
+                    from: container,
+                    keys: [.output, .outputs, .outputModalitiesSnake, .outputModalitiesCamel]
+                )
+            }
+
+            private static func decodeStringArray(
+                from container: KeyedDecodingContainer<CodingKeys>,
+                keys: [CodingKeys]
+            ) -> [String]? {
+                for key in keys {
+                    if let values = try? container.decodeIfPresent([String].self, forKey: key) {
+                        return values
+                    }
+                    if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+                        return [value]
+                    }
+                }
+                return nil
+            }
+        }
+
+        struct Capabilities: Decodable {
+            let vision: Bool?
+            let supportsVision: Bool?
+            let imageInput: Bool?
+            let supportsImageInput: Bool?
+
+            enum CodingKeys: String, CodingKey {
+                case vision
+                case supportsVision = "supports_vision"
+                case supportsVisionCamel = "supportsVision"
+                case imageInput = "image_input"
+                case imageInputCamel = "imageInput"
+                case supportsImageInput = "supports_image_input"
+                case supportsImageInputCamel = "supportsImageInput"
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                vision = Self.decodeBool(from: container, keys: [.vision])
+                supportsVision = Self.decodeBool(from: container, keys: [.supportsVision, .supportsVisionCamel])
+                imageInput = Self.decodeBool(from: container, keys: [.imageInput, .imageInputCamel])
+                supportsImageInput = Self.decodeBool(from: container, keys: [.supportsImageInput, .supportsImageInputCamel])
+            }
+
+            private static func decodeBool(
+                from container: KeyedDecodingContainer<CodingKeys>,
+                keys: [CodingKeys]
+            ) -> Bool? {
+                for key in keys {
+                    if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+                        return value
+                    }
+                    if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+                        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                        case "true", "1", "yes":
+                            return true
+                        case "false", "0", "no":
+                            return false
+                        default:
+                            continue
+                        }
+                    }
+                }
+                return nil
+            }
         }
 
         enum CodingKeys: String, CodingKey {
@@ -70,13 +181,20 @@ struct StrictModelsResponse: Decodable {
             case inputTokenLimit = "input_token_limit"
             case tokenLimit = "token_limit"
             case contextWindow = "context_window"
+            case architecture
             case inputModalities = "input_modalities"
             case inputModalitiesCamel = "inputModalities"
             case outputModalities = "output_modalities"
             case outputModalitiesCamel = "outputModalities"
+            case modalities
+            case capabilities
             case vision = "vision"
             case supportsVision = "supports_vision"
             case supportsVisionCamel = "supportsVision"
+            case imageInput = "image_input"
+            case imageInputCamel = "imageInput"
+            case supportsImageInput = "supports_image_input"
+            case supportsImageInputCamel = "supportsImageInput"
             case supportsImageDetailOriginal = "supports_image_detail_original"
             case supportedReasoningLevels = "supported_reasoning_levels"
             case supportedParameters = "supported_parameters"
@@ -114,21 +232,60 @@ struct StrictModelsResponse: Decodable {
                 .inputTokenLimit, .tokenLimit, .contextWindow
             ])
 
-            inputModalities = Self.decodeStringArray(
+            architecture = try? container.decodeIfPresent(Architecture.self, forKey: .architecture)
+            let topLevelInputModalities = Self.decodeStringArray(
                 from: container,
                 snakeCaseKey: .inputModalities,
                 camelCaseKey: .inputModalitiesCamel
             )
-            outputModalities = Self.decodeStringArray(
+            let topLevelOutputModalities = Self.decodeStringArray(
                 from: container,
                 snakeCaseKey: .outputModalities,
                 camelCaseKey: .outputModalitiesCamel
             )
+            modalities = try? container.decodeIfPresent(Modalities.self, forKey: .modalities)
+            capabilities = try? container.decodeIfPresent(Capabilities.self, forKey: .capabilities)
 
-            supportsVision = Self.decodeBool(
-                from: container,
-                keys: [.supportsVision, .supportsVisionCamel, .vision, .supportsImageDetailOriginal]
-            ) ?? inputModalities?.contains(where: { $0.caseInsensitiveCompare("image") == .orderedSame })
+            let derivedModalities = architecture?.modality.flatMap(Self.parseArchitectureModality)
+            inputModalities = Self.mergeModalities(
+                architecture?.inputModalities,
+                derivedModalities?.input,
+                topLevelInputModalities,
+                modalities?.input
+            )
+            outputModalities = Self.mergeModalities(
+                architecture?.outputModalities,
+                derivedModalities?.output,
+                topLevelOutputModalities,
+                modalities?.output
+            )
+
+            let directVisionFlags: [Bool?] = [
+                Self.decodeBool(
+                    from: container,
+                    keys: [
+                        .supportsVision,
+                        .supportsVisionCamel,
+                        .vision,
+                        .imageInput,
+                        .imageInputCamel,
+                        .supportsImageInput,
+                        .supportsImageInputCamel,
+                        .supportsImageDetailOriginal
+                    ]
+                ),
+                capabilities?.vision,
+                capabilities?.supportsVision,
+                capabilities?.imageInput,
+                capabilities?.supportsImageInput
+            ]
+            if directVisionFlags.contains(true) {
+                supportsVision = true
+            } else if directVisionFlags.contains(false) {
+                supportsVision = false
+            } else {
+                supportsVision = inputModalities?.contains(where: Self.isVisionModality)
+            }
 
             supportedReasoningLevels = try? container.decodeIfPresent([ReasoningLevel].self, forKey: .supportedReasoningLevels)
             supportedParameters = Self.decodeStringArray(
@@ -166,6 +323,16 @@ struct StrictModelsResponse: Decodable {
                 if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
                     return value
                 }
+                if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+                    switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                    case "true", "1", "yes":
+                        return true
+                    case "false", "0", "no":
+                        return false
+                    default:
+                        continue
+                    }
+                }
             }
             return nil
         }
@@ -188,6 +355,62 @@ struct StrictModelsResponse: Decodable {
                 return [value]
             }
             return nil
+        }
+
+        private static func mergeModalities(_ sources: [String]?...) -> [String]? {
+            var merged: [String] = []
+            var seen = Set<String>()
+
+            for source in sources {
+                guard let source else { continue }
+                for value in source {
+                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { continue }
+                    if seen.insert(trimmed).inserted {
+                        merged.append(trimmed)
+                    }
+                }
+            }
+
+            return merged.isEmpty ? nil : merged
+        }
+
+        private static func isVisionModality(_ value: String) -> Bool {
+            let normalized = value
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .replacingOccurrences(of: "-", with: "_")
+            switch normalized {
+            case "image", "images", "vision", "image_url", "imageurl", "multimodal":
+                return true
+            default:
+                return false
+            }
+        }
+
+        private static func parseArchitectureModality(_ rawValue: String) -> (input: [String], output: [String])? {
+            let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+
+            let segments = trimmed.split(separator: ">", maxSplits: 1, omittingEmptySubsequences: false)
+            let inputSegment = segments.first.map(String.init) ?? trimmed
+            let outputSegment = segments.count > 1 ? String(segments[1]) : ""
+
+            let input = parseModalityTokens(inputSegment.replacingOccurrences(of: "-", with: ""))
+            let output = parseModalityTokens(outputSegment.replacingOccurrences(of: "-", with: ""))
+
+            if input.isEmpty, output.isEmpty {
+                return nil
+            }
+
+            return (input, output)
+        }
+
+        private static func parseModalityTokens(_ rawValue: String) -> [String] {
+            rawValue
+                .split(separator: "+")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
         }
     }
 }

@@ -388,4 +388,80 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(model.reasoningCapability.supportedEfforts, [])
         XCTAssertEqual(model.reasoningCapability.defaultEnabled, true)
     }
+
+    func testResponsesModelsPayloadReadsNestedCapabilitiesVisionFlag() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "moonshotai/kimi-k2.5",
+                  "name": "MoonshotAI: Kimi K2.5",
+                  "capabilities": {
+                    "supports_vision": true
+                  }
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .responses)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.supportsVisionInput, true)
+        XCTAssertTrue(model.isVisionCapable)
+    }
+
+    func testResponsesModelsPayloadReadsNestedArchitectureInputModalities() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "moonshotai/kimi-k2.5",
+                  "name": "MoonshotAI: Kimi K2.5",
+                  "architecture": {
+                    "input_modalities": ["text", "image"],
+                    "output_modalities": ["text"]
+                  }
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .responses)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.inputModalities ?? [], ["text", "image"])
+        XCTAssertEqual(model.supportsVisionInput, true)
+        XCTAssertTrue(model.isVisionCapable)
+    }
+
+    func testResponsesModelsPayloadReadsArchitectureModalityFallback() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "moonshotai/kimi-k2.5",
+                  "name": "MoonshotAI: Kimi K2.5",
+                  "architecture": {
+                    "modality": "text+image+video->text"
+                  }
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .responses)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.inputModalities ?? [], ["text", "image", "video"])
+        XCTAssertEqual(model.outputModalities ?? [], ["text"])
+        XCTAssertEqual(model.supportsVisionInput, true)
+        XCTAssertTrue(model.isVisionCapable)
+    }
 }
