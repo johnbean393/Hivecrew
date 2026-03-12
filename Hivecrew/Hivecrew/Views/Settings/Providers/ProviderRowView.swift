@@ -24,7 +24,7 @@ struct ProviderRow: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
-                    Text(provider.displayName)
+                    Text(provider.displayLabel)
                         .fontWeight(.medium)
                     
                     if provider.isDefault {
@@ -44,7 +44,7 @@ struct ProviderRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else if provider.backendMode == .codexOAuth {
-                    Text(provider.isOAuthAuthenticated ? "ChatGPT OAuth • Connected" : "ChatGPT OAuth • Not connected")
+                    Text(provider.isOAuthAuthenticated ? "\(provider.displayLabel) • Connected" : "\(provider.displayLabel) • Not connected")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

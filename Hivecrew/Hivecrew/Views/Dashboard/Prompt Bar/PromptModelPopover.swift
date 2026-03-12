@@ -6,11 +6,16 @@
 //
 
 import AppKit
+import SQLite3
 import SwiftUI
+import SwiftData
 import HivecrewLLM
 
 /// Popover with searchable model list
 struct PromptModelPopover: View {
+    private static let codexRateLimitSnapshotMaxAge: TimeInterval = 300
+
+    @Environment(\.modelContext) private var modelContext
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
     @Binding var reasoningEnabled: Bool?
@@ -32,6 +37,7 @@ struct PromptModelPopover: View {
     @State private var errorMessage: String?
     @State private var modelListViewportHeight: CGFloat = 0
     @State private var codexRateLimitSnapshot: CodexRateLimitSnapshot?
+    @State private var codexRateLimitRefreshTask: Task<Void, Never>?
     @StateObject private var hoverPanelController = ModelHoverInfoPanelController()
     
     private let hoverPanelOpenDelay: TimeInterval = 0.14
@@ -137,14 +143,18 @@ struct PromptModelPopover: View {
         .onAppear {
             loadModels()
             refreshCodexRateLimitSnapshot()
+            refreshCodexRateLimitSnapshotFromAPI()
         }
         .onDisappear {
             resetHoverPanelState()
+            codexRateLimitRefreshTask?.cancel()
+            codexRateLimitRefreshTask = nil
         }
         .onChange(of: selectedProviderId) { _, _ in
             resetHoverPanelState()
             loadModels()
             refreshCodexRateLimitSnapshot()
+            refreshCodexRateLimitSnapshotFromAPI()
         }
         .onChange(of: searchText) { _, _ in
             resetHoverPanelState()
@@ -196,7 +206,7 @@ struct PromptModelPopover: View {
             selectedProviderId = provider.id
             selectedModelId = UserDefaults.standard.persistedModelId(for: provider.id) ?? ""
         }) {
-            Text(provider.displayName)
+            Text(provider.displayLabel)
                 .font(.caption)
                 .fontWeight(.medium)
                 .padding(.horizontal, 10)
@@ -697,7 +707,54 @@ struct PromptModelPopover: View {
             return
         }
 
-        codexRateLimitSnapshot = CodexRateLimitStore.retrieve(providerId: selectedProviderId)
+        if let storedSnapshot = CodexRateLimitStore.retrieve(providerId: selectedProviderId),
+           storedSnapshot.isFresh(maxAge: Self.codexRateLimitSnapshotMaxAge) {
+            codexRateLimitSnapshot = storedSnapshot
+            persistCodexProviderDisplayName(from: storedSnapshot, providerId: selectedProviderId)
+            return
+        }
+
+        let fallbackSnapshot = CodexRateLimitFallbackReader.latestSnapshot()
+        if let fallbackSnapshot,
+           fallbackSnapshot.isFresh(maxAge: Self.codexRateLimitSnapshotMaxAge) {
+            codexRateLimitSnapshot = fallbackSnapshot
+            _ = CodexRateLimitStore.store(providerId: selectedProviderId, snapshot: fallbackSnapshot)
+            persistCodexProviderDisplayName(from: fallbackSnapshot, providerId: selectedProviderId)
+            return
+        }
+
+        codexRateLimitSnapshot = nil
+    }
+
+    private func refreshCodexRateLimitSnapshotFromAPI() {
+        codexRateLimitRefreshTask?.cancel()
+        guard isCodexProvider else { return }
+
+        let providerId = selectedProviderId
+        codexRateLimitRefreshTask = Task {
+            do {
+                let snapshot = try await fetchLiveCodexRateLimitSnapshot(providerId: providerId)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard providerId == selectedProviderId else { return }
+                    codexRateLimitSnapshot = snapshot
+                    persistCodexProviderDisplayName(from: snapshot, providerId: providerId)
+                }
+            } catch {
+                // Keep the last known snapshot rather than surfacing transient errors in the footer row.
+            }
+        }
+    }
+
+    private func persistCodexProviderDisplayName(from snapshot: CodexRateLimitSnapshot, providerId: String) {
+        guard let resolvedName = codexProviderDisplayName(for: snapshot.planType),
+              let provider = providers.first(where: { $0.id == providerId }),
+              provider.displayName != resolvedName else {
+            return
+        }
+
+        provider.displayName = resolvedName
+        try? modelContext.save()
     }
 
     private func reasoningToggleBinding(for model: LLMProviderModel) -> Binding<Bool> {
@@ -1088,5 +1145,70 @@ struct PromptModelPopover: View {
             return String(format: "%.1fK", Double(value) / 1_000)
         }
         return "\(value)"
+    }
+}
+
+private enum CodexRateLimitFallbackReader {
+    static func latestSnapshot() -> CodexRateLimitSnapshot? {
+        let stateURL = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".codex/state_5.sqlite")
+        guard FileManager.default.fileExists(atPath: stateURL.path) else {
+            return nil
+        }
+
+        var database: OpaquePointer?
+        guard sqlite3_open_v2(stateURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            if let database {
+                sqlite3_close(database)
+            }
+            return nil
+        }
+        defer { sqlite3_close(database) }
+
+        let query = """
+        SELECT ts, message
+        FROM logs
+        WHERE message LIKE '%"type":"codex.rate_limits"%'
+        ORDER BY ts DESC, ts_nanos DESC, id DESC
+        LIMIT 1
+        """
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, query, -1, &statement, nil) == SQLITE_OK else {
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            return nil
+        }
+
+        let loggedAt = Date(timeIntervalSince1970: TimeInterval(sqlite3_column_int64(statement, 0)))
+        guard let rawMessage = sqlite3_column_text(statement, 1) else {
+            return nil
+        }
+
+        let message = String(cString: rawMessage)
+        guard let jsonStart = message.firstIndex(of: "{") else {
+            return nil
+        }
+
+        let json = String(message[jsonStart...])
+        guard let data = json.data(using: .utf8),
+              let event = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        guard let snapshot = parseCodexRateLimitSnapshot(from: event) else {
+            return nil
+        }
+
+        return CodexRateLimitSnapshot(
+            planType: snapshot.planType,
+            primary: snapshot.primary,
+            secondary: snapshot.secondary,
+            credits: snapshot.credits,
+            updatedAt: loggedAt
+        )
     }
 }

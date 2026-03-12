@@ -81,7 +81,7 @@ final class MentionInsertionController: ObservableObject {
                         resolvedText += "\"\(vmPath)\""
                     }
                 case .task:
-                    resolvedText += "continue from previous task \"\(attachment.displayName)\""
+                    resolvedText += "Continue from previous task \"\(attachment.displayName)\""
                 case .skill:
                     // Replace skill mention with "{skill-name} skill" format
                     // Avoid duplicating "skill" if the name already ends with it

@@ -69,6 +69,80 @@ public struct CodexRateLimitSnapshot: Codable, Equatable, Sendable {
         self.credits = credits
         self.updatedAt = updatedAt
     }
+
+    public func isFresh(maxAge: TimeInterval) -> Bool {
+        Date().timeIntervalSince(updatedAt) <= maxAge
+    }
+}
+
+public func codexProviderDisplayName(for planType: String?) -> String? {
+    guard let normalizedPlanType = planType?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased(),
+          !normalizedPlanType.isEmpty else {
+        return nil
+    }
+
+    switch normalizedPlanType {
+    case "plus":
+        return "ChatGPT Plus"
+    case "pro":
+        return "ChatGPT Pro"
+    case "team":
+        return "ChatGPT Team"
+    case "enterprise":
+        return "ChatGPT Enterprise"
+    case "edu":
+        return "ChatGPT Edu"
+    default:
+        return nil
+    }
+}
+
+private struct CodexUsageResponse: Decodable {
+    let planType: String?
+    let rateLimit: CodexUsageLimitDetails?
+    let credits: CodexUsageCredits?
+
+    enum CodingKeys: String, CodingKey {
+        case planType = "plan_type"
+        case rateLimit = "rate_limit"
+        case credits
+    }
+}
+
+private struct CodexUsageLimitDetails: Decodable {
+    let primaryWindow: CodexUsageWindow?
+    let secondaryWindow: CodexUsageWindow?
+
+    enum CodingKeys: String, CodingKey {
+        case primaryWindow = "primary_window"
+        case secondaryWindow = "secondary_window"
+    }
+}
+
+private struct CodexUsageWindow: Decodable {
+    let usedPercent: Int
+    let limitWindowSeconds: Int
+    let resetAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case usedPercent = "used_percent"
+        case limitWindowSeconds = "limit_window_seconds"
+        case resetAt = "reset_at"
+    }
+}
+
+private struct CodexUsageCredits: Decodable {
+    let hasCredits: Bool?
+    let unlimited: Bool?
+    let balance: String?
+
+    enum CodingKeys: String, CodingKey {
+        case hasCredits = "has_credits"
+        case unlimited
+        case balance
+    }
 }
 
 public enum CodexRateLimitStore {
@@ -120,7 +194,7 @@ public enum CodexRateLimitStore {
     }
 }
 
-func parseCodexRateLimitSnapshot(from event: [String: Any]) -> CodexRateLimitSnapshot? {
+public func parseCodexRateLimitSnapshot(from event: [String: Any]) -> CodexRateLimitSnapshot? {
     guard (event["type"] as? String) == "codex.rate_limits" else {
         return nil
     }
@@ -140,6 +214,69 @@ func parseCodexRateLimitSnapshot(from event: [String: Any]) -> CodexRateLimitSna
         secondary: secondary,
         credits: credits
     )
+}
+
+public func fetchLiveCodexRateLimitSnapshot(
+    providerId: String,
+    timeoutInterval: TimeInterval = 10
+) async throws -> CodexRateLimitSnapshot {
+    let accessToken = try await resolveCodexOAuthAccessToken(
+        providerId: providerId,
+        timeoutInterval: timeoutInterval
+    )
+
+    var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/codex/usage")!)
+    request.httpMethod = "GET"
+    request.timeoutInterval = timeoutInterval
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = timeoutInterval
+    configuration.timeoutIntervalForResource = timeoutInterval
+    configuration.waitsForConnectivity = false
+    let session = URLSession(configuration: configuration)
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+        throw LLMError.unknown(message: "Invalid usage response type")
+    }
+
+    guard httpResponse.statusCode == 200 else {
+        let body = String(data: data, encoding: .utf8) ?? "No response body"
+        throw LLMError.apiError(statusCode: httpResponse.statusCode, message: body)
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .secondsSince1970
+    let decoded = try decoder.decode(CodexUsageResponse.self, from: data)
+
+    let snapshot = CodexRateLimitSnapshot(
+        planType: decoded.planType,
+        primary: decoded.rateLimit?.primaryWindow.map { window in
+            CodexRateLimitWindowSnapshot(
+                usedPercent: window.usedPercent,
+                windowMinutes: max(1, window.limitWindowSeconds / 60),
+                resetAt: window.resetAt
+            )
+        },
+        secondary: decoded.rateLimit?.secondaryWindow.map { window in
+            CodexRateLimitWindowSnapshot(
+                usedPercent: window.usedPercent,
+                windowMinutes: max(1, window.limitWindowSeconds / 60),
+                resetAt: window.resetAt
+            )
+        },
+        credits: decoded.credits.map { credits in
+            CodexCreditsSnapshot(
+                hasCredits: credits.hasCredits,
+                unlimited: credits.unlimited,
+                balance: credits.balance.flatMap(Double.init)
+            )
+        }
+    )
+    _ = CodexRateLimitStore.store(providerId: providerId, snapshot: snapshot)
+    return snapshot
 }
 
 private func parseCodexRateLimitWindow(from value: Any?) -> CodexRateLimitWindowSnapshot? {
@@ -219,4 +356,80 @@ private func boolValue(_ value: Any?) -> Bool? {
     default:
         return nil
     }
+}
+
+private struct OAuthRefreshResponse: Decodable {
+    let accessToken: String
+    let refreshToken: String?
+    let idToken: String?
+    let expiresIn: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case idToken = "id_token"
+        case expiresIn = "expires_in"
+    }
+}
+
+private func resolveCodexOAuthAccessToken(
+    providerId: String,
+    timeoutInterval: TimeInterval
+) async throws -> String {
+    guard var tokens = CodexOAuthTokenStore.retrieve(providerId: providerId) else {
+        throw LLMError.authenticationError(message: "ChatGPT OAuth is not connected for this provider")
+    }
+
+    if tokens.shouldRefresh(within: 120) {
+        tokens = try await refreshCodexOAuthTokens(tokens, timeoutInterval: timeoutInterval)
+        guard CodexOAuthTokenStore.store(providerId: providerId, tokens: tokens) else {
+            throw LLMError.authenticationError(message: "Failed to persist refreshed ChatGPT OAuth tokens")
+        }
+    }
+
+    return tokens.accessToken
+}
+
+private func refreshCodexOAuthTokens(
+    _ current: CodexOAuthTokens,
+    timeoutInterval: TimeInterval
+) async throws -> CodexOAuthTokens {
+    var request = URLRequest(url: codexOAuthTokenEndpoint)
+    request.httpMethod = "POST"
+    request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+    request.timeoutInterval = timeoutInterval
+
+    var components = URLComponents()
+    components.queryItems = [
+        URLQueryItem(name: "grant_type", value: "refresh_token"),
+        URLQueryItem(name: "refresh_token", value: current.refreshToken),
+        URLQueryItem(name: "client_id", value: codexOAuthClientID)
+    ]
+    request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
+
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = timeoutInterval
+    configuration.timeoutIntervalForResource = timeoutInterval
+    configuration.waitsForConnectivity = false
+    let session = URLSession(configuration: configuration)
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+        throw LLMError.authenticationError(message: "Invalid token refresh response")
+    }
+
+    guard httpResponse.statusCode == 200 else {
+        let body = String(data: data, encoding: .utf8) ?? "No response body"
+        throw LLMError.apiError(statusCode: httpResponse.statusCode, message: body)
+    }
+
+    let decoded = try JSONDecoder().decode(OAuthRefreshResponse.self, from: data)
+    let expiresIn = decoded.expiresIn ?? 3600
+
+    return CodexOAuthTokens(
+        accessToken: decoded.accessToken,
+        refreshToken: decoded.refreshToken ?? current.refreshToken,
+        idToken: decoded.idToken ?? current.idToken,
+        expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
+    )
 }

@@ -114,7 +114,23 @@ final class LLMProviderRecord {
 
     /// A display string showing provider name
     var displayLabel: String {
-        displayName
+        guard backendMode == .codexOAuth else {
+            return displayName
+        }
+
+        return codexProviderDisplayName(for: CodexRateLimitStore.retrieve(providerId: id)?.planType) ?? displayName
+    }
+
+    @discardableResult
+    func syncPersistedCodexDisplayName() -> Bool {
+        guard backendMode == .codexOAuth,
+              let resolvedName = codexProviderDisplayName(for: CodexRateLimitStore.retrieve(providerId: id)?.planType),
+              displayName != resolvedName else {
+            return false
+        }
+
+        displayName = resolvedName
+        return true
     }
 
     var backendMode: LLMBackendMode {

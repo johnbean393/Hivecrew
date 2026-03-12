@@ -75,7 +75,7 @@ struct ProvidersSettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { provider in
-            Text("Are you sure you want to delete \"\(provider.displayName)\"? This will also remove the API key from your keychain.")
+            Text("Are you sure you want to delete \"\(provider.displayLabel)\"? This will also remove the API key from your keychain.")
         }
     }
     
@@ -176,7 +176,7 @@ struct ProvidersSettingsView: View {
                 ) {
                     Text("Select Provider").tag("")
                     ForEach(providers) { provider in
-                        Text(provider.displayName).tag(provider.id)
+                        Text(provider.displayLabel).tag(provider.id)
                     }
                 }
                 

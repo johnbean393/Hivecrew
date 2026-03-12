@@ -168,6 +168,7 @@ struct HivecrewApp: App {
     private func onStartup() {
         // Wire up the model context to services
         taskService.setModelContext(sharedModelContainer.mainContext)
+        synchronizePersistedCodexProviderNames()
         
         // Configure and start scheduler service
         schedulerService.configure(modelContext: sharedModelContainer.mainContext, taskService: taskService)
@@ -231,6 +232,24 @@ struct HivecrewApp: App {
         // Check if onboarding is needed
         if !hasCompletedOnboarding {
             showOnboarding = true
+        }
+    }
+
+    @MainActor
+    private func synchronizePersistedCodexProviderNames() {
+        let descriptor = FetchDescriptor<LLMProviderRecord>()
+        guard let providers = try? sharedModelContainer.mainContext.fetch(descriptor) else {
+            return
+        }
+
+        let changed = providers.reduce(into: false) { partialResult, provider in
+            if provider.syncPersistedCodexDisplayName() {
+                partialResult = true
+            }
+        }
+
+        if changed {
+            try? sharedModelContainer.mainContext.save()
         }
     }
     
