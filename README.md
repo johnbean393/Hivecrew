@@ -82,28 +82,19 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
 - **Specialized Workflows**: Delegate subtasks like competitor scans, documentation lookups, or multi-source comparisons to targeted subagents
 - **Inter-Agent Messaging**: Agents can send messages to each other (point-to-point or broadcast) that are automatically delivered into the recipient's context
 - **Faster Convergence**: Combine results from multiple subagents to reduce back-and-forth and reach decisions sooner
-- **Agent Swarms**: Leverage's Kimi-K2.5's training for agent swarms
+- **Agent Swarms**: Spawn multiple agents to complete tasks faster in parallel
 
 ### LLM Providers
 
 ![Provider Settings](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/provider-settings.png)
 
-- **Multi-Provider**: Works with Anthropic, OpenAI, OpenRouter, and any OpenAI-compatible API
+- **Multi-Provider**: Works with OpenRouter, OpenAI, Anthropic, Google AI Studio, Moonshot AI, xAI, LM Studio, Ollama, and other OpenAI-compatible APIs
 - **Backend Modes**: Per provider, choose `chat_completions`, `responses`, or `codex_oauth`
 - **Per-Task Selection**: Choose which provider and model to use for each task
 - **Local LLMs**: Connect to local LLM servers with custom base URLs
 - **Responses API Support**: Use OpenAI Responses-compatible providers with standard API key auth
 - **ChatGPT OAuth Support**: Direct OAuth (PKCE) login with ChatGPT for Codex-compatible usage
 - **Recommended Provider**: We suggest using [OpenRouter](https://openrouter.ai) for easy switching between different models with a single API key
-
-Codex OAuth mode is rollout-gated in release builds (`UserDefaults` key: `codexModeEnabled`) and is intended for individual ChatGPT account usage, not multi-tenant resale workflows.
-
-#### Recommended Models
-
-| Model | Best For | Notes |
-|-------|----------|-------|
-| **Kimi K2.5** | Most general tasks | Best balance between cost and performance |
-| **Claude Sonnet 4.5** | Screen interaction tasks | Only recommended for tasks requiring heavy clicking, pointing, and visual navigation (e.g., completing UI tests of a web app) |
 
 ### Safety Controls
 
@@ -178,13 +169,13 @@ Codex OAuth mode is rollout-gated in release builds (`UserDefaults` key: `codexM
 
 ![Web UI on Mobile](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/web-ui-mobile.png)
 
-- **Remote Access**: Built-in web UI lets you manage agents from any browser. Pair with a service like [Tailscale](https://tailscale.com) to securely access Hivecrew running via your phone from anywhere in the world
+- **Remote Access**: Built-in web UI lets you manage agents from any browser locally, or through Hivecrew's Remote Access flow backed by a secure Cloudflare Tunnel and one-time device pairing
 - **Full Task Management**: Create, plan, monitor, pause, resume, cancel, rerun, and delete tasks directly from the browser
 
 ### API & Automation
 
 - **REST API**: Control Hivecrew programmatically—create tasks, manage schedules, upload files, and download results
-- **Python SDK**: Use the `hivecrew` package for easy integration with Python workflows
+- **Python SDK**: Use the `hivecrew` package, or call the REST API directly from your own tooling
 
 ## Requirements
 
@@ -208,28 +199,23 @@ git clone https://github.com/johnbean393/Hivecrew.git
 cd Hivecrew
 ```
 
-2. Open the workspace:
+2. Open the workspace in Xcode:
 ```bash
 open Hivecrew.xcworkspace
 ```
 
-3. Download and place the `cloudflared` binary:
+3. Build from Xcode or the command line (requires signing with the necessary entitlements for Virtualization):
 ```bash
-# Download the latest macOS ARM64 release
-curl -L -o cloudflared.tgz https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz
-tar xzf cloudflared.tgz
-mv cloudflared Hivecrew/Hivecrew/Resources/cloudflared/
-chmod +x Hivecrew/Hivecrew/Resources/cloudflared/cloudflared
-rm cloudflared.tgz
+xcodebuild -workspace Hivecrew.xcworkspace -scheme Hivecrew -configuration Debug -destination 'platform=macOS' build
 ```
 
-4. Build and run from Xcode (requires signing with appropriate entitlements)
-
-Note: The Virtualization framework requires specific entitlements that must be granted via provisioning profiles or notarization. The `cloudflared` binary is not included in the repository due to its size — see `Hivecrew/Hivecrew/Resources/cloudflared/README.md` for details.
+Note: The Virtualization framework requires specific entitlements that must be granted via provisioning profiles or notarization. The `cloudflared` binary is already bundled in the repository at `Hivecrew/Hivecrew/Resources/cloudflared/cloudflared`; if you need to replace or update it, see `Hivecrew/Hivecrew/Resources/cloudflared/README.md`.
 
 ## API
 
 Hivecrew includes a REST API for programmatic task control. Enable it in **Settings → API** and generate an API key.
+
+For endpoint-by-endpoint examples, including schedules, provider management, web UI auth, and event streaming, see [guides/api-use.md](guides/api-use.md).
 
 ### Python SDK
 
@@ -244,6 +230,8 @@ from hivecrew import HivecrewClient
 
 client = HivecrewClient()  # Uses HIVECREW_API_KEY env var
 
+# Replace with any model ID exposed by your configured provider.
+
 result = client.tasks.run(
     description="""
     Test the login flow:
@@ -253,7 +241,7 @@ result = client.tasks.run(
     4. Take a screenshot and save it to the outbox
     """,
     provider_name="OpenRouter",
-    model_id="anthropic/claude-sonnet-4.5",
+    model_id="your-provider/model-id",
     output_directory="./test-results",
     timeout=600.0
 )
@@ -268,7 +256,6 @@ else:
 
 ```python
 from hivecrew import HivecrewClient
-from datetime import datetime, timedelta
 
 client = HivecrewClient()
 
@@ -283,7 +270,7 @@ schedule = client.schedules.create(
     4. Save the report as PDF to the outbox
     """,
     provider_name="OpenRouter",
-    model_id="anthropic/claude-sonnet-4.5",
+    model_id="your-provider/model-id",
     files=["./data/sales_q1.csv", "./data/sales_q2.csv"],
     recurrence={
         "type": "weekly",
