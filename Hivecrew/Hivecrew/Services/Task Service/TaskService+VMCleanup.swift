@@ -38,6 +38,7 @@ extension TaskService {
         
         var deletedCount = 0
         var skippedCount = 0
+        var failedCount = 0
         
         for vmPath in vmContents {
             // Check if it's a directory
@@ -65,14 +66,23 @@ extension TaskService {
             // This VM is orphaned - delete it
             print("TaskService: Deleting orphaned VM: \(vmId)")
             do {
-                try fm.removeItem(at: vmPath)
+                try await vmServiceClient.deleteVM(id: vmId)
                 deletedCount += 1
             } catch {
-                print("TaskService: Failed to delete orphaned VM \(vmId): \(error)")
+                print("TaskService: XPC delete failed for orphaned VM \(vmId): \(error)")
+
+                do {
+                    try fm.removeItem(at: vmPath)
+                    deletedCount += 1
+                    print("TaskService: Deleted orphaned VM directly after XPC failure: \(vmId)")
+                } catch {
+                    failedCount += 1
+                    print("TaskService: Failed to delete orphaned VM \(vmId): \(error)")
+                }
             }
         }
         
-        print("TaskService: VM cleanup complete. Deleted: \(deletedCount), Skipped: \(skippedCount)")
+        print("TaskService: VM cleanup complete. Deleted: \(deletedCount), Skipped: \(skippedCount), Failed: \(failedCount)")
     }
     
     /// Get the set of developer VM IDs from UserDefaults

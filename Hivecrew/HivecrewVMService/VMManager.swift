@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Darwin
 import Virtualization
 import HivecrewShared
 
@@ -122,7 +123,15 @@ class VMManager: NSObject {
                     try fileManager.removeItem(at: bundlePathToDelete)
                     NSLog("VMManager: VM directory \(vmId) deleted at \(bundlePathToDelete.path)")
                 } catch {
-                    deleteError = error
+                    NSLog("VMManager: Initial delete failed for \(vmId): \(error). Retrying after repairing permissions.")
+
+                    do {
+                        try self.prepareBundleForDeletion(at: bundlePathToDelete, fileManager: fileManager)
+                        try fileManager.removeItem(at: bundlePathToDelete)
+                        NSLog("VMManager: VM directory \(vmId) deleted after repairing permissions at \(bundlePathToDelete.path)")
+                    } catch {
+                        deleteError = error
+                    }
                 }
             }
             
@@ -130,7 +139,9 @@ class VMManager: NSObject {
             self.instances.removeValue(forKey: vmId)
             
             if let error = deleteError {
-                completion(["error": "Failed to delete VM files: \(error.localizedDescription)"])
+                let diagnostic = self.deletionDiagnostic(for: bundlePathToDelete)
+                NSLog("VMManager: Failed to delete VM \(vmId) at \(bundlePathToDelete.path): \(error). \(diagnostic)")
+                completion(["error": "Failed to delete VM files: \(error.localizedDescription). \(diagnostic)"])
             } else {
                 NSLog("VMManager: VM \(vmId) deleted")
                 completion(["success": true])
@@ -218,6 +229,66 @@ class VMManager: NSObject {
             try data.write(to: configPath)
         } catch {
             NSLog("VMManager: Failed to save VM config: \(error)")
+        }
+    }
+
+    private func prepareBundleForDeletion(at rootURL: URL, fileManager: FileManager) throws {
+        var discoveredURLs: [URL] = [rootURL]
+
+        if let enumerator = fileManager.enumerator(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [],
+            errorHandler: { [weak self] url, error in
+                self?.makeItemWritableAndMutable(at: url)
+                NSLog("VMManager: Enumerator hit \(url.path) while preparing deletion: \(error)")
+                return true
+            }
+        ) {
+            for case let childURL as URL in enumerator {
+                discoveredURLs.append(childURL)
+            }
+        }
+
+        for url in discoveredURLs.sorted(by: { $0.path.count > $1.path.count }) {
+            makeItemWritableAndMutable(at: url)
+        }
+    }
+
+    private func makeItemWritableAndMutable(at url: URL) {
+        url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return }
+
+            var fileInfo = stat()
+            guard lstat(path, &fileInfo) == 0 else { return }
+
+            let fileType = fileInfo.st_mode & S_IFMT
+            if fileType == S_IFLNK {
+                return
+            }
+
+            _ = chflags(path, 0)
+
+            let desiredMode: mode_t = fileType == S_IFDIR ? (S_IRWXU | S_IRWXG | S_IRWXO) : (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+            _ = chmod(path, desiredMode)
+        }
+    }
+
+    private func deletionDiagnostic(for url: URL) -> String {
+        url.withUnsafeFileSystemRepresentation { path in
+            guard let path else {
+                return "No file system representation for \(url.path)"
+            }
+
+            var fileInfo = stat()
+            guard lstat(path, &fileInfo) == 0 else {
+                let errnoValue = errno
+                return "Could not stat \(url.path) (errno \(errnoValue): \(String(cString: strerror(errnoValue))))"
+            }
+
+            let permissions = String(fileInfo.st_mode & 0o7777, radix: 8)
+            let flags = String(fileInfo.st_flags, radix: 16)
+            return "Path=\(url.path) uid=\(fileInfo.st_uid) gid=\(fileInfo.st_gid) mode=\(permissions) flags=0x\(flags)"
         }
     }
     

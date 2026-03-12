@@ -207,6 +207,7 @@
 		30C0A0052F91000300A1B2C3 /* TaskService+Writeback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */; };
 		30C0A0072F91000400A1B2C3 /* WritebackStagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0082F91000400A1B2C3 /* WritebackStagingService.swift */; };
 		30C0A00B2F91000600A1B2C3 /* WritebackReviewWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */; };
+		31D5A0022FB4A00100BADA55 /* SwiftDataStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */; };
 		3001B0012F15000000000001 /* TaskRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0012F15000000000001 /* TaskRecord.swift */; };
 		3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0022F15000000000002 /* AgentSessionRecord.swift */; };
 		3001B0032F15000000000003 /* AgentQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0032F15000000000003 /* AgentQuestion.swift */; };
@@ -437,6 +438,7 @@
 		20E22E0E2F3EC89F003EFCE4 /* MCPServerRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerRowView.swift; sourceTree = "<group>"; };
 		20E22E0F2F3EC89F003EFCE4 /* PresetButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetButtonView.swift; sourceTree = "<group>"; };
 		20E22E122F3EC8AD003EFCE4 /* ProviderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRowView.swift; sourceTree = "<group>"; };
+		31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStoreManager.swift; sourceTree = "<group>"; };
 		20E22E142F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardObservedView.swift; sourceTree = "<group>"; };
 		20E22E152F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardStaticView.swift; sourceTree = "<group>"; };
 		20E22E182F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardContentView.swift; sourceTree = "<group>"; };
@@ -789,6 +791,7 @@
 				20C413E72F142C4A00C6E8A9 /* AppTerminationManager.swift */,
 				209C61E52F12BA3F00062D0E /* AppVMRuntime.swift */,
 				20A563982F1B74D200CA7546 /* CredentialManager.swift */,
+				31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */,
 				3001A0082F15000000000008 /* TaskTitleGenerator.swift */,
 				204DF4612F16404E004AB99B /* VideoExporter.swift */,
 				209C61882F12ABD700062D0E /* VMServiceClient.swift */,
@@ -1434,6 +1437,7 @@
 				202F647B2F2DA02F00F6F359 /* TipStore.swift in Sources */,
 				202F647C2F2DA02F00F6F359 /* TipEvents.swift in Sources */,
 				202F647D2F2DA02F00F6F359 /* HivecrewTipViewStyle.swift in Sources */,
+				31D5A0022FB4A00100BADA55 /* SwiftDataStoreManager.swift in Sources */,
 				2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */,
 				2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */,
 				209EB6CB2F1E174200A7F13F /* ResumableDownloader.swift in Sources */,

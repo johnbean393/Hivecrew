@@ -27,11 +27,9 @@ struct HivecrewApp: App {
             ScheduledTask.self,
             MCPServerRecord.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        
+
         do {
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
-            return container
+            return try SwiftDataStoreManager.makeModelContainer(schema: schema)
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }

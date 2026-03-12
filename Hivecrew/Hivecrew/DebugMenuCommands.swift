@@ -118,12 +118,9 @@ struct DebugMenuCommands: Commands {
     
     // MARK: - SwiftData File Locations
     
-    /// Gets the SwiftData store directory (default location)
+    /// Gets the canonical SwiftData store directory.
     private var swiftDataDirectory: URL? {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        return appSupport
+        SwiftDataStoreManager.storeDirectory
     }
     
     /// Backup directory for SwiftData
@@ -142,11 +139,7 @@ struct DebugMenuCommands: Commands {
     
     /// SwiftData store files to backup (the main store and related files)
     private var swiftDataFiles: [String] {
-        [
-            "default.store",
-            "default.store-shm",
-            "default.store-wal"
-        ]
+        SwiftDataStoreManager.storeFileNames
     }
     
     // MARK: - Backup
