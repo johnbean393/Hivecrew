@@ -3,6 +3,14 @@
     <channel>
         <title>Hivecrew</title>
         <item>
+            <title>1.17</title>
+            <pubDate>Thu, 12 Mar 2026 16:22:05 -0400</pubDate>
+            <sparkle:version>22</sparkle:version>
+            <sparkle:shortVersionString>1.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/johnbean393/Hivecrew/releases/download/v1.17.0/Hivecrew.1.17.dmg" sparkle:edSignature="B8OVpbHx3xof6g+XfHtAoxGm63/rWWGZHCunmeINt3d/DfoXOSvVYTqQMFHLjPQSRhzRquo0T2jYJ1gX1ul8Cw==" length="38326484" type="application/octet-stream"/>
+        </item>
+        <item>
             <title>1.16</title>
             <pubDate>Sun, 08 Mar 2026 20:35:56 -0400</pubDate>
             <sparkle:version>21</sparkle:version>
