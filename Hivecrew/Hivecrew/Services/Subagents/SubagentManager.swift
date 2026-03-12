@@ -68,7 +68,7 @@ final class SubagentManager {
     private let rootTracer: AgentTracer
     private weak var statePublisher: AgentStatePublisher?
     private let toolExecutor: SubagentToolExecutor
-    private let llmClientFactory: @Sendable (String?) async throws -> any LLMClientProtocol
+    private let llmClientFactory: @Sendable () async throws -> any LLMClientProtocol
     private let visionCapabilityResolver: @Sendable (String, any LLMClientProtocol) async -> Bool
     private let vmScheduler: VMToolScheduler
     
@@ -80,7 +80,7 @@ final class SubagentManager {
         statePublisher: AgentStatePublisher,
         toolExecutor: SubagentToolExecutor,
         vmScheduler: VMToolScheduler,
-        llmClientFactory: @escaping @Sendable (String?) async throws -> any LLMClientProtocol,
+        llmClientFactory: @escaping @Sendable () async throws -> any LLMClientProtocol,
         visionCapabilityResolver: @escaping @Sendable (String, any LLMClientProtocol) async -> Bool
     ) {
         self.taskId = taskId
@@ -104,15 +104,12 @@ final class SubagentManager {
         toolAllowlist: [String]?,
         todoItems: [String]?,
         timeoutSeconds: Double?,
-        modelOverride: String?,
         purpose: String?
     ) async -> Info {
         let id = UUID().uuidString
         let normalizedTodos = normalizedTodoItems(todoItems)
         let allowlist = normalizedAllowlist(goal: goal, domain: domain, requested: toolAllowlist, todoItems: normalizedTodos)
-        let normalizedModelOverride = normalizedModelOverride(modelOverride)
         let subagentDir = sessionPath.appendingPathComponent("subagents").appendingPathComponent(id)
-        let tracePath = subagentDir.appendingPathComponent("trace.jsonl")
         let relativeTracePath = "subagents/\(id)/trace.jsonl"
         
         let startedAt = Date()
@@ -164,7 +161,7 @@ final class SubagentManager {
         
         let task = Task { @MainActor [weak self] () -> SubagentRunner.Result in
             guard let self = self else { throw CancellationError() }
-            let client = try await self.llmClientFactory(normalizedModelOverride)
+            let client = try await self.llmClientFactory()
             let resolvedModelId = client.configuration.model
             let supportsVision = await self.visionCapabilityResolver(resolvedModelId, client)
             self.toolExecutor.registerVisionCapability(subagentId: id, supportsVision: supportsVision)
@@ -442,15 +439,6 @@ final class SubagentManager {
             .filter { !$0.isEmpty }
     }
 
-    private func normalizedModelOverride(_ modelOverride: String?) -> String? {
-        guard let trimmed = modelOverride?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty else {
-            return nil
-        }
-
-        return trimmed.caseInsensitiveCompare("default") == .orderedSame ? nil : trimmed
-    }
-    
     private func isResearchGoal(_ goal: String) -> Bool {
         let lowered = goal.lowercased()
         return lowered.contains("research") ||

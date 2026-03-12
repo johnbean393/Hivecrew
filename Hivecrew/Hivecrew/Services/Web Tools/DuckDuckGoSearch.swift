@@ -129,12 +129,14 @@ public class DuckDuckGoSearch {
             "DuckDuckGo returned results in \(Date.now.timeIntervalSince(startTime)) secs"
         )
         guard let html = String(data: data, encoding: .utf8) else { return [] }
-        // Parse results
+        return parseResults(from: html, limit: maxCount)
+    }
+
+    static func parseResults(from html: String, limit: Int) -> [SearchResult] {
         let pattern = #"<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>.*?</a>.*?(?:<a[^>]*class="result__snippet"[^>]*>(.*?)</a>|<div[^>]*class="result__snippet"[^>]*>(.*?)</div>)"#
         let regex = try! NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive])
         let nsrange = NSRange(html.startIndex..<html.endIndex, in: html)
         let matches = regex.matches(in: html, options: [], range: nsrange)
-        // Process results
         var results: [SearchResult] = []
         for match in matches {
             guard let hrefRange = Range(match.range(at: 1), in: html) else { continue }
@@ -177,10 +179,8 @@ public class DuckDuckGoSearch {
                 snippet: cleanText
             )
             results.append(result)
-            // Exit if enough
-            if results.count == maxCount { break }
+            if results.count == limit { break }
         }
-        // Return results
         return results
     }
     

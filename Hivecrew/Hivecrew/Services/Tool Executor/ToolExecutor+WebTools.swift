@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import GoogleSearch
 
 // MARK: - Web Tool Handlers
 
@@ -33,56 +32,15 @@ extension ToolExecutor {
         // Get search engine preference
         let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "duckduckgo"
         
-        let results: [SearchResult]
-        switch searchEngine {
-        case "duckduckgo":
-            results = try await DuckDuckGoSearch.search(
-                query: query,
-                site: site,
-                resultCount: resultCount,
-                startDate: startDate,
-                endDate: endDate
-            )
-        case "searchapi":
-            guard let apiKey = SearchProviderKeychain.retrieveSearchAPIKey(), !apiKey.isEmpty else {
-                return .text("Error: SearchAPI key not configured. Add it in Settings → Task Defaults → Web Search.")
-            }
-            results = try await SearchAPIClient.search(
-                query: query,
-                site: site,
-                resultCount: resultCount,
-                startDate: startDate,
-                endDate: endDate,
-                apiKey: apiKey
-            )
-        case "serpapi":
-            guard let apiKey = SearchProviderKeychain.retrieveSerpAPIKey(), !apiKey.isEmpty else {
-                return .text("Error: SerpAPI key not configured. Add it in Settings → Task Defaults → Web Search.")
-            }
-            results = try await SerpAPIClient.search(
-                query: query,
-                site: site,
-                resultCount: resultCount,
-                startDate: startDate,
-                endDate: endDate,
-                apiKey: apiKey
-            )
-        default:
-            let googleResults = try await GoogleSearch.search(
-                query: query,
-                site: site,
-                resultCount: resultCount,
-                startDate: startDate,
-                endDate: endDate
-            )
-            results = googleResults.map { googleResult in
-                SearchResult(
-                    url: googleResult.source,
-                    title: "Search Result",
-                    snippet: googleResult.text
-                )
-            }
-        }
+        let execution = await WebSearchService.search(
+            query: query,
+            site: site,
+            resultCount: resultCount,
+            startDate: startDate,
+            endDate: endDate,
+            primaryEngine: searchEngine
+        )
+        let results = execution.results
         
         // Format results
         var output = "Found \(results.count) results for '\(query)':\n\n"
@@ -90,6 +48,9 @@ extension ToolExecutor {
             output += "\(index + 1). \(result.title)\n"
             output += "   URL: \(result.url)\n"
             output += "   \(result.snippet)\n\n"
+        }
+        if !execution.notes.isEmpty {
+            output += "Notes:\n" + execution.notes.joined(separator: "\n")
         }
         return .text(output)
     }

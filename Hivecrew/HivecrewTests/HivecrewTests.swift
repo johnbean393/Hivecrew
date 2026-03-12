@@ -6,11 +6,30 @@
 //
 
 import Foundation
+import HivecrewLLM
 import HivecrewShared
 import Testing
 @testable import Hivecrew
 
 struct HivecrewTests {
+
+    @Test
+    func resolveReasoningSelectionPrefersHighEffortWhenSupported() {
+        let capability = LLMReasoningCapability(
+            kind: .effort,
+            supportedEfforts: ["low", "medium", "high"],
+            defaultEffort: "medium"
+        )
+
+        let resolution = resolveReasoningSelection(
+            capability: capability,
+            currentEnabled: nil,
+            currentEffort: nil
+        )
+
+        #expect(resolution.enabled == nil)
+        #expect(resolution.effort == "high")
+    }
 
     @Test
     func taskRecordContinuationFieldsDefaultToNil() {
@@ -207,6 +226,70 @@ struct HivecrewTests {
         #expect(fm.fileExists(atPath: persistedFile.path))
         #expect(!fm.fileExists(atPath: staleFile.path))
         #expect(try String(contentsOf: persistedFile, encoding: .utf8) == "fresh")
+    }
+
+    @Test
+    func googleSearchReturnsResultsForThreeQueries() async throws {
+        let queries = [
+            "Swift programming language",
+            "Apple developer documentation",
+            "OpenAI API"
+        ]
+
+        for query in queries {
+            let results = try await GoogleSearchClient.search(
+                query: query,
+                resultCount: 5
+            )
+
+            #expect(results.count > 0, "Expected Google results for query: \(query)")
+        }
+    }
+
+    @Test
+    func duckDuckGoSearchReturnsResultsForThreeQueries() async throws {
+        let queries = [
+            "Swift programming language",
+            "Apple developer documentation",
+            "OpenAI API"
+        ]
+
+        for query in queries {
+            let results = try await DuckDuckGoSearch.search(
+                query: query,
+                resultCount: 5
+            )
+
+            #expect(results.count > 0, "Expected DuckDuckGo results for query: \(query)")
+        }
+    }
+
+    @Test
+    func webSearchServiceFallsBackFromSearchAPIToDuckDuckGo() async {
+        let expected = SearchResult(
+            url: "https://example.com/result",
+            title: "Fallback Result",
+            snippet: "Fallback snippet"
+        )
+
+        let execution = await WebSearchService.search(
+            query: "fallback query",
+            resultCount: 5,
+            primaryEngine: "searchapi"
+        ) { engine, _, _, _, _, _ in
+            switch engine {
+            case "searchapi":
+                return []
+            case "duckduckgo":
+                return [expected]
+            default:
+                return []
+            }
+        }
+
+        #expect(execution.results.count == 1)
+        #expect(execution.results[0].url == expected.url)
+        #expect(execution.notes.contains("Retried with duckduckgo."))
     }
 }
 

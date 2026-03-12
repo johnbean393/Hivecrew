@@ -8,12 +8,16 @@
 import Foundation
 import ScreenCaptureKit
 import CoreGraphics
+import ApplicationServices
 import ImageIO
 import HivecrewAgentProtocol
 
 /// Tool for capturing screenshots of the entire screen
 final class ScreenshotTool: @unchecked Sendable {
     private let logger = AgentLogger.shared
+    private let inputTool = InputTool()
+    private let captureTimeout: TimeInterval = 5.0
+    private let promptRecoveryTimeout: TimeInterval = 5.0
     
     /// Capture a screenshot and return it as base64-encoded JPEG
     func execute() async throws -> [String: Any] {
@@ -66,9 +70,31 @@ final class ScreenshotTool: @unchecked Sendable {
             }
         }
         
-        let waitResult = semaphore.wait(timeout: .now() + 10.0)
+        let waitResult = semaphore.wait(timeout: .now() + captureTimeout)
         
         if waitResult == .timedOut {
+            logger.warning("Screenshot capture timed out after \(captureTimeout)s")
+
+            if dismissScreenCapturePromptIfNeeded() {
+                logger.log("Retrying screenshot after dismissing screen capture prompt")
+
+                let recoveryWaitResult = semaphore.wait(timeout: .now() + promptRecoveryTimeout)
+                if recoveryWaitResult != .timedOut {
+                    if let error = box.error {
+                        throw error
+                    }
+
+                    if let finalResult = box.result {
+                        return finalResult
+                    }
+                }
+
+                throw AgentError(
+                    code: AgentError.toolExecutionFailed,
+                    message: "Screenshot capture timed out after dismissing a screen capture prompt"
+                )
+            }
+
             throw AgentError(
                 code: AgentError.toolExecutionFailed,
                 message: "Screenshot capture timed out"
@@ -141,5 +167,115 @@ final class ScreenshotTool: @unchecked Sendable {
         }
         
         return mutableData as Data
+    }
+
+    private func dismissScreenCapturePromptIfNeeded() -> Bool {
+        guard isLikelyScreenCapturePromptPresent() else {
+            logger.log("No matching screen capture prompt found after timeout")
+            return false
+        }
+
+        do {
+            logger.log("Detected screen capture prompt, sending Return key")
+            try inputTool.keyboardKey(key: "return", modifiers: [])
+            Thread.sleep(forTimeInterval: 1.0)
+            return true
+        } catch {
+            logger.warning("Failed to send Return key for screen capture prompt: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private func isLikelyScreenCapturePromptPresent() -> Bool {
+        let systemWide = AXUIElementCreateSystemWide()
+        guard let focusedApplication = copyElementAttribute(
+            from: systemWide,
+            attribute: kAXFocusedApplicationAttribute
+        ) else {
+            return false
+        }
+
+        let promptIndicators = [
+            "requesting to bypass the system private window picker",
+            "access your screen and audio",
+            "record your screen and system audio",
+        ]
+
+        return elementContainsPromptText(
+            focusedApplication,
+            depth: 0,
+            promptIndicators: promptIndicators
+        )
+    }
+
+    private func elementContainsPromptText(
+        _ element: AXUIElement,
+        depth: Int,
+        promptIndicators: [String]
+    ) -> Bool {
+        guard depth <= 5 else { return false }
+
+        let directStrings = [
+            copyStringAttribute(from: element, attribute: kAXTitleAttribute),
+            copyStringAttribute(from: element, attribute: kAXDescriptionAttribute),
+            copyStringAttribute(from: element, attribute: kAXValueAttribute),
+            copyStringAttribute(from: element, attribute: kAXRoleDescriptionAttribute),
+        ]
+        .compactMap { $0?.lowercased() }
+
+        if directStrings.contains(where: { value in
+            promptIndicators.contains(where: value.contains)
+        }) {
+            return true
+        }
+
+        let childAttributes = [
+            kAXFocusedWindowAttribute,
+            kAXWindowsAttribute,
+            kAXTopLevelUIElementAttribute,
+            kAXChildrenAttribute,
+            kAXVisibleChildrenAttribute,
+        ]
+
+        for attribute in childAttributes {
+            if let childElements = copyElementArrayAttribute(from: element, attribute: attribute) {
+                for child in childElements.prefix(25) {
+                    if elementContainsPromptText(child, depth: depth + 1, promptIndicators: promptIndicators) {
+                        return true
+                    }
+                }
+            } else if let child = copyElementAttribute(from: element, attribute: attribute) {
+                if elementContainsPromptText(child, depth: depth + 1, promptIndicators: promptIndicators) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    private func copyStringAttribute(from element: AXUIElement, attribute: String) -> String? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        guard result == .success else { return nil }
+        return value as? String
+    }
+
+    private func copyElementAttribute(from element: AXUIElement, attribute: String) -> AXUIElement? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        guard result == .success,
+              let value,
+              CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        return unsafeBitCast(value, to: AXUIElement.self)
+    }
+
+    private func copyElementArrayAttribute(from element: AXUIElement, attribute: String) -> [AXUIElement]? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        guard result == .success else { return nil }
+        return value as? [AXUIElement]
     }
 }

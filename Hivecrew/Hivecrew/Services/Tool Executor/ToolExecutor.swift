@@ -931,15 +931,13 @@ class ToolExecutor {
             return .text("Error: todoItems is required when spawning subagents. Provide a concise main-agent-prescribed todo list.")
         }
         let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
-        let modelOverride = args["modelOverride"] as? String ?? args["model_override"] as? String
-        
+
         let info = await manager.spawn(
             goal: goal,
             domain: domain,
             toolAllowlist: toolAllowlist,
             todoItems: todoItems,
             timeoutSeconds: timeoutSeconds,
-            modelOverride: modelOverride,
             purpose: purpose
         )
         

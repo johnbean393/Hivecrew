@@ -17,6 +17,19 @@ struct ReasoningSelectionResolution {
     let effort: String?
 }
 
+func preferredReasoningEffortDefault(for capability: LLMReasoningCapability) -> String? {
+    let supportedEfforts = capability.supportedEfforts
+    guard !supportedEfforts.isEmpty else { return nil }
+    if supportedEfforts.contains("high") {
+        return "high"
+    }
+    if let defaultEffort = capability.defaultEffort,
+       supportedEfforts.contains(defaultEffort) {
+        return defaultEffort
+    }
+    return supportedEfforts.first
+}
+
 func resolveReasoningSelection(
     capability: LLMReasoningCapability,
     currentEnabled: Bool?,
@@ -32,9 +45,7 @@ func resolveReasoningSelection(
         )
     case .effort:
         let supportedEfforts = capability.supportedEfforts
-        let fallbackEffort = capability.defaultEffort.flatMap { defaultEffort in
-            supportedEfforts.contains(defaultEffort) ? defaultEffort : nil
-        } ?? supportedEfforts.first
+        let fallbackEffort = preferredReasoningEffortDefault(for: capability)
         let resolvedEffort = currentEffort.flatMap { effort in
             supportedEfforts.contains(effort) ? effort : nil
         } ?? fallbackEffort

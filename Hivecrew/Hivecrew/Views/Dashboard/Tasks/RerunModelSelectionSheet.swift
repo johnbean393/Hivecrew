@@ -405,8 +405,7 @@ struct RerunModelSelectionSheet: View {
                 Picker("Reasoning", selection: Binding(
                     get: {
                         reasoningEffort
-                            ?? selectedReasoningCapability.defaultEffort
-                            ?? selectedReasoningCapability.supportedEfforts.first
+                            ?? preferredReasoningEffortDefault(for: selectedReasoningCapability)
                             ?? ""
                     },
                     set: { newValue in

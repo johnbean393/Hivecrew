@@ -187,14 +187,7 @@ final class AgentRunner {
             statePublisher: statePublisher,
             toolExecutor: subagentToolExecutor,
             vmScheduler: vmToolScheduler,
-            llmClientFactory: { modelOverride in
-                if let override = modelOverride, !override.isEmpty {
-                    return try await taskService.createLLMClient(
-                        providerId: task.providerId,
-                        modelId: override,
-                        serviceTier: task.serviceTier
-                    )
-                }
+            llmClientFactory: {
                 return try await taskService.createLLMClient(
                     providerId: task.providerId,
                     modelId: task.modelId,

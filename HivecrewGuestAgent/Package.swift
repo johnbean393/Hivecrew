@@ -24,6 +24,7 @@ let package = Package(
                 .linkedFramework("EventKit"),
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("CoreLocation"),
+                .linkedFramework("MusicKit"),
             ]
         )
     ]

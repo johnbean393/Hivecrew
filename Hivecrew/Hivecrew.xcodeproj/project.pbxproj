@@ -202,12 +202,6 @@
 		20F9A1E32F70000100ABCDEF /* PromptModelPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */; };
 		20F9A1E42F70000100ABCDEF /* PromptModelHoverPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */; };
 		20F9A1E62F70000100ABCDEF /* PromptModelButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F9A1E52F70000100ABCDEF /* PromptModelButton.swift */; };
-		30C0A0012F91000100A1B2C3 /* LocalAccessGrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0022F91000100A1B2C3 /* LocalAccessGrant.swift */; };
-		30C0A0032F91000200A1B2C3 /* PendingWritebackOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0042F91000200A1B2C3 /* PendingWritebackOperation.swift */; };
-		30C0A0052F91000300A1B2C3 /* TaskService+Writeback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */; };
-		30C0A0072F91000400A1B2C3 /* WritebackStagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0082F91000400A1B2C3 /* WritebackStagingService.swift */; };
-		30C0A00B2F91000600A1B2C3 /* WritebackReviewWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */; };
-		31D5A0022FB4A00100BADA55 /* SwiftDataStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */; };
 		3001B0012F15000000000001 /* TaskRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0012F15000000000001 /* TaskRecord.swift */; };
 		3001B0022F15000000000002 /* AgentSessionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0022F15000000000002 /* AgentSessionRecord.swift */; };
 		3001B0032F15000000000003 /* AgentQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3001A0032F15000000000003 /* AgentQuestion.swift */; };
@@ -233,6 +227,12 @@
 		30B2A2032F81000100000003 /* RetrievalIndexSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */; };
 		30B2A2042F81000100000004 /* RetrievalIndexOverallDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */; };
 		30B2A2052F81000100000005 /* RetrievalIndexSourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */; };
+		30C0A0012F91000100A1B2C3 /* LocalAccessGrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0022F91000100A1B2C3 /* LocalAccessGrant.swift */; };
+		30C0A0032F91000200A1B2C3 /* PendingWritebackOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0042F91000200A1B2C3 /* PendingWritebackOperation.swift */; };
+		30C0A0052F91000300A1B2C3 /* TaskService+Writeback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */; };
+		30C0A0072F91000400A1B2C3 /* Writeback/WritebackStagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */; };
+		30C0A00B2F91000600A1B2C3 /* WritebackReviewWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */; };
+		31D5A0022FB4A00100BADA55 /* SwiftDataStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -438,7 +438,6 @@
 		20E22E0E2F3EC89F003EFCE4 /* MCPServerRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerRowView.swift; sourceTree = "<group>"; };
 		20E22E0F2F3EC89F003EFCE4 /* PresetButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresetButtonView.swift; sourceTree = "<group>"; };
 		20E22E122F3EC8AD003EFCE4 /* ProviderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderRowView.swift; sourceTree = "<group>"; };
-		31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStoreManager.swift; sourceTree = "<group>"; };
 		20E22E142F3EC8EC003EFCE4 /* AgentPreviewCardObservedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardObservedView.swift; sourceTree = "<group>"; };
 		20E22E152F3EC8EC003EFCE4 /* AgentPreviewCardStaticView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardStaticView.swift; sourceTree = "<group>"; };
 		20E22E182F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPreviewCardContentView.swift; sourceTree = "<group>"; };
@@ -464,11 +463,6 @@
 		20F9A1E12F70000100ABCDEF /* PromptModelPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelPopover.swift; sourceTree = "<group>"; };
 		20F9A1E22F70000100ABCDEF /* PromptModelHoverPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelHoverPanel.swift; sourceTree = "<group>"; };
 		20F9A1E52F70000100ABCDEF /* PromptModelButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptModelButton.swift; sourceTree = "<group>"; };
-		30C0A0022F91000100A1B2C3 /* LocalAccessGrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAccessGrant.swift; sourceTree = "<group>"; };
-		30C0A0042F91000200A1B2C3 /* PendingWritebackOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingWritebackOperation.swift; sourceTree = "<group>"; };
-		30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+Writeback.swift"; sourceTree = "<group>"; };
-		30C0A0082F91000400A1B2C3 /* WritebackStagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Writeback/WritebackStagingService.swift"; sourceTree = "<group>"; };
-		30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritebackReviewWindow.swift; sourceTree = "<group>"; };
 		3001A0012F15000000000001 /* TaskRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRecord.swift; sourceTree = "<group>"; };
 		3001A0022F15000000000002 /* AgentSessionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSessionRecord.swift; sourceTree = "<group>"; };
 		3001A0032F15000000000003 /* AgentQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentQuestion.swift; sourceTree = "<group>"; };
@@ -494,6 +488,12 @@
 		30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSidebarView.swift; sourceTree = "<group>"; };
 		30B2A1042F81000100000004 /* RetrievalIndexOverallDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexOverallDetailView.swift; sourceTree = "<group>"; };
 		30B2A1052F81000100000005 /* RetrievalIndexSourceDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrievalIndexSourceDetailView.swift; sourceTree = "<group>"; };
+		30C0A0022F91000100A1B2C3 /* LocalAccessGrant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalAccessGrant.swift; sourceTree = "<group>"; };
+		30C0A0042F91000200A1B2C3 /* PendingWritebackOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingWritebackOperation.swift; sourceTree = "<group>"; };
+		30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+Writeback.swift"; sourceTree = "<group>"; };
+		30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Writeback/WritebackStagingService.swift; sourceTree = "<group>"; };
+		30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritebackReviewWindow.swift; sourceTree = "<group>"; };
+		31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStoreManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -768,7 +768,7 @@
 			isa = PBXGroup;
 			children = (
 				207B73032F3A587700572AF5 /* VMProvisioningService.swift */,
-				30C0A0082F91000400A1B2C3 /* WritebackStagingService.swift */,
+				30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */,
 				20360DC12F38234300A9B998 /* RemoteAccess */,
 				202F64E42F2FE31500F6F359 /* MCP */,
 				202F64832F2DB88700F6F359 /* Planning */,
@@ -1531,7 +1531,7 @@
 				20E22E0C2F3EC88B003EFCE4 /* UsernameRowView.swift in Sources */,
 				20E22E0D2F3EC88B003EFCE4 /* TokenCopyRowView.swift in Sources */,
 				3001B0072F15000000000007 /* TaskService.swift in Sources */,
-				30C0A0072F91000400A1B2C3 /* WritebackStagingService.swift in Sources */,
+				30C0A0072F91000400A1B2C3 /* Writeback/WritebackStagingService.swift in Sources */,
 				209EB6CF2F1E17F000A7F13F /* PromptTextView.swift in Sources */,
 				209EB6D02F1E17F000A7F13F /* MentionTextAttachment.swift in Sources */,
 				2052ACBA2F1D1C71007E4475 /* APIServerStatus.swift in Sources */,

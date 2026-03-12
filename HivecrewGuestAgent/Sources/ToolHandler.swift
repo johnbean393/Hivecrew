@@ -156,6 +156,20 @@ final class ToolHandler {
                 throw AgentError(code: AgentError.invalidParams, message: "Missing 'path' parameter")
             }
             return try fileTool.readFile(path: path)
+
+        case .writeFile:
+            guard let path = params?["path"]?.stringValue,
+                  let contents = params?["contents"]?.stringValue else {
+                throw AgentError(code: AgentError.invalidParams, message: "Missing 'path' or 'contents' parameter")
+            }
+            try fileTool.writeFile(path: path, contents: contents)
+            return ["success": true]
+
+        case .listDirectory:
+            guard let path = params?["path"]?.stringValue else {
+                throw AgentError(code: AgentError.invalidParams, message: "Missing 'path' parameter")
+            }
+            return try fileTool.listDirectory(path: path)
             
         case .moveFile:
             guard let source = params?["source"]?.stringValue,
@@ -178,6 +192,8 @@ final class ToolHandler {
              .getLoginCredentials,
              .webSearch, .readWebpageContent, .extractInfoFromWebpage, .getLocation,
              .createTodoList, .addTodoItem, .finishTodoItem,
+             .listLocalEntries, .importLocalFile,
+             .stageWritebackCopy, .stageWritebackMove, .stageAttachedFileUpdate, .listWritebackTargets,
              .generateImage,
              .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents,
              .sendMessage:

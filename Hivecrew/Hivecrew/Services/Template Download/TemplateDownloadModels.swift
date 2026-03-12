@@ -46,6 +46,14 @@ public struct RemoteTemplate: Identifiable, Sendable {
 /// Known remote templates available for download
 public enum KnownTemplates {
 
+    public static let goldenV0017 = RemoteTemplate(
+        id: "golden-v0.0.17",
+        name: "Hivecrew Golden Image",
+        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
+        version: "0.0.17",
+        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.17.tar.zst")!
+    )
+    
     public static let goldenV0016 = RemoteTemplate(
         id: "golden-v0.0.16",
         name: "Hivecrew Golden Image",
@@ -64,12 +72,13 @@ public enum KnownTemplates {
     
     /// All available templates for download
     public static let all: [RemoteTemplate] = [
+        goldenV0017,
         goldenV0016,
         goldenV0015
     ]
 
     /// The default/recommended template
-    public static let `default`: RemoteTemplate = goldenV0016
+    public static let `default`: RemoteTemplate = goldenV0017
     
 }
 

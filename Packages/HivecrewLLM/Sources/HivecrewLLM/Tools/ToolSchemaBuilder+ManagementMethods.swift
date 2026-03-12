@@ -194,7 +194,6 @@ extension ToolSchemaBuilder {
                             itemType: ["type": "string"]
                         ),
                         "timeoutSeconds": numberProperty("Optional timeout in seconds for the subagent."),
-                        "modelOverride": stringProperty("Optional model ID to use instead of the default worker model."),
                         "purpose": stringProperty("Optional short label for UI and trace display.")
                     ],
                     required: ["goal", "domain", "todoItems"]

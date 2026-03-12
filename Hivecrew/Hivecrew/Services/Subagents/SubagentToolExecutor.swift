@@ -7,7 +7,6 @@
 
 import Foundation
 import SwiftData
-import GoogleSearch
 import HivecrewLLM
 import HivecrewMCP
 import HivecrewShared
@@ -458,109 +457,15 @@ final class SubagentToolExecutor {
         }
         
         let searchEngine = UserDefaults.standard.string(forKey: "searchEngine") ?? "duckduckgo"
-        let fallbackEngines = fallbackSearchEngines(for: searchEngine)
-        var usedEngine = searchEngine
-        var results: [SearchResult] = []
-        var fallbackNotes: [String] = []
-        
-        let simplifiedQuery = simplifyQuery(query)
-        var queryVariants = [query]
-        if !simplifiedQuery.isEmpty, simplifiedQuery != query {
-            queryVariants.append(simplifiedQuery)
-        }
-        
-        func performSearch(engine: String, query: String, site: String?) async throws -> [SearchResult] {
-            switch engine {
-            case "duckduckgo":
-                return try await DuckDuckGoSearch.search(
-                    query: query,
-                    site: site,
-                    resultCount: resultCount,
-                    startDate: startDate,
-                    endDate: endDate
-                )
-            case "searchapi":
-                guard let apiKey = SearchProviderKeychain.retrieveSearchAPIKey(), !apiKey.isEmpty else {
-                    throw SearchProviderError.missingAPIKey("SearchAPI")
-                }
-                return try await SearchAPIClient.search(
-                    query: query,
-                    site: site,
-                    resultCount: resultCount,
-                    startDate: startDate,
-                    endDate: endDate,
-                    apiKey: apiKey
-                )
-            case "serpapi":
-                guard let apiKey = SearchProviderKeychain.retrieveSerpAPIKey(), !apiKey.isEmpty else {
-                    throw SearchProviderError.missingAPIKey("SerpAPI")
-                }
-                return try await SerpAPIClient.search(
-                    query: query,
-                    site: site,
-                    resultCount: resultCount,
-                    startDate: startDate,
-                    endDate: endDate,
-                    apiKey: apiKey
-                )
-            default:
-                let googleResults = try await GoogleSearch.search(
-                    query: query,
-                    site: site,
-                    resultCount: resultCount,
-                    startDate: startDate,
-                    endDate: endDate
-                )
-                return googleResults.map { googleResult in
-                    SearchResult(
-                        url: googleResult.source,
-                        title: "Search Result",
-                        snippet: googleResult.text
-                    )
-                }
-            }
-        }
-        
-        for variant in queryVariants {
-            for engine in [searchEngine] + fallbackEngines {
-                do {
-                    results = try await performSearch(engine: engine, query: variant, site: site)
-                    if !results.isEmpty {
-                        usedEngine = engine
-                        if engine != searchEngine {
-                            fallbackNotes.append("Retried with \(engine).")
-                        }
-                        break
-                    }
-                } catch {
-                    fallbackNotes.append("Search (\(engine)) failed: \(error.localizedDescription)")
-                }
-            }
-            
-            if results.isEmpty, site != nil {
-                for engine in [usedEngine] + fallbackEngines {
-                    do {
-                        results = try await performSearch(engine: engine, query: variant, site: nil)
-                        if !results.isEmpty {
-                            if engine != usedEngine {
-                                fallbackNotes.append("Broadened search used \(engine).")
-                            }
-                            fallbackNotes.append("No results with site filter; broadened search.")
-                            break
-                        }
-                    } catch {
-                        fallbackNotes.append("Broadened search (\(engine)) failed: \(error.localizedDescription)")
-                    }
-                }
-            }
-            
-            if !results.isEmpty {
-                if variant != query {
-                    fallbackNotes.append("Used simplified query: \"\(variant)\".")
-                }
-                break
-            }
-        }
+        let execution = await WebSearchService.search(
+            query: query,
+            site: site,
+            resultCount: resultCount,
+            startDate: startDate,
+            endDate: endDate,
+            primaryEngine: searchEngine
+        )
+        let results = execution.results
         
         var output = "Found \(results.count) results for '\(query)':\n\n"
         for (index, result) in results.enumerated() {
@@ -568,38 +473,10 @@ final class SubagentToolExecutor {
             output += "   URL: \(result.url)\n"
             output += "   \(result.snippet)\n\n"
         }
-        if !fallbackNotes.isEmpty {
-            output += "Notes:\n" + fallbackNotes.joined(separator: "\n")
+        if !execution.notes.isEmpty {
+            output += "Notes:\n" + execution.notes.joined(separator: "\n")
         }
         return .text(output)
-    }
-    
-    private func simplifyQuery(_ query: String) -> String {
-        var simplified = query
-        let patterns = [
-            "\\b(19|20)\\d{2}\\b",
-            "\\b(as of|latest|current|recent)\\b",
-            "\\b(release date|pricing|benchmark|benchmarks)\\b"
-        ]
-        for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
-                let range = NSRange(simplified.startIndex..., in: simplified)
-                simplified = regex.stringByReplacingMatches(in: simplified, options: [], range: range, withTemplate: "")
-            }
-        }
-        simplified = simplified.replacingOccurrences(of: "  ", with: " ")
-        return simplified.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func fallbackSearchEngines(for primary: String) -> [String] {
-        switch primary {
-        case "duckduckgo":
-            return ["google"]
-        case "searchapi", "serpapi":
-            return ["google", "duckduckgo"]
-        default:
-            return ["duckduckgo"]
-        }
     }
     
     private func executeReadWebpageContent(args: [String: Any]) async throws -> ToolResult {
@@ -820,14 +697,13 @@ final class SubagentToolExecutor {
         }
         let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
         let modelOverride = args["modelOverride"] as? String ?? args["model_override"] as? String
-        
+
         let info = await manager.spawn(
             goal: goal,
             domain: domain,
             toolAllowlist: toolAllowlist,
             todoItems: todoItems,
             timeoutSeconds: timeoutSeconds,
-            modelOverride: modelOverride,
             purpose: purpose
         )
         
@@ -1037,17 +913,6 @@ enum SubagentToolError: Error, LocalizedError {
             return "Unknown tool: \(name)"
         case .executionFailed(let message):
             return message
-        }
-    }
-}
-
-enum SearchProviderError: Error, LocalizedError {
-    case missingAPIKey(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .missingAPIKey(let provider):
-            return "\(provider) API key not configured."
         }
     }
 }

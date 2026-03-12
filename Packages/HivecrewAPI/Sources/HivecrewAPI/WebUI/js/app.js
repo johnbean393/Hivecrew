@@ -1032,6 +1032,20 @@ document.addEventListener('alpine:init', () => {
             this.normalizeQuickMultiModelSelections();
         },
 
+        preferredReasoningEffortDefault(capability) {
+            const supportedEfforts = capability?.supportedEfforts || [];
+            if (!supportedEfforts.length) {
+                return null;
+            }
+            if (supportedEfforts.includes('high')) {
+                return 'high';
+            }
+            if (capability?.defaultEffort && supportedEfforts.includes(capability.defaultEffort)) {
+                return capability.defaultEffort;
+            }
+            return supportedEfforts[0] || null;
+        },
+
         resolveReasoningSelection(capability, reasoningEnabled, reasoningEffort, preserveEffortSelection = false) {
             switch (capability?.kind) {
                 case 'toggle':
@@ -1041,9 +1055,7 @@ document.addEventListener('alpine:init', () => {
                     };
                 case 'effort': {
                     const supportedEfforts = capability.supportedEfforts || [];
-                    const fallbackEffort = supportedEfforts.includes(capability.defaultEffort)
-                        ? capability.defaultEffort
-                        : (supportedEfforts.includes('medium') ? 'medium' : (supportedEfforts[0] || null));
+                    const fallbackEffort = this.preferredReasoningEffortDefault(capability);
                     const resolvedEffort = preserveEffortSelection && supportedEfforts.includes(reasoningEffort)
                         ? reasoningEffort
                         : fallbackEffort;

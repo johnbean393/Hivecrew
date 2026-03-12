@@ -1,4 +1,5 @@
 import Foundation
+import GoogleSearch
 import Security
 
 enum SearchProviderKeychain {
@@ -182,6 +183,265 @@ enum SerpAPIClient {
             throw SerpAPIError.httpError(httpResponse.statusCode, String(data: data, encoding: .utf8) ?? "")
         }
         return data
+    }
+}
+
+enum GoogleSearchClient {
+    struct ResultRecord: Sendable {
+        let title: String
+        let url: String
+        let snippet: String
+    }
+
+    static func search(
+        query: String,
+        site: String? = nil,
+        resultCount: Int,
+        startDate: Date? = nil,
+        endDate: Date? = nil
+    ) async throws -> [SearchResult] {
+        let googleResults = try await GoogleSearch.search(
+            query: query,
+            site: site,
+            resultCount: resultCount,
+            startDate: startDate,
+            endDate: endDate
+        )
+        return map(
+            results: googleResults.map { result in
+                ResultRecord(
+                    title: result.source,
+                    url: result.url,
+                    snippet: result.text
+                )
+            }
+        )
+    }
+
+    static func map(results: [ResultRecord]) -> [SearchResult] {
+        results.map { result in
+            SearchResult(
+                url: result.url,
+                title: result.title,
+                snippet: result.snippet
+            )
+        }
+    }
+}
+
+struct WebSearchExecution {
+    let results: [SearchResult]
+    let notes: [String]
+}
+
+enum WebSearchService {
+    typealias SearchPerformer = @Sendable (
+        _ engine: String,
+        _ query: String,
+        _ site: String?,
+        _ resultCount: Int,
+        _ startDate: Date?,
+        _ endDate: Date?
+    ) async throws -> [SearchResult]
+
+    static func search(
+        query: String,
+        site: String? = nil,
+        resultCount: Int,
+        startDate: Date? = nil,
+        endDate: Date? = nil,
+        primaryEngine: String
+    ) async -> WebSearchExecution {
+        await search(
+            query: query,
+            site: site,
+            resultCount: resultCount,
+            startDate: startDate,
+            endDate: endDate,
+            primaryEngine: primaryEngine,
+            performSearch: liveSearch
+        )
+    }
+
+    static func search(
+        query: String,
+        site: String? = nil,
+        resultCount: Int,
+        startDate: Date? = nil,
+        endDate: Date? = nil,
+        primaryEngine: String,
+        performSearch: SearchPerformer
+    ) async -> WebSearchExecution {
+        var results: [SearchResult] = []
+        var notes: [String] = []
+        var usedEngine = primaryEngine
+
+        let simplifiedQuery = simplifyQuery(query)
+        var queryVariants = [query]
+        if !simplifiedQuery.isEmpty, simplifiedQuery != query {
+            queryVariants.append(simplifiedQuery)
+        }
+
+        let candidateEngines = engineOrder(for: primaryEngine)
+
+        for variant in queryVariants {
+            for engine in candidateEngines {
+                do {
+                    results = try await performSearch(
+                        engine,
+                        variant,
+                        site,
+                        resultCount,
+                        startDate,
+                        endDate
+                    )
+                    if !results.isEmpty {
+                        usedEngine = engine
+                        if engine != primaryEngine {
+                            notes.append("Retried with \(engine).")
+                        }
+                        break
+                    }
+                } catch {
+                    notes.append("Search (\(engine)) failed: \(error.localizedDescription)")
+                }
+            }
+
+            if results.isEmpty, site != nil {
+                let broadenedEngines = uniqueEngines([usedEngine] + candidateEngines)
+                for engine in broadenedEngines {
+                    do {
+                        results = try await performSearch(
+                            engine,
+                            variant,
+                            nil,
+                            resultCount,
+                            startDate,
+                            endDate
+                        )
+                        if !results.isEmpty {
+                            if engine != usedEngine {
+                                notes.append("Broadened search used \(engine).")
+                            }
+                            notes.append("No results with site filter; broadened search.")
+                            break
+                        }
+                    } catch {
+                        notes.append("Broadened search (\(engine)) failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+
+            if !results.isEmpty {
+                if variant != query {
+                    notes.append("Used simplified query: \"\(variant)\".")
+                }
+                break
+            }
+        }
+
+        return WebSearchExecution(results: results, notes: notes)
+    }
+
+    private static func liveSearch(
+        engine: String,
+        query: String,
+        site: String?,
+        resultCount: Int,
+        startDate: Date?,
+        endDate: Date?
+    ) async throws -> [SearchResult] {
+        switch engine {
+        case "duckduckgo":
+            return try await DuckDuckGoSearch.search(
+                query: query,
+                site: site,
+                resultCount: resultCount,
+                startDate: startDate,
+                endDate: endDate
+            )
+        case "searchapi":
+            guard let apiKey = SearchProviderKeychain.retrieveSearchAPIKey(), !apiKey.isEmpty else {
+                throw WebSearchServiceError.missingAPIKey("SearchAPI")
+            }
+            return try await SearchAPIClient.search(
+                query: query,
+                site: site,
+                resultCount: resultCount,
+                startDate: startDate,
+                endDate: endDate,
+                apiKey: apiKey
+            )
+        case "serpapi":
+            guard let apiKey = SearchProviderKeychain.retrieveSerpAPIKey(), !apiKey.isEmpty else {
+                throw WebSearchServiceError.missingAPIKey("SerpAPI")
+            }
+            return try await SerpAPIClient.search(
+                query: query,
+                site: site,
+                resultCount: resultCount,
+                startDate: startDate,
+                endDate: endDate,
+                apiKey: apiKey
+            )
+        default:
+            return try await GoogleSearchClient.search(
+                query: query,
+                site: site,
+                resultCount: resultCount,
+                startDate: startDate,
+                endDate: endDate
+            )
+        }
+    }
+
+    private static func engineOrder(for primary: String) -> [String] {
+        switch primary {
+        case "duckduckgo":
+            return ["duckduckgo", "google"]
+        case "searchapi", "serpapi":
+            return [primary, "duckduckgo", "google"]
+        default:
+            return [primary, "duckduckgo"]
+        }
+    }
+
+    private static func simplifyQuery(_ query: String) -> String {
+        var simplified = query
+        let patterns = [
+            "\\b(19|20)\\d{2}\\b",
+            "\\b(as of|latest|current|recent)\\b",
+            "\\b(release date|pricing|benchmark|benchmarks)\\b"
+        ]
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let range = NSRange(simplified.startIndex..., in: simplified)
+                simplified = regex.stringByReplacingMatches(
+                    in: simplified,
+                    options: [],
+                    range: range,
+                    withTemplate: ""
+                )
+            }
+        }
+        simplified = simplified.replacingOccurrences(of: "  ", with: " ")
+        return simplified.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func uniqueEngines(_ engines: [String]) -> [String] {
+        var seen: Set<String> = []
+        return engines.filter { seen.insert($0).inserted }
+    }
+}
+
+enum WebSearchServiceError: Error, LocalizedError {
+    case missingAPIKey(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingAPIKey(let provider):
+            return "\(provider) API key not configured."
+        }
     }
 }
 

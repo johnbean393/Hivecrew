@@ -423,7 +423,7 @@
                                                                 <span class="prompt-model-option-detail-label">Reasoning</span>
                                                                 <div class="prompt-model-option-inline-select">
                                                                     <select
-                                                                        :value="getQuickMultiModelSelection(model.providerId, model.id)?.reasoningEffort ?? model.reasoningCapability.defaultEffort"
+                                                                        :value="getQuickMultiModelSelection(model.providerId, model.id)?.reasoningEffort ?? preferredReasoningEffortDefault(model.reasoningCapability)"
                                                                         @click.stop
                                                                         @change="updateQuickMultiModelReasoning(model.providerId, model.id, { reasoningEnabled: null, reasoningEffort: $event.target.value })"
                                                                     >

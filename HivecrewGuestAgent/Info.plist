@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>HivecrewGuestAgent</string>
+	<key>CFBundleExecutable</key>
+	<string>HivecrewGuestAgent</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.hivecrew.guestagent</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>HivecrewGuestAgent</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppDataUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to app data so it can automate workflows that read and operate on files created by other macOS apps inside the guest VM.</string>
+	<key>NSAppBundlesUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to installed app bundles so it can inspect and automate macOS applications inside the guest VM.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>HivecrewGuestAgent uses Apple Events to automate macOS apps inside the guest VM on your behalf.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to your music and audio data so it can inspect media libraries and automate audio-related workflows inside the guest VM.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>HivecrewGuestAgent needs calendar access so it can inspect and automate calendar workflows inside the guest VM.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>HivecrewGuestAgent needs camera access for guest workflows that capture images or video input.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>HivecrewGuestAgent needs contacts access so it can read and automate contact-related workflows inside the guest VM.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to Desktop files so it can automate guest workflows involving user documents.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to Documents so it can automate guest workflows involving user documents.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to Downloads so it can automate guest workflows involving downloaded files.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HivecrewGuestAgent needs location access for guest workflows that inspect or use location-aware features.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>HivecrewGuestAgent needs microphone access for guest workflows that capture audio input.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to mounted network volumes so it can automate workflows involving files stored on network shares inside the guest VM.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>HivecrewGuestAgent needs photo library access so it can inspect and automate photo workflows inside the guest VM.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>HivecrewGuestAgent needs access to removable volumes so it can automate workflows involving external drives and media inside the guest VM.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>HivecrewGuestAgent needs reminders access so it can inspect and automate reminder workflows inside the guest VM.</string>
+</dict>
+</plist>
