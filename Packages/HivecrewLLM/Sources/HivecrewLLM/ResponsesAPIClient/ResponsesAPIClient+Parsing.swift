@@ -57,6 +57,10 @@ extension ResponsesAPIClient {
 
                 if let type = event["type"] as? String {
                     switch type {
+                    case "codex.rate_limits":
+                        if let snapshot = parseCodexRateLimitSnapshot(from: event) {
+                            _ = CodexRateLimitStore.store(providerId: configuration.id, snapshot: snapshot)
+                        }
                     case "response.created":
                         if let response = event["response"] as? [String: Any] {
                             responseId = response["id"] as? String ?? responseId

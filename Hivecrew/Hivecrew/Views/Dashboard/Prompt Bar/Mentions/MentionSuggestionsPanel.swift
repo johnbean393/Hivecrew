@@ -8,7 +8,6 @@
 import AppKit
 import Combine
 import SwiftUI
-import TipKit
 
 /// Controller for the floating mention suggestions panel
 @MainActor
@@ -66,9 +65,15 @@ final class MentionSuggestionsPanelController: ObservableObject {
             display: true
         )
         
-        // Show as child of parent window
-        if let parentWindow = parentWindow {
-            parentWindow.addChildWindow(panel, ordered: .above)
+        // Keep the panel attached to the editor window, but avoid re-adding it on
+        // every keystroke or accidentally making the panel its own parent.
+        if let parentWindow, parentWindow !== panel {
+            if panel.parent !== parentWindow {
+                if let existingParent = panel.parent {
+                    existingParent.removeChildWindow(panel)
+                }
+                parentWindow.addChildWindow(panel, ordered: .above)
+            }
         }
         
         panel.orderFront(nil)
@@ -187,9 +192,6 @@ struct MentionSuggestionsPanelContent: View {
     private let sectionHeaderHeight: CGFloat = 24
     private let cornerRadius: CGFloat = 10
     
-    // Tips
-    private let deliverablesMentionTip = DeliverablesMentionTip()
-    
     /// Separate suggestions by type
     private var attachments: [MentionSuggestion] {
         suggestions.filter { $0.type == .attachment }
@@ -233,7 +235,6 @@ struct MentionSuggestionsPanelContent: View {
                 if !deliverables.isEmpty {
                     SectionHeader(title: "Recent Deliverables")
                         .frame(height: sectionHeaderHeight)
-                        .popoverTip(deliverablesMentionTip, arrowEdge: .trailing)
                     
                     ForEach(Array(deliverables.enumerated()), id: \.element.id) { index, suggestion in
                         let globalIndex = attachments.count + index

@@ -464,4 +464,41 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(model.supportsVisionInput, true)
         XCTAssertTrue(model.isVisionCapable)
     }
+
+    func testParsesCodexRateLimitSnapshotFromStreamEvent() {
+        let event: [String: Any] = [
+            "type": "codex.rate_limits",
+            "plan_type": "pro",
+            "rate_limits": [
+                "primary": [
+                    "used_percent": 10,
+                    "window_minutes": 300,
+                    "reset_at": 1_773_174_854
+                ],
+                "secondary": [
+                    "used_percent": 7,
+                    "window_minutes": 10_080,
+                    "reset_at": 1_773_720_551
+                ]
+            ],
+            "credits": [
+                "has_credits": true,
+                "unlimited": false,
+                "balance": 12.5
+            ]
+        ]
+
+        let snapshot = parseCodexRateLimitSnapshot(from: event)
+
+        XCTAssertEqual(snapshot?.planType, "pro")
+        XCTAssertEqual(snapshot?.primary?.usedPercent, 10)
+        XCTAssertEqual(snapshot?.primary?.remainingPercent, 90)
+        XCTAssertEqual(snapshot?.primary?.compactLabel, "5h")
+        XCTAssertEqual(snapshot?.secondary?.usedPercent, 7)
+        XCTAssertEqual(snapshot?.secondary?.remainingPercent, 93)
+        XCTAssertEqual(snapshot?.secondary?.compactLabel, "Wk")
+        XCTAssertEqual(snapshot?.credits?.hasCredits, true)
+        XCTAssertEqual(snapshot?.credits?.unlimited, false)
+        XCTAssertEqual(snapshot?.credits?.balance, 12.5)
+    }
 }

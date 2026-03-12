@@ -260,7 +260,7 @@ struct PromptBar: View {
             if !newSuggestions.isEmpty, mentionScreenPosition != nil, showMentionSuggestions, let query = mentionQuery {
                 mentionPanelController.suggestions = newSuggestions
                 mentionPanelController.currentQueryRange = query.range
-                mentionPanelController.show(at: mentionScreenPosition!, in: NSApp.keyWindow ?? NSApp.mainWindow)
+                mentionPanelController.show(at: mentionScreenPosition!, in: NSApp.mainWindow ?? NSApp.keyWindow)
             } else {
                 mentionPanelController.hide()
             }
@@ -270,7 +270,7 @@ struct PromptBar: View {
             if let position = newPosition, showMentionSuggestions, let query = mentionQuery {
                 mentionPanelController.suggestions = mentionProvider.suggestions
                 mentionPanelController.currentQueryRange = query.range
-                mentionPanelController.show(at: position, in: NSApp.keyWindow ?? NSApp.mainWindow)
+                mentionPanelController.show(at: position, in: NSApp.mainWindow ?? NSApp.keyWindow)
             }
         }
         .onChange(of: attachments) { _, newAttachments in
@@ -544,7 +544,7 @@ struct PromptBar: View {
         }
         
         mentionPanelController.suggestions = mentionProvider.suggestions
-        mentionPanelController.show(at: screenPosition, in: NSApp.keyWindow ?? NSApp.mainWindow)
+        mentionPanelController.show(at: screenPosition, in: NSApp.mainWindow ?? NSApp.keyWindow)
     }
     
     // MARK: - Key Event Handling

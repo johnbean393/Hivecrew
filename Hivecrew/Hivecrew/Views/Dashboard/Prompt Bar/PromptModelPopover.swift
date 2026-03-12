@@ -31,6 +31,7 @@ struct PromptModelPopover: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
     @State private var modelListViewportHeight: CGFloat = 0
+    @State private var codexRateLimitSnapshot: CodexRateLimitSnapshot?
     @StateObject private var hoverPanelController = ModelHoverInfoPanelController()
     
     private let hoverPanelOpenDelay: TimeInterval = 0.14
@@ -135,6 +136,7 @@ struct PromptModelPopover: View {
         .frame(width: popoverWidth, height: 480)
         .onAppear {
             loadModels()
+            refreshCodexRateLimitSnapshot()
         }
         .onDisappear {
             resetHoverPanelState()
@@ -142,6 +144,7 @@ struct PromptModelPopover: View {
         .onChange(of: selectedProviderId) { _, _ in
             resetHoverPanelState()
             loadModels()
+            refreshCodexRateLimitSnapshot()
         }
         .onChange(of: searchText) { _, _ in
             resetHoverPanelState()
@@ -158,6 +161,13 @@ struct PromptModelPopover: View {
             if !hoveredStillVisible || !panelStillVisible {
                 resetHoverPanelState()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CodexRateLimitStore.didChangeNotification)) { notification in
+            guard let providerId = notification.userInfo?[CodexRateLimitStore.providerIdUserInfoKey] as? String,
+                  providerId == selectedProviderId else {
+                return
+            }
+            refreshCodexRateLimitSnapshot()
         }
     }
 
@@ -230,16 +240,53 @@ struct PromptModelPopover: View {
     }
 
     private var codexFastModeRow: some View {
-        HStack(spacing: 0) {
-            Toggle("Fast Mode", isOn: codexFastModeBinding)
+        HStack(spacing: 8) {
+            Text("Fast Mode")
                 .font(.caption)
                 .fontWeight(.medium)
+            Spacer(minLength: 0)
+            if let summary = codexRateLimitSummaryText {
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(codexRateLimitSummaryColor)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Toggle("Fast Mode", isOn: codexFastModeBinding)
+                .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var codexRateLimitSummaryText: String? {
+        guard isCodexProvider,
+              let primary = codexRateLimitSnapshot?.primary,
+              let secondary = codexRateLimitSnapshot?.secondary else {
+            return nil
+        }
+
+        return "\(primary.compactLabel) \(primary.remainingPercent)% • \(secondary.compactLabel) \(secondary.remainingPercent)%"
+    }
+
+    private var codexRateLimitSummaryColor: Color {
+        guard let snapshot = codexRateLimitSnapshot else {
+            return .secondary
+        }
+
+        let minimumRemaining = [snapshot.primary?.remainingPercent, snapshot.secondary?.remainingPercent]
+            .compactMap { $0 }
+            .min() ?? 100
+
+        if minimumRemaining <= 10 {
+            return .red
+        }
+        if minimumRemaining <= 25 {
+            return .orange
+        }
+        return .secondary
     }
     
     // MARK: - Model List
@@ -642,6 +689,15 @@ struct PromptModelPopover: View {
                 }
             }
         )
+    }
+
+    private func refreshCodexRateLimitSnapshot() {
+        guard isCodexProvider else {
+            codexRateLimitSnapshot = nil
+            return
+        }
+
+        codexRateLimitSnapshot = CodexRateLimitStore.retrieve(providerId: selectedProviderId)
     }
 
     private func reasoningToggleBinding(for model: LLMProviderModel) -> Binding<Bool> {
