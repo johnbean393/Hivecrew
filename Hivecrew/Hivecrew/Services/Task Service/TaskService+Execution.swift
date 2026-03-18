@@ -17,6 +17,73 @@ import HivecrewShared
 // MARK: - Task Execution
 
 extension TaskService {
+    private func syncGuestArtifactsToSharedFolder(connection: GuestAgentConnection) async {
+        print("TaskService: Syncing guest Desktop outbox/workspace to shared folder...")
+
+        do {
+            let outboxResult = try await connection.runShell(command: "ls -la ~/Desktop/outbox/ 2>&1", timeout: 30)
+            print("TaskService: Guest ~/Desktop/outbox contents:\n\(outboxResult.stdout)")
+        } catch {
+            print("TaskService: Failed to list guest outbox before sync (non-fatal): \(error)")
+        }
+
+        do {
+            let workspaceResult = try await connection.runShell(command: "ls -la ~/Desktop/workspace/ 2>&1", timeout: 30)
+            print("TaskService: Guest ~/Desktop/workspace contents:\n\(workspaceResult.stdout)")
+        } catch {
+            print("TaskService: Failed to list guest workspace before sync (non-fatal): \(error)")
+        }
+
+        do {
+            let syncResult = try await connection.runShell(command: """
+                mkdir -p /Volumes/Shared/outbox /Volumes/Shared/workspace ~/Desktop/outbox ~/Desktop/workspace && \
+                if [ "$(ls -A ~/Desktop/outbox 2>/dev/null)" ]; then
+                    cp -R ~/Desktop/outbox/* /Volumes/Shared/outbox/ && \
+                    rm -rf ~/Desktop/outbox/* && \
+                    echo "Moved files to shared outbox"
+                else
+                    echo "No files in ~/Desktop/outbox to move"
+                fi && \
+                rm -rf /Volumes/Shared/workspace/* 2>/dev/null; \
+                if [ "$(ls -A ~/Desktop/workspace 2>/dev/null)" ]; then
+                    cp -R ~/Desktop/workspace/* /Volumes/Shared/workspace/ && \
+                    echo "Moved workspace to shared workspace"
+                else
+                    echo "No files in ~/Desktop/workspace to move"
+                fi && \
+                sync; sync; sync && \
+                echo "=== /Volumes/Shared/outbox contents ===" && \
+                ls -la /Volumes/Shared/outbox/ && \
+                echo "=== /Volumes/Shared/workspace contents ===" && \
+                ls -la /Volumes/Shared/workspace/
+                """, timeout: 60)
+            print("TaskService: Artifact sync result:\n\(syncResult.stdout)")
+            if !syncResult.stderr.isEmpty {
+                print("TaskService: Artifact sync stderr: \(syncResult.stderr)")
+            }
+        } catch {
+            print("TaskService: Failed to sync guest artifacts (non-fatal): \(error)")
+        }
+    }
+
+    private func extractPersistedArtifacts(
+        task: TaskRecord,
+        vmId: String,
+        sessionId: String?
+    ) async {
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+
+        if let sessionId {
+            persistWorkspaceSnapshot(vmId: vmId, sessionId: sessionId)
+        }
+
+        task.outputFilePaths = copyOutboxFiles(
+            vmId: vmId,
+            taskTitle: task.title,
+            customOutputDirectory: task.outputDirectory
+        )
+    }
+
     
     /// Start executing a task with an ephemeral VM
     func startTask(_ task: TaskRecord) async {
@@ -540,54 +607,12 @@ extension TaskService {
             }
         }
         
-        // Move files from the guest Desktop back to the shared folder.
-        print("TaskService: Syncing guest Desktop outbox/workspace to shared folder...")
-        do {
-            // First show what's in the guest Desktop outbox
-            let lsResult = try await connection.runShell(command: "ls -la ~/Desktop/outbox/ 2>&1", timeout: 30)
-            print("TaskService: Guest ~/Desktop/outbox contents:\n\(lsResult.stdout)")
-            let workspaceLsResult = try await connection.runShell(command: "ls -la ~/Desktop/workspace/ 2>&1", timeout: 30)
-            print("TaskService: Guest ~/Desktop/workspace contents:\n\(workspaceLsResult.stdout)")
-            
-            // Move files from ~/Desktop/outbox and ~/Desktop/workspace back to the shared folder.
-            let moveResult = try await connection.runShell(command: """
-                if [ "$(ls -A ~/Desktop/outbox 2>/dev/null)" ]; then
-                    cp -R ~/Desktop/outbox/* /Volumes/Shared/outbox/ && \
-                    rm -rf ~/Desktop/outbox/* && \
-                    echo "Moved files to shared outbox"
-                else
-                    echo "No files in ~/Desktop/outbox to move"
-                fi && \
-                rm -rf /Volumes/Shared/workspace/* 2>/dev/null; \
-                if [ "$(ls -A ~/Desktop/workspace 2>/dev/null)" ]; then
-                    cp -R ~/Desktop/workspace/* /Volumes/Shared/workspace/ && \
-                    echo "Moved workspace to shared workspace"
-                else
-                    echo "No files in ~/Desktop/workspace to move"
-                fi && \
-                sync; sync; sync && \
-                echo "=== /Volumes/Shared/outbox contents ===" && \
-                ls -la /Volumes/Shared/outbox/ && \
-                echo "=== /Volumes/Shared/workspace contents ===" && \
-                ls -la /Volumes/Shared/workspace/
-                """, timeout: 60)
-            print("TaskService: Move result:\n\(moveResult.stdout)")
-            if !moveResult.stderr.isEmpty {
-                print("TaskService: Move stderr: \(moveResult.stderr)")
-            }
-        } catch {
-            print("TaskService: Failed to move deliverables (non-fatal): \(error)")
-        }
-        
-        // Wait for VirtioFS to propagate writes to host
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        await syncGuestArtifactsToSharedFolder(connection: connection)
 
-        persistWorkspaceSnapshot(vmId: vmId, sessionId: sessionId)
-        
         // Copy outbox files to output directory BEFORE deleting the VM
         // Files are saved into a subfolder named after the task title + timestamp
         if result.terminationReason != .cancelled {
-            task.outputFilePaths = copyOutboxFiles(vmId: vmId, taskTitle: task.title, customOutputDirectory: task.outputDirectory)
+            await extractPersistedArtifacts(task: task, vmId: vmId, sessionId: sessionId)
             
             // Donate deliverable received event if files were produced
             if let paths = task.outputFilePaths, !paths.isEmpty {
@@ -667,20 +692,14 @@ extension TaskService {
         task.completedAt = Date()
         try? context.save()
 
-        if let connection, let vmId, let sessionId {
-            do {
-                _ = try await connection.runShell(command: """
-                    rm -rf /Volumes/Shared/workspace/* 2>/dev/null; \
-                    mkdir -p /Volumes/Shared/workspace ~/Desktop/workspace && \
-                    if [ "$(ls -A ~/Desktop/workspace 2>/dev/null)" ]; then
-                        cp -R ~/Desktop/workspace/* /Volumes/Shared/workspace/
-                    fi && \
-                    sync; sync; sync
-                    """, timeout: 30)
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                persistWorkspaceSnapshot(vmId: vmId, sessionId: sessionId)
-            } catch {
-                print("TaskService: Failed to persist workspace during failure handling: \(error)")
+        if let connection, let vmId {
+            await syncGuestArtifactsToSharedFolder(connection: connection)
+            await extractPersistedArtifacts(task: task, vmId: vmId, sessionId: sessionId)
+
+            if let paths = task.outputFilePaths, !paths.isEmpty {
+                await MainActor.run {
+                    TipStore.shared.donateDeliverableReceived()
+                }
             }
         }
         
