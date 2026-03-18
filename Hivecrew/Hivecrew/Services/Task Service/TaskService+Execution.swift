@@ -254,6 +254,20 @@ extension TaskService {
                 print("TaskService: Failed to setup guest inbox/outbox (non-fatal): \(error)")
             }
             if await abortIfInactive(stage: "guest setup") { return }
+
+            // Keep task VMs awake so macOS does not enter the screensaver mid-run.
+            do {
+                let keepAwakeResult = try await connection.runShell(command: """
+                    if ! pgrep -x caffeinate >/dev/null 2>&1; then
+                        nohup caffeinate -dims >/dev/null 2>&1 &
+                    fi
+                    """, timeout: 10)
+                if !keepAwakeResult.stderr.isEmpty {
+                    print("TaskService: Keep-awake stderr: \(keepAwakeResult.stderr)")
+                }
+            } catch {
+                print("TaskService: Failed to launch keep-awake command (non-fatal): \(error)")
+            }
             
             // MARK: VM Provisioning (user-defined files and setup commands)
             let provisioningConfig = VMProvisioningService.shared.config
