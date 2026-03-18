@@ -203,14 +203,26 @@ final class SubagentManager {
                 }
             )
             do {
-                let result = try await withOptionalTimeout(seconds: timeoutSeconds) {
+                let result = try await withSubagentTimeout(seconds: timeoutSeconds) {
                     try await runner.run()
                 }
                 let status = result.status == .success ? "completed" : "failed"
                 try? await tracer.logSessionEnd(status: status, summary: result.summary)
                 return result
             } catch {
-                try? await tracer.logSessionEnd(status: "failed", summary: error.localizedDescription)
+                let terminalStatus: String
+                let summary: String
+                if error is SubagentExecutionTimeoutError {
+                    terminalStatus = "timed_out"
+                    summary = error.localizedDescription
+                } else if self.isCancellationError(error) {
+                    terminalStatus = "cancelled"
+                    summary = "Cancelled"
+                } else {
+                    terminalStatus = "failed"
+                    summary = error.localizedDescription
+                }
+                try? await tracer.logSessionEnd(status: terminalStatus, summary: summary)
                 throw error
             }
         }
@@ -235,6 +247,7 @@ final class SubagentManager {
     
     func cancel(subagentId: String) async -> Bool {
         guard var handle = handles[subagentId] else { return false }
+        guard handle.info.status == .running else { return true }
         handle.task?.cancel()
         handle.info = updatedInfo(handle.info, status: .cancelled, summary: nil, errorMessage: "Cancelled")
         handles[subagentId] = handle
@@ -256,7 +269,10 @@ final class SubagentManager {
     }
     
     func cancelAll() async {
-        for id in handles.keys {
+        let runningIds = handles
+            .filter { $0.value.info.status == .running }
+            .map { $0.key }
+        for id in runningIds {
             _ = await cancel(subagentId: id)
         }
     }
@@ -315,89 +331,151 @@ final class SubagentManager {
     // MARK: - Private
     
     private func awaitCompletion(subagentId: String) async -> Bool {
-        guard let handle = handles[subagentId], let task = handle.task else { return false }
+        guard let task = handles[subagentId]?.task else { return false }
         do {
             let result = try await task.value
             if result.status == .success {
-                finalizeSuccess(subagentId: subagentId, handle: handle, result: result)
-                return true
+                return finalizeSuccess(subagentId: subagentId, result: result)
             }
             let errorMessage = result.failureReason ?? "Subagent reported failed status."
-            finalizeFailure(subagentId: subagentId, handle: handle, summary: result.summary, errorMessage: errorMessage)
+            finalizeFailure(subagentId: subagentId, summary: result.summary, errorMessage: errorMessage)
+            return false
+        } catch let error as SubagentExecutionTimeoutError {
+            finalizeFailure(
+                subagentId: subagentId,
+                summary: nil,
+                errorMessage: error.localizedDescription
+            )
             return false
         } catch {
-            finalizeFailure(subagentId: subagentId, handle: handle, summary: nil, errorMessage: error.localizedDescription)
+            if isCancellationError(error) {
+                finalizeCancellation(subagentId: subagentId)
+                return false
+            }
+            finalizeFailure(subagentId: subagentId, summary: nil, errorMessage: error.localizedDescription)
             return false
         }
     }
     
     private func awaitCompletionWithTimeout(subagentId: String, timeoutSeconds: Double) async -> Bool {
-        guard let handle = handles[subagentId], let task = handle.task else { return false }
+        guard let task = handles[subagentId]?.task else { return false }
         do {
-            let result = try await withOptionalTimeout(seconds: timeoutSeconds) {
+            let result = try await withAwaitTimeout(seconds: timeoutSeconds) {
                 try await task.value
             }
             if result.status == .success {
-                finalizeSuccess(subagentId: subagentId, handle: handle, result: result)
-                return true
+                return finalizeSuccess(subagentId: subagentId, result: result)
             }
             let errorMessage = result.failureReason ?? "Subagent reported failed status."
-            finalizeFailure(subagentId: subagentId, handle: handle, summary: result.summary, errorMessage: errorMessage)
+            finalizeFailure(subagentId: subagentId, summary: result.summary, errorMessage: errorMessage)
             return false
-        } catch is CancellationError {
+        } catch is AwaitTimeoutError {
+            return false
+        } catch let error as SubagentExecutionTimeoutError {
+            finalizeFailure(
+                subagentId: subagentId,
+                summary: nil,
+                errorMessage: error.localizedDescription
+            )
             return false
         } catch {
-            finalizeFailure(subagentId: subagentId, handle: handle, summary: nil, errorMessage: error.localizedDescription)
+            if isCancellationError(error) {
+                finalizeCancellation(subagentId: subagentId)
+                return false
+            }
+            finalizeFailure(subagentId: subagentId, summary: nil, errorMessage: error.localizedDescription)
             return false
         }
     }
 
-    private func finalizeSuccess(subagentId: String, handle: Handle, result: SubagentRunner.Result) {
-        var updatedHandle = handle
-        updatedHandle.info = updatedInfo(updatedHandle.info, status: .completed, summary: result.summary, errorMessage: nil)
-        handles[subagentId] = updatedHandle
+    @discardableResult
+    private func finalizeSuccess(subagentId: String, result: SubagentRunner.Result) -> Bool {
+        guard var handle = handles[subagentId] else { return false }
+        guard handle.info.status == .running else { return false }
+        handle.info = updatedInfo(handle.info, status: .completed, summary: result.summary, errorMessage: nil)
+        handles[subagentId] = handle
         statePublisher?.subagentFinished(id: subagentId, status: .completed, summary: result.summary)
         toolExecutor.clearTodoList(subagentId: subagentId)
         mailboxes.removeValue(forKey: subagentId)
         
         completionQueue.append(Completion(
             id: subagentId,
-            purpose: updatedHandle.info.purpose,
+            purpose: handle.info.purpose,
             summary: result.summary,
-            domain: updatedHandle.info.domain
+            domain: handle.info.domain
         ))
         
         logLifecycleEvent(
             eventType: "subagent_completed",
             subagentId: subagentId,
-            purpose: updatedHandle.info.purpose,
-            domain: updatedHandle.info.domain,
-            toolAllowlist: updatedHandle.info.toolAllowlist,
-            tracePath: updatedHandle.info.tracePath,
+            purpose: handle.info.purpose,
+            domain: handle.info.domain,
+            toolAllowlist: handle.info.toolAllowlist,
+            tracePath: handle.info.tracePath,
             status: "completed",
-            durationMs: durationMs(for: updatedHandle.info),
+            durationMs: durationMs(for: handle.info),
             errorMessage: nil
         )
+        return true
     }
     
-    private func finalizeFailure(subagentId: String, handle: Handle, summary: String?, errorMessage: String) {
-        var updatedHandle = handle
-        updatedHandle.info = updatedInfo(updatedHandle.info, status: .failed, summary: summary, errorMessage: errorMessage)
-        handles[subagentId] = updatedHandle
+    private func finalizeFailure(subagentId: String, summary: String?, errorMessage: String) {
+        guard var handle = handles[subagentId] else { return }
+        guard handle.info.status == .running else { return }
+        handle.info = updatedInfo(handle.info, status: .failed, summary: summary, errorMessage: errorMessage)
+        handles[subagentId] = handle
         statePublisher?.subagentFinished(id: subagentId, status: .failed, summary: errorMessage)
         toolExecutor.clearTodoList(subagentId: subagentId)
         mailboxes.removeValue(forKey: subagentId)
         logLifecycleEvent(
             eventType: "subagent_failed",
             subagentId: subagentId,
-            purpose: updatedHandle.info.purpose,
-            domain: updatedHandle.info.domain,
-            toolAllowlist: updatedHandle.info.toolAllowlist,
-            tracePath: updatedHandle.info.tracePath,
+            purpose: handle.info.purpose,
+            domain: handle.info.domain,
+            toolAllowlist: handle.info.toolAllowlist,
+            tracePath: handle.info.tracePath,
             status: "failed",
-            durationMs: durationMs(for: updatedHandle.info),
+            durationMs: durationMs(for: handle.info),
             errorMessage: errorMessage
         )
+    }
+
+    private func finalizeCancellation(subagentId: String) {
+        guard var handle = handles[subagentId] else { return }
+        guard handle.info.status == .running else { return }
+
+        handle.info = updatedInfo(handle.info, status: .cancelled, summary: nil, errorMessage: "Cancelled")
+        handles[subagentId] = handle
+        statePublisher?.subagentFinished(id: subagentId, status: .cancelled, summary: nil)
+        toolExecutor.clearTodoList(subagentId: subagentId)
+        mailboxes.removeValue(forKey: subagentId)
+        logLifecycleEvent(
+            eventType: "subagent_cancelled",
+            subagentId: subagentId,
+            purpose: handle.info.purpose,
+            domain: handle.info.domain,
+            toolAllowlist: handle.info.toolAllowlist,
+            tracePath: handle.info.tracePath,
+            status: "cancelled",
+            durationMs: durationMs(for: handle.info),
+            errorMessage: "Cancelled"
+        )
+    }
+
+    private func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        if let llmError = error as? LLMError, case .cancelled = llmError {
+            return true
+        }
+
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return true
+        }
+
+        return false
     }
     
     private func defaultAllowlist(for domain: SubagentDomain) -> [String] {
@@ -556,21 +634,51 @@ final class SubagentManager {
     }
 }
 
-private func withOptionalTimeout<T>(
+private enum SubagentExecutionTimeoutError: LocalizedError, Sendable {
+    case timedOut
+
+    var errorDescription: String? {
+        "Subagent timed out"
+    }
+}
+
+private enum AwaitTimeoutError: Error, Sendable {
+    case timedOut
+}
+
+private func withSubagentTimeout<T>(
     seconds: Double?,
     operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
     guard let seconds = seconds else {
         return try await operation()
     }
-    
+
     return try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask {
             try await operation()
         }
         group.addTask {
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            throw CancellationError()
+            throw SubagentExecutionTimeoutError.timedOut
+        }
+        let result = try await group.next()!
+        group.cancelAll()
+        return result
+    }
+}
+
+private func withAwaitTimeout<T>(
+    seconds: Double,
+    operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask {
+            try await operation()
+        }
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw AwaitTimeoutError.timedOut
         }
         let result = try await group.next()!
         group.cancelAll()

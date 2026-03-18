@@ -140,10 +140,13 @@ final class SubagentRunner {
             lastStreamedText = ""
             let response: LLMResponse
             do {
-                response = try await callLLMWithRetry(messages: &messages) { content in
+                response = try await callStreamingLLMWithRetry(messages: &messages) { content in
                     lastStreamedText = content
                 }
             } catch {
+                if isCancellationError(error) {
+                    throw CancellationError()
+                }
                 let errorMsg = error.localizedDescription
                 onLine?(ProgressLine(
                     type: .error,
@@ -315,7 +318,7 @@ final class SubagentRunner {
         return finalResult
     }
 
-    private func callLLMWithRetry(
+    private func callStreamingLLMWithRetry(
         messages: inout [LLMMessage],
         onContentUpdate: @escaping (String) -> Void
     ) async throws -> LLMResponse {
@@ -335,6 +338,9 @@ final class SubagentRunner {
                     summary: message,
                     details: nil
                 ))
+            },
+            checkInterruption: {
+                try Task.checkCancellation()
             },
             onImageScaleLevelChanged: { [weak self] newScale in
                 self?.currentImageScaleLevel = newScale
@@ -366,6 +372,74 @@ final class SubagentRunner {
         messages = outcome.messages
         currentImageScaleLevel = outcome.imageScaleLevel
         return outcome.response
+    }
+
+    private func callNonStreamingLLMWithRetry(
+        messages: inout [LLMMessage],
+        tools: [LLMToolDefinition]
+    ) async throws -> LLMResponse {
+        let options = SharedLLMRetryHandler.Options(
+            maxLLMRetries: maxLLMRetries,
+            maxContextCompactionRetries: maxContextCompactionRetries,
+            baseRetryDelay: baseRetryDelay,
+            proactiveCompactionPasses: 3,
+            normalToolResultLimit: 12000,
+            aggressiveToolResultLimit: 8000
+        )
+
+        let hooks = SharedLLMRetryHandler.Hooks(
+            logInfo: { [weak self] message in
+                self?.onLine?(ProgressLine(
+                    type: .info,
+                    summary: message,
+                    details: nil
+                ))
+            },
+            checkInterruption: {
+                try Task.checkCancellation()
+            },
+            onImageScaleLevelChanged: { [weak self] newScale in
+                self?.currentImageScaleLevel = newScale
+            }
+        )
+
+        let outcome = try await SharedLLMRetryHandler.callWithRetry(
+            llmClient: llmClient,
+            messages: messages,
+            tools: tools,
+            imageScaleLevel: currentImageScaleLevel,
+            onReasoningUpdate: nil,
+            onContentUpdate: nil,
+            llmCall: { [weak self] callMessages, callTools, _, _ in
+                guard let self else { throw LLMError.cancelled }
+                return try await self.llmClient.chat(
+                    messages: callMessages,
+                    tools: callTools
+                )
+            },
+            options: options,
+            hooks: hooks
+        )
+
+        messages = outcome.messages
+        currentImageScaleLevel = outcome.imageScaleLevel
+        return outcome.response
+    }
+
+    private func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        if let llmError = error as? LLMError, case .cancelled = llmError {
+            return true
+        }
+
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return true
+        }
+
+        return false
     }
     
     private func systemPrompt() -> String {
@@ -433,11 +507,14 @@ final class SubagentRunner {
             
             let response: LLMResponse
             do {
-                response = try await llmClient.chat(
-                    messages: forceMessages,
+                response = try await callNonStreamingLLMWithRetry(
+                    messages: &forceMessages,
                     tools: reportOnlyTools
                 )
             } catch {
+                if isCancellationError(error) {
+                    throw CancellationError()
+                }
                 onLine?(ProgressLine(
                     type: .error,
                     summary: "Forced report LLM call failed (\(index + 1)/\(prompts.count))",
