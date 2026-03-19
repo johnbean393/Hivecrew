@@ -735,7 +735,7 @@ final class SubagentToolExecutor {
         if ids.isEmpty {
             return .text("Error: subagentIds is required")
         }
-        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"]) ?? 600
+        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"]) ?? 1800
         let deadline = Date().addingTimeInterval(timeoutSeconds)
         
         var notFound: Set<String> = []

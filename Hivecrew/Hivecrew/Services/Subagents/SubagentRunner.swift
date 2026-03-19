@@ -56,6 +56,7 @@ final class SubagentRunner {
     private let maxLLMRetries = 3
     private let maxContextCompactionRetries = 3
     private let baseRetryDelay: Double = 2.0
+    private let defaultToolResultContextLimit = 6_000
     private let onActionUpdate: (@MainActor (String) -> Void)?
     private let onLine: (@MainActor (ProgressLine) -> Void)?
     private let drainMessages: (@MainActor () -> [SubagentManager.AgentMessage])?
@@ -231,6 +232,10 @@ final class SubagentRunner {
                     switch result {
                     case .text(let content):
                         let truncated = String(content.prefix(1200)) + (content.count > 1200 ? "\n…(truncated)" : "")
+                        let contextSafeContent = toolResultContentForContext(
+                            toolName: toolCall.function.name,
+                            content: content
+                        )
                         onLine?(ProgressLine(
                             type: .toolResult,
                             summary: "✓ \(toolCall.function.name)",
@@ -246,7 +251,7 @@ final class SubagentRunner {
                         )
                         messages.append(.toolResult(
                             toolCallId: toolCall.id,
-                            content: content
+                            content: contextSafeContent
                         ))
                     case .image(let description, let base64, let mimeType):
                         onLine?(ProgressLine(
@@ -327,8 +332,8 @@ final class SubagentRunner {
             maxContextCompactionRetries: maxContextCompactionRetries,
             baseRetryDelay: baseRetryDelay,
             proactiveCompactionPasses: 3,
-            normalToolResultLimit: 12000,
-            aggressiveToolResultLimit: 8000
+            normalToolResultLimit: 8_000,
+            aggressiveToolResultLimit: 4_000
         )
 
         let hooks = SharedLLMRetryHandler.Hooks(
@@ -383,8 +388,8 @@ final class SubagentRunner {
             maxContextCompactionRetries: maxContextCompactionRetries,
             baseRetryDelay: baseRetryDelay,
             proactiveCompactionPasses: 3,
-            normalToolResultLimit: 12000,
-            aggressiveToolResultLimit: 8000
+            normalToolResultLimit: 8_000,
+            aggressiveToolResultLimit: 4_000
         )
 
         let hooks = SharedLLMRetryHandler.Hooks(
@@ -476,7 +481,10 @@ final class SubagentRunner {
         - If no todo list is provided, report STATUS: FAILED and explain that the list was missing.
         - When finished, call \(Self.finalReportToolName) with a structured report. Do NOT return a normal message.
         - In \(Self.finalReportToolName), include todoItems for every list index with completed=true/false.
-        - Prefer web_search/read_webpage_content for research; avoid run_shell unless the goal explicitly requires shell or file operations.
+        - Prefer web_search to discover sources and extract_info_from_webpage for targeted questions. Use read_webpage_content sparingly for short pages or quick source inspection because long page dumps will bloat your context.
+        - Once you have enough evidence to finish the assigned memo or table, stop researching and submit the final report instead of continuing to browse for marginal improvements.
+        - Avoid repeated near-duplicate searches. Refine the query or move on once a source is clearly unhelpful.
+        - Prefer primary sources, short official summaries, earnings releases, shareholder letters, and focused extracts over raw full-document dumps.
         - Treat any model lists or factual claims in the goal as hypotheses; verify and correct them using sources.
         - Do not use prior knowledge for factual claims. Every factual claim must be grounded in tool-derived sources.
         - You can send messages to other agents using send_message (to: 'main', a subagent ID, or 'broadcast'). Messages sent to you will appear automatically in your context.
@@ -744,5 +752,48 @@ final class SubagentRunner {
         return items.enumerated()
             .map { "\($0.offset + 1). [ ] \($0.element)" }
             .joined(separator: "\n")
+    }
+
+    private func toolResultContentForContext(toolName: String, content: String) -> String {
+        let normalizedTool = toolName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let maxChars: Int
+
+        switch normalizedTool {
+        case "read_webpage_content", "read_file":
+            maxChars = 10_000
+        case "web_search":
+            maxChars = 5_000
+        case "extract_info_from_webpage":
+            maxChars = 4_000
+        case "run_shell":
+            maxChars = 6_000
+        case "list_directory":
+            maxChars = 4_000
+        default:
+            maxChars = defaultToolResultContextLimit
+        }
+
+        return truncateForContext(content, maxChars: maxChars)
+    }
+
+    private func truncateForContext(_ content: String, maxChars: Int) -> String {
+        guard maxChars > 0, content.count > maxChars else {
+            return content
+        }
+
+        let removedCount = content.count - maxChars
+        let notice = "\n\n[... truncated \(removedCount) characters to reduce context size ...]\n\n"
+        let headChars = max(0, Int(Double(maxChars) * 0.75))
+        let tailChars = max(0, maxChars - headChars - notice.count)
+
+        guard tailChars >= 512 else {
+            let prefixLength = max(0, maxChars - notice.count)
+            let prefix = String(content.prefix(prefixLength))
+            return prefix + notice
+        }
+
+        let prefix = String(content.prefix(headChars))
+        let suffix = String(content.suffix(tailChars))
+        return prefix + notice + suffix
     }
 }

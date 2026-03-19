@@ -185,7 +185,45 @@ extension TaskService {
               !workerModelId.isEmpty else {
             throw TaskServiceError.workerModelNotConfigured
         }
-        return try await createLLMClient(providerId: workerProviderId, modelId: workerModelId)
+
+        guard let context = modelContext else {
+            throw TaskServiceError.noModelContext
+        }
+
+        let descriptor = FetchDescriptor<LLMProviderRecord>(predicate: #Predicate { $0.id == workerProviderId })
+        guard let provider = try context.fetch(descriptor).first else {
+            throw TaskServiceError.providerNotFound(workerProviderId)
+        }
+
+        if provider.backendMode == .codexOAuth && !provider.isOAuthAuthenticated {
+            throw TaskServiceError.oauthAuthRequired(provider.displayName)
+        }
+
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let retrieved = provider.retrieveAPIKey() else {
+                throw TaskServiceError.noAPIKey(provider.displayName)
+            }
+            apiKey = retrieved
+        } else {
+            apiKey = ""
+        }
+
+        let config = LLMConfiguration(
+            id: provider.id,
+            displayName: provider.displayName,
+            baseURL: provider.backendMode == .codexOAuth ? nil : provider.parsedBaseURL,
+            apiKey: apiKey,
+            model: workerModelId,
+            organizationId: provider.organizationId,
+            backendMode: provider.backendMode,
+            authMode: provider.authMode,
+            timeoutInterval: 300,
+            reasoningEnabled: nil,
+            reasoningEffort: nil,
+            serviceTier: nil
+        )
+        return LLMService.shared.createClient(from: config)
     }
     
     /// Count running developer VMs (these count toward the concurrent VM limit)
