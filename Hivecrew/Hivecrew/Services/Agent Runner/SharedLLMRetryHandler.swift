@@ -8,7 +8,6 @@
 import Foundation
 import HivecrewLLM
 
-@MainActor
 enum SharedLLMRetryHandler {
     struct Options {
         let maxLLMRetries: Int

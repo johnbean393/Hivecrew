@@ -8,8 +8,7 @@
 import Foundation
 import HivecrewLLM
 
-@MainActor
-final class SubagentRunner {
+final class SubagentRunner: @unchecked Sendable {
     static let finalReportToolName = "submit_final_report"
 
     enum CompletionStatus: String, Sendable {
@@ -22,6 +21,38 @@ final class SubagentRunner {
         let summary: String
         let details: String?
         let failureReason: String?
+    }
+
+    private actor RuntimeState {
+        struct Snapshot: Sendable {
+            let messages: [LLMMessage]
+            let lastResponseText: String?
+        }
+
+        private var messages: [LLMMessage]
+        private var lastResponseText: String?
+
+        init(messages: [LLMMessage], lastResponseText: String? = nil) {
+            self.messages = messages
+            self.lastResponseText = lastResponseText
+        }
+
+        func replace(messages: [LLMMessage], lastResponseText: String?) {
+            self.messages = messages
+            self.lastResponseText = lastResponseText
+        }
+
+        func snapshot() -> Snapshot {
+            Snapshot(messages: messages, lastResponseText: lastResponseText)
+        }
+    }
+
+    private enum RuntimeTimeoutError: LocalizedError {
+        case timedOut
+
+        var errorDescription: String? {
+            "Subagent runtime limit reached"
+        }
     }
 
     private struct FinalReportPayload: Decodable {
@@ -52,14 +83,12 @@ final class SubagentRunner {
     private let toolExecutor: SubagentToolExecutor
     private let tools: [LLMToolDefinition]
     private let supportsVision: Bool
+    private let runtimeDelegate: SubagentManager.RuntimeDelegate
     private let maxIterations: Int
     private let maxLLMRetries = 3
     private let maxContextCompactionRetries = 3
     private let baseRetryDelay: Double = 2.0
     private let defaultToolResultContextLimit = 6_000
-    private let onActionUpdate: (@MainActor (String) -> Void)?
-    private let onLine: (@MainActor (ProgressLine) -> Void)?
-    private let drainMessages: (@MainActor () -> [SubagentManager.AgentMessage])?
     private var incompleteTodoRetryCount = 0
     private let maxIncompleteTodoRetries = 3
     private var consecutiveNoToolCalls = 0
@@ -78,10 +107,8 @@ final class SubagentRunner {
         toolExecutor: SubagentToolExecutor,
         tools: [LLMToolDefinition],
         supportsVision: Bool,
-        maxIterations: Int = 50,
-        onActionUpdate: (@MainActor (String) -> Void)? = nil,
-        onLine: (@MainActor (ProgressLine) -> Void)? = nil,
-        drainMessages: (@MainActor () -> [SubagentManager.AgentMessage])? = nil
+        runtimeDelegate: SubagentManager.RuntimeDelegate,
+        maxIterations: Int = 100,
     ) {
         self.subagentId = subagentId
         self.goal = goal
@@ -93,43 +120,76 @@ final class SubagentRunner {
         self.toolExecutor = toolExecutor
         self.tools = Self.withFinalReportTool(tools)
         self.supportsVision = supportsVision
+        self.runtimeDelegate = runtimeDelegate
         self.maxIterations = maxIterations
-        self.onActionUpdate = onActionUpdate
-        self.onLine = onLine
-        self.drainMessages = drainMessages
+    }
+
+    private func updateAction(_ action: String) async {
+        await runtimeDelegate.updateAction(action)
+    }
+
+    private func emitLine(_ line: ProgressLine) async {
+        await runtimeDelegate.emitLine(line)
     }
     
-    func run() async throws -> Result {
-        var messages: [LLMMessage] = [
+    func run(runtimeTimeoutSeconds: Double? = nil) async throws -> Result {
+        let initialMessages: [LLMMessage] = [
             .system(systemPrompt()),
             .user(goal)
         ]
-        
+        let runtimeState = RuntimeState(messages: initialMessages)
+
+        do {
+            if let runtimeTimeoutSeconds {
+                return try await withRuntimeTimeout(seconds: runtimeTimeoutSeconds) {
+                    try await self.runLoop(
+                        initialMessages: initialMessages,
+                        runtimeState: runtimeState
+                    )
+                }
+            }
+
+            return try await runLoop(
+                initialMessages: initialMessages,
+                runtimeState: runtimeState
+            )
+        } catch is RuntimeTimeoutError {
+            return try await finalizeDueToRuntimeLimit(
+                runtimeTimeoutSeconds: runtimeTimeoutSeconds,
+                runtimeState: runtimeState
+            )
+        }
+    }
+
+    private func runLoop(
+        initialMessages: [LLMMessage],
+        runtimeState: RuntimeState
+    ) async throws -> Result {
+        var messages = initialMessages
         var iteration = 0
         var lastResponseText: String?
         var lastStreamedText: String = ""
-        
+
         while iteration < maxIterations {
             iteration += 1
             await tracer.nextStep()
             
             // Auto-inject any pending mailbox messages before the LLM call
-            if let drain = drainMessages {
-                let incoming = drain()
-                for msg in incoming {
-                    let senderLabel = msg.from == "main" ? "main agent" : "subagent \(msg.from)"
-                    messages.append(.user(
-                        "[Message from \(senderLabel)] Subject: \(msg.subject)\n\(msg.body)"
-                    ))
-                    onLine?(ProgressLine(
-                        type: .info,
-                        summary: "Mailbox: received message from \(senderLabel)",
-                        details: "Subject: \(msg.subject)"
-                    ))
-                }
+            let incoming = await runtimeDelegate.drainMessages()
+            for msg in incoming {
+                let senderLabel = msg.from == "main" ? "main agent" : "subagent \(msg.from)"
+                messages.append(.user(
+                    "[Message from \(senderLabel)] Subject: \(msg.subject)\n\(msg.body)"
+                ))
+                await emitLine(ProgressLine(
+                    type: .info,
+                    summary: "Mailbox: received message from \(senderLabel)",
+                    details: "Subject: \(msg.subject)"
+                ))
             }
+            await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
             
-            onActionUpdate?("Thinking…")
+            await updateAction("Thinking…")
             try? await tracer.logLLMRequest(
                 messageCount: messages.count,
                 toolCount: tools.count,
@@ -149,7 +209,7 @@ final class SubagentRunner {
                     throw CancellationError()
                 }
                 let errorMsg = error.localizedDescription
-                onLine?(ProgressLine(
+                await emitLine(ProgressLine(
                     type: .error,
                     summary: "LLM call failed",
                     details: errorMsg
@@ -165,12 +225,13 @@ final class SubagentRunner {
             let latencyMs = Int(Date().timeIntervalSince(start) * 1000)
             lastResponseText = (response.text?.isEmpty == false) ? response.text : lastStreamedText
             if let text = lastResponseText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                onLine?(ProgressLine(
+                await emitLine(ProgressLine(
                     type: .llmResponse,
                     summary: "LLM response",
                     details: text
                 ))
             }
+            await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
             
             try? await tracer.logLLMResponse(response, latencyMs: latencyMs)
             
@@ -178,11 +239,12 @@ final class SubagentRunner {
             if let toolCalls = response.toolCalls, !toolCalls.isEmpty {
                 consecutiveNoToolCalls = 0
                 messages.append(.assistant(response.text ?? "", toolCalls: toolCalls))
+                await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
                 
                 for toolCall in toolCalls {
                     try? await tracer.logToolCall(toolCall)
-                    onActionUpdate?("Executing: \(toolCall.function.name)")
-                    onLine?(ProgressLine(
+                    await updateAction("Executing: \(toolCall.function.name)")
+                    await emitLine(ProgressLine(
                         type: .toolCall,
                         summary: "Executing: \(toolCall.function.name)",
                         details: "Args: \(toolCall.function.arguments)"
@@ -201,6 +263,7 @@ final class SubagentRunner {
                             )
                             return result
                         }
+                        await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
                         continue
                     }
                     
@@ -209,7 +272,7 @@ final class SubagentRunner {
                         result = try await toolExecutor.execute(toolCall: toolCall, subagentId: subagentId)
                     } catch {
                         let message = error.localizedDescription
-                        onLine?(ProgressLine(
+                        await emitLine(ProgressLine(
                             type: .error,
                             summary: "Tool failed: \(toolCall.function.name)",
                             details: message
@@ -226,6 +289,7 @@ final class SubagentRunner {
                             toolCallId: toolCall.id,
                             content: "Error: \(message)"
                         ))
+                        await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
                         continue
                     }
                     
@@ -236,7 +300,7 @@ final class SubagentRunner {
                             toolName: toolCall.function.name,
                             content: content
                         )
-                        onLine?(ProgressLine(
+                        await emitLine(ProgressLine(
                             type: .toolResult,
                             summary: "✓ \(toolCall.function.name)",
                             details: truncated
@@ -254,7 +318,7 @@ final class SubagentRunner {
                             content: contextSafeContent
                         ))
                     case .image(let description, let base64, let mimeType):
-                        onLine?(ProgressLine(
+                        await emitLine(ProgressLine(
                             type: .toolResult,
                             summary: "✓ \(toolCall.function.name)",
                             details: description
@@ -280,6 +344,7 @@ final class SubagentRunner {
                             messages.append(.user("An image was produced by \(toolCall.function.name), but this model does not support vision input. Continue with text-only tools."))
                         }
                     }
+                    await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
                 }
                 
                 continue
@@ -288,11 +353,13 @@ final class SubagentRunner {
             // LLM returned text without tool calls
             consecutiveNoToolCalls += 1
             messages.append(.assistant(response.text ?? ""))
+            await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
             
             if consecutiveNoToolCalls <= maxContinueNudges {
                 // Phase 1: Tell the agent to keep working
                 messages.append(.user("Do not respond with text. You must call tools to complete your todo items. Review your todo list and call the next tool needed to make progress."))
-                onLine?(ProgressLine(
+                await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
+                await emitLine(ProgressLine(
                     type: .info,
                     summary: "Prompting subagent to continue working (\(consecutiveNoToolCalls)/\(maxContinueNudges))",
                     details: nil
@@ -304,7 +371,8 @@ final class SubagentRunner {
                 // Phase 2: Agent is stuck — ask for the final report
                 let reportNudge = consecutiveNoToolCalls - maxContinueNudges
                 messages.append(.user("You appear to be stuck. Call \(Self.finalReportToolName) now to submit your final report. Mark incomplete items as not completed and set status to failed if needed."))
-                onLine?(ProgressLine(
+                await runtimeState.replace(messages: messages, lastResponseText: lastResponseText)
+                await emitLine(ProgressLine(
                     type: .info,
                     summary: "Requesting final report (\(reportNudge)/\(maxReportNudges))",
                     details: nil
@@ -317,10 +385,80 @@ final class SubagentRunner {
         }
         
         // Loop exited without submit_final_report — try to extract one
-        onActionUpdate?("Writing report…")
+        await updateAction("Writing report…")
         let finalResult = try await finalizeResult(messages: messages, fallback: lastResponseText ?? lastStreamedText)
-        onActionUpdate?("Done")
+        await updateAction("Done")
         return finalResult
+    }
+
+    private func finalizeDueToRuntimeLimit(
+        runtimeTimeoutSeconds: Double?,
+        runtimeState: RuntimeState
+    ) async throws -> Result {
+        let snapshot = await runtimeState.snapshot()
+        let timeoutMessage = runtimeLimitMessage(runtimeTimeoutSeconds)
+
+        await emitLine(ProgressLine(
+            type: .info,
+            summary: timeoutMessage,
+            details: "Forcing a final report from the work completed so far."
+        ))
+        await updateAction("Writing report…")
+
+        var forceMessages = snapshot.messages
+        forceMessages.append(.user(
+            "Your runtime limit has been reached. Stop all additional work and call \(Self.finalReportToolName) now. Use only the evidence already collected. Mark incomplete todo items as completed=false and set status to failed if needed. Do not call any tool other than \(Self.finalReportToolName)."
+        ))
+
+        let fallback = snapshot.lastResponseText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let result = try await finalizeResult(
+            messages: forceMessages,
+            fallback: fallback.isEmpty ? timeoutMessage : fallback
+        )
+        await updateAction("Done")
+
+        guard result.status == .failed else {
+            return result
+        }
+
+        let failureReason = [result.failureReason, timeoutMessage]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return Result(
+            status: .failed,
+            summary: result.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? timeoutMessage : result.summary,
+            details: result.details,
+            failureReason: failureReason.isEmpty ? nil : failureReason
+        )
+    }
+
+    private func withRuntimeTimeout<T>(
+        seconds: Double,
+        operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw RuntimeTimeoutError.timedOut
+            }
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+
+    private func runtimeLimitMessage(_ runtimeTimeoutSeconds: Double?) -> String {
+        guard let runtimeTimeoutSeconds else {
+            return "Subagent runtime limit reached."
+        }
+
+        let totalMinutes = Int((runtimeTimeoutSeconds / 60.0).rounded())
+        return "Subagent reached its \(totalMinutes)-minute runtime limit."
     }
 
     private func callStreamingLLMWithRetry(
@@ -338,11 +476,13 @@ final class SubagentRunner {
 
         let hooks = SharedLLMRetryHandler.Hooks(
             logInfo: { [weak self] message in
-                self?.onLine?(ProgressLine(
-                    type: .info,
-                    summary: message,
-                    details: nil
-                ))
+                Task { [weak self] in
+                    await self?.emitLine(ProgressLine(
+                        type: .info,
+                        summary: message,
+                        details: nil
+                    ))
+                }
             },
             checkInterruption: {
                 try Task.checkCancellation()
@@ -394,11 +534,13 @@ final class SubagentRunner {
 
         let hooks = SharedLLMRetryHandler.Hooks(
             logInfo: { [weak self] message in
-                self?.onLine?(ProgressLine(
-                    type: .info,
-                    summary: message,
-                    details: nil
-                ))
+                Task { [weak self] in
+                    await self?.emitLine(ProgressLine(
+                        type: .info,
+                        summary: message,
+                        details: nil
+                    ))
+                }
             },
             checkInterruption: {
                 try Task.checkCancellation()
@@ -523,7 +665,7 @@ final class SubagentRunner {
                 if isCancellationError(error) {
                     throw CancellationError()
                 }
-                onLine?(ProgressLine(
+                await emitLine(ProgressLine(
                     type: .error,
                     summary: "Forced report LLM call failed (\(index + 1)/\(prompts.count))",
                     details: error.localizedDescription

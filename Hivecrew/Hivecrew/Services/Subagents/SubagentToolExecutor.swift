@@ -125,7 +125,7 @@ final class SubagentToolExecutor {
         case "generate_image":
             return try await executeGenerateImage(args: args)
         case "send_message":
-            return executeSendMessage(args: args, subagentId: subagentId)
+            return await executeSendMessage(args: args, subagentId: subagentId)
         case "spawn_subagent":
             return await executeSpawnSubagent(args: args)
         case "get_subagent_status":
@@ -284,16 +284,13 @@ final class SubagentToolExecutor {
     
     private func executeRunShell(args: [String: Any]) async throws -> ToolResult {
         let command = args["command"] as? String ?? ""
-        let timeout = parseDoubleOptional(args["timeout"])
         
         if UserDefaults.standard.bool(forKey: "requireConfirmationForShell") {
             let approved = await onRequestPermission?("Shell Command", command) ?? false
             if !approved { return .text("Command blocked: User denied permission") }
         }
         
-        let result = try await vmScheduler.run {
-            try await self.connection.runShell(command: command, timeout: timeout)
-        }
+        let result = try await connection.runShell(command: command)
         var output = "Exit code: \(result.exitCode)"
         if !result.stdout.isEmpty { output += "\nstdout: \(result.stdout.prefix(2000))" }
         if !result.stderr.isEmpty { output += "\nstderr: \(result.stderr.prefix(2000))" }
@@ -302,9 +299,7 @@ final class SubagentToolExecutor {
     
     private func executeReadFile(args: [String: Any], subagentId: String?) async throws -> ToolResult {
         let path = args["path"] as? String ?? ""
-        let result = try await vmScheduler.run {
-            try await self.connection.readFile(path: path)
-        }
+        let result = try await connection.readFile(path: path)
         switch result {
         case .text(let content, _):
             return .text(content)
@@ -326,9 +321,7 @@ final class SubagentToolExecutor {
             mkdir -p "$(dirname \(shellSingleQuoted(path)))" && \
             printf '%s' \(shellSingleQuoted(base64Contents)) | /usr/bin/base64 -D > \(shellSingleQuoted(path))
             """
-        let result = try await vmScheduler.run {
-            try await self.connection.runShell(command: command, timeout: 20)
-        }
+        let result = try await connection.runShell(command: command)
         guard result.exitCode == 0 else {
             throw SubagentToolError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
         }
@@ -355,9 +348,7 @@ final class SubagentToolExecutor {
             print(json.dumps(entries, indent=2))
             PY
             """
-        let result = try await vmScheduler.run {
-            try await self.connection.runShell(command: command, timeout: 20)
-        }
+        let result = try await connection.runShell(command: command)
         guard result.exitCode == 0 else {
             throw SubagentToolError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
         }
@@ -367,9 +358,7 @@ final class SubagentToolExecutor {
     private func executeMoveFile(args: [String: Any]) async throws -> ToolResult {
         let source = args["source"] as? String ?? ""
         let destination = args["destination"] as? String ?? ""
-        try await vmScheduler.run {
-            try await self.connection.moveFile(source: source, destination: destination)
-        }
+        try await connection.moveFile(source: source, destination: destination)
         return .text("Moved file from \(source) to \(destination)")
     }
 
@@ -443,7 +432,9 @@ final class SubagentToolExecutor {
     private func executeWebSearch(args: [String: Any]) async throws -> ToolResult {
         let query = args["query"] as? String ?? ""
         let site = args["site"] as? String
-        let resultCount = (args["resultCount"] as? Int) ?? 10
+        let storedDefaultResultCount = UserDefaults.standard.integer(forKey: "defaultResultCount")
+        let defaultResultCount = storedDefaultResultCount > 0 ? storedDefaultResultCount : 10
+        let resultCount = (args["resultCount"] as? Int) ?? defaultResultCount
         let startDateStr = args["startDate"] as? String
         let endDateStr = args["endDate"] as? String
         
@@ -656,7 +647,7 @@ final class SubagentToolExecutor {
     
     // MARK: - Messaging Tools
     
-    private func executeSendMessage(args: [String: Any], subagentId: String?) -> ToolResult {
+    private func executeSendMessage(args: [String: Any], subagentId: String?) async -> ToolResult {
         guard let manager = subagentManager else {
             return .text("Error: Subagent manager not available")
         }
@@ -669,7 +660,7 @@ final class SubagentToolExecutor {
             return .text("Error: 'to' is required (use 'main', a subagent ID, or 'broadcast').")
         }
         
-        manager.sendMessage(from: from, to: to, subject: subject, body: body)
+        await manager.sendMessage(from: from, to: to, subject: subject, body: body)
         
         let recipientLabel = to == "main" ? "main agent" : (to == "broadcast" ? "all agents" : "subagent \(to)")
         return .text("Message sent to \(recipientLabel). Subject: \(subject)")
@@ -695,15 +686,14 @@ final class SubagentToolExecutor {
         if todoItems.isEmpty {
             return .text("Error: todoItems is required when spawning subagents. Provide a concise main-agent-prescribed todo list.")
         }
-        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
         let modelOverride = args["modelOverride"] as? String ?? args["model_override"] as? String
+        _ = modelOverride
 
         let info = await manager.spawn(
             goal: goal,
             domain: domain,
             toolAllowlist: toolAllowlist,
             todoItems: todoItems,
-            timeoutSeconds: timeoutSeconds,
             purpose: purpose
         )
         
@@ -721,7 +711,7 @@ final class SubagentToolExecutor {
             return .text("Error: Subagent manager not available")
         }
         let id = args["subagentId"] as? String ?? ""
-        guard let info = manager.getStatus(subagentId: id) else {
+        guard let info = await manager.getStatus(subagentId: id) else {
             return .text("Subagent not found: \(id)")
         }
         return .text(formatSubagentInfo(info))
@@ -735,13 +725,13 @@ final class SubagentToolExecutor {
         if ids.isEmpty {
             return .text("Error: subagentIds is required")
         }
-        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"]) ?? 1800
+        let timeoutSeconds = SubagentManager.defaultAwaitTimeoutSeconds
         let deadline = Date().addingTimeInterval(timeoutSeconds)
         
         var notFound: Set<String> = []
         var pending: [String] = []
         for id in ids {
-            if manager.getStatus(subagentId: id) == nil {
+            if await manager.getStatus(subagentId: id) == nil {
                 notFound.insert(id)
             } else {
                 pending.append(id)
@@ -799,7 +789,7 @@ final class SubagentToolExecutor {
         guard let manager = subagentManager else {
             return .text("Error: Subagent manager not available")
         }
-        let infos = manager.list()
+        let infos = await manager.list()
         if infos.isEmpty {
             return .text("No subagents")
         }

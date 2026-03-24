@@ -63,6 +63,9 @@ class TaskService: ObservableObject {
     
     /// Number of VMs currently being created/started (prevents race conditions)
     var pendingVMCount: Int = 0
+
+    /// Ephemeral VMs that are still stopping/deleting and must continue to consume host capacity.
+    var tearingDownVMIds: Set<String> = []
     
     /// Task IDs that are currently in the startTask flow (prevents duplicate processing)
     var tasksInProgress: Set<String> = []

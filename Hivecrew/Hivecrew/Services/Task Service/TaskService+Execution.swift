@@ -107,13 +107,13 @@ extension TaskService {
         
         // Check if we can create a new VM (within concurrency limit)
         // Count running agents, pending VMs, AND running developer VMs
-        let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
-        let effectiveMax = maxConcurrent > 0 ? maxConcurrent : 2
+        let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
         let runningDeveloperVMs = countRunningDeveloperVMs()
         let pendingCount = syncPendingVMCount()
-        let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs
+        let teardownCount = tearingDownVMIds.count
+        let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs + teardownCount
         
-        print("TaskService: Concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
+        print("TaskService: Concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), tearingDown=\(teardownCount), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
         
         if currentlyActive >= effectiveMax {
             // At capacity - keep task as queued, will be picked up when a slot opens
@@ -547,6 +547,18 @@ extension TaskService {
             // Handle task completion
             await handleTaskCompletion(task: task, result: result, connection: connection, vmId: vmId!, sessionId: sessionId, context: context)
             
+        } catch let error as VMRuntimeError {
+            switch error {
+            case .concurrencyLimitReached:
+                await handleTaskDeferredForVMCapacity(
+                    task: task,
+                    error: error,
+                    vmId: vmId,
+                    context: context
+                )
+            default:
+                await handleTaskFailure(task: task, error: error, connection: connection, vmId: vmId, sessionId: task.sessionId, context: context)
+            }
         } catch {
             // Handle failure
             await handleTaskFailure(task: task, error: error, connection: connection, vmId: vmId, sessionId: task.sessionId, context: context)
@@ -661,10 +673,7 @@ extension TaskService {
         print("TaskService: Task '\(task.title)' completed. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count)")
         
         // Delete the ephemeral VM in background (so queue processing isn't blocked)
-        let vmIdToDelete = vmId
-        Task {
-            await deleteEphemeralVM(vmId: vmIdToDelete)
-        }
+        scheduleEphemeralVMDeletion(vmId: vmId)
     }
     
     /// Handle task failure
@@ -716,9 +725,35 @@ extension TaskService {
         
         // Clean up the VM in background if it was created (so queue processing isn't blocked)
         if let createdVmId = vmId {
-            Task {
-                await deleteEphemeralVM(vmId: createdVmId)
-            }
+            scheduleEphemeralVMDeletion(vmId: createdVmId)
+        }
+    }
+
+    /// Return a task to the queue when VM startup loses a race with the host VM limit.
+    private func handleTaskDeferredForVMCapacity(
+        task: TaskRecord,
+        error: Error,
+        vmId: String?,
+        context: ModelContext
+    ) async {
+        print("TaskService: Deferring task '\(task.title)' after VM capacity race: \(error.localizedDescription)")
+
+        if tasksInProgress.contains(task.id) && runningAgents[task.id] == nil {
+            pendingVMCount = max(0, pendingVMCount - 1)
+            print("TaskService: Released pending slot after VM capacity race (pending: \(pendingVMCount))")
+        }
+
+        task.status = .queued
+        task.errorMessage = nil
+        task.assignedVMId = nil
+        try? context.save()
+
+        runningAgents.removeValue(forKey: task.id)
+        tasksInProgress.remove(task.id)
+        cleanupTaskObservations(taskId: task.id)
+
+        if let createdVmId = vmId {
+            scheduleEphemeralVMDeletion(vmId: createdVmId)
         }
     }
     
@@ -749,19 +784,16 @@ extension TaskService {
             print("TaskService: Cancelled task '\(task.title)' was in pending state, released slot (pending: \(pendingVMCount))")
         }
         
-        print("TaskService: Task '\(task.title)' cancelled. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count)")
+        if let vmId = task.assignedVMId {
+            scheduleEphemeralVMDeletion(vmId: vmId)
+        }
+
+        print("TaskService: Task '\(task.title)' cancelled. Cleanup done: running=\(runningAgents.count), pending=\(pendingVMCount), inProgress=\(tasksInProgress.count), tearingDown=\(tearingDownVMIds.count)")
         
         objectWillChange.send()
         
-        // Process queued tasks immediately - slot is now free
+        // Process queued tasks immediately - teardown still counts against capacity.
         await processQueuedTasks()
-        
-        // Delete the ephemeral VM in the background (can be slow, shouldn't block queue processing)
-        if let vmId = task.assignedVMId {
-            Task {
-                await deleteEphemeralVM(vmId: vmId)
-            }
-        }
     }
     
     /// Pause a running task
@@ -906,15 +938,15 @@ extension TaskService {
         guard !queuedTasks.isEmpty else { return }
         
         // Calculate available capacity
-        let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
-        let effectiveMax = maxConcurrent > 0 ? maxConcurrent : 2
+        let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
         let runningDeveloperVMs = countRunningDeveloperVMs()
         let pendingCount = syncPendingVMCount()
-        let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs
+        let teardownCount = tearingDownVMIds.count
+        let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs + teardownCount
         let availableSlots = max(0, effectiveMax - currentlyActive)
         
         guard availableSlots > 0 else {
-            print("TaskService: No available slots for queued tasks (running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), max=\(effectiveMax))")
+            print("TaskService: No available slots for queued tasks (running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), tearingDown=\(teardownCount), max=\(effectiveMax))")
             return
         }
         
@@ -942,6 +974,24 @@ extension TaskService {
             pendingVMCount = actualPending
         }
         return actualPending
+    }
+
+    private func scheduleEphemeralVMDeletion(vmId: String) {
+        let inserted = tearingDownVMIds.insert(vmId).inserted
+        guard inserted else { return }
+
+        print("TaskService: Reserved teardown capacity for VM \(vmId) (tearingDown: \(tearingDownVMIds.count))")
+        objectWillChange.send()
+
+        Task {
+            await self.deleteEphemeralVM(vmId: vmId)
+            await MainActor.run {
+                self.tearingDownVMIds.remove(vmId)
+                print("TaskService: Released teardown capacity for VM \(vmId) (tearingDown: \(self.tearingDownVMIds.count))")
+                self.objectWillChange.send()
+            }
+            await self.processQueuedTasks()
+        }
     }
     
     // MARK: - Plan First Mode

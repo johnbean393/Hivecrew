@@ -159,8 +159,7 @@ extension ToolSchemaBuilder {
                 "Execute a shell command and return its output. Use with caution.",
                 objectSchema(
                     properties: [
-                        "command": stringProperty("The shell command to execute"),
-                        "timeout": numberProperty("Optional timeout in seconds")
+                        "command": stringProperty("The shell command to execute")
                     ],
                     required: ["command"]
                 )

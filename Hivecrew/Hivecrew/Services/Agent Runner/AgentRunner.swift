@@ -179,12 +179,13 @@ final class AgentRunner {
             modelContext: taskService.modelContext,
             mainModelSupportsVision: supportsVision
         )
+        let subagentUICallbacks = SubagentManager.UICallbacks(statePublisher: statePublisher)
         self.subagentManager = SubagentManager(
             taskId: task.id,
             vmId: vmId,
             sessionPath: sessionPath,
             rootTracer: tracer,
-            statePublisher: statePublisher,
+            uiCallbacks: subagentUICallbacks,
             toolExecutor: subagentToolExecutor,
             vmScheduler: vmToolScheduler,
             llmClientFactory: {

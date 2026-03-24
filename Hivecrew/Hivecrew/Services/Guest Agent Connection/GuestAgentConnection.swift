@@ -29,6 +29,7 @@ class GuestAgentConnection: ObservableObject {
     private var readHandle: FileHandle?
     private var writeHandle: FileHandle?
     private var pendingRequests: [String: CheckedContinuation<AgentResponse, Error>] = [:]
+    private var pendingRequestTimeoutTasks: [String: Task<Void, Never>] = [:]
     private var readBuffer = Data()
     private var readTask: Task<Void, Never>?
     private var isDisconnecting = false
@@ -127,11 +128,7 @@ class GuestAgentConnection: ObservableObject {
         // Close the connection (this closes the underlying file descriptor)
         connection = nil
         
-        // Cancel all pending requests
-        for (_, continuation) in pendingRequests {
-            continuation.resume(throwing: AgentConnectionError.disconnected)
-        }
-        pendingRequests.removeAll()
+        failPendingRequests(with: .disconnected)
         
         state = .disconnected
         isDisconnecting = false
@@ -146,35 +143,27 @@ class GuestAgentConnection: ObservableObject {
         
         let requestId = UUID().uuidString
         let request = AgentRequest(id: requestId, method: method, params: params?.mapValues { AnyCodable($0) })
-        
-        // Send the request
-        try sendRequest(request)
-        
-        // Choose timeout based on method type
-        let timeout: UInt64
-        switch method {
-        case "screenshot", "read_file":
-            timeout = screenshotTimeout
-        case "keyboard_type":
-            timeout = keyboardTypeTimeout
-        case "run_shell":
-            timeout = shellTimeout
-        default:
-            timeout = defaultToolTimeout
-        }
+        let timeout = timeout(for: method)
         let timeoutSeconds = timeout / 1_000_000_000
         
-        // Wait for response
         let response = try await withCheckedThrowingContinuation { continuation in
             pendingRequests[requestId] = continuation
-            
-            // Set a timeout
-            Task {
+
+            pendingRequestTimeoutTasks[requestId] = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: timeout)
-                if let cont = pendingRequests.removeValue(forKey: requestId) {
-                    print("GuestAgentConnection: Request \(method) timed out after \(timeoutSeconds)s")
-                    cont.resume(throwing: AgentConnectionError.timeout)
-                }
+                self?.handleRequestTimeout(
+                    requestId: requestId,
+                    method: method,
+                    timeoutSeconds: timeoutSeconds
+                )
+            }
+
+            do {
+                try sendRequest(request)
+            } catch {
+                cancelRequestTimeoutTask(for: requestId)
+                pendingRequests.removeValue(forKey: requestId)
+                continuation.resume(throwing: error)
             }
         }
         
@@ -219,7 +208,7 @@ class GuestAgentConnection: ObservableObject {
                     break
                 }
                 
-                guard let readHandle = await self.readHandle else {
+                guard let readHandle = self.readHandle else {
                     print("GuestAgentConnection: Read loop - no read handle, exiting")
                     break
                 }
@@ -260,13 +249,13 @@ class GuestAgentConnection: ObservableObject {
                 
                 guard let data = readResult else {
                     print("GuestAgentConnection: Read loop - read returned nil, exiting")
+                    self.handleReadLoopDisconnect()
                     break
                 }
                 
                 if data.isEmpty {
-                    // EOF - connection closed by remote
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-                    continue
+                    self.handleReadLoopDisconnect()
+                    break
                 }
                 await self.handleData(data)
             }
@@ -290,11 +279,61 @@ class GuestAgentConnection: ObservableObject {
             let messageData = readBuffer[..<newlineIndex]
             readBuffer = Data(readBuffer[(newlineIndex + 1)...])
             
-            if let response = parseResponse(Data(messageData)) {
-                if let continuation = pendingRequests.removeValue(forKey: response.id) {
-                    continuation.resume(returning: response)
+            guard let response = parseResponse(Data(messageData)) else {
+                failPendingRequests(with: .invalidResponse)
+                if !isDisconnecting {
+                    state = .error(AgentConnectionError.invalidResponse.localizedDescription)
                 }
+                return
             }
+
+            cancelRequestTimeoutTask(for: response.id)
+            if let continuation = pendingRequests.removeValue(forKey: response.id) {
+                continuation.resume(returning: response)
+            }
+        }
+    }
+
+    private func timeout(for method: String) -> UInt64 {
+        switch method {
+        case "screenshot", "read_file":
+            return screenshotTimeout
+        case "keyboard_type":
+            return keyboardTypeTimeout
+        case "run_shell":
+            return shellTimeout
+        default:
+            return defaultToolTimeout
+        }
+    }
+
+    private func cancelRequestTimeoutTask(for requestId: String) {
+        pendingRequestTimeoutTasks.removeValue(forKey: requestId)?.cancel()
+    }
+
+    private func handleRequestTimeout(requestId: String, method: String, timeoutSeconds: UInt64) {
+        pendingRequestTimeoutTasks.removeValue(forKey: requestId)
+        guard let continuation = pendingRequests.removeValue(forKey: requestId) else { return }
+        print("GuestAgentConnection: Request \(method) timed out after \(timeoutSeconds)s")
+        continuation.resume(throwing: AgentConnectionError.timeout)
+    }
+
+    private func failPendingRequests(with error: AgentConnectionError) {
+        let continuations = Array(pendingRequests.values)
+        pendingRequests.removeAll()
+        for (_, task) in pendingRequestTimeoutTasks {
+            task.cancel()
+        }
+        pendingRequestTimeoutTasks.removeAll()
+        for continuation in continuations {
+            continuation.resume(throwing: error)
+        }
+    }
+
+    private func handleReadLoopDisconnect() {
+        failPendingRequests(with: .disconnected)
+        if !isDisconnecting {
+            state = .disconnected
         }
     }
     

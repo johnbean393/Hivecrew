@@ -15,8 +15,61 @@ enum SubagentDomain: String, Sendable, CaseIterable {
     case mixed
 }
 
-@MainActor
-final class SubagentManager {
+actor SubagentManager {
+    nonisolated static let defaultRuntimeTimeoutSeconds: Double = 2700
+    nonisolated static let defaultAwaitTimeoutSeconds: Double = 2700
+
+    actor RuntimeDelegate {
+        private let manager: SubagentManager
+        private let subagentId: String
+
+        init(manager: SubagentManager, subagentId: String) {
+            self.manager = manager
+            self.subagentId = subagentId
+        }
+
+        func updateAction(_ action: String) async {
+            await manager.publishSubagentAction(subagentId: subagentId, action: action)
+        }
+
+        func emitLine(_ line: SubagentRunner.ProgressLine) async {
+            await manager.publishSubagentLine(subagentId: subagentId, line: line)
+        }
+
+        func drainMessages() async -> [AgentMessage] {
+            await manager.drainMessages(for: subagentId)
+        }
+    }
+
+    @MainActor
+    final class UICallbacks {
+        private let statePublisher: AgentStatePublisher
+
+        init(statePublisher: AgentStatePublisher) {
+            self.statePublisher = statePublisher
+        }
+
+        func subagentStarted(id: String, goal: String, purpose: String?, domain: String) {
+            statePublisher.subagentStarted(id: id, goal: goal, purpose: purpose, domain: domain)
+        }
+
+        func subagentSetAction(id: String, action: String) {
+            statePublisher.subagentSetAction(id: id, action: action)
+        }
+
+        func subagentAppendLine(id: String, type: SubagentProgressLineType, summary: String, details: String?) {
+            statePublisher.subagentAppendLine(id: id, type: type, summary: summary, details: details)
+        }
+
+        func subagentFinished(id: String, status: SubagentStatus, summary: String?) {
+            statePublisher.subagentFinished(id: id, status: status, summary: summary)
+        }
+
+        func messageReceived(_ message: AgentMessage) {
+            statePublisher.messageReceived(message)
+        }
+    }
+
     enum Status: String, Sendable {
         case running
         case completed
@@ -66,7 +119,7 @@ final class SubagentManager {
     private let vmId: String
     private let sessionPath: URL
     private let rootTracer: AgentTracer
-    private weak var statePublisher: AgentStatePublisher?
+    private let uiCallbacks: UICallbacks
     private let toolExecutor: SubagentToolExecutor
     private let llmClientFactory: @Sendable () async throws -> any LLMClientProtocol
     private let visionCapabilityResolver: @Sendable (String, any LLMClientProtocol) async -> Bool
@@ -77,7 +130,7 @@ final class SubagentManager {
         vmId: String,
         sessionPath: URL,
         rootTracer: AgentTracer,
-        statePublisher: AgentStatePublisher,
+        uiCallbacks: UICallbacks,
         toolExecutor: SubagentToolExecutor,
         vmScheduler: VMToolScheduler,
         llmClientFactory: @escaping @Sendable () async throws -> any LLMClientProtocol,
@@ -87,7 +140,7 @@ final class SubagentManager {
         self.vmId = vmId
         self.sessionPath = sessionPath
         self.rootTracer = rootTracer
-        self.statePublisher = statePublisher
+        self.uiCallbacks = uiCallbacks
         self.toolExecutor = toolExecutor
         self.llmClientFactory = llmClientFactory
         self.visionCapabilityResolver = visionCapabilityResolver
@@ -103,7 +156,6 @@ final class SubagentManager {
         domain: SubagentDomain,
         toolAllowlist: [String]?,
         todoItems: [String]?,
-        timeoutSeconds: Double?,
         purpose: String?
     ) async -> Info {
         let id = UUID().uuidString
@@ -131,21 +183,11 @@ final class SubagentManager {
         mailboxes[id] = []
 
         let todoTitle = (purpose?.isEmpty == false) ? purpose! : "Subagent Todo List"
-        toolExecutor.registerTodoList(subagentId: id, title: todoTitle, items: normalizedTodos)
+        await toolExecutor.registerTodoList(subagentId: id, title: todoTitle, items: normalizedTodos)
         
-        statePublisher?.subagentStarted(
-            id: id,
-            goal: goal,
-            purpose: purpose,
-            domain: domain.rawValue
-        )
-        statePublisher?.subagentSetAction(id: id, action: "Queued")
-        statePublisher?.subagentAppendLine(
-            id: id,
-            type: .info,
-            summary: "Goal",
-            details: goal
-        )
+        await uiCallbacks.subagentStarted(id: id, goal: goal, purpose: purpose, domain: domain.rawValue)
+        await uiCallbacks.subagentSetAction(id: id, action: "Queued")
+        await uiCallbacks.subagentAppendLine(id: id, type: .info, summary: "Goal", details: goal)
         
         logLifecycleEvent(
             eventType: "subagent_started",
@@ -158,25 +200,31 @@ final class SubagentManager {
             durationMs: nil,
             errorMessage: nil
         )
+
+        let llmClientFactory = self.llmClientFactory
+        let visionCapabilityResolver = self.visionCapabilityResolver
+        let toolExecutor = self.toolExecutor
+        let taskId = self.taskId
+        let vmId = self.vmId
         
-        let task = Task { @MainActor [weak self] () -> SubagentRunner.Result in
-            guard let self = self else { throw CancellationError() }
-            let client = try await self.llmClientFactory()
+        let task = Task { [self] () -> SubagentRunner.Result in
+            let client = try await llmClientFactory()
             let resolvedModelId = client.configuration.model
-            let supportsVision = await self.visionCapabilityResolver(resolvedModelId, client)
-            self.toolExecutor.registerVisionCapability(subagentId: id, supportsVision: supportsVision)
+            let supportsVision = await visionCapabilityResolver(resolvedModelId, client)
+            await toolExecutor.registerVisionCapability(subagentId: id, supportsVision: supportsVision)
 
             let tools = try await self.buildTools(for: allowlist, supportsVision: supportsVision)
             let tracer = try AgentTracer(sessionId: id, outputDirectory: subagentDir)
             
             try? await tracer.logSessionStart(
-                taskId: self.taskId,
+                taskId: taskId,
                 taskDescription: goal,
                 model: client.configuration.model,
-                vmId: domain == .host ? nil : self.vmId
+                vmId: domain == .host ? nil : vmId
             )
             
-            let runner = SubagentRunner(
+            let runtimeDelegate = RuntimeDelegate(manager: self, subagentId: id)
+            let runner = await SubagentRunner(
                 subagentId: id,
                 goal: goal,
                 domain: domain,
@@ -184,38 +232,22 @@ final class SubagentManager {
                 todoItems: normalizedTodos,
                 llmClient: client,
                 tracer: tracer,
-                toolExecutor: self.toolExecutor,
+                toolExecutor: toolExecutor,
                 tools: tools,
                 supportsVision: supportsVision,
-                onActionUpdate: { [weak self] action in
-                    self?.statePublisher?.subagentSetAction(id: id, action: action)
-                },
-                onLine: { [weak self] line in
-                    self?.statePublisher?.subagentAppendLine(
-                        id: id,
-                        type: line.type,
-                        summary: line.summary,
-                        details: line.details
-                    )
-                },
-                drainMessages: { [weak self] in
-                    self?.drainMessages(for: id) ?? []
-                }
+                runtimeDelegate: runtimeDelegate
             )
             do {
-                let result = try await withSubagentTimeout(seconds: timeoutSeconds) {
-                    try await runner.run()
-                }
+                let result = try await runner.run(
+                    runtimeTimeoutSeconds: Self.defaultRuntimeTimeoutSeconds
+                )
                 let status = result.status == .success ? "completed" : "failed"
                 try? await tracer.logSessionEnd(status: status, summary: result.summary)
                 return result
             } catch {
                 let terminalStatus: String
                 let summary: String
-                if error is SubagentExecutionTimeoutError {
-                    terminalStatus = "timed_out"
-                    summary = error.localizedDescription
-                } else if self.isCancellationError(error) {
+                if self.isCancellationError(error) {
                     terminalStatus = "cancelled"
                     summary = "Cancelled"
                 } else {
@@ -229,8 +261,7 @@ final class SubagentManager {
         
         handles[id]?.task = task
         
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
+        Task { [self] in
             let _ = await self.awaitCompletion(subagentId: id)
         }
         
@@ -249,10 +280,11 @@ final class SubagentManager {
         guard var handle = handles[subagentId] else { return false }
         guard handle.info.status == .running else { return true }
         handle.task?.cancel()
+        handle.task = nil
         handle.info = updatedInfo(handle.info, status: .cancelled, summary: nil, errorMessage: "Cancelled")
         handles[subagentId] = handle
-        statePublisher?.subagentFinished(id: subagentId, status: .cancelled, summary: nil)
-        toolExecutor.clearTodoList(subagentId: subagentId)
+        await uiCallbacks.subagentFinished(id: subagentId, status: .cancelled, summary: nil)
+        await toolExecutor.clearTodoList(subagentId: subagentId)
         mailboxes.removeValue(forKey: subagentId)
         logLifecycleEvent(
             eventType: "subagent_cancelled",
@@ -297,7 +329,7 @@ final class SubagentManager {
     
     // MARK: - Mailbox
     
-    func sendMessage(from: String, to: String, subject: String, body: String) {
+    func sendMessage(from: String, to: String, subject: String, body: String) async {
         let message = AgentMessage(
             id: UUID().uuidString,
             from: from,
@@ -319,7 +351,7 @@ final class SubagentManager {
             mailboxes[to, default: []].append(message)
         }
         
-        statePublisher?.messageReceived(message)
+        await uiCallbacks.messageReceived(message)
     }
     
     func drainMessages(for agentId: String) -> [AgentMessage] {
@@ -329,30 +361,36 @@ final class SubagentManager {
     }
     
     // MARK: - Private
+
+    private func publishSubagentAction(subagentId: String, action: String) async {
+        await uiCallbacks.subagentSetAction(id: subagentId, action: action)
+    }
+
+    private func publishSubagentLine(subagentId: String, line: SubagentRunner.ProgressLine) async {
+        await uiCallbacks.subagentAppendLine(
+            id: subagentId,
+            type: line.type,
+            summary: line.summary,
+            details: line.details
+        )
+    }
     
     private func awaitCompletion(subagentId: String) async -> Bool {
         guard let task = handles[subagentId]?.task else { return false }
         do {
             let result = try await task.value
             if result.status == .success {
-                return finalizeSuccess(subagentId: subagentId, result: result)
+                return await finalizeSuccess(subagentId: subagentId, result: result)
             }
             let errorMessage = result.failureReason ?? "Subagent reported failed status."
-            finalizeFailure(subagentId: subagentId, summary: result.summary, errorMessage: errorMessage)
-            return false
-        } catch let error as SubagentExecutionTimeoutError {
-            finalizeFailure(
-                subagentId: subagentId,
-                summary: nil,
-                errorMessage: error.localizedDescription
-            )
+            await finalizeFailure(subagentId: subagentId, summary: result.summary, errorMessage: errorMessage)
             return false
         } catch {
             if isCancellationError(error) {
-                finalizeCancellation(subagentId: subagentId)
+                await finalizeCancellation(subagentId: subagentId)
                 return false
             }
-            finalizeFailure(subagentId: subagentId, summary: nil, errorMessage: error.localizedDescription)
+            await finalizeFailure(subagentId: subagentId, summary: nil, errorMessage: error.localizedDescription)
             return false
         }
     }
@@ -364,38 +402,32 @@ final class SubagentManager {
                 try await task.value
             }
             if result.status == .success {
-                return finalizeSuccess(subagentId: subagentId, result: result)
+                return await finalizeSuccess(subagentId: subagentId, result: result)
             }
             let errorMessage = result.failureReason ?? "Subagent reported failed status."
-            finalizeFailure(subagentId: subagentId, summary: result.summary, errorMessage: errorMessage)
+            await finalizeFailure(subagentId: subagentId, summary: result.summary, errorMessage: errorMessage)
             return false
         } catch is AwaitTimeoutError {
             return false
-        } catch let error as SubagentExecutionTimeoutError {
-            finalizeFailure(
-                subagentId: subagentId,
-                summary: nil,
-                errorMessage: error.localizedDescription
-            )
-            return false
         } catch {
             if isCancellationError(error) {
-                finalizeCancellation(subagentId: subagentId)
+                await finalizeCancellation(subagentId: subagentId)
                 return false
             }
-            finalizeFailure(subagentId: subagentId, summary: nil, errorMessage: error.localizedDescription)
+            await finalizeFailure(subagentId: subagentId, summary: nil, errorMessage: error.localizedDescription)
             return false
         }
     }
 
     @discardableResult
-    private func finalizeSuccess(subagentId: String, result: SubagentRunner.Result) -> Bool {
+    private func finalizeSuccess(subagentId: String, result: SubagentRunner.Result) async -> Bool {
         guard var handle = handles[subagentId] else { return false }
         guard handle.info.status == .running else { return false }
+        handle.task = nil
         handle.info = updatedInfo(handle.info, status: .completed, summary: result.summary, errorMessage: nil)
         handles[subagentId] = handle
-        statePublisher?.subagentFinished(id: subagentId, status: .completed, summary: result.summary)
-        toolExecutor.clearTodoList(subagentId: subagentId)
+        await uiCallbacks.subagentFinished(id: subagentId, status: .completed, summary: result.summary)
+        await toolExecutor.clearTodoList(subagentId: subagentId)
         mailboxes.removeValue(forKey: subagentId)
         
         completionQueue.append(Completion(
@@ -419,13 +451,14 @@ final class SubagentManager {
         return true
     }
     
-    private func finalizeFailure(subagentId: String, summary: String?, errorMessage: String) {
+    private func finalizeFailure(subagentId: String, summary: String?, errorMessage: String) async {
         guard var handle = handles[subagentId] else { return }
         guard handle.info.status == .running else { return }
+        handle.task = nil
         handle.info = updatedInfo(handle.info, status: .failed, summary: summary, errorMessage: errorMessage)
         handles[subagentId] = handle
-        statePublisher?.subagentFinished(id: subagentId, status: .failed, summary: errorMessage)
-        toolExecutor.clearTodoList(subagentId: subagentId)
+        await uiCallbacks.subagentFinished(id: subagentId, status: .failed, summary: errorMessage)
+        await toolExecutor.clearTodoList(subagentId: subagentId)
         mailboxes.removeValue(forKey: subagentId)
         logLifecycleEvent(
             eventType: "subagent_failed",
@@ -440,14 +473,15 @@ final class SubagentManager {
         )
     }
 
-    private func finalizeCancellation(subagentId: String) {
+    private func finalizeCancellation(subagentId: String) async {
         guard var handle = handles[subagentId] else { return }
         guard handle.info.status == .running else { return }
 
+        handle.task = nil
         handle.info = updatedInfo(handle.info, status: .cancelled, summary: nil, errorMessage: "Cancelled")
         handles[subagentId] = handle
-        statePublisher?.subagentFinished(id: subagentId, status: .cancelled, summary: nil)
-        toolExecutor.clearTodoList(subagentId: subagentId)
+        await uiCallbacks.subagentFinished(id: subagentId, status: .cancelled, summary: nil)
+        await toolExecutor.clearTodoList(subagentId: subagentId)
         mailboxes.removeValue(forKey: subagentId)
         logLifecycleEvent(
             eventType: "subagent_cancelled",
@@ -634,38 +668,8 @@ final class SubagentManager {
     }
 }
 
-private enum SubagentExecutionTimeoutError: LocalizedError, Sendable {
-    case timedOut
-
-    var errorDescription: String? {
-        "Subagent timed out"
-    }
-}
-
 private enum AwaitTimeoutError: Error, Sendable {
     case timedOut
-}
-
-private func withSubagentTimeout<T>(
-    seconds: Double?,
-    operation: @escaping @Sendable () async throws -> T
-) async throws -> T {
-    guard let seconds = seconds else {
-        return try await operation()
-    }
-
-    return try await withThrowingTaskGroup(of: T.self) { group in
-        group.addTask {
-            try await operation()
-        }
-        group.addTask {
-            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            throw SubagentExecutionTimeoutError.timedOut
-        }
-        let result = try await group.next()!
-        group.cancelAll()
-        return result
-    }
 }
 
 private func withAwaitTimeout<T>(

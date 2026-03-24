@@ -828,11 +828,11 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         let running = taskService.runningAgents.count
         let paused = taskService.tasks.filter { $0.status == .paused }.count
         let queued = taskService.queuedTasks.count
-        let maxConcurrent = UserDefaults.standard.integer(forKey: "maxConcurrentVMs")
-        let effectiveMax = maxConcurrent > 0 ? maxConcurrent : 2
-        
-        let pending = taskService.pendingVMCount
-        let available = max(0, effectiveMax - running - pending)
+        let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
+        let runningDeveloperVMs = taskService.countRunningDeveloperVMs()
+        let pending = taskService.pendingVMCount + taskService.tearingDownVMIds.count
+        let activeVMs = running + runningDeveloperVMs
+        let available = max(0, effectiveMax - activeVMs - pending)
         
         // Get memory info
         let memoryUsedGB: Double? = nil
@@ -858,7 +858,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                 maxConcurrent: effectiveMax
             ),
             vms: APIVMCounts(
-                active: running,
+                active: activeVMs,
                 pending: pending,
                 available: available
             ),
@@ -873,14 +873,13 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     func getSystemConfig() async throws -> APISystemConfig {
         let defaults = UserDefaults.standard
         
-        let maxConcurrent = defaults.integer(forKey: "maxConcurrentVMs")
         let timeout = defaults.integer(forKey: "defaultTaskTimeoutMinutes")
         let maxIterations = defaults.integer(forKey: "defaultMaxIterations")
         let defaultTemplate = defaults.string(forKey: "defaultTemplateId")
         let apiPort = defaults.integer(forKey: "apiServerPort")
         
         return APISystemConfig(
-            maxConcurrentVMs: maxConcurrent > 0 ? maxConcurrent : 2,
+            maxConcurrentVMs: VMConcurrencyPolicy.effectiveMaxConcurrentVMs(userDefaults: defaults),
             defaultTimeoutMinutes: timeout > 0 ? timeout : 90,
             defaultMaxIterations: maxIterations > 0 ? maxIterations : 300,
             defaultTemplateId: defaultTemplate,

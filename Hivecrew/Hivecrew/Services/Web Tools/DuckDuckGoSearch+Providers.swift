@@ -1,5 +1,6 @@
 import Foundation
 import GoogleSearch
+import OSLog
 import Security
 
 enum SearchProviderKeychain {
@@ -71,6 +72,10 @@ enum SearchProviderKeychain {
 enum SearchAPIClient {
     struct Response: Decodable { let organic_results: [OrganicResult]? }
     struct OrganicResult: Decodable { let link: String?; let title: String?; let snippet: String? }
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.pattonium.hivecrew",
+        category: "SearchAPIClient"
+    )
     enum SearchAPIError: LocalizedError {
         case invalidResponse
         case httpError(Int, String)
@@ -84,6 +89,7 @@ enum SearchAPIClient {
     }
 
     static func search(query: String, site: String? = nil, resultCount: Int, startDate: Date? = nil, endDate: Date? = nil, apiKey: String) async throws -> [SearchResult] {
+        let startTime = Date()
         let maxCount = min(max(resultCount, 1), 100)
         var results: [SearchResult] = []
         var page = 1
@@ -100,6 +106,7 @@ enum SearchAPIClient {
             if items.count < 10 { break }
             page += 1
         }
+        logger.info("SearchAPI returned \(results.count) result(s) in \(Date.now.timeIntervalSince(startTime)) secs")
         return results
     }
 
@@ -129,6 +136,10 @@ enum SearchAPIClient {
 enum SerpAPIClient {
     struct Response: Decodable { let organic_results: [OrganicResult]? }
     struct OrganicResult: Decodable { let link: String?; let title: String?; let snippet: String? }
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.pattonium.hivecrew",
+        category: "SerpAPIClient"
+    )
     enum SerpAPIError: LocalizedError {
         case invalidResponse
         case httpError(Int, String)
@@ -142,6 +153,7 @@ enum SerpAPIClient {
     }
 
     static func search(query: String, site: String? = nil, resultCount: Int, startDate: Date? = nil, endDate: Date? = nil, apiKey: String) async throws -> [SearchResult] {
+        let startTime = Date()
         let maxCount = min(max(resultCount, 1), 100)
         var results: [SearchResult] = []
         var start = 0
@@ -158,6 +170,7 @@ enum SerpAPIClient {
             if items.count < 10 { break }
             start += 10
         }
+        logger.info("SerpAPI returned \(results.count) result(s) in \(Date.now.timeIntervalSince(startTime)) secs")
         return results
     }
 
@@ -235,6 +248,11 @@ struct WebSearchExecution {
 }
 
 enum WebSearchService {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.pattonium.hivecrew",
+        category: "WebSearchService"
+    )
+
     typealias SearchPerformer = @Sendable (
         _ engine: String,
         _ query: String,
@@ -283,6 +301,7 @@ enum WebSearchService {
         }
 
         let candidateEngines = engineOrder(for: primaryEngine)
+        logger.info("Starting web search with primary engine: \(primaryEngine, privacy: .public)")
 
         for variant in queryVariants {
             for engine in candidateEngines {
@@ -297,12 +316,15 @@ enum WebSearchService {
                     )
                     if !results.isEmpty {
                         usedEngine = engine
+                        logger.info("Web search succeeded with engine: \(engine, privacy: .public)")
                         if engine != primaryEngine {
                             notes.append("Retried with \(engine).")
                         }
                         break
                     }
+                    logger.info("Web search returned 0 results for engine: \(engine, privacy: .public)")
                 } catch {
+                    logger.error("Web search failed for engine \(engine, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     notes.append("Search (\(engine)) failed: \(error.localizedDescription)")
                 }
             }
@@ -320,13 +342,16 @@ enum WebSearchService {
                             endDate
                         )
                         if !results.isEmpty {
+                            logger.info("Broadened web search succeeded with engine: \(engine, privacy: .public)")
                             if engine != usedEngine {
                                 notes.append("Broadened search used \(engine).")
                             }
                             notes.append("No results with site filter; broadened search.")
                             break
                         }
+                        logger.info("Broadened web search returned 0 results for engine: \(engine, privacy: .public)")
                     } catch {
+                        logger.error("Broadened web search failed for engine \(engine, privacy: .public): \(error.localizedDescription, privacy: .public)")
                         notes.append("Broadened search (\(engine)) failed: \(error.localizedDescription)")
                     }
                 }

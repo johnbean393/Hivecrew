@@ -10,6 +10,16 @@ import Virtualization
 import HivecrewShared
 import Combine
 
+enum VMConcurrencyPolicy {
+    static let hostMaxRunningVMs = 2
+
+    static func effectiveMaxConcurrentVMs(userDefaults: UserDefaults = .standard) -> Int {
+        let configured = userDefaults.integer(forKey: "maxConcurrentVMs")
+        let requested = configured > 0 ? configured : hostMaxRunningVMs
+        return min(max(requested, 1), hostMaxRunningVMs)
+    }
+}
+
 /// Manages running VMs in the app process for display purposes
 /// VZVirtualMachine must be in the same process as VZVirtualMachineView
 @MainActor
@@ -28,6 +38,11 @@ class AppVMRuntime: ObservableObject {
         if runningVMs[vmId] != nil {
             print("AppVMRuntime: VM \(vmId) is already running")
             return
+        }
+
+        let trackedVMCount = runningVMs.count
+        guard trackedVMCount < VMConcurrencyPolicy.hostMaxRunningVMs else {
+            throw VMRuntimeError.concurrencyLimitReached(maximum: VMConcurrencyPolicy.hostMaxRunningVMs)
         }
         
         // Load VM configuration from bundle
@@ -315,6 +330,7 @@ class VMDelegate: NSObject, VZVirtualMachineDelegate {
 enum VMRuntimeError: LocalizedError {
     case invalidConfiguration(String)
     case vmNotFound
+    case concurrencyLimitReached(maximum: Int)
     
     var errorDescription: String? {
         switch self {
@@ -322,6 +338,8 @@ enum VMRuntimeError: LocalizedError {
             return "Invalid VM configuration: \(reason)"
         case .vmNotFound:
             return "VM not found"
+        case .concurrencyLimitReached(let maximum):
+            return "macOS only allows \(maximum) running VMs at once"
         }
     }
 }

@@ -60,6 +60,10 @@ struct DeveloperSettingsView: View {
     private var developerVMs: [VMInfo] {
         vmService.vms.filter { developerVMIds.contains($0.id) }
     }
+
+    private var canStartAdditionalVMs: Bool {
+        vmRuntime.runningVMs.count < VMConcurrencyPolicy.hostMaxRunningVMs
+    }
     
     /// Reference to the app's VM runtime
     private var vmRuntime: AppVMRuntime { AppVMRuntime.shared }
@@ -261,8 +265,8 @@ struct DeveloperSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.green)
-                    .disabled(isStartingVM == vm.id)
-                    .help("Start VM")
+                    .disabled(isStartingVM == vm.id || !canStartAdditionalVMs)
+                    .help(canStartAdditionalVMs ? "Start VM" : "macOS only allows 2 running VMs at once")
                 }
                 
                 // Delete button
@@ -365,6 +369,11 @@ struct DeveloperSettingsView: View {
     }
     
     private func startVM(_ vm: VMInfo) async {
+        guard canStartAdditionalVMs else {
+            print("DeveloperSettingsView: Refusing to start VM '\(vm.name)' because the host limit is already reached")
+            return
+        }
+
         isStartingVM = vm.id
         
         do {

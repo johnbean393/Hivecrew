@@ -1216,7 +1216,7 @@ GET /api/v1/system/config
 
 ```json
 {
-  "maxConcurrentVMs": 4,
+  "maxConcurrentVMs": 2,
   "defaultTimeoutMinutes": 30,
   "defaultMaxIterations": 100,
   "defaultTemplateId": "golden-v3",
@@ -1284,7 +1284,7 @@ All errors return a consistent JSON structure:
 
 ## Rate Limits
 
-There are currently no rate limits on the API. However, task concurrency is limited by the `maxConcurrentVMs` setting.
+There are currently no rate limits on the API. However, task concurrency is limited by the `maxConcurrentVMs` setting, which is capped by the host VM limit.
 
 ---
 

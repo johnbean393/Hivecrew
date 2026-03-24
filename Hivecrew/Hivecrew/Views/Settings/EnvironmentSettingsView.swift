@@ -58,6 +58,13 @@ struct EnvironmentSettingsView: View {
     private var selectedRetentionPolicy: TraceRetentionPolicy {
         TraceRetentionPolicy(rawValue: traceRetentionPolicy) ?? .keepAll
     }
+
+    private func clampMaxConcurrentVMSetting() {
+        let clamped = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
+        if maxConcurrentVMs != clamped {
+            maxConcurrentVMs = clamped
+        }
+    }
     
     var body: some View {
         Form {
@@ -70,7 +77,11 @@ struct EnvironmentSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .task {
+            clampMaxConcurrentVMSetting()
             await loadTemplates()
+        }
+        .onChange(of: maxConcurrentVMs) { _, _ in
+            clampMaxConcurrentVMSetting()
         }
         .fileImporter(
             isPresented: $showingImportPicker,
@@ -231,11 +242,15 @@ struct EnvironmentSettingsView: View {
     
     private var concurrencySection: some View {
         Section {
-            Stepper("Max Concurrent Tasks: \(maxConcurrentVMs)", value: $maxConcurrentVMs, in: 1...16)
+            Stepper(
+                "Max Concurrent Tasks: \(maxConcurrentVMs)",
+                value: $maxConcurrentVMs,
+                in: 1...VMConcurrencyPolicy.hostMaxRunningVMs
+            )
         } header: {
             Text("Concurrency")
         } footer: {
-            Text("Maximum number of agent tasks that can run simultaneously. Additional tasks will be queued.")
+            Text("Maximum number of agent tasks that can run simultaneously. macOS currently supports up to 2 running VMs, so additional tasks will be queued.")
         }
     }
     

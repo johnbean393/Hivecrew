@@ -116,7 +116,7 @@ struct TaskRowView: View {
                                 reasoningEffort: task.reasoningEffort
                             )
                             defer { rerunTargetOverride = nil }
-                            try? await taskService.rerunTask(
+                            let _ = try? await taskService.rerunTask(
                                 task,
                                 providerId: rerunTarget.providerId,
                                 modelId: rerunTarget.modelId,

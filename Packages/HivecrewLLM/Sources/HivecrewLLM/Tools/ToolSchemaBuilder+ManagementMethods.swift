@@ -193,7 +193,6 @@ extension ToolSchemaBuilder {
                             "Prescribed todo list for the subagent to complete (3-7 concise items). This list must be provided by the main agent; subagents must not create or modify it.",
                             itemType: ["type": "string"]
                         ),
-                        "timeoutSeconds": numberProperty("Optional timeout in seconds for the subagent."),
                         "purpose": stringProperty("Optional short label for UI and trace display.")
                     ],
                     required: ["goal", "domain", "todoItems"]
@@ -216,8 +215,7 @@ extension ToolSchemaBuilder {
                 "Wait for multiple subagents to finish and return their final summaries.",
                 objectSchema(
                     properties: [
-                        "subagentIds": arrayProperty("The subagent IDs to wait for.", itemType: ["type": "string"]),
-                        "timeoutSeconds": numberProperty("Optional timeout in seconds.")
+                        "subagentIds": arrayProperty("The subagent IDs to wait for.", itemType: ["type": "string"])
                     ],
                     required: ["subagentIds"]
                 )

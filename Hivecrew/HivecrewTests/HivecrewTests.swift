@@ -14,6 +14,30 @@ import Testing
 struct HivecrewTests {
 
     @Test
+    func vmConcurrencyPolicyFallsBackToHostLimit() {
+        let suiteName = "HivecrewTests.vmConcurrencyPolicy.fallback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.removeObject(forKey: "maxConcurrentVMs")
+
+        #expect(VMConcurrencyPolicy.effectiveMaxConcurrentVMs(userDefaults: defaults) == 2)
+    }
+
+    @Test
+    func vmConcurrencyPolicyClampsStoredValuesToHostLimit() {
+        let suiteName = "HivecrewTests.vmConcurrencyPolicy.clamp.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(16, forKey: "maxConcurrentVMs")
+        #expect(VMConcurrencyPolicy.effectiveMaxConcurrentVMs(userDefaults: defaults) == 2)
+
+        defaults.set(-3, forKey: "maxConcurrentVMs")
+        #expect(VMConcurrencyPolicy.effectiveMaxConcurrentVMs(userDefaults: defaults) == 2)
+    }
+
+    @Test
     func resolveReasoningSelectionPrefersHighEffortWhenSupported() {
         let capability = LLMReasoningCapability(
             kind: .effort,

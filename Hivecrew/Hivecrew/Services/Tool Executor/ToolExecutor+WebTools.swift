@@ -15,7 +15,9 @@ extension ToolExecutor {
     func executeWebSearchTool(args: [String: Any]) async throws -> InternalToolResult {
         let query = args["query"] as? String ?? ""
         let site = args["site"] as? String
-        let resultCount = (args["resultCount"] as? Int) ?? 10
+        let storedDefaultResultCount = UserDefaults.standard.integer(forKey: "defaultResultCount")
+        let defaultResultCount = storedDefaultResultCount > 0 ? storedDefaultResultCount : 10
+        let resultCount = (args["resultCount"] as? Int) ?? defaultResultCount
         let startDateStr = args["startDate"] as? String
         let endDateStr = args["endDate"] as? String
         

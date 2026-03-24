@@ -1,6 +1,14 @@
 import Foundation
 
+@MainActor
 extension AgentStatePublisher {
+    private func updateSubagent(id: String, _ mutate: (inout SubagentBoxState) -> Void) {
+        var updated = subagents
+        guard let index = updated.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&updated[index])
+        subagents = updated
+    }
+
     func subagentStarted(
         id: String,
         goal: String,
@@ -14,17 +22,21 @@ extension AgentStatePublisher {
         ))
 
         if let index = subagents.firstIndex(where: { $0.id == id }) {
-            subagents[index] = SubagentBoxState(
+            let existingLines = subagents[index].lines
+            var updated = subagents
+            updated[index] = SubagentBoxState(
                 id: id,
                 goal: goal,
                 purpose: purpose,
                 domain: domain,
                 status: .running,
                 currentAction: "Starting…",
-                lines: subagents[index].lines
+                lines: existingLines
             )
+            subagents = updated
         } else {
-            subagents.append(SubagentBoxState(
+            var updated = subagents
+            updated.append(SubagentBoxState(
                 id: id,
                 goal: goal,
                 purpose: purpose,
@@ -33,12 +45,14 @@ extension AgentStatePublisher {
                 currentAction: "Starting…",
                 lines: []
             ))
+            subagents = updated
         }
     }
 
     func subagentSetAction(id: String, action: String) {
-        guard let index = subagents.firstIndex(where: { $0.id == id }) else { return }
-        subagents[index].currentAction = action
+        updateSubagent(id: id) { state in
+            state.currentAction = action
+        }
     }
 
     func subagentAppendLine(
@@ -47,25 +61,27 @@ extension AgentStatePublisher {
         summary: String,
         details: String? = nil
     ) {
-        guard let index = subagents.firstIndex(where: { $0.id == id }) else { return }
-        subagents[index].lines.append(SubagentProgressLine(type: type, summary: summary, details: details))
-        if subagents[index].lines.count > 200 {
-            subagents[index].lines.removeFirst(subagents[index].lines.count - 200)
+        updateSubagent(id: id) { state in
+            state.lines.append(SubagentProgressLine(type: type, summary: summary, details: details))
+            if state.lines.count > 200 {
+                state.lines.removeFirst(state.lines.count - 200)
+            }
         }
     }
 
     func subagentFinished(id: String, status: SubagentStatus, summary: String?) {
-        guard let index = subagents.firstIndex(where: { $0.id == id }) else { return }
-        subagents[index].status = status
-        switch status {
-        case .completed:
-            subagents[index].currentAction = String(localized: "Completed")
-        case .failed:
-            subagents[index].currentAction = String(localized: "Failed")
-        case .cancelled:
-            subagents[index].currentAction = String(localized: "Cancelled")
-        case .running:
-            break
+        updateSubagent(id: id) { state in
+            state.status = status
+            switch status {
+            case .completed:
+                state.currentAction = String(localized: "Completed")
+            case .failed:
+                state.currentAction = String(localized: "Failed")
+            case .cancelled:
+                state.currentAction = String(localized: "Cancelled")
+            case .running:
+                break
+            }
         }
 
         if let summary, !summary.isEmpty {

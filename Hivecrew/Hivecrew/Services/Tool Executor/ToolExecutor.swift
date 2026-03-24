@@ -337,14 +337,13 @@ class ToolExecutor {
     
     private func executeShellCommand(args: [String: Any]) async throws -> InternalToolResult {
         let command = args["command"] as? String ?? ""
-        let timeout = parseDoubleOptional(args["timeout"])
         
         if UserDefaults.standard.bool(forKey: "requireConfirmationForShell") {
             let approved = await onRequestPermission?("Shell Command", command) ?? false
             if !approved { return .text("Command blocked: User denied permission") }
         }
         
-        let result = try await connection.runShell(command: command, timeout: timeout)
+        let result = try await connection.runShell(command: command)
         var output = "Exit code: \(result.exitCode)"
         if !result.stdout.isEmpty { output += "\nstdout: \(result.stdout.prefix(500))" }
         if !result.stderr.isEmpty { output += "\nstderr: \(result.stderr.prefix(500))" }
@@ -930,14 +929,12 @@ class ToolExecutor {
         if todoItems.isEmpty {
             return .text("Error: todoItems is required when spawning subagents. Provide a concise main-agent-prescribed todo list.")
         }
-        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"])
 
         let info = await manager.spawn(
             goal: goal,
             domain: domain,
             toolAllowlist: toolAllowlist,
             todoItems: todoItems,
-            timeoutSeconds: timeoutSeconds,
             purpose: purpose
         )
         
@@ -964,7 +961,7 @@ class ToolExecutor {
             return .text("Error: Subagent manager not available")
         }
         let id = args["subagentId"] as? String ?? ""
-        guard let info = manager.getStatus(subagentId: id) else {
+        guard let info = await manager.getStatus(subagentId: id) else {
             return .text("Subagent not found: \(id)")
         }
         return .text(formatSubagentInfo(info))
@@ -978,13 +975,13 @@ class ToolExecutor {
         if ids.isEmpty {
             return .text("Error: subagentIds is required")
         }
-        let timeoutSeconds = parseDoubleOptional(args["timeoutSeconds"] ?? args["timeout_seconds"]) ?? 1800
+        let timeoutSeconds = SubagentManager.defaultAwaitTimeoutSeconds
         let deadline = Date().addingTimeInterval(timeoutSeconds)
         
         var notFound: Set<String> = []
         var pending: [String] = []
         for id in ids {
-            if manager.getStatus(subagentId: id) == nil {
+            if await manager.getStatus(subagentId: id) == nil {
                 notFound.insert(id)
             } else {
                 pending.append(id)
@@ -1042,7 +1039,7 @@ class ToolExecutor {
         guard let manager = subagentManager else {
             return .text("Error: Subagent manager not available")
         }
-        let infos = manager.list()
+        let infos = await manager.list()
         if infos.isEmpty {
             return .text("No subagents")
         }
@@ -1062,7 +1059,7 @@ class ToolExecutor {
             return .text("Error: 'to' is required (use 'main', a subagent ID, or 'broadcast').")
         }
         
-        manager.sendMessage(from: from, to: to, subject: subject, body: body)
+        await manager.sendMessage(from: from, to: to, subject: subject, body: body)
         
         let recipientLabel = to == "main" ? "main agent" : (to == "broadcast" ? "all agents" : "subagent \(to)")
         return .text("Message sent to \(recipientLabel). Subject: \(subject)")

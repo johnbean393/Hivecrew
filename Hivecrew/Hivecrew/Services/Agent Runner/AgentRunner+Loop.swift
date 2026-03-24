@@ -349,7 +349,7 @@ extension AgentRunner {
     }
 
     private func injectSubagentResults() async {
-        let completions = subagentManager.drainCompletions()
+        let completions = await subagentManager.drainCompletions()
         for completion in completions {
             let purposeText = completion.purpose.map { " (\($0))" } ?? ""
             let message = """
@@ -361,7 +361,7 @@ extension AgentRunner {
         }
         
         // Drain mailbox messages addressed to the main agent
-        let incomingMessages = subagentManager.drainMessages(for: "main")
+        let incomingMessages = await subagentManager.drainMessages(for: "main")
         for msg in incomingMessages {
             let text = "[Message from subagent \(msg.from)] Subject: \(msg.subject)\n\(msg.body)"
             conversationHistory.append(.user(text))

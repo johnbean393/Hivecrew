@@ -143,7 +143,7 @@ struct MissingAttachmentsSheet: View {
         
         if !skipMissing {
             // Add replacement files as new attachments
-            for (originalPath, replacementURL) in replacements {
+            for (_, replacementURL) in replacements {
                 // Create new attachment info for the replacement
                 let info = AttachmentInfo(path: replacementURL.path)
                 resolvedInfos.append(info)
