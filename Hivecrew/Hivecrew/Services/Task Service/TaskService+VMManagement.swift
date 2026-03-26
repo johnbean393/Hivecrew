@@ -13,6 +13,23 @@ import HivecrewLLM
 import HivecrewShared
 import UserNotifications
 
+private actor WorkerModelReasoningCache {
+    static let shared = WorkerModelReasoningCache()
+
+    private var cachedPreferredEfforts: [String: String?] = [:]
+
+    func preferredEffort(for key: String) -> String?? {
+        if let value = cachedPreferredEfforts[key] {
+            return .some(value)
+        }
+        return nil
+    }
+
+    func setPreferredEffort(_ effort: String?, for key: String) {
+        cachedPreferredEfforts[key] = effort
+    }
+}
+
 // MARK: - Ephemeral VM Management
 
 extension TaskService {
@@ -122,6 +139,36 @@ extension TaskService {
     }
     
     /// Create an LLM client from provider configuration
+    private var subagentsUseWorkerModelByDefault: Bool {
+        if let stored = UserDefaults.standard.object(forKey: "subagentsUseWorkerModel") as? Bool {
+            return stored
+        }
+        return true
+    }
+
+    func createSubagentLLMClient(
+        providerId: String,
+        modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
+        serviceTier: LLMServiceTier? = nil
+    ) async throws -> any LLMClientProtocol {
+        if subagentsUseWorkerModelByDefault {
+            return try await createWorkerLLMClient(
+                fallbackProviderId: providerId,
+                fallbackModelId: modelId
+            )
+        }
+
+        return try await createLLMClient(
+            providerId: providerId,
+            modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
+            serviceTier: serviceTier
+        )
+    }
+
     func createLLMClient(
         providerId: String,
         modelId: String,
@@ -209,6 +256,12 @@ extension TaskService {
             apiKey = ""
         }
 
+        let preferredReasoningEffort = await preferredWorkerReasoningEffort(
+            provider: provider,
+            apiKey: apiKey,
+            modelId: workerModelId
+        )
+
         let config = LLMConfiguration(
             id: provider.id,
             displayName: provider.displayName,
@@ -218,12 +271,61 @@ extension TaskService {
             organizationId: provider.organizationId,
             backendMode: provider.backendMode,
             authMode: provider.authMode,
-            timeoutInterval: 300,
+            timeoutInterval: LLMConfiguration.timeoutIntervalForReasoning(
+                reasoningEnabled: nil,
+                reasoningEffort: preferredReasoningEffort
+            ),
             reasoningEnabled: nil,
-            reasoningEffort: nil,
+            reasoningEffort: preferredReasoningEffort,
             serviceTier: nil
         )
         return LLMService.shared.createClient(from: config)
+    }
+
+    private func preferredWorkerReasoningEffort(
+        provider: LLMProviderRecord,
+        apiKey: String,
+        modelId: String
+    ) async -> String? {
+        let cacheKey = "\(provider.id.lowercased())::\(modelId.lowercased())"
+        if let cached = await WorkerModelReasoningCache.shared.preferredEffort(for: cacheKey) {
+            return cached
+        }
+
+        let preferredEffort = await fetchPreferredWorkerReasoningEffort(
+            provider: provider,
+            apiKey: apiKey,
+            modelId: modelId
+        )
+        await WorkerModelReasoningCache.shared.setPreferredEffort(preferredEffort, for: cacheKey)
+        return preferredEffort
+    }
+
+    private func fetchPreferredWorkerReasoningEffort(
+        provider: LLMProviderRecord,
+        apiKey: String,
+        modelId: String
+    ) async -> String? {
+        let listingModel = provider.backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder"
+        let config = provider.makeLLMConfiguration(model: listingModel, apiKey: apiKey)
+        let client = LLMService.shared.createClient(from: config)
+
+        guard let matchedModel = try? await client.listModelsDetailed().first(where: {
+            $0.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(modelId.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
+        }) else {
+            return nil
+        }
+
+        let capability = matchedModel.reasoningCapability
+        guard capability.kind == .effort else {
+            return nil
+        }
+
+        return capability.supportedEfforts.first(where: {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare("low") == .orderedSame
+        })
     }
     
     /// Count running developer VMs (these count toward the concurrent VM limit)

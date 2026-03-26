@@ -25,6 +25,8 @@ struct ScheduleCreationSheet: View {
     @State var attachedFilePaths: [String]
     @State var mentionedSkillNames: [String]
     @State var availableModels: [LLMProviderModel] = []
+    @State var isLoadingModels: Bool = false
+    @State var modelLoadError: String?
     
     // Schedule configuration
     @State var scheduleType: ScheduleType = .recurring

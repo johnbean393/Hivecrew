@@ -41,8 +41,7 @@ extension ScheduleCreationSheet {
                         Text("Model")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        TextField("", text: $selectedModelId)
-                            .textFieldStyle(.roundedBorder)
+                        modelPicker
                     }
                 }
 
@@ -89,6 +88,53 @@ extension ScheduleCreationSheet {
             return "Select..."
         }
         return providers.first(where: { $0.id == selectedProviderId })?.displayName ?? "Select..."
+    }
+
+    @ViewBuilder
+    var modelPicker: some View {
+        if selectedProviderId.isEmpty {
+            Text("Select a provider to load models.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if isLoadingModels {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading available models...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else if let modelLoadError {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(modelLoadError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+
+                Button("Retry Model Load") {
+                    loadAvailableModels()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        } else if availableModels.isEmpty {
+            Text("No models available for this provider.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            Picker("Model", selection: $selectedModelId) {
+                ForEach(availableModels) { model in
+                    Text(model.displayName).tag(model.id)
+                }
+            }
+            .pickerStyle(.menu)
+
+            if let selectedModelMetadata {
+                Text(selectedModelMetadata.id)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+            }
+        }
     }
 
     @ViewBuilder
@@ -199,6 +245,8 @@ extension ScheduleCreationSheet {
     func loadAvailableModels() {
         guard let provider = providers.first(where: { $0.id == selectedProviderId }) else {
             availableModels = []
+            modelLoadError = selectedProviderId.isEmpty ? nil : "Select a provider to load models."
+            isLoadingModels = false
             synchronizeReasoningSelection()
             return
         }
@@ -207,6 +255,8 @@ extension ScheduleCreationSheet {
         if provider.authMode == .apiKey {
             guard let stored = provider.retrieveAPIKey() else {
                 availableModels = []
+                modelLoadError = "No API key configured for this provider."
+                isLoadingModels = false
                 synchronizeReasoningSelection()
                 return
             }
@@ -216,6 +266,8 @@ extension ScheduleCreationSheet {
         }
 
         let requestProviderId = provider.id
+        isLoadingModels = true
+        modelLoadError = nil
         Task {
             do {
                 let config = provider.makeLLMConfiguration(
@@ -223,16 +275,25 @@ extension ScheduleCreationSheet {
                     apiKey: apiKey
                 )
                 let client = LLMService.shared.createClient(from: config)
-                let models = try await client.listModelsDetailed()
+                let models = LLMProviderModel.sortByVersionDescending(try await client.listModelsDetailed())
                 await MainActor.run {
                     guard requestProviderId == selectedProviderId else { return }
                     availableModels = models
+                    isLoadingModels = false
+                    if models.contains(where: { $0.id == selectedModelId }) {
+                        synchronizeReasoningSelection()
+                        return
+                    }
+                    selectedModelId = models.first?.id ?? ""
                     synchronizeReasoningSelection()
                 }
             } catch {
                 await MainActor.run {
                     guard requestProviderId == selectedProviderId else { return }
                     availableModels = []
+                    isLoadingModels = false
+                    modelLoadError = error.localizedDescription
+                    selectedModelId = ""
                     synchronizeReasoningSelection()
                 }
             }

@@ -20,9 +20,13 @@ struct ProvidersSettingsView: View {
     @State private var editingProvider: LLMProviderRecord?
     @State private var providerToDelete: LLMProviderRecord?
     @State private var showingDeleteConfirmation = false
+    @State private var availableWorkerModels: [LLMProviderModel] = []
+    @State private var isLoadingWorkerModels = false
+    @State private var workerModelErrorMessage: String?
     
     @AppStorage("workerModelProviderId") private var workerModelProviderId: String?
     @AppStorage("workerModelId") private var workerModelId: String?
+    @AppStorage("subagentsUseWorkerModel") private var subagentsUseWorkerModel = true
     
     // Tips
     private let configureProvidersTip = ConfigureProvidersTip()
@@ -45,6 +49,31 @@ struct ProvidersSettingsView: View {
             }
         }
     }
+
+    private enum ModelLoadError: LocalizedError {
+        case missingAPIKey
+
+        var errorDescription: String? {
+            switch self {
+            case .missingAPIKey:
+                return "This provider has no API key configured."
+            }
+        }
+    }
+
+    private var selectedWorkerProvider: LLMProviderRecord? {
+        guard let workerModelProviderId else { return nil }
+        let normalized = workerModelProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return providers.first(where: { $0.id == normalized })
+    }
+
+    private var selectedWorkerModel: LLMProviderModel? {
+        guard let workerModelId else { return nil }
+        let normalized = workerModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return availableWorkerModels.first(where: { $0.id == normalized })
+    }
     
     var body: some View {
         Form {
@@ -55,9 +84,13 @@ struct ProvidersSettingsView: View {
         .padding()
         .onAppear {
             TipStore.shared.updateProviderCount(providers.count)
+            ensureWorkerModelSelection()
+            loadWorkerModelsForSelectedProvider()
         }
         .onChange(of: providers.count) { _, newCount in
             TipStore.shared.updateProviderCount(newCount)
+            ensureWorkerModelSelection()
+            loadWorkerModelsForSelectedProvider()
         }
         .sheet(item: $addProviderPreset) { preset in
             ProviderEditSheet(provider: nil, initialBackendMode: preset.backendMode)
@@ -161,39 +194,115 @@ struct ProvidersSettingsView: View {
                 Text("Worker model is required. It powers fast background tasks like title generation, retrieval guidance, and webpage extraction.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Toggle("Use worker model for subagents by default", isOn: $subagentsUseWorkerModel)
+
+                Text("When enabled, new subagent runs use the configured worker model instead of the main task model unless a flow overrides it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 
-                // Provider picker
-                Picker(
-                    "Provider",
-                    selection: Binding(
-                        get: { workerModelProviderId ?? "" },
-                        set: { newValue in
-                            let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                            workerModelProviderId = normalized.isEmpty ? nil : normalized
-                            workerModelId = nil
-                        }
-                    )
-                ) {
-                    Text("Select Provider").tag("")
-                    ForEach(providers) { provider in
-                        Text(provider.displayLabel).tag(provider.id)
-                    }
-                }
-                
-                // Model input field (simple text field for model ID)
-                if !(workerModelProviderId?.isEmpty ?? true) {
-                    HStack {
-                        Text("Model ID:")
-                        TextField("", text: Binding(
-                            get: { workerModelId ?? "" },
-                            set: { workerModelId = $0.isEmpty ? nil : $0 }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                    }
-                    
-                    Text("Enter the model ID. The worker model is used for simple tasks like title generation and webpage information extraction.")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Provider")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    Picker(
+                        "Provider",
+                        selection: Binding(
+                            get: { workerModelProviderId ?? "" },
+                            set: { newValue in
+                                let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                workerModelProviderId = normalized.isEmpty ? nil : normalized
+                                workerModelId = nil
+                                availableWorkerModels = []
+                                workerModelErrorMessage = nil
+                                loadWorkerModelsForSelectedProvider()
+                            }
+                        )
+                    ) {
+                        Text("Select Provider").tag("")
+                        ForEach(providers) { provider in
+                            Text(provider.displayLabel).tag(provider.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Model")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if providers.isEmpty {
+                        Text("Add a provider to choose a worker model.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if (workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+                        Text("Select a provider to load models.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if isLoadingWorkerModels {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Loading available models...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let workerModelErrorMessage {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(workerModelErrorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+
+                            Button("Retry Model Load") {
+                                loadWorkerModelsForSelectedProvider()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    } else if availableWorkerModels.isEmpty {
+                        Text("No models available for this provider.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker(
+                            "Model",
+                            selection: Binding(
+                                get: { workerModelId ?? "" },
+                                set: { newValue in
+                                    let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    workerModelId = normalized.isEmpty ? nil : normalized
+                                }
+                            )
+                        ) {
+                            ForEach(availableWorkerModels) { model in
+                                Text(model.displayName).tag(model.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        if let selectedModel = selectedWorkerModel {
+                            Text(selectedModel.id)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .textSelection(.enabled)
+                        }
+                    }
+
+                    Text("Choose the model used for simple background tasks like title generation and webpage information extraction.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let selectedWorkerModel,
+                       selectedWorkerModel.reasoningCapability.kind == .effort,
+                       selectedWorkerModel.reasoningCapability.supportedEfforts.contains(where: {
+                           $0.caseInsensitiveCompare("low") == .orderedSame
+                       }) {
+                        Text("This worker model supports `low` reasoning effort, which Hivecrew will use automatically for worker-model runs.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if (workerModelProviderId?.isEmpty ?? true) || (workerModelId?.isEmpty ?? true) {
@@ -228,6 +337,83 @@ struct ProvidersSettingsView: View {
         }
         // Set new default
         provider.isDefault = true
+    }
+
+    private func ensureWorkerModelSelection() {
+        guard !providers.isEmpty else {
+            workerModelProviderId = nil
+            workerModelId = nil
+            availableWorkerModels = []
+            workerModelErrorMessage = nil
+            return
+        }
+
+        let defaultProviderId = providers.first(where: { $0.isDefault })?.id ?? providers.first?.id ?? ""
+        let normalizedWorkerProviderId = workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if normalizedWorkerProviderId.isEmpty || !providers.contains(where: { $0.id == normalizedWorkerProviderId }) {
+            workerModelProviderId = defaultProviderId.isEmpty ? nil : defaultProviderId
+            workerModelId = nil
+        }
+    }
+
+    private func loadWorkerModelsForSelectedProvider() {
+        guard let provider = selectedWorkerProvider else {
+            availableWorkerModels = []
+            workerModelErrorMessage = providers.isEmpty ? nil : "Select a provider to load models."
+            workerModelId = nil
+            isLoadingWorkerModels = false
+            return
+        }
+
+        let requestProviderId = provider.id
+        isLoadingWorkerModels = true
+        workerModelErrorMessage = nil
+
+        Task {
+            do {
+                let models = try await fetchModels(for: provider)
+
+                await MainActor.run {
+                    guard requestProviderId == workerModelProviderId else { return }
+                    availableWorkerModels = models
+                    isLoadingWorkerModels = false
+
+                    if let existing = workerModelId, models.contains(where: { $0.id == existing }) {
+                        return
+                    }
+
+                    workerModelId = models.first?.id
+                }
+            } catch {
+                await MainActor.run {
+                    guard requestProviderId == workerModelProviderId else { return }
+                    availableWorkerModels = []
+                    isLoadingWorkerModels = false
+                    workerModelErrorMessage = error.localizedDescription
+                    workerModelId = nil
+                }
+            }
+        }
+    }
+
+    private func fetchModels(for provider: LLMProviderRecord) async throws -> [LLMProviderModel] {
+        let apiKey: String
+        if provider.authMode == .apiKey {
+            guard let stored = provider.retrieveAPIKey(), !stored.isEmpty else {
+                throw ModelLoadError.missingAPIKey
+            }
+            apiKey = stored
+        } else {
+            apiKey = ""
+        }
+
+        let config = provider.makeLLMConfiguration(
+            model: provider.backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder",
+            apiKey: apiKey
+        )
+        let client = LLMService.shared.createClient(from: config)
+        return LLMProviderModel.sortByVersionDescending(try await client.listModelsDetailed())
     }
 }
 

@@ -154,8 +154,46 @@ struct RerunModelSelectionSheet: View {
                 Text("Model")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("Model ID", text: $selectedModelId)
-                    .textFieldStyle(.roundedBorder)
+
+                if isLoadingModels {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Loading available models...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let modelLoadError {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(modelLoadError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+
+                        Button("Retry Model Load") {
+                            loadModels()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                } else if availableModels.isEmpty {
+                    Text("No models available for this provider.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker("Model", selection: $selectedModelId) {
+                        ForEach(availableModels) { model in
+                            Text(model.displayName).tag(model.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    if let selectedModelMetadata {
+                        Text(selectedModelMetadata.id)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+                    }
+                }
             }
 
             if selectedReasoningCapability.kind != .none {
@@ -366,7 +404,11 @@ struct RerunModelSelectionSheet: View {
                     guard requestProviderId == selectedProviderId else { return }
                     availableModels = models
                     isLoadingModels = false
-                    if trimmedModelId.isEmpty, let firstModel = models.first {
+                    if models.contains(where: { $0.id == trimmedModelId }) {
+                        synchronizeReasoningSelection()
+                        return
+                    }
+                    if let firstModel = models.first {
                         selectedModelId = firstModel.id
                     }
                     synchronizeReasoningSelection()

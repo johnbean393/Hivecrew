@@ -189,7 +189,7 @@ final class AgentRunner {
             toolExecutor: subagentToolExecutor,
             vmScheduler: vmToolScheduler,
             llmClientFactory: {
-                return try await taskService.createLLMClient(
+                return try await taskService.createSubagentLLMClient(
                     providerId: task.providerId,
                     modelId: task.modelId,
                     reasoningEnabled: task.reasoningEnabled,
@@ -199,7 +199,7 @@ final class AgentRunner {
             },
             visionCapabilityResolver: { modelId, client in
                 let capability = await taskService.resolveVisionCapability(
-                    providerId: task.providerId,
+                    providerId: client.configuration.id,
                     modelId: modelId,
                     using: client
                 )
