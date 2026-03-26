@@ -17,15 +17,14 @@ extension TemplateDownloadService {
     func performDecompressAndExtract(_ sourcePath: URL, templateId: String, compressedSize: Int64, onProgress: @escaping (Int64) -> Void, onExtracting: @escaping () -> Void = {}) async throws -> URL {
         let templatesDir = AppPaths.templatesDirectory
         let expectedPath = templatesDir.appendingPathComponent(templateId)
+        let stagingBase = templatesDir.appendingPathComponent(".download-staging", isDirectory: true)
+        let stagingPath = stagingBase.appendingPathComponent(UUID().uuidString, isDirectory: true)
 
         return try await Task.detached(priority: .userInitiated) {
-            // Remove existing template with same ID to avoid duplicates
-            if FileManager.default.fileExists(atPath: expectedPath.path) {
-                try? FileManager.default.removeItem(at: expectedPath)
-            }
-            
             // Ensure templates directory exists
             try FileManager.default.createDirectory(at: templatesDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: stagingPath, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: stagingPath) }
             
             // Create a pipe to connect zstd decompression to tar extraction
             var pipeFDs: [Int32] = [0, 0]
@@ -38,7 +37,7 @@ extension TemplateDownloadService {
             // Start tar process reading from pipe
             let tarProcess = Process()
             tarProcess.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-            tarProcess.arguments = ["-xf", "-", "-C", templatesDir.path]
+            tarProcess.arguments = ["-xf", "-", "-C", stagingPath.path]
             
             let pipeReadHandle = FileHandle(fileDescriptor: pipeReadFD, closeOnDealloc: false)
             tarProcess.standardInput = pipeReadHandle
@@ -67,18 +66,38 @@ extension TemplateDownloadService {
             onExtracting()
             tarProcess.waitUntilExit()
             
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            let tarErrorMessage = String(data: errorData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            
             if let error = decompressionError {
+                if tarProcess.terminationStatus != 0,
+                   tarErrorMessage.localizedCaseInsensitiveContains("No space left on device") {
+                    throw TemplateDownloadError.insufficientStorage
+                }
+                
                 throw error
             }
             
             if tarProcess.terminationStatus != 0 {
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                if tarErrorMessage.localizedCaseInsensitiveContains("No space left on device") {
+                    throw TemplateDownloadError.insufficientStorage
+                }
+                
+                let errorMessage = tarErrorMessage.isEmpty ? "Unknown error" : tarErrorMessage
                 throw TemplateDownloadError.extractionFailed("tar failed: \(errorMessage)")
             }
             
-            // Find the extracted template
-            return try Self.findExtractedTemplate(expectedPath: expectedPath, templatesDir: templatesDir)
+            let stagedTemplatePath = try Self.findExtractedTemplate(
+                expectedPath: stagingPath.appendingPathComponent(templateId),
+                searchRoot: stagingPath
+            )
+            
+            if FileManager.default.fileExists(atPath: expectedPath.path) {
+                try? FileManager.default.removeItem(at: expectedPath)
+            }
+            try FileManager.default.moveItem(at: stagedTemplatePath, to: expectedPath)
+            return expectedPath
         }.value
     }
     
@@ -149,8 +168,8 @@ extension TemplateDownloadService {
         onProgress(compressedSize)
     }
     
-    /// Find the extracted template directory
-    private nonisolated static func findExtractedTemplate(expectedPath: URL, templatesDir: URL) throws -> URL {
+    /// Find the extracted template directory inside the staging root.
+    private nonisolated static func findExtractedTemplate(expectedPath: URL, searchRoot: URL) throws -> URL {
         if FileManager.default.fileExists(atPath: expectedPath.path) {
             let diskPath = expectedPath.appendingPathComponent("disk.img")
             if FileManager.default.fileExists(atPath: diskPath.path) {
@@ -158,9 +177,14 @@ extension TemplateDownloadService {
             }
         }
         
-        // Fallback: Find any extracted directory that looks like a template
-        let contents = try FileManager.default.contentsOfDirectory(at: templatesDir, includingPropertiesForKeys: [.creationDateKey])
+        let rootDiskPath = searchRoot.appendingPathComponent("disk.img")
+        if FileManager.default.fileExists(atPath: rootDiskPath.path) {
+            return searchRoot
+        }
         
+        // Fallback: Find any extracted directory that looks like a template
+        let contents = try FileManager.default.contentsOfDirectory(at: searchRoot, includingPropertiesForKeys: [.creationDateKey])
+
         let sorted = contents.sorted { url1, url2 in
             let date1 = (try? url1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
             let date2 = (try? url2.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast

@@ -46,6 +46,14 @@ public struct RemoteTemplate: Identifiable, Sendable {
 /// Known remote templates available for download
 public enum KnownTemplates {
 
+    public static let goldenV0018 = RemoteTemplate(
+        id: "golden-v0.0.18",
+        name: "Hivecrew Golden Image",
+        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
+        version: "0.0.18",
+        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.18.tar.zst")!
+    )
+    
     public static let goldenV0017 = RemoteTemplate(
         id: "golden-v0.0.17",
         name: "Hivecrew Golden Image",
@@ -72,13 +80,14 @@ public enum KnownTemplates {
     
     /// All available templates for download
     public static let all: [RemoteTemplate] = [
+        goldenV0018,
         goldenV0017,
         goldenV0016,
         goldenV0015
     ]
 
     /// The default/recommended template
-    public static let `default`: RemoteTemplate = goldenV0017
+    public static let `default`: RemoteTemplate = goldenV0018
     
 }
 
@@ -161,6 +170,7 @@ public enum TemplateDownloadError: LocalizedError {
     case extractionFailed(String)
     case configurationFailed(String)
     case cancelled
+    case insufficientStorage
     case invalidTemplate(String)
     case fileSystemError(String)
     
@@ -176,6 +186,8 @@ public enum TemplateDownloadError: LocalizedError {
             return String(localized: "Configuration failed: \(message)")
         case .cancelled:
             return String(localized: "Download was cancelled")
+        case .insufficientStorage:
+            return String(localized: "Not enough free disk space to complete the template update")
         case .invalidTemplate(let message):
             return String(localized: "Invalid template: \(message)")
         case .fileSystemError(let message):
@@ -192,4 +204,37 @@ struct DownloadState: Codable {
     let partialFilePath: String
     let bytesDownloaded: Int64
     let startedAt: Date
+}
+
+func isTemplateDownloadOutOfSpaceError(_ error: Error) -> Bool {
+    if let downloadError = error as? TemplateDownloadError,
+       case .insufficientStorage = downloadError {
+        return true
+    }
+    
+    let nsError = error as NSError
+    
+    if nsError.domain == NSCocoaErrorDomain,
+       nsError.code == CocoaError.Code.fileWriteOutOfSpace.rawValue {
+        return true
+    }
+    
+    if nsError.domain == NSPOSIXErrorDomain,
+       nsError.code == ENOSPC {
+        return true
+    }
+    
+    if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+        return isTemplateDownloadOutOfSpaceError(underlying)
+    }
+    
+    return false
+}
+
+func normalizeTemplateDownloadError(_ error: Error) -> Error {
+    if isTemplateDownloadOutOfSpaceError(error) {
+        return TemplateDownloadError.insufficientStorage
+    }
+    
+    return error
 }

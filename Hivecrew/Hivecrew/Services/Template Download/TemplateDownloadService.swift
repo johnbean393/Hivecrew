@@ -211,6 +211,7 @@ public class TemplateDownloadService: ObservableObject {
             clearDownloadState()
             hasResumableDownload = false
             resumableTemplateId = nil
+            defer { cleanupArchiveArtifacts(for: template.id, archivePath: archivePath) }
             
             progress = TemplateDownloadProgress(phase: .decompressing, bytesDownloaded: 0, totalBytes: actualSize, estimatedTimeRemaining: nil)
             let extractedPath = try await performDecompressAndExtract(
@@ -229,18 +230,27 @@ public class TemplateDownloadService: ObservableObject {
                 }
             )
             
+            var shouldRemoveExtractedTemplate = true
+            defer {
+                if shouldRemoveExtractedTemplate {
+                    try? fileManager.removeItem(at: extractedPath)
+                }
+            }
+            
             progress = TemplateDownloadProgress(phase: .configuring, bytesDownloaded: actualSize, totalBytes: actualSize, estimatedTimeRemaining: nil)
             let templateId = try await performConfigureTemplate(extractedPath, template: template)
             
-            try? fileManager.removeItem(at: archivePath)
+            shouldRemoveExtractedTemplate = false
             markTemplateAsCompatible(template)
             progress = TemplateDownloadProgress(phase: .complete, bytesDownloaded: actualSize, totalBytes: actualSize, estimatedTimeRemaining: nil)
             return templateId
             
         } catch {
-            if case TemplateDownloadError.cancelled = error { }
-            progress = TemplateDownloadProgress(phase: .failed(error.localizedDescription), bytesDownloaded: 0, totalBytes: failureTotalBytes, estimatedTimeRemaining: nil)
-            throw error
+            let reportedError = normalizeTemplateDownloadError(error)
+            if let reportedError = reportedError as? TemplateDownloadError,
+               case .cancelled = reportedError { }
+            progress = TemplateDownloadProgress(phase: .failed(reportedError.localizedDescription), bytesDownloaded: 0, totalBytes: failureTotalBytes, estimatedTimeRemaining: nil)
+            throw reportedError
         }
     }
     
@@ -282,6 +292,19 @@ public class TemplateDownloadService: ObservableObject {
     
     private func partialDownloadPath(for templateId: String) -> URL {
         downloadsDirectory.appendingPathComponent("\(templateId).tar.zst.partial")
+    }
+
+    private func cleanupArchiveArtifacts(for templateId: String, archivePath: URL) {
+        try? fileManager.removeItem(at: archivePath)
+        try? fileManager.removeItem(at: partialDownloadPath(for: templateId))
+    }
+    
+    private func discardFailedDownload(partialPath: URL, finalPath: URL) {
+        try? fileManager.removeItem(at: partialPath)
+        try? fileManager.removeItem(at: finalPath)
+        clearDownloadState()
+        hasResumableDownload = false
+        resumableTemplateId = nil
     }
     
     private func cachedArchiveInfo(for template: RemoteTemplate) -> (URL, Int64)? {
@@ -380,6 +403,11 @@ public class TemplateDownloadService: ObservableObject {
             saveStateOnError(partialPath: partialPath, templateId: templateId, url: url, actualTotalSize: actualTotalSize, initialState: initialState)
             throw TemplateDownloadError.cancelled
         } catch {
+            if isTemplateDownloadOutOfSpaceError(error) {
+                discardFailedDownload(partialPath: partialPath, finalPath: finalPath)
+                throw TemplateDownloadError.insufficientStorage
+            }
+            
             saveStateOnError(partialPath: partialPath, templateId: templateId, url: url, actualTotalSize: actualTotalSize, initialState: initialState)
             throw error
         }

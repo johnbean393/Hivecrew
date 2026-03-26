@@ -83,7 +83,10 @@ class ResumableDownloader: NSObject, URLSessionDataDelegate {
         
         // Setup file handle
         if resumeFrom == 0 {
-            FileManager.default.createFile(atPath: destinationPath.path, contents: nil)
+            let created = FileManager.default.createFile(atPath: destinationPath.path, contents: nil)
+            if !created && !FileManager.default.fileExists(atPath: destinationPath.path) {
+                throw TemplateDownloadError.fileSystemError("Cannot create file for writing")
+            }
         }
         
         guard let handle = FileHandle(forWritingAtPath: destinationPath.path) else {
@@ -155,7 +158,7 @@ class ResumableDownloader: NSObject, URLSessionDataDelegate {
                 try fileHandle?.seek(toOffset: 0)
                 bytesWritten = 0
             } catch {
-                safeResume(throwing: error)
+                safeResume(throwing: normalizeTemplateDownloadError(error))
                 completionHandler(.cancel)
                 return
             }
@@ -176,7 +179,7 @@ class ResumableDownloader: NSObject, URLSessionDataDelegate {
                 writeBuffer.removeAll(keepingCapacity: true)
             } catch {
                 dataTask.cancel()
-                safeResume(throwing: error)
+                safeResume(throwing: normalizeTemplateDownloadError(error))
                 return
             }
         }
@@ -200,23 +203,35 @@ class ResumableDownloader: NSObject, URLSessionDataDelegate {
     }
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        var completionError = error
+        
         // Flush remaining buffer to disk
         if !writeBuffer.isEmpty {
-            try? fileHandle?.write(contentsOf: writeBuffer)
+            do {
+                try fileHandle?.write(contentsOf: writeBuffer)
+            } catch {
+                completionError = error
+            }
             writeBuffer.removeAll()
         }
         
-        try? fileHandle?.close()
+        do {
+            try fileHandle?.close()
+        } catch {
+            if completionError == nil {
+                completionError = error
+            }
+        }
         session.invalidateAndCancel()
         
-        if let error = error {
+        if let error = completionError {
             // Save state before failing
             onStateUpdate(bytesWritten)
             
             if (error as NSError).code == NSURLErrorCancelled {
                 safeResume(throwing: TemplateDownloadError.cancelled)
             } else {
-                safeResume(throwing: TemplateDownloadError.downloadFailed(error.localizedDescription))
+                safeResume(throwing: normalizeTemplateDownloadError(error))
             }
         } else {
             safeResume(returning: bytesWritten)
