@@ -19,11 +19,11 @@ enum OrchestratorToolHandler {
     static let toolDeclarations: [VoiceToolDeclaration] = [
         VoiceToolDeclaration(
             name: "create_task",
-            description: "Create a new task for a worker agent. Returns the task ID and assigned worker name. To attach a captured reference image, pass its file path in the attachments array.",
+            description: "Create a new task for a worker agent. Each worker runs in a full macOS VM and can search the web, write files, run shell commands, and use GUI apps — so include the complete goal in one task rather than splitting simple multi-step work across workers. Returns the task ID and assigned worker name. To attach a captured reference image, pass its file path in the attachments array.",
             parameters: VoiceToolParameters(
                 properties: [
-                    "description": VoiceToolProperty(type: "string", description: "What the worker should do"),
-                    "role": VoiceToolProperty(type: "string", description: "Short role label, e.g. 'UI Designer', '3D Modeler'"),
+                    "description": VoiceToolProperty(type: "string", description: "The full end-to-end goal for the worker, including all steps (e.g. research + write file)"),
+                    "role": VoiceToolProperty(type: "string", description: "Short role label, e.g. 'UI Designer', 'Researcher'"),
                     "attachments": VoiceToolProperty(type: "string", description: "Comma-separated file paths to attach (e.g. from capture_reference)"),
                 ],
                 required: ["description", "role"]

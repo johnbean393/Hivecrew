@@ -26,7 +26,7 @@ struct VoiceOrbView: View {
     @State private var breatheScale: CGFloat = 1.0
 
     private var activeLevel: CGFloat {
-        CGFloat(max(outputLevel, inputLevel))
+        CGFloat(inputLevel)
     }
 
     private var isCameraActive: Bool { cameraSession != nil }

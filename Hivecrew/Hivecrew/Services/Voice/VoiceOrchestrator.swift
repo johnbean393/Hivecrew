@@ -95,6 +95,9 @@ final class VoiceOrchestrator: ObservableObject {
     private var taskStatusCancellables: [String: AnyCancellable] = [:]
     private var taskQuestionCancellables: [String: AnyCancellable] = [:]
     private var lastKnownStatuses: [String: AgentStatus] = [:]
+    private var pendingOverlapStartedAt: TimeInterval?
+    private var loggedFirstOverlapUplink = false
+    private var loggedFirstInputTranscriptAfterOverlap = false
 
     init() {
         setupAudioCallbacks()
@@ -137,8 +140,16 @@ final class VoiceOrchestrator: ObservableObject {
         let thinkingLevel = VoiceSessionConfig.ThinkingLevel(rawValue: thinkingLevelRaw) ?? .low
         let mediaRes = VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium
 
+        // Import active tasks from previous sessions so the voice model can manage them.
+        let existingTasksSummary = importActiveTasks()
+
+        var systemPrompt = OrchestratorSystemPrompt.build(voiceName: voiceName)
+        if !existingTasksSummary.isEmpty {
+            systemPrompt += "\n\n" + existingTasksSummary
+        }
+
         let config = VoiceSessionConfig(
-            systemPrompt: OrchestratorSystemPrompt.build(voiceName: voiceName),
+            systemPrompt: systemPrompt,
             voiceName: voiceName,
             tools: OrchestratorToolHandler.toolDeclarations,
             mediaResolution: mediaRes,
@@ -164,10 +175,11 @@ final class VoiceOrchestrator: ObservableObject {
 
     func endCall() {
         pendingEndCall = false
+        resetOverlapMetrics()
         cancelTimers()
-        provider?.disconnect()
         audioManager.stopCapture()
         audioManager.stopPlayback()
+        provider?.disconnect()
         Task { await videoSourceManager.deactivate() }
         connectionState = .disconnected
         callState = .idle
@@ -190,7 +202,7 @@ final class VoiceOrchestrator: ObservableObject {
 
     private func wireProviderCallbacks(_ prov: any RealtimeVoiceProvider) {
         prov.onAudioReceived = { [weak self] data in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 if !self.isModelSpeaking {
                     self.isModelSpeaking = true
@@ -201,29 +213,39 @@ final class VoiceOrchestrator: ObservableObject {
         }
 
         prov.onTranscription = { [weak self] transcription in
-            Task { @MainActor in
-                self?.handleTranscription(transcription)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.handleTranscription(transcription)
             }
         }
 
         prov.onToolCall = { [weak self] toolCall in
-            Task { @MainActor in
-                await self?.handleToolCall(toolCall)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.handleToolCall(toolCall)
             }
         }
 
         prov.onInterrupted = { [weak self] in
-            Task { @MainActor in
-                self?.audioManager.clearPlaybackQueue()
-                self?.audioManager.setServerModelSpeaking(false)
-                self?.isModelSpeaking = false
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.logServerInterrupted()
+                self.audioManager.clearPlaybackQueue()
+                self.audioManager.setServerModelSpeaking(false)
+                self.isModelSpeaking = false
             }
         }
 
         prov.onTurnComplete = { [weak self] in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self else { return }
+                if let startedAt = self.pendingOverlapStartedAt {
+                    let elapsedMs = Int((Date().timeIntervalSinceReferenceDate - startedAt) * 1000)
+                    print("[VoiceInterruption] Turn completed without server interruption after \(elapsedMs) ms")
+                    self.resetOverlapMetrics()
+                }
                 self.isModelSpeaking = false
+                self.audioManager.setServerModelSpeaking(false)
                 if self.pendingEndCall {
                     self.pendingEndCall = false
                     self.endCall()
@@ -234,20 +256,23 @@ final class VoiceOrchestrator: ObservableObject {
         }
 
         prov.onError = { [weak self] error in
-            Task { @MainActor in
-                self?.connectionState = .error(error.localizedDescription)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.connectionState = .error(error.localizedDescription)
             }
         }
 
         prov.onReconnecting = { [weak self] in
-            Task { @MainActor in
-                self?.connectionState = .reconnecting
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.connectionState = .reconnecting
             }
         }
 
         prov.onReconnected = { [weak self] in
-            Task { @MainActor in
-                self?.connectionState = .connected
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.connectionState = .connected
             }
         }
     }
@@ -256,13 +281,15 @@ final class VoiceOrchestrator: ObservableObject {
 
     private func setupAudioCallbacks() {
         audioManager.onAudioCaptured = { [weak self] data in
-            Task { @MainActor in
-                try? await self?.provider?.sendAudio(data)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.logFirstOverlapUplinkChunk(data)
+                try? await self.provider?.sendAudio(data)
             }
         }
 
         audioManager.onPlaybackFinished = { [weak self] in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 // Brief holdoff so trailing speaker echo dissipates before
                 // the mic starts forwarding audio to the server again.
                 try? await Task.sleep(for: .milliseconds(300))
@@ -275,12 +302,56 @@ final class VoiceOrchestrator: ObservableObject {
         audioManager.$outputLevel.receive(on: RunLoop.main).assign(to: &$outputLevel)
     }
 
+    private func logFirstOverlapUplinkChunk(_ data: Data) {
+        guard !data.isEmpty, isModelSpeaking else { return }
+
+        let startedAt: TimeInterval
+        if let pendingOverlapStartedAt {
+            startedAt = pendingOverlapStartedAt
+        } else {
+            let now = Date().timeIntervalSinceReferenceDate
+            pendingOverlapStartedAt = now
+            loggedFirstOverlapUplink = false
+            loggedFirstInputTranscriptAfterOverlap = false
+            startedAt = now
+        }
+
+        guard !loggedFirstOverlapUplink else { return }
+        loggedFirstOverlapUplink = true
+        let elapsedMs = Int((Date().timeIntervalSinceReferenceDate - startedAt) * 1000)
+        print("[VoiceInterruption] First overlap uplink chunk while model speaking: \(elapsedMs) ms (\(data.count) bytes)")
+    }
+
+    private func logFirstInputTranscriptAfterOverlap(_ text: String) {
+        guard !loggedFirstInputTranscriptAfterOverlap, !text.isEmpty, let startedAt = pendingOverlapStartedAt else { return }
+        loggedFirstInputTranscriptAfterOverlap = true
+        let elapsedMs = Int((Date().timeIntervalSinceReferenceDate - startedAt) * 1000)
+        print("[VoiceInterruption] First input transcription after overlap: \(elapsedMs) ms (\(text.prefix(80)))")
+    }
+
+    private func logServerInterrupted() {
+        guard let startedAt = pendingOverlapStartedAt else {
+            resetOverlapMetrics()
+            return
+        }
+        let elapsedMs = Int((Date().timeIntervalSinceReferenceDate - startedAt) * 1000)
+        print("[VoiceInterruption] Server interruption confirmed after \(elapsedMs) ms")
+        resetOverlapMetrics()
+    }
+
+    private func resetOverlapMetrics() {
+        pendingOverlapStartedAt = nil
+        loggedFirstOverlapUplink = false
+        loggedFirstInputTranscriptAfterOverlap = false
+    }
+
     // MARK: - Video Callbacks
 
     private func setupVideoCallbacks() {
         videoSourceManager.onFrameCaptured = { [weak self] data in
-            Task { @MainActor in
-                try? await self?.provider?.sendVideoFrame(data)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await self.provider?.sendVideoFrame(data)
             }
         }
     }
@@ -289,6 +360,9 @@ final class VoiceOrchestrator: ObservableObject {
 
     private func handleTranscription(_ transcription: VoiceTranscription) {
         resetIdleTimer()
+        if transcription.source == .input {
+            logFirstInputTranscriptAfterOverlap(transcription.text)
+        }
         let role: TranscriptEntry.Role = transcription.source == .input ? .user : .model
         if let last = transcript.last, last.role == role {
             transcript[transcript.count - 1] = TranscriptEntry(
@@ -542,7 +616,7 @@ final class VoiceOrchestrator: ObservableObject {
 
     private func startIdleTimer() {
         idleTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.callState == .active else { return }
                 if self.isModelSpeaking {
                     self.startIdleTimer()
@@ -556,7 +630,7 @@ final class VoiceOrchestrator: ObservableObject {
 
     private func startSuspendTimer() {
         suspendTimer = Timer.scheduledTimer(withTimeInterval: 25.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.callState == .idleTimeout else { return }
                 self.suspendCall()
             }
@@ -597,11 +671,61 @@ final class VoiceOrchestrator: ObservableObject {
 
     func clearSession() {
         pendingEndCall = false
+        resetOverlapMetrics()
         restoreQuestionWindowsAndCleanup()
         transcript.removeAll()
         relevantTaskIds.removeAll()
         focusedTaskId = nil
         workerRegistry.clearAll()
+    }
+
+    // MARK: - Pre-existing Task Import
+
+    /// Discover active/recent tasks from TaskService, register them in the
+    /// WorkerRegistry, add them to relevantTaskIds, and return a system prompt
+    /// supplement describing them so the voice model is aware from the start.
+    private func importActiveTasks() -> String {
+        guard let taskService else { return "" }
+
+        let activeTasks = taskService.tasks.filter { $0.status.isActive }
+        guard !activeTasks.isEmpty else { return "" }
+
+        var lines: [String] = []
+        for task in activeTasks {
+            let role = inferRole(from: task)
+            let worker = workerRegistry.importExisting(taskId: task.id, role: role)
+            addRelevantTask(task.id)
+
+            let desc = task.taskDescription.prefix(200)
+            lines.append("- \(worker.displayName) (\(worker.role)): \"\(desc)\" — status: \(task.status.displayName)")
+        }
+
+        return """
+        ## Active tasks from previous sessions
+        The following tasks are already running or queued. You can manage them with \
+        `get_task_status`, `send_instruction`, `cancel_task`, etc. — refer to them by name.
+
+        \(lines.joined(separator: "\n"))
+        """
+    }
+
+    /// Best-effort role inference from the task title or description.
+    private func inferRole(from task: TaskRecord) -> String {
+        let text = (task.title + " " + task.taskDescription).lowercased()
+        let roleKeywords: [(keywords: [String], role: String)] = [
+            (["design", "ui", "layout", "mockup", "figma"], "Designer"),
+            (["code", "develop", "implement", "build", "program", "script", "engineer"], "Developer"),
+            (["research", "find", "search", "look up", "investigate"], "Researcher"),
+            (["write", "draft", "report", "document", "blog", "article", "essay"], "Writer"),
+            (["data", "analyze", "analysis", "chart", "spreadsheet"], "Analyst"),
+            (["test", "qa", "verify", "check"], "Tester"),
+        ]
+        for (keywords, role) in roleKeywords {
+            if keywords.contains(where: { text.contains($0) }) {
+                return role
+            }
+        }
+        return "Worker"
     }
 }
 

@@ -45,13 +45,34 @@ final class WorkerRegistry: ObservableObject {
         return identity
     }
 
+    /// Import a pre-existing task (from a previous voice session) into the registry
+    /// so the current session's voice model can reference it by name.
+    @discardableResult
+    func importExisting(taskId: String, role: String) -> WorkerIdentity {
+        return assignName(for: taskId, role: role)
+    }
+
     func resolve(query: String) -> WorkerIdentity? {
         let lower = query.lowercased()
-        return workers.first { w in
+
+        // Exact match by name, role, or task ID
+        if let exact = workers.first(where: { w in
             w.displayName.lowercased() == lower ||
             w.role.lowercased().contains(lower) ||
             w.id == query
+        }) {
+            return exact
         }
+
+        // Fuzzy: check if any word in the query matches a worker name
+        let words = lower.split(separator: " ").map(String.init)
+        if let byWord = workers.first(where: { w in
+            words.contains(w.displayName.lowercased())
+        }) {
+            return byWord
+        }
+
+        return nil
     }
 
     func deregister(taskId: String) {
