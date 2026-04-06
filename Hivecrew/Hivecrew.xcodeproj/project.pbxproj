@@ -256,6 +256,7 @@
 		40B1F01400000001 /* VoiceAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01400000001 /* VoiceAvailability.swift */; };
 		40B1F01500000001 /* VoiceProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01500000001 /* VoiceProviderSetupView.swift */; };
 		40B1F01600000001 /* VoiceRetrievalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01600000001 /* VoiceRetrievalModels.swift */; };
+		40B1F01700000001 /* HostFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01700000001 /* HostFileReader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -539,6 +540,7 @@
 		40A1F01400000001 /* VoiceAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAvailability.swift; sourceTree = "<group>"; };
 		40A1F01500000001 /* VoiceProviderSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProviderSetupView.swift; sourceTree = "<group>"; };
 		40A1F01600000001 /* VoiceRetrievalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRetrievalModels.swift; sourceTree = "<group>"; };
+		40A1F01700000001 /* HostFileReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostFileReader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -813,6 +815,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				40C1F0032F72001000000003 /* Shared */,
 				40C1F0012F72001000000001 /* Voice */,
 				207B73032F3A587700572AF5 /* VMProvisioningService.swift */,
 				30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */,
@@ -1045,6 +1048,14 @@
 				30A1F0B42F61000100000004 /* VMToolScheduler.swift */,
 			);
 			path = Subagents;
+			sourceTree = "<group>";
+		};
+		40C1F0032F72001000000003 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				40A1F01700000001 /* HostFileReader.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		40C1F0012F72001000000001 /* Voice */ = {
@@ -1662,6 +1673,7 @@
 				40B1F01400000001 /* VoiceAvailability.swift in Sources */,
 				40B1F01600000001 /* VoiceRetrievalModels.swift in Sources */,
 				40B1F01500000001 /* VoiceProviderSetupView.swift in Sources */,
+				40B1F01700000001 /* HostFileReader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -54,6 +54,11 @@ final class VoiceOrchestrator: ObservableObject {
     @Published var callState: CallState = .idle
     @Published var connectionState: VoiceConnectionState = .disconnected
     @Published var transcript: [TranscriptEntry] = []
+
+    /// Prefix to strip from model output transcriptions after a tool call.
+    /// Gemini Live sends cumulative text for the entire server turn, so after
+    /// a tool call the transcription includes the pre-tool text verbatim.
+    private var modelTranscriptPrefixToStrip: String = ""
     @Published var relevantTaskIds: [String] = []
     @Published var focusedTaskId: String?
     @Published var isMuted = false {
@@ -378,16 +383,25 @@ final class VoiceOrchestrator: ObservableObject {
         resetIdleTimer()
         if transcription.source == .input {
             logFirstInputTranscriptAfterOverlap(transcription.text)
+            modelTranscriptPrefixToStrip = ""
         }
         let role: TranscriptEntry.Role = transcription.source == .input ? .user : .model
+
+        var text = transcription.text
+        if role == .model, !modelTranscriptPrefixToStrip.isEmpty,
+           text.hasPrefix(modelTranscriptPrefixToStrip) {
+            text = String(text.dropFirst(modelTranscriptPrefixToStrip.count))
+        }
+
         if let last = transcript.last, last.role == role, case .text = last.content {
             transcript[transcript.count - 1] = .speech(
                 role: role,
-                text: transcription.text,
+                text: text,
                 timestamp: last.timestamp
             )
         } else {
-            transcript.append(.speech(role: role, text: transcription.text))
+            guard !text.isEmpty else { return }
+            transcript.append(.speech(role: role, text: text))
         }
     }
 
@@ -396,6 +410,13 @@ final class VoiceOrchestrator: ObservableObject {
     private func handleToolCall(_ toolCall: VoiceToolCall) async {
         resetIdleTimer()
         guard let taskService else { return }
+
+        // Snapshot the model's current text so we can strip it from the
+        // cumulative transcription Gemini sends after the tool response.
+        if let lastModel = transcript.last(where: { $0.role == .model }),
+           case .text(let prevText) = lastModel.content {
+            modelTranscriptPrefixToStrip = prevText
+        }
 
         let result = await OrchestratorToolHandler.handle(
             toolCall: toolCall,
@@ -407,6 +428,13 @@ final class VoiceOrchestrator: ObservableObject {
 
         if let record = result.transcriptRecord {
             transcript.append(.toolUse(record))
+        }
+
+        // If the tool produced image data, send it via the realtime input
+        // stream BEFORE the tool response so the model has the image in
+        // context when it processes the result and starts generating.
+        if let imageData = result.imageData {
+            try? await provider?.sendVideoFrame(imageData)
         }
 
         try? await provider?.sendToolResponse(
@@ -475,10 +503,11 @@ final class VoiceOrchestrator: ObservableObject {
         case .completed:
             self.focusedTaskId = taskId
             let summary = publisher.completionSummary ?? task?.resultSummary ?? "Task finished."
-            let deliverableCount = task?.outputFilePaths?.count ?? 0
+            let deliverablePaths = task?.outputFilePaths ?? []
             var message = "[CALLBACK] \(workerName) finished their task. Result: \(summary)"
-            if deliverableCount > 0 {
-                message += " (\(deliverableCount) deliverable\(deliverableCount == 1 ? "" : "s") produced)"
+            if !deliverablePaths.isEmpty {
+                message += "\nDeliverables saved to host at:\n" + deliverablePaths.joined(separator: "\n")
+                message += "\nIMPORTANT: When telling the user about deliverable files, use the host paths above — NOT any paths mentioned in the result summary (those refer to the worker's internal VM, not the user's machine). You can open these files using the `open_file` tool."
             }
             let progress = publisher.progressSummary
             if !progress.isEmpty {
@@ -657,7 +686,7 @@ final class VoiceOrchestrator: ObservableObject {
     }
 
     private func startSuspendTimer() {
-        suspendTimer = Timer.scheduledTimer(withTimeInterval: 25.0, repeats: false) { [weak self] _ in
+        suspendTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.callState == .idleTimeout else { return }
                 self.suspendCall()
@@ -796,5 +825,5 @@ struct ToolUseRecord: Identifiable, Equatable {
     let summary: String
     let detail: String
     var fileResults: [VoiceFileSearchResult]
-    var imagePath: String?
+    var previewFilePath: String?
 }

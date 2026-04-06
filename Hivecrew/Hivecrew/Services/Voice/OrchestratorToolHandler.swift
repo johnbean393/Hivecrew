@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AppKit
 import HivecrewLLM
 import HivecrewVoice
 import SwiftData
@@ -16,6 +17,16 @@ internal import AVFoundation
 struct ToolCallResult {
     let text: String
     let transcriptRecord: ToolUseRecord?
+
+    /// JPEG image data to send to the voice model via the realtime input stream
+    /// so it can visually analyze the image (e.g. for `read_file` on an image).
+    let imageData: Data?
+
+    init(text: String, transcriptRecord: ToolUseRecord?, imageData: Data? = nil) {
+        self.text = text
+        self.transcriptRecord = transcriptRecord
+        self.imageData = imageData
+    }
 
     static func textOnly(_ text: String) -> ToolCallResult {
         ToolCallResult(text: text, transcriptRecord: nil)
@@ -131,6 +142,38 @@ enum OrchestratorToolHandler {
                 required: ["query"]
             )
         ),
+        VoiceToolDeclaration(
+            name: "read_file",
+            description: "Read the contents of a file on the host machine. Works with text, code, PDF, docx, xlsx, pptx, RTF, plist, and images. For image files, the image is loaded into your visual context so you can see and describe it. Use for reading deliverables or attached files.",
+            parameters: VoiceToolParameters(
+                properties: [
+                    "path": VoiceToolProperty(type: "string", description: "Absolute path to the file"),
+                ],
+                required: ["path"]
+            )
+        ),
+        VoiceToolDeclaration(
+            name: "search_file_content",
+            description: "Search within a file for content matching a query. Returns only matching sections with context. Faster than read_file for large files when you need specific information.",
+            parameters: VoiceToolParameters(
+                properties: [
+                    "path": VoiceToolProperty(type: "string", description: "Absolute path to the file"),
+                    "query": VoiceToolProperty(type: "string", description: "Text to search for within the file"),
+                ],
+                required: ["path", "query"]
+            )
+        ),
+        VoiceToolDeclaration(
+            name: "open_file",
+            description: "Open a file or folder on the user's Mac using the default application, or reveal it in Finder.",
+            parameters: VoiceToolParameters(
+                properties: [
+                    "path": VoiceToolProperty(type: "string", description: "Absolute path to the file or folder"),
+                    "reveal": VoiceToolProperty(type: "string", description: "If 'true', reveal in Finder instead of opening. Default: false"),
+                ],
+                required: ["path"]
+            )
+        ),
     ]
 
     // MARK: - Dispatch
@@ -218,6 +261,21 @@ enum OrchestratorToolHandler {
                 query: args["query"] ?? "",
                 sourceFilter: args["source_filter"] ?? "",
                 orchestrator: orchestrator
+            )
+
+        case "read_file":
+            return await handleReadFile(path: args["path"] ?? "")
+
+        case "search_file_content":
+            return await handleSearchFileContent(
+                path: args["path"] ?? "",
+                query: args["query"] ?? ""
+            )
+
+        case "open_file":
+            return handleOpenFile(
+                path: args["path"] ?? "",
+                reveal: args["reveal"] ?? "false"
             )
 
         default:
@@ -559,7 +617,7 @@ enum OrchestratorToolHandler {
                 summary: "Captured reference image (\(sizeKB) KB)",
                 detail: result,
                 fileResults: [],
-                imagePath: tempURL.path
+                previewFilePath: tempURL.path
             )
             return ToolCallResult(text: result, transcriptRecord: record)
         } catch {
@@ -725,6 +783,152 @@ enum OrchestratorToolHandler {
             return ToolCallResult(text: responseText, transcriptRecord: record)
         } catch {
             return .textOnly("File search failed: \(error.localizedDescription). Proceed without attachments or ask the user for file paths.")
+        }
+    }
+
+    // MARK: - File Reading
+
+    private static func handleReadFile(path: String) async -> ToolCallResult {
+        guard !path.isEmpty else {
+            return .textOnly("Error: path is required for read_file.")
+        }
+
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: path) else {
+            return .textOnly("Error: File not found at \(path)")
+        }
+
+        do {
+            let result = try await HostFileReader.read(at: url)
+            let filename = url.lastPathComponent
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+            let sizeStr = ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
+
+            // For images, send the image data to the voice model so it can
+            // visually analyze the content, matching the task agent's behavior.
+            if result.hasImage {
+                let jpegData = imageAsJPEG(at: url)
+                let text = result.text + "\nThe image has been loaded into your visual input. You can see it — describe its contents to the user."
+                let record = ToolUseRecord(
+                    toolName: "read_file",
+                    summary: "Read \(filename) (\(sizeStr))",
+                    detail: result.text,
+                    fileResults: [],
+                    previewFilePath: path
+                )
+                return ToolCallResult(text: text, transcriptRecord: record, imageData: jpegData)
+            }
+
+            var text = result.text
+            if text.count > 10_000 {
+                text = String(text.prefix(10_000)) + "\n\n[... truncated for voice context ...]"
+            }
+
+            let record = ToolUseRecord(
+                toolName: "read_file",
+                summary: "Read \(filename) (\(sizeStr))",
+                detail: text,
+                fileResults: [],
+                previewFilePath: path
+            )
+            return ToolCallResult(text: text, transcriptRecord: record)
+        } catch {
+            return .textOnly("Error reading file: \(error.localizedDescription)")
+        }
+    }
+
+    /// Convert an image file to JPEG Data for sending to the voice model.
+    private static func imageAsJPEG(at url: URL) -> Data? {
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        guard let tiffData = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData) else { return nil }
+
+        let maxDim: CGFloat = 1024
+        let w = CGFloat(bitmap.pixelsWide)
+        let h = CGFloat(bitmap.pixelsHigh)
+        if w > maxDim || h > maxDim {
+            let scale = min(maxDim / w, maxDim / h)
+            let newSize = NSSize(width: w * scale, height: h * scale)
+            let resized = NSImage(size: newSize)
+            resized.lockFocus()
+            image.draw(in: NSRect(origin: .zero, size: newSize),
+                       from: NSRect(origin: .zero, size: image.size),
+                       operation: .copy, fraction: 1.0)
+            resized.unlockFocus()
+            guard let resizedTiff = resized.tiffRepresentation,
+                  let resizedBitmap = NSBitmapImageRep(data: resizedTiff) else { return nil }
+            return resizedBitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.8])
+        }
+
+        return bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.8])
+    }
+
+    private static func handleSearchFileContent(
+        path: String,
+        query: String
+    ) async -> ToolCallResult {
+        guard !path.isEmpty else {
+            return .textOnly("Error: path is required for search_file_content.")
+        }
+        guard !query.isEmpty else {
+            return .textOnly("Error: query is required for search_file_content.")
+        }
+
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: path) else {
+            return .textOnly("Error: File not found at \(path)")
+        }
+
+        do {
+            let result = try await HostFileReader.readAndSearch(at: url, query: query)
+            let filename = url.lastPathComponent
+
+            let record = ToolUseRecord(
+                toolName: "search_file_content",
+                summary: "Searched \(filename) for \"\(query)\"",
+                detail: result.text,
+                fileResults: []
+            )
+            return ToolCallResult(text: result.text, transcriptRecord: record)
+        } catch {
+            return .textOnly("Error searching file: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - File Opening
+
+    private static func handleOpenFile(path: String, reveal: String) -> ToolCallResult {
+        guard !path.isEmpty else {
+            return .textOnly("Error: path is required for open_file.")
+        }
+
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: path) else {
+            return .textOnly("Error: File not found at \(path)")
+        }
+
+        let filename = url.lastPathComponent
+
+        if reveal.lowercased() == "true" {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+            let result = "Revealed \(filename) in Finder"
+            let record = ToolUseRecord(
+                toolName: "open_file",
+                summary: result,
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
+        } else {
+            NSWorkspace.shared.open(url)
+            let result = "Opened \(filename)"
+            let record = ToolUseRecord(
+                toolName: "open_file",
+                summary: result,
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
     }
 }

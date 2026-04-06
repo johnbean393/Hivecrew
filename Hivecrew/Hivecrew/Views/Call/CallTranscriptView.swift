@@ -7,14 +7,12 @@
 //
 
 import SwiftUI
-import QuickLook
+import QuickLookThumbnailing
 
 struct CallTranscriptView: View {
 
     @Binding var entries: [TranscriptEntry]
     var assistantName: String = "Hivecrew"
-
-    @State private var quickLookURL: URL? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -52,7 +50,6 @@ struct CallTranscriptView: View {
                 }
             }
         }
-        .quickLookPreview($quickLookURL)
     }
 
     @ViewBuilder
@@ -72,7 +69,7 @@ struct CallTranscriptView: View {
             }
 
         case .toolUse(let record):
-            TranscriptToolUseView(entries: $entries, entryId: entry.id, record: record, quickLookURL: $quickLookURL)
+            TranscriptToolUseView(entries: $entries, entryId: entry.id, record: record)
         }
     }
 }
@@ -86,7 +83,6 @@ struct TranscriptToolUseView: View {
     @Binding var entries: [TranscriptEntry]
     let entryId: UUID
     let record: ToolUseRecord
-    @Binding var quickLookURL: URL?
 
     @State private var isExpanded = false
     @StateObject private var scrollGestureGate = ChipScrollGestureGate()
@@ -124,8 +120,12 @@ struct TranscriptToolUseView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            if let path = record.imagePath {
-                capturePreview(path: path)
+            if let path = record.previewFilePath {
+                FilePreviewThumbnail(path: path, onTap: {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                })
+                .padding(.leading, 72)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
 
             if !record.fileResults.isEmpty {
@@ -135,45 +135,28 @@ struct TranscriptToolUseView: View {
     }
 
     private var hasExpandableDetail: Bool {
-        record.toolName != "search_files"
-            && record.toolName != "capture_reference"
-            && !record.detail.isEmpty
-    }
-
-    @ViewBuilder
-    private func capturePreview(path: String) -> some View {
-        let url = URL(fileURLWithPath: path)
-        if let nsImage = NSImage(contentsOf: url) {
-            HStack {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxHeight: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .onTapGesture {
-                        quickLookURL = url
-                    }
-                Spacer()
-            }
-            .padding(.leading, 72)
-            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-        }
+        !record.detail.isEmpty
+            && record.toolName != "search_files"
+            && record.previewFilePath == nil
     }
 
     private var iconForTool: String {
         switch record.toolName {
-        case "create_task":       return "plus.circle.fill"
-        case "get_task_status":   return "info.circle.fill"
-        case "send_instruction":  return "arrow.up.message.fill"
-        case "pause_task":        return "pause.circle.fill"
-        case "resume_task":       return "play.circle.fill"
-        case "cancel_task":       return "xmark.circle.fill"
-        case "capture_reference": return "camera.fill"
-        case "search_files":      return "doc.text.magnifyingglass"
-        case "get_deliverables":  return "doc.on.doc.fill"
-        case "focus_task":        return "scope"
-        case "end_call":          return "phone.down.fill"
-        default:                  return "wrench.fill"
+        case "create_task":          return "plus.circle.fill"
+        case "get_task_status":      return "info.circle.fill"
+        case "send_instruction":     return "arrow.up.message.fill"
+        case "pause_task":           return "pause.circle.fill"
+        case "resume_task":          return "play.circle.fill"
+        case "cancel_task":          return "xmark.circle.fill"
+        case "capture_reference":    return "camera.fill"
+        case "search_files":         return "doc.text.magnifyingglass"
+        case "get_deliverables":     return "doc.on.doc.fill"
+        case "focus_task":           return "scope"
+        case "end_call":             return "phone.down.fill"
+        case "read_file":            return "doc.text.fill"
+        case "search_file_content":  return "text.magnifyingglass"
+        case "open_file":            return "arrow.up.forward.app.fill"
+        default:                     return "wrench.fill"
         }
     }
 
@@ -217,5 +200,64 @@ struct TranscriptToolUseView: View {
               let resultIndex = record.fileResults.firstIndex(where: { $0.id == resultId }) else { return }
         record.fileResults[resultIndex].isSelected = false
         entries[entryIndex] = .toolUse(record, timestamp: entries[entryIndex].timestamp)
+    }
+}
+
+// MARK: - File Preview Thumbnail
+
+/// Generates a QuickLook thumbnail for any file type. Falls back to NSImage for
+/// common image formats, and to NSWorkspace file icon if thumbnail generation fails.
+private struct FilePreviewThumbnail: View {
+
+    let path: String
+    var onTap: () -> Void = {}
+
+    @State private var thumbnail: NSImage?
+
+    private var url: URL { URL(fileURLWithPath: path) }
+
+    var body: some View {
+        HStack {
+            Group {
+                if let thumbnail {
+                    Image(nsImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                }
+            }
+            .frame(maxHeight: 100)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .onTapGesture(perform: onTap)
+            Spacer()
+        }
+        .task { await generateThumbnail() }
+    }
+
+    private func generateThumbnail() async {
+        let imageExts: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "heif", "webp", "tiff", "bmp"]
+        if imageExts.contains(url.pathExtension.lowercased()),
+           let nsImage = NSImage(contentsOf: url) {
+            thumbnail = nsImage
+            return
+        }
+
+        let size = CGSize(width: 300, height: 300)
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url,
+            size: size,
+            scale: NSScreen.main?.backingScaleFactor ?? 2.0,
+            representationTypes: .thumbnail
+        )
+
+        do {
+            let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
+            thumbnail = representation.nsImage
+        } catch {
+            thumbnail = NSWorkspace.shared.icon(forFile: path)
+        }
     }
 }
