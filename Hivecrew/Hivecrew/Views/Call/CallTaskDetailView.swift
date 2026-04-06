@@ -395,7 +395,7 @@ struct CallTaskDetailView: View {
                 if let worker {
                     Text(worker.displayName)
                         .font(.title3.bold())
-                    Text(worker.role)
+                    Text(worker.taskTitle)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }

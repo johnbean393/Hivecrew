@@ -12,8 +12,8 @@ import Combine
 struct WorkerIdentity: Identifiable, Equatable {
     let id: String          // taskId
     let displayName: String // e.g. "John"
-    let role: String        // e.g. "3D Modeler"
-    var label: String { "\(displayName) · \(role)" }
+    let taskTitle: String   // LLM-generated short title from TaskRecord
+    var label: String { "\(displayName) · \(taskTitle)" }
 }
 
 @MainActor
@@ -33,7 +33,7 @@ final class WorkerRegistry: ObservableObject {
         Set(workers.map(\.displayName))
     }
 
-    func assignName(for taskId: String, role: String) -> WorkerIdentity {
+    func assignName(for taskId: String, taskTitle: String) -> WorkerIdentity {
         if let existing = workers.first(where: { $0.id == taskId }) {
             return existing
         }
@@ -41,14 +41,14 @@ final class WorkerRegistry: ObservableObject {
         let available = Self.namePool.filter { !activeNames.contains($0) }
         let name = available.randomElement() ?? "Worker-\(workers.count + 1)"
 
-        let identity = WorkerIdentity(id: taskId, displayName: name, role: role)
+        let identity = WorkerIdentity(id: taskId, displayName: name, taskTitle: taskTitle)
         workers.append(identity)
         return identity
     }
 
     @discardableResult
-    func importExisting(taskId: String, role: String) -> WorkerIdentity {
-        return assignName(for: taskId, role: role)
+    func importExisting(taskId: String, taskTitle: String) -> WorkerIdentity {
+        return assignName(for: taskId, taskTitle: taskTitle)
     }
 
     func resolve(query: String) -> WorkerIdentity? {
@@ -56,7 +56,7 @@ final class WorkerRegistry: ObservableObject {
 
         if let exact = workers.first(where: { w in
             w.displayName.lowercased() == lower ||
-            w.role.lowercased().contains(lower) ||
+            w.taskTitle.lowercased().contains(lower) ||
             w.id == query
         }) {
             return exact

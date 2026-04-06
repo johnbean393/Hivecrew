@@ -687,7 +687,7 @@ final class VoiceOrchestrator: ObservableObject {
     private func subscribeToInputLevel() {
         inputLevelCancellable?.cancel()
         inputLevelCancellable = audioManager.$inputLevel
-            .filter { $0 > 0.15 }
+            .filter { $0 > 0.2 }
             .throttle(for: .seconds(2), scheduler: RunLoop.main, latest: true)
             .sink { [weak self] _ in
                 self?.resetIdleTimer()
@@ -737,12 +737,11 @@ final class VoiceOrchestrator: ObservableObject {
 
         var lines: [String] = []
         for task in activeTasks {
-            let role = inferRole(from: task)
-            let worker = workerRegistry.importExisting(taskId: task.id, role: role)
+            let worker = workerRegistry.importExisting(taskId: task.id, taskTitle: task.title)
             addRelevantTask(task.id)
 
             let desc = task.taskDescription.prefix(200)
-            lines.append("- \(worker.displayName) (\(worker.role)): \"\(desc)\" — status: \(task.status.displayName)")
+            lines.append("- \(worker.displayName) (\(task.title)): \"\(desc)\" — status: \(task.status.displayName)")
         }
 
         return """
@@ -754,24 +753,6 @@ final class VoiceOrchestrator: ObservableObject {
         """
     }
 
-    /// Best-effort role inference from the task title or description.
-    private func inferRole(from task: TaskRecord) -> String {
-        let text = (task.title + " " + task.taskDescription).lowercased()
-        let roleKeywords: [(keywords: [String], role: String)] = [
-            (["design", "ui", "layout", "mockup", "figma"], "Designer"),
-            (["code", "develop", "implement", "build", "program", "script", "engineer"], "Developer"),
-            (["research", "find", "search", "look up", "investigate"], "Researcher"),
-            (["write", "draft", "report", "document", "blog", "article", "essay"], "Writer"),
-            (["data", "analyze", "analysis", "chart", "spreadsheet"], "Analyst"),
-            (["test", "qa", "verify", "check"], "Tester"),
-        ]
-        for (keywords, role) in roleKeywords {
-            if keywords.contains(where: { text.contains($0) }) {
-                return role
-            }
-        }
-        return "Worker"
-    }
 }
 
 // MARK: - Transcript Entry

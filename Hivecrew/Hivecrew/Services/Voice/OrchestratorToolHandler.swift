@@ -34,10 +34,9 @@ enum OrchestratorToolHandler {
             parameters: VoiceToolParameters(
                 properties: [
                     "description": VoiceToolProperty(type: "string", description: "The full end-to-end goal for the worker, including all steps (e.g. research + write file)"),
-                    "role": VoiceToolProperty(type: "string", description: "Short role label, e.g. 'UI Designer', 'Researcher'"),
                     "attachments": VoiceToolProperty(type: "string", description: "Comma-separated file paths to attach (e.g. from capture_reference)"),
                 ],
-                required: ["description", "role"]
+                required: ["description"]
             )
         ),
         VoiceToolDeclaration(
@@ -149,7 +148,6 @@ enum OrchestratorToolHandler {
         case "create_task":
             return await handleCreateTask(
                 description: args["description"] ?? "",
-                role: args["role"] ?? "Worker",
                 attachments: args["attachments"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry,
@@ -244,7 +242,6 @@ enum OrchestratorToolHandler {
 
     private static func handleCreateTask(
         description: String,
-        role: String,
         attachments: String,
         taskService: TaskService,
         workerRegistry: WorkerRegistry,
@@ -285,15 +282,15 @@ enum OrchestratorToolHandler {
                 modelId: modelId,
                 attachedFilePaths: filePaths
             )
-            let worker = workerRegistry.assignName(for: task.id, role: role)
+            let worker = workerRegistry.assignName(for: task.id, taskTitle: task.title)
             orchestrator.addRelevantTask(task.id)
-            var result = "Task created. Worker \(worker.displayName) (\(worker.role)) is on it. Task ID: \(task.id)"
+            var result = "Task created. Worker \(worker.displayName) is on it — \"\(task.title)\". Task ID: \(task.id)"
             if !filePaths.isEmpty {
                 result += " (\(filePaths.count) file\(filePaths.count == 1 ? "" : "s") attached)"
             }
             let record = ToolUseRecord(
                 toolName: "create_task",
-                summary: "Assigned \(worker.displayName) (\(worker.role))",
+                summary: "Assigned \(worker.displayName) — \(task.title)",
                 detail: result,
                 fileResults: []
             )
