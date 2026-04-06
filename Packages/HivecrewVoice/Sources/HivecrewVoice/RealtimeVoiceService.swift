@@ -23,6 +23,10 @@ public final class RealtimeVoiceService: Sendable {
             let provider = GeminiLiveProvider()
             provider.configure(apiKey: apiKey, model: model)
             return provider
+        case .openAIRealtime:
+            let provider = OpenAIRealtimeProvider()
+            provider.configure(apiKey: apiKey, model: model)
+            return provider
         }
     }
 }

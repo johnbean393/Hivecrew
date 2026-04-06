@@ -87,7 +87,7 @@ struct VoiceSettingsPopover: View {
 
     @EnvironmentObject var orchestrator: VoiceOrchestrator
 
-    private let availableVoices: [(name: String, descriptor: String)] = [
+    private let geminiVoices: [(name: String, descriptor: String)] = [
         ("Zephyr", "Bright"),
         ("Puck", "Upbeat"),
         ("Charon", "Informative"),
@@ -120,32 +120,58 @@ struct VoiceSettingsPopover: View {
         ("Sulafat", "Warm"),
     ]
 
+    private let openAIVoices: [(name: String, descriptor: String)] = [
+        ("marin", "Natural"),
+        ("cedar", "Friendly"),
+        ("alloy", "Versatile"),
+        ("ash", "Conversational"),
+        ("ballad", "Expressive"),
+        ("coral", "Warm"),
+        ("echo", "Crisp"),
+        ("sage", "Authoritative"),
+        ("shimmer", "Gentle"),
+        ("verse", "Dynamic"),
+    ]
+
+    private var currentProviderType: VoiceProviderType? {
+        VoiceProviderType(rawValue: orchestrator.voiceProviderTypeRaw)
+    }
+
+    private var voicesForCurrentProvider: [(name: String, descriptor: String)] {
+        switch currentProviderType {
+        case .openAI: return openAIVoices
+        default: return geminiVoices
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Picker("Voice", selection: $orchestrator.voiceName) {
-                ForEach(availableVoices, id: \.name) { voice in
-                    Text("\(voice.name) — \(voice.descriptor)").tag(voice.name)
+                ForEach(voicesForCurrentProvider, id: \.name) { voice in
+                    Text("\(voice.name.capitalized) — \(voice.descriptor)").tag(voice.name)
                 }
             }
             .labelsHidden()
 
-            Toggle("Web Search", isOn: $orchestrator.webSearchEnabled)
-                .toggleStyle(.switch)
+            if currentProviderType == .gemini {
+                Toggle("Web Search", isOn: $orchestrator.webSearchEnabled)
+                    .toggleStyle(.switch)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Thinking")
-                    .font(.subheadline)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Thinking")
+                        .font(.subheadline)
 
-                Picker("Level", selection: $orchestrator.thinkingLevelRaw) {
-                    Text("Minimal").tag("minimal")
-                    Text("Low").tag("low")
-                    Text("Medium").tag("medium")
-                    Text("High").tag("high")
+                    Picker("Level", selection: $orchestrator.thinkingLevelRaw) {
+                        Text("Minimal").tag("minimal")
+                        Text("Low").tag("low")
+                        Text("Medium").tag("medium")
+                        Text("High").tag("high")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Toggle("Thought Summaries", isOn: $orchestrator.includeThoughts)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-
-                Toggle("Thought Summaries", isOn: $orchestrator.includeThoughts)
             }
         }
         .padding()

@@ -13,6 +13,7 @@ import HivecrewVoice
 
 enum VoiceProviderType: String, Sendable {
     case gemini = "gemini"
+    case openAI = "openai"
 }
 
 enum VoiceConfigurationStatus: Equatable {
@@ -29,18 +30,62 @@ enum VoiceAvailability {
     static let voiceMediaResolutionKey = "voice_media_resolution"
 
     static let defaultGeminiModel = "gemini-3.1-flash-live-preview"
+    static let defaultOpenAIModel = "gpt-realtime-1.5"
 
     static func defaultModel(for provider: VoiceProviderType) -> String {
         switch provider {
         case .gemini:
             return defaultGeminiModel
+        case .openAI:
+            return defaultOpenAIModel
         }
+    }
+
+    static func defaultVoice(for provider: VoiceProviderType) -> String {
+        switch provider {
+        case .gemini: return "Leda"
+        case .openAI: return "marin"
+        }
+    }
+
+    // MARK: - Per-Provider Preference Persistence
+
+    private static func perProviderKey(_ baseKey: String, provider: VoiceProviderType) -> String {
+        "\(baseKey)_\(provider.rawValue)"
+    }
+
+    /// Saves the current voice and model selections under per-provider keys.
+    static func savePerProviderPreferences(for provider: VoiceProviderType) {
+        let defaults = UserDefaults.standard
+        if let model = defaults.string(forKey: voiceModelKey), !model.isEmpty {
+            defaults.set(model, forKey: perProviderKey(voiceModelKey, provider: provider))
+        }
+        if let voice = defaults.string(forKey: voiceVoiceNameKey), !voice.isEmpty {
+            defaults.set(voice, forKey: perProviderKey(voiceVoiceNameKey, provider: provider))
+        }
+    }
+
+    /// Restores per-provider voice and model, falling back to defaults.
+    static func restorePerProviderPreferences(for provider: VoiceProviderType) {
+        let defaults = UserDefaults.standard
+        let model = defaults.string(forKey: perProviderKey(voiceModelKey, provider: provider))
+        defaults.set(
+            (model?.isEmpty == false) ? model : defaultModel(for: provider),
+            forKey: voiceModelKey
+        )
+        let voice = defaults.string(forKey: perProviderKey(voiceVoiceNameKey, provider: provider))
+        defaults.set(
+            (voice?.isEmpty == false) ? voice : defaultVoice(for: provider),
+            forKey: voiceVoiceNameKey
+        )
     }
 
     static func backend(for type: VoiceProviderType) -> VoiceProviderBackend {
         switch type {
         case .gemini:
             return .geminiLive
+        case .openAI:
+            return .openAIRealtime
         }
     }
 
@@ -57,15 +102,20 @@ enum VoiceAvailability {
         }
 
         let defaults = UserDefaults.standard
-        let previousProvider = defaults.string(forKey: voiceProviderTypeKey)
-        let didSwitchProvider = previousProvider != providerToUse.rawValue
+        let previousRaw = defaults.string(forKey: voiceProviderTypeKey)
+        let previousProvider = previousRaw.flatMap(VoiceProviderType.init(rawValue:))
+        let didSwitchProvider = previousRaw != providerToUse.rawValue
 
         if didSwitchProvider {
+            if let previousProvider {
+                savePerProviderPreferences(for: previousProvider)
+            }
             defaults.set(providerToUse.rawValue, forKey: voiceProviderTypeKey)
+            restorePerProviderPreferences(for: providerToUse)
         }
 
         let currentModel = normalizedString(defaults.string(forKey: voiceModelKey))
-        if currentModel.isEmpty || didSwitchProvider {
+        if currentModel.isEmpty {
             defaults.set(defaultModel(for: providerToUse), forKey: voiceModelKey)
         }
     }
@@ -133,6 +183,9 @@ enum VoiceAvailability {
         if baseURL.contains("generativelanguage.googleapis.com") {
             return .gemini
         }
+        if baseURL.contains("api.openai.com") {
+            return .openAI
+        }
         return nil
     }
 
@@ -160,6 +213,10 @@ enum VoiceAvailability {
 
         if hasConfiguredProvider(type: .gemini, providers: providers) {
             return .gemini
+        }
+
+        if hasConfiguredProvider(type: .openAI, providers: providers) {
+            return .openAI
         }
 
         return nil

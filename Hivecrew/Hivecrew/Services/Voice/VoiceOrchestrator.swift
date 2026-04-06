@@ -130,7 +130,7 @@ final class VoiceOrchestrator: ObservableObject {
         VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
 
         guard let credentials = VoiceAvailability.getCredentials(modelContext: modelContext) else {
-            connectionState = .error("No voice provider configured. Add a Google AI Studio provider in Settings → Providers.")
+            connectionState = .error("No voice provider configured. Add a provider in Settings → Providers.")
             return
         }
 
@@ -154,15 +154,19 @@ final class VoiceOrchestrator: ObservableObject {
         // Import active tasks from previous sessions so the voice model can manage them.
         let existingTasksSummary = importActiveTasks()
 
-        var systemPrompt = OrchestratorSystemPrompt.build(voiceName: voiceName)
+        var systemPrompt = OrchestratorSystemPrompt.build(
+            voiceName: voiceName.capitalized
+        )
         if !existingTasksSummary.isEmpty {
             systemPrompt += "\n\n" + existingTasksSummary
         }
 
+        let tools = OrchestratorToolHandler.toolDeclarations
+
         let config = VoiceSessionConfig(
             systemPrompt: systemPrompt,
             voiceName: voiceName,
-            tools: OrchestratorToolHandler.toolDeclarations,
+            tools: tools,
             mediaResolution: mediaRes,
             thinkingLevel: thinkingLevel,
             includeThoughts: includeThoughts,
@@ -197,7 +201,8 @@ final class VoiceOrchestrator: ObservableObject {
         connectionState = .disconnected
         callState = .idle
         isModelSpeaking = false
-        tokenCountBase = totalTokenCount
+        totalTokenCount = 0
+        tokenCountBase = 0
         restoreQuestionWindowsAndCleanup()
     }
 

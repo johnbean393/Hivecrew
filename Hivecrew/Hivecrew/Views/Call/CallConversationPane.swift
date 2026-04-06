@@ -49,7 +49,7 @@ struct CallConversationPane: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            CallTranscriptView(entries: $orchestrator.transcript, assistantName: orchestrator.voiceName)
+            CallTranscriptView(entries: $orchestrator.transcript, assistantName: orchestrator.voiceName.capitalized)
                 .frame(maxHeight: .infinity)
 
             if let question = orchestrator.activeWorkerQuestions.first {

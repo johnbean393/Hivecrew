@@ -28,7 +28,6 @@ struct CallControlBar: View {
                 orchestrator.isMuted.toggle()
             }
 
-            // Video source toggle
             CallControlButton(
                 icon: videoActive ? "rectangle.on.rectangle.fill" : "rectangle.dashed.badge.record",
                 color: videoActive ? .blue : .black
@@ -41,7 +40,6 @@ struct CallControlBar: View {
                     .frame(width: 320, height: 300)
             }
 
-            // Capture (visible when video active)
             if videoActive {
                 CallControlButton(
                     icon: "camera.fill",

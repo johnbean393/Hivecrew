@@ -3533,7 +3533,7 @@
       }
     },
     "AIza..." : {
-
+      "shouldTranslate" : false
     },
     "Allow agents to generate images using AI. Generated images are saved to the VM's images inbox folder." : {
       "localizations" : {
@@ -15373,7 +15373,7 @@
       }
     },
     "gemini-3.1-flash-live-preview" : {
-
+      "shouldTranslate" : false
     },
     "Generate API Key" : {
       "localizations" : {
@@ -15563,7 +15563,7 @@
       }
     },
     "Google AI Studio" : {
-
+      "shouldTranslate" : false
     },
     "Google AI Studio provider detected" : {
 
@@ -15659,6 +15659,12 @@
           }
         }
       }
+    },
+    "gpt-realtime-1.5" : {
+      "shouldTranslate" : false
+    },
+    "gpt-realtime-mini" : {
+      "shouldTranslate" : false
     },
     "Hide API key" : {
       "localizations" : {
@@ -22619,6 +22625,9 @@
         }
       }
     },
+    "OpenAI" : {
+      "shouldTranslate" : false
+    },
     "OpenAI API" : {
       "localizations" : {
         "de" : {
@@ -22664,6 +22673,9 @@
           }
         }
       }
+    },
+    "OpenAI Realtime speech-to-speech models." : {
+
     },
     "OpenRouter" : {
       "localizations" : {

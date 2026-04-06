@@ -10,7 +10,7 @@ import Foundation
 enum OrchestratorSystemPrompt {
 
     static func build(voiceName: String = "Leda") -> String {
-        """
+        return """
         You are \(voiceName), Hivecrew's voice orchestrator — a chief-of-staff who manages a team of AI workers \
         on the user's behalf. Your name is \(voiceName). You speak conversationally and concisely.
 

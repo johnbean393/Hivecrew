@@ -24,8 +24,16 @@ struct VoiceSettingsView: View {
         VoiceAvailability.hasConfiguredProvider(type: .gemini, providers: providers)
     }
 
+    private var hasOpenAIProvider: Bool {
+        VoiceAvailability.hasConfiguredProvider(type: .openAI, providers: providers)
+    }
+
+    private var selectedProviderType: VoiceProviderType? {
+        VoiceProviderType(rawValue: voiceProviderType)
+    }
+
     private var isProviderConfigured: Bool {
-        guard let type = VoiceProviderType(rawValue: voiceProviderType) else {
+        guard let type = selectedProviderType else {
             return false
         }
         return VoiceAvailability.hasConfiguredProvider(type: type, providers: providers)
@@ -53,41 +61,83 @@ struct VoiceSettingsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("Provider", selection: $voiceProviderType) {
                     Text("Google Gemini").tag(VoiceProviderType.gemini.rawValue)
+                    Text("OpenAI").tag(VoiceProviderType.openAI.rawValue)
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: voiceProviderType) { _, newValue in
-                    if let type = VoiceProviderType(rawValue: newValue) {
-                        selectedModel = VoiceAvailability.defaultModel(for: type)
+                .onChange(of: voiceProviderType) { oldValue, newValue in
+                    if let oldType = VoiceProviderType(rawValue: oldValue) {
+                        VoiceAvailability.savePerProviderPreferences(for: oldType)
+                    }
+                    if let newType = VoiceProviderType(rawValue: newValue) {
+                        VoiceAvailability.restorePerProviderPreferences(for: newType)
+                        selectedModel = UserDefaults.standard.string(forKey: VoiceAvailability.voiceModelKey)
+                            ?? VoiceAvailability.defaultModel(for: newType)
                     }
                 }
 
-                geminiConfigStatus
+                switch selectedProviderType {
+                case .openAI:
+                    openAIConfigStatus
+                default:
+                    geminiConfigStatus
+                }
 
                 Divider()
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Picker("Model", selection: $selectedModel) {
-                        Text("gemini-3.1-flash-live-preview").tag("gemini-3.1-flash-live-preview")
-                    }
+                modelPicker
+            }
+        }
+    }
 
-                    Text("The live preview model for real-time voice conversations.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+    private var modelPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            switch selectedProviderType {
+            case .openAI:
+                Picker("Model", selection: $selectedModel) {
+                    Text("gpt-realtime-1.5").tag("gpt-realtime-1.5")
+                    Text("gpt-realtime-mini").tag("gpt-realtime-mini")
                 }
+
+                Text("OpenAI Realtime speech-to-speech models.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+            default:
+                Picker("Model", selection: $selectedModel) {
+                    Text("gemini-3.1-flash-live-preview").tag("gemini-3.1-flash-live-preview")
+                }
+
+                Text("The live preview model for real-time voice conversations.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
     private var geminiConfigStatus: some View {
+        providerConfigStatus(
+            isConfigured: hasGeminiProvider,
+            configuredMessage: "Using Google AI Studio provider from Providers settings",
+            missingMessage: "No Google AI Studio provider configured. Add one in the Providers tab."
+        )
+    }
+
+    private var openAIConfigStatus: some View {
+        providerConfigStatus(
+            isConfigured: hasOpenAIProvider,
+            configuredMessage: "Using OpenAI provider from Providers settings",
+            missingMessage: "No OpenAI provider configured. Add one in the Providers tab."
+        )
+    }
+
+    private func providerConfigStatus(isConfigured: Bool, configuredMessage: String, missingMessage: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
-                Image(systemName: hasGeminiProvider ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(hasGeminiProvider ? .green : .orange)
-                Text(hasGeminiProvider
-                     ? "Using Google AI Studio provider from Providers settings"
-                     : "No Google AI Studio provider configured. Add one in the Providers tab.")
+                Image(systemName: isConfigured ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(isConfigured ? .green : .orange)
+                Text(isConfigured ? configuredMessage : missingMessage)
                     .font(.caption)
-                    .foregroundStyle(hasGeminiProvider ? Color.secondary : Color.orange)
+                    .foregroundStyle(isConfigured ? Color.secondary : Color.orange)
             }
         }
         .padding(.vertical, 4)
@@ -95,11 +145,14 @@ struct VoiceSettingsView: View {
 
     // MARK: - Advanced Section
 
+    @ViewBuilder
     private var advancedSection: some View {
-        Section("Advanced") {
-            Picker("Media Resolution", selection: $mediaResolutionRaw) {
-                ForEach(VoiceSessionConfig.MediaResolution.allCases) { res in
-                    Text(res.rawValue.capitalized).tag(res.rawValue)
+        if selectedProviderType == .gemini {
+            Section("Advanced") {
+                Picker("Media Resolution", selection: $mediaResolutionRaw) {
+                    ForEach(VoiceSessionConfig.MediaResolution.allCases) { res in
+                        Text(res.rawValue.capitalized).tag(res.rawValue)
+                    }
                 }
             }
         }

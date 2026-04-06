@@ -724,6 +724,7 @@ struct InlineQuickLookPreview: NSViewRepresentable {
             return container
         }
         preview.autostarts = true
+        preview.shouldCloseWithWindow = false
         preview.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(preview)
         NSLayoutConstraint.activate([
@@ -738,9 +739,15 @@ struct InlineQuickLookPreview: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        if let preview = context.coordinator.previewView {
-            updatePreview(preview)
-        }
+        guard let preview = context.coordinator.previewView,
+              !context.coordinator.isClosed else { return }
+        updatePreview(preview)
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.isClosed = true
+        coordinator.previewView?.close()
+        coordinator.previewView = nil
     }
 
     func makeCoordinator() -> Coordinator {
@@ -748,11 +755,13 @@ struct InlineQuickLookPreview: NSViewRepresentable {
     }
 
     private func updatePreview(_ preview: QLPreviewView) {
+        guard preview.window != nil else { return }
         preview.previewItem = url as NSURL
         preview.refreshPreviewItem()
     }
 
     final class Coordinator {
         var previewView: QLPreviewView?
+        var isClosed = false
     }
 }
