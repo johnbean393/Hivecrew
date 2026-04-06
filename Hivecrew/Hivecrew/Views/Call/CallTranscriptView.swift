@@ -7,11 +7,14 @@
 //
 
 import SwiftUI
+import QuickLook
 
 struct CallTranscriptView: View {
 
     @Binding var entries: [TranscriptEntry]
     var assistantName: String = "Hivecrew"
+
+    @State private var quickLookURL: URL? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -49,6 +52,7 @@ struct CallTranscriptView: View {
                 }
             }
         }
+        .quickLookPreview($quickLookURL)
     }
 
     @ViewBuilder
@@ -68,7 +72,7 @@ struct CallTranscriptView: View {
             }
 
         case .toolUse(let record):
-            TranscriptToolUseView(entries: $entries, entryId: entry.id, record: record)
+            TranscriptToolUseView(entries: $entries, entryId: entry.id, record: record, quickLookURL: $quickLookURL)
         }
     }
 }
@@ -82,6 +86,7 @@ struct TranscriptToolUseView: View {
     @Binding var entries: [TranscriptEntry]
     let entryId: UUID
     let record: ToolUseRecord
+    @Binding var quickLookURL: URL?
 
     @State private var isExpanded = false
     @StateObject private var scrollGestureGate = ChipScrollGestureGate()
@@ -119,6 +124,10 @@ struct TranscriptToolUseView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
+            if let path = record.imagePath {
+                capturePreview(path: path)
+            }
+
             if !record.fileResults.isEmpty {
                 fileResultChips
             }
@@ -126,7 +135,29 @@ struct TranscriptToolUseView: View {
     }
 
     private var hasExpandableDetail: Bool {
-        record.toolName != "search_files" && !record.detail.isEmpty
+        record.toolName != "search_files"
+            && record.toolName != "capture_reference"
+            && !record.detail.isEmpty
+    }
+
+    @ViewBuilder
+    private func capturePreview(path: String) -> some View {
+        let url = URL(fileURLWithPath: path)
+        if let nsImage = NSImage(contentsOf: url) {
+            HStack {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: 100)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .onTapGesture {
+                        quickLookURL = url
+                    }
+                Spacer()
+            }
+            .padding(.leading, 72)
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        }
     }
 
     private var iconForTool: String {

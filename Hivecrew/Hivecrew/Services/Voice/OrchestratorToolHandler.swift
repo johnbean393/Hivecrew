@@ -272,6 +272,12 @@ enum OrchestratorToolHandler {
             filePaths = Array(Set(filePaths + confirmedSearchPaths)).sorted()
         }
 
+        let invalidPaths = filePaths.filter { !FileManager.default.fileExists(atPath: $0) }
+        if !invalidPaths.isEmpty {
+            let listed = invalidPaths.map { "  • \($0)" }.joined(separator: "\n")
+            return .textOnly("Error: \(invalidPaths.count) attachment path\(invalidPaths.count == 1 ? " does" : "s do") not exist:\n\(listed)\nUse search_files to find the correct paths, then try again.")
+        }
+
         do {
             let task = try await taskService.createTask(
                 description: description,
@@ -555,7 +561,8 @@ enum OrchestratorToolHandler {
                 toolName: "capture_reference",
                 summary: "Captured reference image (\(sizeKB) KB)",
                 detail: result,
-                fileResults: []
+                fileResults: [],
+                imagePath: tempURL.path
             )
             return ToolCallResult(text: result, transcriptRecord: record)
         } catch {

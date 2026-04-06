@@ -687,7 +687,7 @@ final class VoiceOrchestrator: ObservableObject {
     private func subscribeToInputLevel() {
         inputLevelCancellable?.cancel()
         inputLevelCancellable = audioManager.$inputLevel
-            .filter { $0 > 0.05 }
+            .filter { $0 > 0.15 }
             .throttle(for: .seconds(2), scheduler: RunLoop.main, latest: true)
             .sink { [weak self] _ in
                 self?.resetIdleTimer()
@@ -815,4 +815,5 @@ struct ToolUseRecord: Identifiable, Equatable {
     let summary: String
     let detail: String
     var fileResults: [VoiceFileSearchResult]
+    var imagePath: String?
 }
