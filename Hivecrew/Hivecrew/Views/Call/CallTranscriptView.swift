@@ -83,19 +83,41 @@ struct TranscriptToolUseView: View {
     let entryId: UUID
     let record: ToolUseRecord
 
+    @State private var isExpanded = false
     @StateObject private var scrollGestureGate = ChipScrollGestureGate()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: iconForTool)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                Text(record.summary)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+            Button {
+                guard hasExpandableDetail else { return }
+                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: iconForTool)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text(record.summary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    if hasExpandableDetail {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                }
             }
+            .buttonStyle(.plain)
             .padding(.leading, 72)
+
+            if isExpanded, hasExpandableDetail {
+                Text(record.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+                    .padding(.leading, 72)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
 
             if !record.fileResults.isEmpty {
                 fileResultChips
@@ -103,12 +125,24 @@ struct TranscriptToolUseView: View {
         }
     }
 
+    private var hasExpandableDetail: Bool {
+        record.toolName != "search_files" && !record.detail.isEmpty
+    }
+
     private var iconForTool: String {
         switch record.toolName {
-        case "search_files": return "doc.text.magnifyingglass"
+        case "create_task":       return "plus.circle.fill"
+        case "get_task_status":   return "info.circle.fill"
+        case "send_instruction":  return "arrow.up.message.fill"
+        case "pause_task":        return "pause.circle.fill"
+        case "resume_task":       return "play.circle.fill"
+        case "cancel_task":       return "xmark.circle.fill"
         case "capture_reference": return "camera.fill"
-        case "create_task": return "plus.circle.fill"
-        default: return "wrench.fill"
+        case "search_files":      return "doc.text.magnifyingglass"
+        case "get_deliverables":  return "doc.on.doc.fill"
+        case "focus_task":        return "scope"
+        case "end_call":          return "phone.down.fill"
+        default:                  return "wrench.fill"
         }
     }
 

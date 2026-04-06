@@ -87,7 +87,8 @@ extension GeminiLiveProvider {
                 // Usage
                 if let usage = serverMessage.usageMetadata,
                    let total = usage.totalTokenCount {
-                    self.totalTokenCount = total
+                    self.totalTokenCount += total
+                    self.onUsageUpdate?(self.totalTokenCount)
                 }
 
                 // Tool calls -- normalized to protocol type

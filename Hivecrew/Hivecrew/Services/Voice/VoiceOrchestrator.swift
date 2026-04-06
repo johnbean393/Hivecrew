@@ -95,6 +95,7 @@ final class VoiceOrchestrator: ObservableObject {
     private var taskStatusCancellables: [String: AnyCancellable] = [:]
     private var taskQuestionCancellables: [String: AnyCancellable] = [:]
     private var lastKnownStatuses: [String: AgentStatus] = [:]
+    private var tokenCountBase: Int = 0
     private var pendingOverlapStartedAt: TimeInterval?
     private var loggedFirstOverlapUplink = false
     private var loggedFirstInputTranscriptAfterOverlap = false
@@ -191,7 +192,7 @@ final class VoiceOrchestrator: ObservableObject {
         connectionState = .disconnected
         callState = .idle
         isModelSpeaking = false
-        totalTokenCount = 0
+        tokenCountBase = totalTokenCount
         restoreQuestionWindowsAndCleanup()
     }
 
@@ -267,6 +268,13 @@ final class VoiceOrchestrator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.connectionState = .error(error.localizedDescription)
+            }
+        }
+
+        prov.onUsageUpdate = { [weak self] sessionTokenCount in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.totalTokenCount = self.tokenCountBase + sessionTokenCount
             }
         }
 
@@ -805,5 +813,6 @@ struct ToolUseRecord: Identifiable, Equatable {
     let id = UUID()
     let toolName: String
     let summary: String
+    let detail: String
     var fileResults: [VoiceFileSearchResult]
 }

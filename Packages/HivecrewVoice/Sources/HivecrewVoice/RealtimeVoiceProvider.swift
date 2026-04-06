@@ -49,6 +49,9 @@ public protocol RealtimeVoiceProvider: ObservableObject {
     var onTurnComplete: (@Sendable () -> Void)? { get set }
     var onError: (@Sendable (Error) -> Void)? { get set }
 
+    /// Fired when the server reports updated token usage for the session.
+    var onUsageUpdate: (@Sendable (Int) -> Void)? { get set }
+
     /// Fired when the server sends a GoAway or the connection drops and
     /// automatic session resumption begins.
     var onReconnecting: (@Sendable () -> Void)? { get set }

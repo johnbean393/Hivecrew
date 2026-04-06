@@ -147,73 +147,73 @@ enum OrchestratorToolHandler {
 
         switch toolCall.name {
         case "create_task":
-            return .textOnly(await handleCreateTask(
+            return await handleCreateTask(
                 description: args["description"] ?? "",
                 role: args["role"] ?? "Worker",
                 attachments: args["attachments"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
-            ))
+            )
 
         case "get_task_status":
-            return .textOnly(await handleGetTaskStatus(
+            return await handleGetTaskStatus(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            ))
+            )
 
         case "send_instruction":
-            return .textOnly(await handleSendInstruction(
+            return await handleSendInstruction(
                 query: args["query"] ?? "",
                 message: args["message"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            ))
+            )
 
         case "pause_task":
-            return .textOnly(handlePauseTask(
+            return handlePauseTask(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            ))
+            )
 
         case "resume_task":
-            return .textOnly(await handleResumeTask(
+            return await handleResumeTask(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            ))
+            )
 
         case "cancel_task":
-            return .textOnly(await handleCancelTask(
+            return await handleCancelTask(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            ))
+            )
 
         case "capture_reference":
-            return .textOnly(await handleCaptureReference(videoSourceManager: videoSourceManager))
+            return await handleCaptureReference(videoSourceManager: videoSourceManager)
 
         case "get_deliverables":
-            return .textOnly(handleGetDeliverables(
+            return handleGetDeliverables(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            ))
+            )
 
         case "focus_task":
-            return .textOnly(handleFocusTask(
+            return handleFocusTask(
                 query: args["query"] ?? "",
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
-            ))
+            )
 
         case "end_call":
-            return .textOnly(handleEndCall(
+            return handleEndCall(
                 taskService: taskService,
                 orchestrator: orchestrator
-            ))
+            )
 
         case "search_files":
             return await handleSearchFiles(
@@ -249,12 +249,11 @@ enum OrchestratorToolHandler {
         taskService: TaskService,
         workerRegistry: WorkerRegistry,
         orchestrator: VoiceOrchestrator
-    ) async -> String {
+    ) async -> ToolCallResult {
         guard let (providerId, modelId) = resolvedMainModelSelection() else {
-            return "Error: Main model not configured. Select a provider and model in the prompt bar or Settings."
+            return .textOnly("Error: Main model not configured. Select a provider and model in the prompt bar or Settings.")
         }
 
-        // Parse attachments — may arrive as JSON array or comma/newline-separated paths
         var filePaths: [String]
         if attachments.isEmpty {
             filePaths = []
@@ -268,7 +267,6 @@ enum OrchestratorToolHandler {
                 .filter { !$0.isEmpty }
         }
 
-        // Merge confirmed file search results from transcript tool-use records
         let confirmedSearchPaths = orchestrator.confirmedTranscriptFileSearchPaths()
         if !confirmedSearchPaths.isEmpty {
             filePaths = Array(Set(filePaths + confirmedSearchPaths)).sorted()
@@ -287,9 +285,15 @@ enum OrchestratorToolHandler {
             if !filePaths.isEmpty {
                 result += " (\(filePaths.count) file\(filePaths.count == 1 ? "" : "s") attached)"
             }
-            return result
+            let record = ToolUseRecord(
+                toolName: "create_task",
+                summary: "Assigned \(worker.displayName) (\(worker.role))",
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         } catch {
-            return "Error creating task: \(error.localizedDescription)"
+            return .textOnly("Error creating task: \(error.localizedDescription)")
         }
     }
 
@@ -297,12 +301,12 @@ enum OrchestratorToolHandler {
         query: String,
         taskService: TaskService,
         workerRegistry: WorkerRegistry
-    ) async -> String {
+    ) async -> ToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
-            return "No worker found matching '\(query)'"
+            return .textOnly("No worker found matching '\(query)'")
         }
         guard let task = taskService.tasks.first(where: { $0.id == worker.id }) else {
-            return "Task not found for worker \(worker.displayName)"
+            return .textOnly("Task not found for worker \(worker.displayName)")
         }
 
         var result = "\(worker.label): status=\(task.status.displayName)"
@@ -338,7 +342,13 @@ enum OrchestratorToolHandler {
             result += ", description=\"\(task.taskDescription)\""
         }
 
-        return result
+        let record = ToolUseRecord(
+            toolName: "get_task_status",
+            summary: "Checked status of \(worker.displayName)",
+            detail: result,
+            fileResults: []
+        )
+        return ToolCallResult(text: result, transcriptRecord: record)
     }
 
     /// Use the worker's LLM to produce a 1-2 sentence progress summary
@@ -383,25 +393,30 @@ enum OrchestratorToolHandler {
         message: String,
         taskService: TaskService,
         workerRegistry: WorkerRegistry
-    ) async -> String {
+    ) async -> ToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
-            return "No worker found matching '\(query)'"
+            return .textOnly("No worker found matching '\(query)'")
         }
 
-        // If the agent has a pending question, treat this as the answer.
         if let publisher = taskService.statePublishers[worker.id],
            let pending = publisher.pendingQuestion {
             let questionId = pending.id
             publisher.provideAnswer(message)
             taskService.answerQuestion(questionId)
-            return "Answer sent to \(worker.displayName)"
+            let result = "Answer sent to \(worker.displayName)"
+            let record = ToolUseRecord(
+                toolName: "send_instruction",
+                summary: "Answered \(worker.displayName)'s question",
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
 
         guard let task = taskService.tasks.first(where: { $0.id == worker.id }) else {
-            return "Task not found for \(worker.displayName)"
+            return .textOnly("Task not found for \(worker.displayName)")
         }
 
-        // If the agent is already running, inject as a live instruction.
         if let publisher = taskService.statePublishers[worker.id],
            task.status == .running || task.status == .paused {
             let existing = publisher.pendingInstructions?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -410,74 +425,106 @@ enum OrchestratorToolHandler {
             } else {
                 publisher.pendingInstructions = message
             }
-            return "Instruction sent to \(worker.displayName). It will be picked up on the next step."
+            let result = "Instruction sent to \(worker.displayName). It will be picked up on the next step."
+            let record = ToolUseRecord(
+                toolName: "send_instruction",
+                summary: "Sent instruction to \(worker.displayName)",
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
 
-        // Task hasn't started yet — append to the task description so the
-        // agent sees it in its initial system prompt.
         if task.status == .queued || task.status == .waitingForVM || task.status == .planning || task.status == .planReview {
             var blocks = task.retrievalInlineContextBlocks
             blocks.append("Voice instruction from user: \(message)")
             task.retrievalInlineContextBlocks = blocks
             try? taskService.modelContext?.save()
-            return "Instruction added to \(worker.displayName)'s task. They will see it when they start."
+            let result = "Instruction added to \(worker.displayName)'s task. They will see it when they start."
+            let record = ToolUseRecord(
+                toolName: "send_instruction",
+                summary: "Sent instruction to \(worker.displayName)",
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
 
-        return "Cannot send instructions to \(worker.displayName) — task status is \(task.status.displayName)."
+        return .textOnly("Cannot send instructions to \(worker.displayName) — task status is \(task.status.displayName).")
     }
 
     private static func handlePauseTask(
         query: String,
         taskService: TaskService,
         workerRegistry: WorkerRegistry
-    ) -> String {
+    ) -> ToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
-            return "No worker found matching '\(query)'"
+            return .textOnly("No worker found matching '\(query)'")
         }
-        // TaskService doesn't have a direct pause — we cancel the agent runner
         if let runner = taskService.runningAgents[worker.id] {
             runner.cancel()
-            return "Paused \(worker.displayName)"
+            let result = "Paused \(worker.displayName)"
+            let record = ToolUseRecord(
+                toolName: "pause_task",
+                summary: result,
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
-        return "\(worker.displayName) is not currently running"
+        return .textOnly("\(worker.displayName) is not currently running")
     }
 
     private static func handleResumeTask(
         query: String,
         taskService: TaskService,
         workerRegistry: WorkerRegistry
-    ) async -> String {
+    ) async -> ToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
-            return "No worker found matching '\(query)'"
+            return .textOnly("No worker found matching '\(query)'")
         }
         if let task = taskService.tasks.first(where: { $0.id == worker.id }) {
             _ = try? await taskService.rerunTask(task)
-            return "Resumed \(worker.displayName)"
+            let result = "Resumed \(worker.displayName)"
+            let record = ToolUseRecord(
+                toolName: "resume_task",
+                summary: result,
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
-        return "Task not found for \(worker.displayName)"
+        return .textOnly("Task not found for \(worker.displayName)")
     }
 
     private static func handleCancelTask(
         query: String,
         taskService: TaskService,
         workerRegistry: WorkerRegistry
-    ) async -> String {
+    ) async -> ToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
-            return "No worker found matching '\(query)'"
+            return .textOnly("No worker found matching '\(query)'")
         }
         if let task = taskService.tasks.first(where: { $0.id == worker.id }) {
             await taskService.cancelTask(task)
             workerRegistry.deregister(taskId: worker.id)
-            return "Cancelled \(worker.displayName)"
+            let result = "Cancelled \(worker.displayName)"
+            let record = ToolUseRecord(
+                toolName: "cancel_task",
+                summary: result,
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
-        return "Task not found for \(worker.displayName)"
+        return .textOnly("Task not found for \(worker.displayName)")
     }
 
     private static func handleCaptureReference(
         videoSourceManager: VideoSourceManager
-    ) async -> String {
+    ) async -> ToolCallResult {
         guard videoSourceManager.activeSource != .none else {
-            return "Error: No video source active. Ask the user to enable screen sharing or a camera via the input source picker."
+            return .textOnly("Error: No video source active. Ask the user to enable screen sharing or a camera via the input source picker.")
         }
 
         let sourceDesc: String
@@ -485,26 +532,34 @@ enum OrchestratorToolHandler {
         case .camera(let id):
             let name = videoSourceManager.availableCameras.first(where: { $0.uniqueID == id })?.localizedName ?? id
             guard videoSourceManager.cameraCapture.isCapturing else {
-                return "Error: Camera '\(name)' is selected but not capturing. The device may have disconnected."
+                return .textOnly("Error: Camera '\(name)' is selected but not capturing. The device may have disconnected.")
             }
             sourceDesc = "camera '\(name)'"
         case .screen(let id):
             sourceDesc = "display \(id)"
         case .none:
-            return "Error: No video source active."
+            return .textOnly("Error: No video source active.")
         }
 
         guard let data = await videoSourceManager.captureCurrentFrame() else {
-            return "Error: Failed to capture frame from \(sourceDesc). The source may not have produced any frames yet — wait a moment and try again."
+            return .textOnly("Error: Failed to capture frame from \(sourceDesc). The source may not have produced any frames yet — wait a moment and try again.")
         }
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("capture_\(UUID().uuidString).jpg")
         do {
             try data.write(to: tempURL)
-            return "Reference captured (\(data.count / 1024) KB): \(tempURL.path)"
+            let sizeKB = data.count / 1024
+            let result = "Reference captured (\(sizeKB) KB): \(tempURL.path)"
+            let record = ToolUseRecord(
+                toolName: "capture_reference",
+                summary: "Captured reference image (\(sizeKB) KB)",
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         } catch {
-            return "Error: Failed to save capture to disk: \(error.localizedDescription)"
+            return .textOnly("Error: Failed to save capture to disk: \(error.localizedDescription)")
         }
     }
 
@@ -512,35 +567,56 @@ enum OrchestratorToolHandler {
         query: String,
         taskService: TaskService,
         workerRegistry: WorkerRegistry
-    ) -> String {
+    ) -> ToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
-            return "No worker found matching '\(query)'"
+            return .textOnly("No worker found matching '\(query)'")
         }
         guard let task = taskService.tasks.first(where: { $0.id == worker.id }) else {
-            return "Task not found for \(worker.displayName)"
+            return .textOnly("Task not found for \(worker.displayName)")
         }
         guard let files = task.outputFilePaths, !files.isEmpty else {
-            return "No deliverables yet for \(worker.displayName)"
+            let result = "No deliverables yet for \(worker.displayName)"
+            let record = ToolUseRecord(
+                toolName: "get_deliverables",
+                summary: "No deliverables yet",
+                detail: result,
+                fileResults: []
+            )
+            return ToolCallResult(text: result, transcriptRecord: record)
         }
-        return "Deliverables from \(worker.displayName):\n" + files.joined(separator: "\n")
+        let result = "Deliverables from \(worker.displayName):\n" + files.joined(separator: "\n")
+        let record = ToolUseRecord(
+            toolName: "get_deliverables",
+            summary: "Listed \(files.count) deliverable\(files.count == 1 ? "" : "s") from \(worker.displayName)",
+            detail: result,
+            fileResults: []
+        )
+        return ToolCallResult(text: result, transcriptRecord: record)
     }
 
     private static func handleFocusTask(
         query: String,
         workerRegistry: WorkerRegistry,
         orchestrator: VoiceOrchestrator
-    ) -> String {
+    ) -> ToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
-            return "No worker found matching '\(query)'"
+            return .textOnly("No worker found matching '\(query)'")
         }
         orchestrator.focusedTaskId = worker.id
-        return "Focused on \(worker.displayName)"
+        let result = "Focused on \(worker.displayName)"
+        let record = ToolUseRecord(
+            toolName: "focus_task",
+            summary: result,
+            detail: result,
+            fileResults: []
+        )
+        return ToolCallResult(text: result, transcriptRecord: record)
     }
 
     private static func handleEndCall(
         taskService: TaskService,
         orchestrator: VoiceOrchestrator
-    ) -> String {
+    ) -> ToolCallResult {
         let sessionTasks = taskService.tasks.filter { orchestrator.relevantTaskIds.contains($0.id) }
         let activeTasks = sessionTasks.filter { $0.status.isActive }
 
@@ -548,11 +624,18 @@ enum OrchestratorToolHandler {
             let names = activeTasks.compactMap {
                 orchestrator.workerRegistry.resolve(query: $0.id)?.displayName ?? $0.id
             }.joined(separator: ", ")
-            return "Cannot end call — \(activeTasks.count) task(s) still active: \(names). Wait for them to finish or cancel them first."
+            return .textOnly("Cannot end call — \(activeTasks.count) task(s) still active: \(names). Wait for them to finish or cancel them first.")
         }
 
         orchestrator.endCallAfterSpeaking()
-        return "Bye for now!"
+        let result = "Bye for now!"
+        let record = ToolUseRecord(
+            toolName: "end_call",
+            summary: "Ending call",
+            detail: result,
+            fileResults: []
+        )
+        return ToolCallResult(text: result, transcriptRecord: record)
     }
 
     // MARK: - File Search
@@ -631,6 +714,7 @@ enum OrchestratorToolHandler {
             let record = ToolUseRecord(
                 toolName: "search_files",
                 summary: "Found \(suggestions.count) file(s) for \"\(query)\"",
+                detail: responseText,
                 fileResults: fileResults
             )
 

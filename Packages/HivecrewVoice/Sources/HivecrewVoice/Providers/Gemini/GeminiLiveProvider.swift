@@ -31,6 +31,7 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     var onInterrupted: (@Sendable () -> Void)?
     var onTurnComplete: (@Sendable () -> Void)?
     var onError: (@Sendable (Error) -> Void)?
+    var onUsageUpdate: (@Sendable (Int) -> Void)?
     var onReconnecting: (@Sendable () -> Void)?
     var onReconnected: (@Sendable () -> Void)?
 
