@@ -187,131 +187,123 @@ struct ProvidersSettingsView: View {
     
     private var workerModelSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Worker Model")
-                    .font(.headline)
-                
-                Text("Worker model is required. It powers fast background tasks like title generation, retrieval guidance, and webpage extraction.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Toggle("Use worker model for subagents by default", isOn: $subagentsUseWorkerModel)
-
-                Text("When enabled, new subagent runs use the configured worker model instead of the main task model unless a flow overrides it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Provider")
+            Toggle(isOn: $subagentsUseWorkerModel) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Use worker model for subagents by default")
+                    Text("When enabled, new subagent runs use the configured worker model instead of the main task model unless a flow overrides it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    Picker(
-                        "Provider",
-                        selection: Binding(
-                            get: { workerModelProviderId ?? "" },
-                            set: { newValue in
-                                let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                workerModelProviderId = normalized.isEmpty ? nil : normalized
-                                workerModelId = nil
-                                availableWorkerModels = []
-                                workerModelErrorMessage = nil
-                                loadWorkerModelsForSelectedProvider()
-                            }
-                        )
-                    ) {
-                        Text("Select Provider").tag("")
-                        ForEach(providers) { provider in
-                            Text(provider.displayLabel).tag(provider.id)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Model")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if providers.isEmpty {
-                        Text("Add a provider to choose a worker model.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if (workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
-                        Text("Select a provider to load models.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if isLoadingWorkerModels {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                            Text("Loading available models...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if let workerModelErrorMessage {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(workerModelErrorMessage)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-
-                            Button("Retry Model Load") {
-                                loadWorkerModelsForSelectedProvider()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                    } else if availableWorkerModels.isEmpty {
-                        Text("No models available for this provider.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Picker(
-                            "Model",
-                            selection: Binding(
-                                get: { workerModelId ?? "" },
-                                set: { newValue in
-                                    let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    workerModelId = normalized.isEmpty ? nil : normalized
-                                }
-                            )
-                        ) {
-                            ForEach(availableWorkerModels) { model in
-                                Text(model.displayName).tag(model.id)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        if let selectedModel = selectedWorkerModel {
-                            Text(selectedModel.id)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .textSelection(.enabled)
-                        }
-                    }
-
-                    Text("Choose the model used for simple background tasks like title generation and webpage information extraction.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if let selectedWorkerModel,
-                       selectedWorkerModel.reasoningCapability.kind == .effort,
-                       selectedWorkerModel.reasoningCapability.supportedEfforts.contains(where: {
-                           $0.caseInsensitiveCompare("low") == .orderedSame
-                       }) {
-                        Text("This worker model supports `low` reasoning effort, which Hivecrew will use automatically for worker-model runs.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if (workerModelProviderId?.isEmpty ?? true) || (workerModelId?.isEmpty ?? true) {
-                    Label("Worker provider and model are required.", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
                 }
             }
-            .padding(.vertical, 4)
+
+            Picker(
+                "Provider",
+                selection: Binding(
+                    get: { workerModelProviderId ?? "" },
+                    set: { newValue in
+                        let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        workerModelProviderId = normalized.isEmpty ? nil : normalized
+                        workerModelId = nil
+                        availableWorkerModels = []
+                        workerModelErrorMessage = nil
+                        loadWorkerModelsForSelectedProvider()
+                    }
+                )
+            ) {
+                Text("Select Provider").tag("")
+                ForEach(providers) { provider in
+                    Text(provider.displayLabel).tag(provider.id)
+                }
+            }
+            .pickerStyle(.menu)
+
+            workerModelPickerRow
+
+            if (workerModelProviderId?.isEmpty ?? true) || (workerModelId?.isEmpty ?? true) {
+                Label("Worker provider and model are required.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        } header: {
+            Text("Worker Model")
+        } footer: {
+            Text("Worker model is required. It powers fast background tasks like title generation, retrieval guidance, and webpage extraction.")
+        }
+    }
+
+    @ViewBuilder
+    private var workerModelPickerRow: some View {
+        if providers.isEmpty {
+            LabeledContent("Model") {
+                Text("Add a provider first")
+                    .foregroundStyle(.secondary)
+            }
+        } else if (workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+            LabeledContent("Model") {
+                Text("Select a provider first")
+                    .foregroundStyle(.secondary)
+            }
+        } else if isLoadingWorkerModels {
+            LabeledContent("Model") {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text("Loading…")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else if let workerModelErrorMessage {
+            LabeledContent("Model") {
+                HStack(spacing: 8) {
+                    Text(workerModelErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    Button("Retry") {
+                        loadWorkerModelsForSelectedProvider()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        } else if availableWorkerModels.isEmpty {
+            LabeledContent("Model") {
+                Text("No models available")
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                Picker(
+                    "Model",
+                    selection: Binding(
+                        get: { workerModelId ?? "" },
+                        set: { newValue in
+                            let normalized = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            workerModelId = normalized.isEmpty ? nil : normalized
+                        }
+                    )
+                ) {
+                    ForEach(availableWorkerModels) { model in
+                        Text(model.displayName).tag(model.id)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                if let selectedModel = selectedWorkerModel {
+                    Text(selectedModel.id)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+
+                    if selectedModel.reasoningCapability.kind == .effort,
+                       selectedModel.reasoningCapability.supportedEfforts.contains(where: {
+                           $0.caseInsensitiveCompare("low") == .orderedSame
+                       }) {
+                        Text("This worker model supports low reasoning effort, which Hivecrew will use automatically for worker-model runs.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
     

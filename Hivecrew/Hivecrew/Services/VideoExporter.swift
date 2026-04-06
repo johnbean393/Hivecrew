@@ -5,7 +5,7 @@
 //  Exports a sequence of images to a video file using AVFoundation
 //
 
-import AVFoundation
+internal import AVFoundation
 import AppKit
 
 /// Utility for exporting images to video

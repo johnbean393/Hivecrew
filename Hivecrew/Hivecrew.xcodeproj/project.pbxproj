@@ -233,6 +233,27 @@
 		30C0A0072F91000400A1B2C3 /* Writeback/WritebackStagingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */; };
 		30C0A00B2F91000600A1B2C3 /* WritebackReviewWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */; };
 		31D5A0022FB4A00100BADA55 /* SwiftDataStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */; };
+		40B1F00100000001 /* VoiceOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00100000001 /* VoiceOrchestrator.swift */; };
+		40B1F00200000001 /* WorkerRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00200000001 /* WorkerRegistry.swift */; };
+		40B1F00300000001 /* OrchestratorToolHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00300000001 /* OrchestratorToolHandler.swift */; };
+		40B1F00400000001 /* OrchestratorSystemPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00400000001 /* OrchestratorSystemPrompt.swift */; };
+		40B1F00500000001 /* CallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00500000001 /* CallView.swift */; };
+		40B1F00600000001 /* IdleCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00600000001 /* IdleCallView.swift */; };
+		40B1F00700000001 /* ExpandedCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00700000001 /* ExpandedCallView.swift */; };
+		40B1F00800000001 /* CallConversationPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00800000001 /* CallConversationPane.swift */; };
+		40B1F00900000001 /* VoiceOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00900000001 /* VoiceOrbView.swift */; };
+		40B1F00A00000001 /* CallTranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00A00000001 /* CallTranscriptView.swift */; };
+		40B1F00B00000001 /* CallControlButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00B00000001 /* CallControlButton.swift */; };
+		40B1F00C00000001 /* CallControlBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00C00000001 /* CallControlBar.swift */; };
+		40B1F00D00000001 /* CallTaskPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00D00000001 /* CallTaskPane.swift */; };
+		40B1F00E00000001 /* CallTaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00E00000001 /* CallTaskRowView.swift */; };
+		40B1F00F00000001 /* CallTaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F00F00000001 /* CallTaskDetailView.swift */; };
+		40B1F01000000001 /* CompactShareHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01000000001 /* CompactShareHUD.swift */; };
+		40B1F01100000001 /* InputSourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01100000001 /* InputSourcePickerView.swift */; };
+		40B1F01200000001 /* CapturePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01200000001 /* CapturePreviewView.swift */; };
+		40B1F01300000001 /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01300000001 /* VoiceSettingsView.swift */; };
+		40B1F01400000001 /* VoiceAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01400000001 /* VoiceAvailability.swift */; };
+		40B1F01500000001 /* VoiceProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01500000001 /* VoiceProviderSetupView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -494,6 +515,27 @@
 		30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Writeback/WritebackStagingService.swift; sourceTree = "<group>"; };
 		30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritebackReviewWindow.swift; sourceTree = "<group>"; };
 		31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStoreManager.swift; sourceTree = "<group>"; };
+		40A1F00100000001 /* VoiceOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrchestrator.swift; sourceTree = "<group>"; };
+		40A1F00200000001 /* WorkerRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerRegistry.swift; sourceTree = "<group>"; };
+		40A1F00300000001 /* OrchestratorToolHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorToolHandler.swift; sourceTree = "<group>"; };
+		40A1F00400000001 /* OrchestratorSystemPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorSystemPrompt.swift; sourceTree = "<group>"; };
+		40A1F00500000001 /* CallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
+		40A1F00600000001 /* IdleCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleCallView.swift; sourceTree = "<group>"; };
+		40A1F00700000001 /* ExpandedCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedCallView.swift; sourceTree = "<group>"; };
+		40A1F00800000001 /* CallConversationPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallConversationPane.swift; sourceTree = "<group>"; };
+		40A1F00900000001 /* VoiceOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbView.swift; sourceTree = "<group>"; };
+		40A1F00A00000001 /* CallTranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTranscriptView.swift; sourceTree = "<group>"; };
+		40A1F00B00000001 /* CallControlButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallControlButton.swift; sourceTree = "<group>"; };
+		40A1F00C00000001 /* CallControlBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallControlBar.swift; sourceTree = "<group>"; };
+		40A1F00D00000001 /* CallTaskPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskPane.swift; sourceTree = "<group>"; };
+		40A1F00E00000001 /* CallTaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskRowView.swift; sourceTree = "<group>"; };
+		40A1F00F00000001 /* CallTaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskDetailView.swift; sourceTree = "<group>"; };
+		40A1F01000000001 /* CompactShareHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactShareHUD.swift; sourceTree = "<group>"; };
+		40A1F01100000001 /* InputSourcePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourcePickerView.swift; sourceTree = "<group>"; };
+		40A1F01200000001 /* CapturePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePreviewView.swift; sourceTree = "<group>"; };
+		40A1F01300000001 /* VoiceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSettingsView.swift; sourceTree = "<group>"; };
+		40A1F01400000001 /* VoiceAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAvailability.swift; sourceTree = "<group>"; };
+		40A1F01500000001 /* VoiceProviderSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProviderSetupView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -767,6 +809,7 @@
 		209C61892F12ABD700062D0E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				40C1F0012F72001000000001 /* Voice */,
 				207B73032F3A587700572AF5 /* VMProvisioningService.swift */,
 				30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */,
 				20360DC12F38234300A9B998 /* RemoteAccess */,
@@ -819,6 +862,7 @@
 		209C61932F12ABD700062D0E /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				40A1F01300000001 /* VoiceSettingsView.swift */,
 				203838DE2F39066E0026DC9A /* PairingWindowController.swift */,
 				202F64E02F2FE30400F6F359 /* MCP */,
 				AAAA00072F1E200000000007 /* Credentials */,
@@ -853,6 +897,7 @@
 		209C61A02F12ABD700062D0E /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				40C1F0022F72001000000002 /* Call */,
 				202F648E2F2DB9E300F6F359 /* Planning */,
 				20B8994C2F1FAEE1003887A3 /* Schedule */,
 				204DF4192F14D5E7004AB99B /* Onboarding */,
@@ -1125,6 +1170,40 @@
 			path = VM;
 			sourceTree = "<group>";
 		};
+		40C1F0012F72001000000001 /* Voice */ = {
+			isa = PBXGroup;
+			children = (
+				40A1F00100000001 /* VoiceOrchestrator.swift */,
+				40A1F00200000001 /* WorkerRegistry.swift */,
+				40A1F00300000001 /* OrchestratorToolHandler.swift */,
+				40A1F00400000001 /* OrchestratorSystemPrompt.swift */,
+				40A1F01400000001 /* VoiceAvailability.swift */,
+			);
+			path = Voice;
+			sourceTree = "<group>";
+		};
+		40C1F0022F72001000000002 /* Call */ = {
+			isa = PBXGroup;
+			children = (
+				40A1F00500000001 /* CallView.swift */,
+				40A1F00600000001 /* IdleCallView.swift */,
+				40A1F00700000001 /* ExpandedCallView.swift */,
+				40A1F00800000001 /* CallConversationPane.swift */,
+				40A1F00900000001 /* VoiceOrbView.swift */,
+				40A1F00A00000001 /* CallTranscriptView.swift */,
+				40A1F00B00000001 /* CallControlButton.swift */,
+				40A1F00C00000001 /* CallControlBar.swift */,
+				40A1F00D00000001 /* CallTaskPane.swift */,
+				40A1F00E00000001 /* CallTaskRowView.swift */,
+				40A1F00F00000001 /* CallTaskDetailView.swift */,
+				40A1F01000000001 /* CompactShareHUD.swift */,
+				40A1F01100000001 /* InputSourcePickerView.swift */,
+				40A1F01200000001 /* CapturePreviewView.swift */,
+				40A1F01500000001 /* VoiceProviderSetupView.swift */,
+			);
+			path = Call;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1155,6 +1234,7 @@
 				2049633C2F17E553007DD5FD /* Sparkle */,
 				20A0FC092F1D1707000A066A /* HivecrewAPI */,
 				2053666B2F2FE3F70097E3FE /* HivecrewMCP */,
+				30B100042F72000300000004 /* HivecrewVoice */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -1267,6 +1347,7 @@
 				2019E33E2F139C0000041819 /* XCLocalSwiftPackageReference "../Packages/HivecrewLLM" */,
 				20A0FC082F1D1707000A066A /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */,
 				30B100022F72000100000002 /* XCLocalSwiftPackageReference "../Packages/HivecrewMCP" */,
+				30B100032F72000200000003 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */,
 				2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */,
 				20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */,
 				204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */,
@@ -1554,6 +1635,27 @@
 				3001B00F2F1500000000000F /* AgentStatusBar.swift in Sources */,
 				20F0A10D2F900107003887A3 /* SessionTraceParser.swift in Sources */,
 				3001B0102F15000000000010 /* SessionTraceView.swift in Sources */,
+				40B1F00100000001 /* VoiceOrchestrator.swift in Sources */,
+				40B1F00200000001 /* WorkerRegistry.swift in Sources */,
+				40B1F00300000001 /* OrchestratorToolHandler.swift in Sources */,
+				40B1F00400000001 /* OrchestratorSystemPrompt.swift in Sources */,
+				40B1F00500000001 /* CallView.swift in Sources */,
+				40B1F00600000001 /* IdleCallView.swift in Sources */,
+				40B1F00700000001 /* ExpandedCallView.swift in Sources */,
+				40B1F00800000001 /* CallConversationPane.swift in Sources */,
+				40B1F00900000001 /* VoiceOrbView.swift in Sources */,
+				40B1F00A00000001 /* CallTranscriptView.swift in Sources */,
+				40B1F00B00000001 /* CallControlButton.swift in Sources */,
+				40B1F00C00000001 /* CallControlBar.swift in Sources */,
+				40B1F00D00000001 /* CallTaskPane.swift in Sources */,
+				40B1F00E00000001 /* CallTaskRowView.swift in Sources */,
+				40B1F00F00000001 /* CallTaskDetailView.swift in Sources */,
+				40B1F01000000001 /* CompactShareHUD.swift in Sources */,
+				40B1F01100000001 /* InputSourcePickerView.swift in Sources */,
+				40B1F01200000001 /* CapturePreviewView.swift in Sources */,
+				40B1F01300000001 /* VoiceSettingsView.swift in Sources */,
+				40B1F01400000001 /* VoiceAvailability.swift in Sources */,
+				40B1F01500000001 /* VoiceProviderSetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2015,6 +2117,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewMCP;
 		};
+		30B100032F72000200000003 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewVoice;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -2110,6 +2216,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */;
 			productName = MarkdownView;
+		};
+		30B100042F72000300000004 /* HivecrewVoice */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HivecrewVoice;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -373,9 +373,13 @@ struct PromptBar: View {
             
             Spacer(minLength: 8)
             
-            // RIGHT: Send button (vertically centered)
+            // RIGHT: Send or Voice button (vertically centered)
             if hasText {
                 sendButton
+                    .padding(.trailing, 8)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                voiceCallButton
                     .padding(.trailing, 8)
                     .transition(.scale.combined(with: .opacity))
             }
@@ -401,11 +405,25 @@ struct PromptBar: View {
         } label: {
             Image(systemName: isSubmitting ? "hourglass" : "arrow.up.circle.fill")
                 .font(.system(size: 20))
-                .foregroundStyle(isSubmitting ? Color.secondary : Color.accentColor)
+                .foregroundStyle(isSubmitting ? Color.secondary : (isFocused ? Color.accentColor : Color.primary.opacity(0.3)))
         }
         .buttonStyle(.plain)
         .disabled(isSubmitting || !hasExecutionTarget || !hasWorkerModelConfigured)
         .help(sendButtonHelpText)
+    }
+    
+    // MARK: - Voice Call Button
+    
+    private var voiceCallButton: some View {
+        Button {
+            NotificationCenter.default.post(name: .startVoiceCall, object: nil)
+        } label: {
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 20))
+                .foregroundStyle(isFocused ? Color.accentColor : Color.primary.opacity(0.3))
+        }
+        .buttonStyle(.plain)
+        .help("Start a voice call")
     }
     
     // MARK: - Helpers

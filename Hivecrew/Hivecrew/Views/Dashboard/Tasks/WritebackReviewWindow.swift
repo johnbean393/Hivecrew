@@ -715,7 +715,7 @@ private struct WritebackReviewRowModel: Identifiable {
     }
 }
 
-private struct InlineQuickLookPreview: NSViewRepresentable {
+struct InlineQuickLookPreview: NSViewRepresentable {
     let url: URL
 
     func makeNSView(context: Context) -> NSView {

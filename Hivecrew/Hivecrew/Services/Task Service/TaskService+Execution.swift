@@ -618,6 +618,15 @@ extension TaskService {
                 TipStore.shared.donateTaskCompleted()
             }
         }
+
+        // Update state publisher status (matches .failed/.cancelled pattern elsewhere)
+        switch result.terminationReason {
+        case .completed:  statePublishers[task.id]?.status = .completed
+        case .failed:     statePublishers[task.id]?.status = .failed
+        case .cancelled:  statePublishers[task.id]?.status = .cancelled
+        case .timedOut:   statePublishers[task.id]?.status = .failed
+        case .maxIterations: statePublishers[task.id]?.status = .failed
+        }
         
         await syncGuestArtifactsToSharedFolder(connection: connection)
 

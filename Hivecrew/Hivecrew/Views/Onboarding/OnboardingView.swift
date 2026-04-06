@@ -21,6 +21,7 @@ struct OnboardingView: View {
     @State private var providerConfigured = false
     @State private var workerConfigured = false
     @State private var templateConfigured = false
+    @State private var voiceConfigured = false
     
     enum OnboardingStep: Int, CaseIterable {
         case welcome = 0
@@ -28,7 +29,8 @@ struct OnboardingView: View {
         case worker = 2
         case template = 3
         case outputDirectory = 4
-        case complete = 5
+        case voice = 5
+        case complete = 6
         
         var title: String {
             switch self {
@@ -37,6 +39,7 @@ struct OnboardingView: View {
             case .worker: return "Models"
             case .template: return "VM Template"
             case .outputDirectory: return "Output"
+            case .voice: return "Voice"
             case .complete: return "Ready"
             }
         }
@@ -116,7 +119,19 @@ struct OnboardingView: View {
             
         case .outputDirectory:
             OnboardingOutputDirectoryStep()
-            
+
+        case .voice:
+            VoiceProviderSetupView(
+                isConfigured: $voiceConfigured,
+                showSkipButton: true,
+                onSkip: {
+                    withAnimation { goNext() }
+                },
+                onConfigured: {
+                    withAnimation { goNext() }
+                }
+            )
+
         case .complete:
             OnboardingCompleteStep()
         }
@@ -167,7 +182,9 @@ struct OnboardingView: View {
         case .template:
             return templateConfigured
         case .outputDirectory:
-            return true // Optional step - user can skip with default
+            return true
+        case .voice:
+            return true
         case .complete:
             return true
         }

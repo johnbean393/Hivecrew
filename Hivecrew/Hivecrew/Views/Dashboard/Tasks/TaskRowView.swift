@@ -223,6 +223,7 @@ struct TaskRowView: View {
 extension Notification.Name {
     static let navigateToTask = Notification.Name("navigateToTask")
     static let continueFromTask = Notification.Name("continueFromTask")
+    static let startVoiceCall = Notification.Name("startVoiceCall")
 }
 
 #Preview {

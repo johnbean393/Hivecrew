@@ -104,6 +104,14 @@ enum AgentQuestion: Identifiable, Sendable, Equatable {
         case .intervention(let r): return r.message
         }
     }
+
+    var taskId: String {
+        switch self {
+        case .text(let q): return q.taskId
+        case .multipleChoice(let q): return q.taskId
+        case .intervention(let r): return r.taskId
+        }
+    }
     
     /// Returns true if this is an intervention request (not a question)
     var isIntervention: Bool {

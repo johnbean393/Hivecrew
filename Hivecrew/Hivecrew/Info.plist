@@ -8,5 +8,9 @@
 	<string>jrJEixL9VTAptOmKf2JJ8aLoiMVV0bNcSNA1covfmtw=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Hivecrew uses the microphone for voice mode to communicate with AI workers.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Hivecrew uses the camera for Continuity Camera input during voice mode sessions.</string>
 </dict>
 </plist>

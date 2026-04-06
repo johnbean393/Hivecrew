@@ -253,6 +253,7 @@ extension AgentRunner {
                     // Task successfully completed
                     let finalSummary = verifiedSummary ?? agentSummary
                     
+                    statePublisher.completionSummary = finalSummary
                     statePublisher.status = .completed
                     statePublisher.logInfo("Task verified as complete")
                     
@@ -288,6 +289,7 @@ extension AgentRunner {
                     // Max attempts reached - fail the task
                     let finalSummary = verifiedSummary ?? "Task could not be completed after \(maxCompletionAttempts) attempts"
                     
+                    statePublisher.completionSummary = finalSummary
                     statePublisher.status = .failed
                     statePublisher.logInfo("Task verification failed after \(maxCompletionAttempts) attempts")
                     
@@ -319,16 +321,19 @@ extension AgentRunner {
             terminationReason = .cancelled
             status = "cancelled"
             message = "Agent was cancelled"
+            statePublisher.completionSummary = message
             statePublisher.status = .cancelled
         } else if isTimedOut {
             terminationReason = .timedOut
             status = "timed_out"
             message = "Agent timed out after \(timeoutMinutes) minutes"
+            statePublisher.completionSummary = message
             statePublisher.status = .failed
         } else {
             terminationReason = .maxIterations
             status = "max_iterations"
             message = "Reached maximum iterations (\(maxSteps))"
+            statePublisher.completionSummary = message
             statePublisher.status = .failed
         }
         

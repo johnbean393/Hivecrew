@@ -364,6 +364,7 @@ final class AgentRunner {
         do {
             result = try await runLoop()
         } catch {
+            statePublisher.completionSummary = error.localizedDescription
             statePublisher.status = .failed
             statePublisher.logError(error.localizedDescription)
             

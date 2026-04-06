@@ -16,6 +16,7 @@ struct SettingsView: View {
         case providers = "Providers"
         case environment = "Environment"
         case tasks = "Tasks"
+        case voice = "Voice"
         case mcp = "MCP"
         case credentials = "Credentials"
         case api = "Connect"
@@ -28,6 +29,7 @@ struct SettingsView: View {
             case .providers: return String(localized: "Providers")
             case .environment: return String(localized: "Environment")
             case .tasks: return String(localized: "Tasks")
+            case .voice: return String(localized: "Voice")
             case .mcp: return "MCP"
             case .credentials: return String(localized: "Credentials")
             case .api: return String(localized: "Connect")
@@ -40,6 +42,7 @@ struct SettingsView: View {
             case .providers: return "brain.head.profile"
             case .environment: return "desktopcomputer"
             case .tasks: return "checklist"
+            case .voice: return "waveform"
             case .mcp: return "puzzlepiece.extension"
             case .credentials: return "key.fill"
             case .api: return "antenna.radiowaves.left.and.right"
@@ -53,6 +56,7 @@ struct SettingsView: View {
             providersTab
             environmentTab
             tasksTab
+            voiceTab
             mcpTab
             credentialsTab
             apiTab
@@ -84,6 +88,12 @@ struct SettingsView: View {
         TaskDefaultsSettingsView()
             .tabItem { Label(SettingsTab.tasks.localizedName, systemImage: SettingsTab.tasks.icon) }
             .tag(SettingsTab.tasks)
+    }
+    
+    private var voiceTab: some View {
+        VoiceSettingsView()
+            .tabItem { Label(SettingsTab.voice.localizedName, systemImage: SettingsTab.voice.icon) }
+            .tag(SettingsTab.voice)
     }
     
     private var mcpTab: some View {

@@ -95,6 +95,10 @@ class AgentStatePublisher: ObservableObject {
     
     /// Current agent status
     @Published var status: AgentStatus = .idle
+
+    /// Final result summary set just before status moves to `.completed`/`.failed`.
+    /// Populated by the agent runner so voice callbacks can read it without a race.
+    var completionSummary: String?
     
     /// Current tool being executed (nil if not executing)
     @Published var currentToolCall: String?
@@ -392,5 +396,47 @@ class AgentStatePublisher: ObservableObject {
             summary: message
         ))
     }
-    
+
+    // MARK: - Progress Summary for Voice
+
+    /// Concise progress summary for voice narration, built from plan or activity log.
+    var progressSummary: String {
+        var parts: [String] = []
+
+        if let plan = planProgress, !plan.items.isEmpty {
+            let completed = plan.items.filter { $0.isCompleted }
+            let next = plan.items.first { !$0.isCompleted && !$0.wasSkipped }
+            if !completed.isEmpty {
+                let recent = completed.suffix(3).map { $0.content }
+                parts.append("Completed: \(recent.joined(separator: "; "))")
+            }
+            if let next {
+                parts.append("Currently working on: \(next.content)")
+            }
+            parts.append("\(plan.completedCount)/\(plan.items.count) steps done")
+        } else {
+            let toolCalls = activityLog.filter { $0.type == .toolCall }
+            let recentTools = toolCalls.suffix(3).map { $0.summary }
+            if !recentTools.isEmpty {
+                parts.append("Recent actions: \(recentTools.joined(separator: "; "))")
+            }
+            if let current = currentToolCall {
+                parts.append("Currently executing: \(current)")
+            }
+            parts.append("Step \(currentStep)")
+        }
+
+        return parts.joined(separator: ". ")
+    }
+
+    /// The recent activity log entries condensed into a string suitable for
+    /// LLM summarisation (tool calls and observations only, last 10).
+    var recentActivityDigest: String {
+        let relevant = activityLog.filter {
+            $0.type == .toolCall || $0.type == .toolResult || $0.type == .observation
+        }.suffix(10)
+        if relevant.isEmpty { return "No activity recorded yet." }
+        return relevant.map { "[\($0.type.rawValue)] \($0.summary)" }.joined(separator: "\n")
+    }
+
 }

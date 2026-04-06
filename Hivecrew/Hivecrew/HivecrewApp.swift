@@ -13,6 +13,7 @@ import TipKit
 import HivecrewShared
 import HivecrewLLM
 import HivecrewAPI
+import HivecrewVoice
 import AppKit
 
 @main
@@ -41,6 +42,7 @@ struct HivecrewApp: App {
     @StateObject private var schedulerService = SchedulerService.shared
     @StateObject private var terminationManager = AppTerminationManager.shared
     @StateObject private var downloadService = TemplateDownloadService.shared
+    @StateObject private var voiceOrchestrator = VoiceOrchestrator()
     
     /// Whether to show the startup sheet for queued tasks
     @State private var showStartupSheet = false
@@ -66,6 +68,7 @@ struct HivecrewApp: App {
                 .environmentObject(vmService)
                 .environmentObject(taskService)
                 .environmentObject(schedulerService)
+                .environmentObject(voiceOrchestrator)
                 .onAppear {
                     self.onStartup()
                 }
@@ -176,6 +179,9 @@ struct HivecrewApp: App {
         
         // Configure termination manager
         terminationManager.configure(taskService: taskService)
+        
+        // Configure voice orchestrator
+        voiceOrchestrator.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
         
         // Configure TipKit
         TipStore.shared.configure()

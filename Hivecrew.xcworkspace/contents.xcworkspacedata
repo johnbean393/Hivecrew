@@ -5,6 +5,9 @@
       location = "group:Hivecrew/Hivecrew.xcodeproj">
    </FileRef>
    <FileRef
+      location = "group:Packages/HivecrewVoice">
+   </FileRef>
+   <FileRef
       location = "group:Packages/HivecrewShared">
    </FileRef>
    <FileRef

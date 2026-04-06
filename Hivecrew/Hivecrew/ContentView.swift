@@ -13,11 +13,14 @@ import TipKit
 struct ContentView: View {
     @EnvironmentObject var vmService: VMServiceClient
     @EnvironmentObject var taskService: TaskService
+    @EnvironmentObject var voiceOrchestrator: VoiceOrchestrator
     @State private var selectedTab: AppTab = .dashboard
     @State private var selectedTaskId: String?
     @State private var pendingQuestion: AgentQuestion?
     @State private var pendingPermissionTaskId: String?
     @State private var pendingPermission: PermissionRequest?
+    @State private var showVoiceSetup = false
+    @State private var voiceSetupConfigured = false
     
     // Keyboard shortcut monitor for tab switching
     @State private var tabSwitchMonitor: Any?
@@ -27,11 +30,13 @@ struct ContentView: View {
     
     enum AppTab: String, CaseIterable {
         case dashboard = "Dashboard"
+        case call = "Call"
         case environments = "Environments"
         
         var localizedName: String {
             switch self {
             case .dashboard: return String(localized: "Dashboard")
+            case .call: return String(localized: "Call")
             case .environments: return String(localized: "Environments")
             }
         }
@@ -39,6 +44,7 @@ struct ContentView: View {
         var icon: String {
             switch self {
             case .dashboard: return "square.grid.3x3.topleft.filled"
+            case .call: return "phone.fill"
             case .environments: return "desktopcomputer"
             }
         }
@@ -51,6 +57,24 @@ struct ContentView: View {
                     Label(AppTab.dashboard.localizedName, systemImage: AppTab.dashboard.icon)
                 }
                 .tag(AppTab.dashboard)
+            
+            CallView()
+                .environmentObject(voiceOrchestrator)
+                .tabItem {
+                    Label {
+                        HStack(spacing: 4) {
+                            Text(AppTab.call.localizedName)
+                            if voiceOrchestrator.callState != .idle {
+                                Circle()
+                                    .fill(.green)
+                                    .frame(width: 6, height: 6)
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: AppTab.call.icon)
+                    }
+                }
+                .tag(AppTab.call)
             
             AgentEnvironmentsView(selectedTaskId: $selectedTaskId)
                 .tabItem {
@@ -71,6 +95,16 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .continueFromTask)) { _ in
             selectedTab = .dashboard
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .startVoiceCall)) { _ in
+            if voiceOrchestrator.isVoiceConfigured {
+                selectedTab = .call
+                if voiceOrchestrator.callState == .idle {
+                    Task { await voiceOrchestrator.startCall() }
+                }
+            } else {
+                showVoiceSetup = true
+            }
         }
         .agentQuestionSheet($pendingQuestion) { _ in
             if let questionId = pendingQuestion?.id {
@@ -114,6 +148,37 @@ struct ContentView: View {
                 pendingPermission = request
             }
         }
+        .sheet(isPresented: $showVoiceSetup) {
+            VStack(spacing: 0) {
+                VoiceProviderSetupView(
+                    isConfigured: $voiceSetupConfigured,
+                    onConfigured: {
+                        showVoiceSetup = false
+                        selectedTab = .call
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                Divider()
+
+                HStack {
+                    Spacer()
+                    Button("Cancel") {
+                        showVoiceSetup = false
+                        selectedTab = .dashboard
+                    }
+                    .keyboardShortcut(.cancelAction)
+                }
+                .padding(20)
+            }
+            .frame(width: 600, height: 500)
+        }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            if newValue == .call && !voiceOrchestrator.isVoiceConfigured {
+                selectedTab = oldValue
+                showVoiceSetup = true
+            }
+        }
     }
     
     /// Install a local key-event monitor for Ctrl+Tab / Ctrl+Shift+Tab tab switching
@@ -151,5 +216,6 @@ struct ContentView: View {
         .environmentObject(VMServiceClient.shared)
         .environmentObject(TaskService())
         .environmentObject(SchedulerService.shared)
+        .environmentObject(VoiceOrchestrator())
         .modelContainer(for: [VMRecord.self, TaskRecord.self, ScheduledTask.self], inMemory: true)
 }
