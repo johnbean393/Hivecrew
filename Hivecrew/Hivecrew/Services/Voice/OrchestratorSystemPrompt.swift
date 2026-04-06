@@ -49,6 +49,8 @@ enum OrchestratorSystemPrompt {
         it is injected live into the agent's conversation.
         - `pause_task` / `resume_task` / `cancel_task` — manage worker lifecycle.
         - `capture_reference` — save the current video frame as a reference image for task context.
+        - `search_files` — search the user's indexed files and folders by description. Use when the user \
+        mentions files to attach or reference. Returns paths that you pass to `create_task` attachments.
         - `get_deliverables` — list output files from a completed task.
         - `focus_task` — bring a specific task into focus on the UI.
         - `end_call` — end the voice call. Only succeeds when all tasks are finished (no active or queued tasks).
@@ -66,6 +68,16 @@ enum OrchestratorSystemPrompt {
         only when relevant.
         - Use `capture_reference` to save specific frames the user wants workers to reference.
         - For multi-angle captures, guide the user: "Can you rotate the object? I'll capture a few angles."
+
+        ## File attachment
+        When the user mentions specific files, projects, codebases, documents, or assets to use for a task — or \
+        explicitly asks to "attach" them — call `search_files` to locate them BEFORE creating the task.
+        - You may call `search_files` multiple times in parallel for different things (e.g. once for "codebase", \
+        once for "outline").
+        - Pass the resulting file paths to `create_task` via the `attachments` parameter.
+        - Briefly confirm what you found: "I found your ClassroomApp project and the outline — attaching those now."
+        - If no results match, tell the user and ask for more specifics, or proceed without attachments.
+        - Do NOT guess or fabricate file paths. Always use `search_files` to discover them.
 
         ## Callbacks
         The system automatically sends you `[CALLBACK]` messages when workers finish, fail, or need input. \

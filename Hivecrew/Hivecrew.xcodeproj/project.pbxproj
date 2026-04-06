@@ -255,6 +255,7 @@
 		40B1F01300000001 /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01300000001 /* VoiceSettingsView.swift */; };
 		40B1F01400000001 /* VoiceAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01400000001 /* VoiceAvailability.swift */; };
 		40B1F01500000001 /* VoiceProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01500000001 /* VoiceProviderSetupView.swift */; };
+		40B1F01600000001 /* VoiceRetrievalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01600000001 /* VoiceRetrievalModels.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -537,6 +538,7 @@
 		40A1F01300000001 /* VoiceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSettingsView.swift; sourceTree = "<group>"; };
 		40A1F01400000001 /* VoiceAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAvailability.swift; sourceTree = "<group>"; };
 		40A1F01500000001 /* VoiceProviderSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProviderSetupView.swift; sourceTree = "<group>"; };
+		40A1F01600000001 /* VoiceRetrievalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRetrievalModels.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1053,6 +1055,7 @@
 				40A1F00300000001 /* OrchestratorToolHandler.swift */,
 				40A1F00400000001 /* OrchestratorSystemPrompt.swift */,
 				40A1F01400000001 /* VoiceAvailability.swift */,
+				40A1F01600000001 /* VoiceRetrievalModels.swift */,
 			);
 			path = Voice;
 			sourceTree = "<group>";
@@ -1657,6 +1660,7 @@
 				40B1F01200000001 /* CapturePreviewView.swift in Sources */,
 				40B1F01300000001 /* VoiceSettingsView.swift in Sources */,
 				40B1F01400000001 /* VoiceAvailability.swift in Sources */,
+				40B1F01600000001 /* VoiceRetrievalModels.swift in Sources */,
 				40B1F01500000001 /* VoiceProviderSetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

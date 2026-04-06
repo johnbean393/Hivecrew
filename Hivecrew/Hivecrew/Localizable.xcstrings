@@ -15326,6 +15326,9 @@
         }
       }
     },
+    "Files to attach" : {
+
+    },
     "For custom endpoints like Azure, Anthropic, or local LLMs" : {
       "localizations" : {
         "de" : {

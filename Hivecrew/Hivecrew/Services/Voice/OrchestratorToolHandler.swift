@@ -11,6 +11,17 @@ import HivecrewVoice
 import SwiftData
 internal import AVFoundation
 
+/// Result returned from a tool handler, carrying both the text sent back
+/// to the voice model and an optional record for the transcript UI.
+struct ToolCallResult {
+    let text: String
+    let transcriptRecord: ToolUseRecord?
+
+    static func textOnly(_ text: String) -> ToolCallResult {
+        ToolCallResult(text: text, transcriptRecord: nil)
+    }
+}
+
 @MainActor
 enum OrchestratorToolHandler {
 
@@ -110,6 +121,17 @@ enum OrchestratorToolHandler {
             description: "End the current voice call. Will only succeed when there are no active or queued tasks remaining.",
             parameters: VoiceToolParameters(properties: [:])
         ),
+        VoiceToolDeclaration(
+            name: "search_files",
+            description: "Search the user's indexed files and folders by natural language description. Returns matching paths with relevance scores. Use when the user mentions files, codebases, documents, or assets to attach. Call multiple times in parallel for different things to find. Pass the resulting paths to create_task via the attachments parameter.",
+            parameters: VoiceToolParameters(
+                properties: [
+                    "query": VoiceToolProperty(type: "string", description: "Natural language description of the files to find"),
+                    "source_filter": VoiceToolProperty(type: "string", description: "Optional filter: 'file', 'email', 'message', 'calendar'"),
+                ],
+                required: ["query"]
+            )
+        ),
     ]
 
     // MARK: - Dispatch
@@ -120,81 +142,88 @@ enum OrchestratorToolHandler {
         workerRegistry: WorkerRegistry,
         videoSourceManager: VideoSourceManager,
         orchestrator: VoiceOrchestrator
-    ) async -> String {
+    ) async -> ToolCallResult {
         let args = toolCall.arguments
 
         switch toolCall.name {
         case "create_task":
-            return await handleCreateTask(
+            return .textOnly(await handleCreateTask(
                 description: args["description"] ?? "",
                 role: args["role"] ?? "Worker",
                 attachments: args["attachments"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
-            )
+            ))
 
         case "get_task_status":
-            return await handleGetTaskStatus(
+            return .textOnly(await handleGetTaskStatus(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            )
+            ))
 
         case "send_instruction":
-            return await handleSendInstruction(
+            return .textOnly(await handleSendInstruction(
                 query: args["query"] ?? "",
                 message: args["message"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            )
+            ))
 
         case "pause_task":
-            return handlePauseTask(
+            return .textOnly(handlePauseTask(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            )
+            ))
 
         case "resume_task":
-            return await handleResumeTask(
+            return .textOnly(await handleResumeTask(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            )
+            ))
 
         case "cancel_task":
-            return await handleCancelTask(
+            return .textOnly(await handleCancelTask(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            )
+            ))
 
         case "capture_reference":
-            return await handleCaptureReference(videoSourceManager: videoSourceManager)
+            return .textOnly(await handleCaptureReference(videoSourceManager: videoSourceManager))
 
         case "get_deliverables":
-            return handleGetDeliverables(
+            return .textOnly(handleGetDeliverables(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
-            )
+            ))
 
         case "focus_task":
-            return handleFocusTask(
+            return .textOnly(handleFocusTask(
                 query: args["query"] ?? "",
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
-            )
+            ))
 
         case "end_call":
-            return handleEndCall(
+            return .textOnly(handleEndCall(
                 taskService: taskService,
+                orchestrator: orchestrator
+            ))
+
+        case "search_files":
+            return await handleSearchFiles(
+                query: args["query"] ?? "",
+                sourceFilter: args["source_filter"] ?? "",
                 orchestrator: orchestrator
             )
 
         default:
-            return "Unknown tool: \(toolCall.name)"
+            return .textOnly("Unknown tool: \(toolCall.name)")
         }
     }
 
@@ -226,7 +255,7 @@ enum OrchestratorToolHandler {
         }
 
         // Parse attachments — may arrive as JSON array or comma/newline-separated paths
-        let filePaths: [String]
+        var filePaths: [String]
         if attachments.isEmpty {
             filePaths = []
         } else if let data = attachments.data(using: .utf8),
@@ -237,6 +266,12 @@ enum OrchestratorToolHandler {
                 .components(separatedBy: CharacterSet(charactersIn: ",\n"))
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
+        }
+
+        // Merge confirmed file search results from transcript tool-use records
+        let confirmedSearchPaths = orchestrator.confirmedTranscriptFileSearchPaths()
+        if !confirmedSearchPaths.isEmpty {
+            filePaths = Array(Set(filePaths + confirmedSearchPaths)).sorted()
         }
 
         do {
@@ -518,5 +553,90 @@ enum OrchestratorToolHandler {
 
         orchestrator.endCallAfterSpeaking()
         return "Bye for now!"
+    }
+
+    // MARK: - File Search
+
+    private static func handleSearchFiles(
+        query: String,
+        sourceFilter: String,
+        orchestrator: VoiceOrchestrator
+    ) async -> ToolCallResult {
+        guard !query.isEmpty else {
+            return .textOnly("Error: query is required for search_files.")
+        }
+
+        let token: String
+        do {
+            token = try RetrievalDaemonManager.shared.daemonAuthToken()
+        } catch {
+            return .textOnly("File search unavailable — retrieval index is not running. You can still create the task without attachments, or ask the user for specific file paths.")
+        }
+
+        let baseURL = RetrievalDaemonManager.shared.daemonBaseURL()
+
+        let sourceFilters: [String]?
+        if !sourceFilter.isEmpty {
+            sourceFilters = [sourceFilter]
+        } else {
+            sourceFilters = nil
+        }
+
+        let requestPayload = VoiceRetrievalSuggestRequest(
+            query: query,
+            sourceFilters: sourceFilters,
+            limit: 8,
+            typingMode: true,
+            includeColdPartitionFallback: false
+        )
+
+        do {
+            var urlRequest = URLRequest(url: baseURL.appending(path: "/api/v1/retrieval/suggest"))
+            urlRequest.httpMethod = "POST"
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            urlRequest.setValue(token, forHTTPHeaderField: "X-Retrieval-Token")
+            urlRequest.httpBody = try JSONEncoder().encode(requestPayload)
+            urlRequest.timeoutInterval = 1.5
+
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                return .textOnly("File search failed — retrieval daemon returned an error. Proceed without attachments or ask the user for file paths.")
+            }
+
+            let suggestResponse = try JSONDecoder().decode(VoiceRetrievalSuggestResponse.self, from: data)
+            let suggestions = suggestResponse.suggestions
+
+            guard !suggestions.isEmpty else {
+                return .textOnly("No matching files found for '\(query)'. Ask the user for more details or proceed without attachments.")
+            }
+
+            let fileResults = suggestions.map { s in
+                VoiceFileSearchResult(
+                    id: s.id,
+                    title: s.title,
+                    path: s.sourcePathOrHandle,
+                    sourceType: s.sourceType,
+                    relevanceScore: s.relevanceScore
+                )
+            }
+
+            var lines: [String] = ["Found \(suggestions.count) file(s):"]
+            for (i, s) in suggestions.enumerated() {
+                let score = String(format: "%.2f", s.relevanceScore)
+                lines.append("\(i + 1). [\(score)] \(s.sourcePathOrHandle) — \(s.title)")
+            }
+            lines.append("Pass desired paths to create_task via the attachments parameter.")
+            let responseText = lines.joined(separator: "\n")
+
+            let record = ToolUseRecord(
+                toolName: "search_files",
+                summary: "Found \(suggestions.count) file(s) for \"\(query)\"",
+                fileResults: fileResults
+            )
+
+            return ToolCallResult(text: responseText, transcriptRecord: record)
+        } catch {
+            return .textOnly("File search failed: \(error.localizedDescription). Proceed without attachments or ask the user for file paths.")
+        }
     }
 }

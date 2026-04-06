@@ -17,52 +17,8 @@ struct CallView: View {
             case .idle:
                 IdleCallView()
 
-            case .active, .idleTimeout, .compactShare:
+            case .active, .idleTimeout, .compactShare, .suspended:
                 ExpandedCallView()
-
-            case .suspended:
-                ExpandedCallView()
-                    .overlay {
-                        VStack {
-                            Spacer()
-                            VStack(spacing: 12) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "moon.zzz.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(.yellow)
-                                    Text("Call paused to save costs")
-                                        .font(.subheadline.weight(.medium))
-                                }
-
-                                Text("The session will resume when a worker needs attention, or you can wake it manually.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-
-                                HStack(spacing: 12) {
-                                    Button {
-                                        Task { await orchestrator.resumeCall() }
-                                    } label: {
-                                        Label("Resume", systemImage: "mic.fill")
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .controlSize(.regular)
-
-                                    Button {
-                                        orchestrator.endCall()
-                                    } label: {
-                                        Label("End Call", systemImage: "phone.down.fill")
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .tint(.red)
-                                    .controlSize(.regular)
-                                }
-                            }
-                            .padding(20)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-                            .padding(.bottom, 20)
-                        }
-                    }
             }
         }
         .environmentObject(orchestrator)

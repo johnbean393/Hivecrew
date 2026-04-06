@@ -171,6 +171,7 @@ final class VoiceOrchestrator: ObservableObject {
             try await audioManager.startCapture(voiceProcessingEnabled: true)
             connectionState = .connected
             startIdleTimer()
+            subscribeToInputLevel()
             subscribeToTaskEvents()
         } catch {
             connectionState = .error(error.localizedDescription)
@@ -182,6 +183,7 @@ final class VoiceOrchestrator: ObservableObject {
         pendingEndCall = false
         resetOverlapMetrics()
         cancelTimers()
+        unsubscribeFromInputLevel()
         audioManager.stopCapture()
         audioManager.stopPlayback()
         provider?.disconnect()
@@ -234,6 +236,7 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onInterrupted = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.resetIdleTimer()
                 self.logServerInterrupted()
                 self.audioManager.clearPlaybackQueue()
                 self.audioManager.setServerModelSpeaking(false)
@@ -369,18 +372,14 @@ final class VoiceOrchestrator: ObservableObject {
             logFirstInputTranscriptAfterOverlap(transcription.text)
         }
         let role: TranscriptEntry.Role = transcription.source == .input ? .user : .model
-        if let last = transcript.last, last.role == role {
-            transcript[transcript.count - 1] = TranscriptEntry(
+        if let last = transcript.last, last.role == role, case .text = last.content {
+            transcript[transcript.count - 1] = .speech(
                 role: role,
                 text: transcription.text,
                 timestamp: last.timestamp
             )
         } else {
-            transcript.append(TranscriptEntry(
-                role: role,
-                text: transcription.text,
-                timestamp: Date()
-            ))
+            transcript.append(.speech(role: role, text: transcription.text))
         }
     }
 
@@ -398,10 +397,14 @@ final class VoiceOrchestrator: ObservableObject {
             orchestrator: self
         )
 
+        if let record = result.transcriptRecord {
+            transcript.append(.toolUse(record))
+        }
+
         try? await provider?.sendToolResponse(
             callId: toolCall.id,
             name: toolCall.name,
-            result: result
+            result: result.text
         )
     }
 
@@ -554,6 +557,16 @@ final class VoiceOrchestrator: ObservableObject {
         Task { try? await provider?.sendText(notification) }
     }
 
+    // MARK: - Transcript File Search
+
+    /// Gathers selected file paths from all search_files tool-use records in the transcript.
+    func confirmedTranscriptFileSearchPaths() -> [String] {
+        transcript.compactMap { entry -> [String]? in
+            guard case .toolUse(let record) = entry.content else { return nil }
+            return record.fileResults.filter(\.isSelected).map(\.path)
+        }.flatMap { $0 }
+    }
+
     // MARK: - Cleanup
 
     /// Restore floating question windows for any unanswered questions, then tear down observers.
@@ -594,6 +607,7 @@ final class VoiceOrchestrator: ObservableObject {
     func suspendCall() {
         guard callState == .active || callState == .idleTimeout else { return }
         cancelTimers()
+        unsubscribeFromInputLevel()
         audioManager.stopCapture()
         audioManager.stopPlayback()
         callState = .suspended
@@ -607,6 +621,7 @@ final class VoiceOrchestrator: ObservableObject {
         callState = .active
         try? await audioManager.startCapture(voiceProcessingEnabled: true)
         startIdleTimer()
+        subscribeToInputLevel()
     }
 
     /// Resume if currently suspended, used by callbacks that need to relay
@@ -657,6 +672,23 @@ final class VoiceOrchestrator: ObservableObject {
         idleTimer = nil
         suspendTimer?.invalidate()
         suspendTimer = nil
+    }
+
+    private var inputLevelCancellable: AnyCancellable?
+
+    private func subscribeToInputLevel() {
+        inputLevelCancellable?.cancel()
+        inputLevelCancellable = audioManager.$inputLevel
+            .filter { $0 > 0.05 }
+            .throttle(for: .seconds(2), scheduler: RunLoop.main, latest: true)
+            .sink { [weak self] _ in
+                self?.resetIdleTimer()
+            }
+    }
+
+    private func unsubscribeFromInputLevel() {
+        inputLevelCancellable?.cancel()
+        inputLevelCancellable = nil
     }
 
     /// True when every task in this session has reached a terminal state.
@@ -738,10 +770,40 @@ final class VoiceOrchestrator: ObservableObject {
 
 struct TranscriptEntry: Identifiable, Equatable {
     enum Role: String {
-        case user, model
+        case user, model, tool
     }
+
+    enum Content: Equatable {
+        case text(String)
+        case toolUse(ToolUseRecord)
+    }
+
     let id = UUID()
     let role: Role
-    let text: String
+    let content: Content
     let timestamp: Date
+
+    var text: String {
+        switch content {
+        case .text(let str): return str
+        case .toolUse(let record): return record.summary
+        }
+    }
+
+    static func speech(role: Role, text: String, timestamp: Date = Date()) -> TranscriptEntry {
+        TranscriptEntry(role: role, content: .text(text), timestamp: timestamp)
+    }
+
+    static func toolUse(_ record: ToolUseRecord, timestamp: Date = Date()) -> TranscriptEntry {
+        TranscriptEntry(role: .tool, content: .toolUse(record), timestamp: timestamp)
+    }
+}
+
+// MARK: - Tool Use Record
+
+struct ToolUseRecord: Identifiable, Equatable {
+    let id = UUID()
+    let toolName: String
+    let summary: String
+    var fileResults: [VoiceFileSearchResult]
 }
