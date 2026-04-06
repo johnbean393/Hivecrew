@@ -418,15 +418,15 @@ final class RetrievalDaemonManager {
                     let serviceTarget = "gui/\(uid)/\(self.launchAgentLabel)"
                     // Keep launch responsive: when daemon is already running, defer
                     // any update/restart work to a delayed background maintenance pass.
-                    if self.isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+                    if await self.isLaunchAgentLoaded(serviceTarget: serviceTarget) {
                         self.scheduleDeferredUpdateCheckIfNeeded()
                         return
                     }
                     let install = try self.installOrUpdate()
                     if install.binaryWasUpdated {
-                        try self.unloadLaunchAgentIfPresent()
+                        try await self.unloadLaunchAgentIfPresent()
                     }
-                    try self.loadLaunchAgent()
+                    try await self.loadLaunchAgent()
                     // Never probe daemon health on app launch path.
                     // Startup should stay responsive even if daemon takes time to come up.
                     UserDefaults.standard.set(install.expectedVersion, forKey: self.expectedVersionDefaultsKey)
@@ -467,8 +467,8 @@ final class RetrievalDaemonManager {
                     UserDefaults.standard.set(install.expectedVersion, forKey: self.expectedVersionDefaultsKey)
                     guard install.binaryWasUpdated else { return }
 
-                    try self.unloadLaunchAgentIfPresent()
-                    try self.loadLaunchAgent()
+                    try await self.unloadLaunchAgentIfPresent()
+                    try await self.loadLaunchAgent()
                     _ = await self.waitForHealthyState(maxAttempts: 8)
                     try await self.ensureExpectedDaemonVersion(install.expectedVersion)
                 } catch {
@@ -509,8 +509,8 @@ final class RetrievalDaemonManager {
             guard let self else { return }
             do {
                 let install = try installOrUpdate()
-                try unloadLaunchAgentIfPresent()
-                try loadLaunchAgent()
+                try await unloadLaunchAgentIfPresent()
+                try await loadLaunchAgent()
                 _ = await waitForHealthyState(maxAttempts: 8)
                 try await ensureExpectedDaemonVersion(install.expectedVersion)
             } catch {
@@ -524,7 +524,7 @@ final class RetrievalDaemonManager {
         Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
-                try unloadLaunchAgentIfPresent()
+                try await unloadLaunchAgentIfPresent()
             } catch {
                 print("RetrievalDaemonManager: Failed to unload launch agent: \(error)")
             }
@@ -646,9 +646,11 @@ final class RetrievalDaemonManager {
         // stale daemon rollbacks when the app binary was not rebuilt yet.
         let sourceMarker = sourceBinaryVersion
         let previousSourceMarker = persistedDaemonSourceMarker()
-        let binaryWasUpdated = previousSourceMarker != sourceMarker || !fileManager.fileExists(atPath: destinationBinary.path)
+        let destinationExists = fileManager.fileExists(atPath: destinationBinary.path)
+        let binaryWasUpdated = previousSourceMarker != sourceMarker || !destinationExists
 
         if binaryWasUpdated {
+            print("RetrievalDaemonManager: binaryWasUpdated=true — previousMarker=\(previousSourceMarker ?? "nil"), currentMarker=\(sourceMarker), destinationExists=\(destinationExists)")
             try replaceDaemonBinaryAtomically(
                 from: sourceBinary,
                 to: destinationBinary,
@@ -723,38 +725,38 @@ final class RetrievalDaemonManager {
         return marker
     }
 
-    private func loadLaunchAgent() throws {
+    private func loadLaunchAgent() async throws {
         let uid = getuid()
         let serviceTarget = "gui/\(uid)/\(launchAgentLabel)"
 
         // If the service is already loaded, keep it running as-is.
         // Repeated startIfEnabled() calls can happen when app windows re-appear;
         // forcing kickstart here resets in-memory daemon indexing state.
-        if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+        if await isLaunchAgentLoaded(serviceTarget: serviceTarget) {
             return
         }
 
         do {
-            try runLaunchctl(["bootstrap", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
+            try await runLaunchctl(["bootstrap", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
         } catch {
             // launchctl can report EIO for bootstrap while the service is already present.
-            if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+            if await isLaunchAgentLoaded(serviceTarget: serviceTarget) {
                 return
             }
             throw error
         }
-        try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
+        try await runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
     }
 
-    private func unloadLaunchAgentIfPresent() throws {
+    private func unloadLaunchAgentIfPresent() async throws {
         let uid = getuid()
-        try runLaunchctl(["bootout", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
+        try await runLaunchctl(["bootout", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
         // Try by label as a fallback in case the plist path changed.
-        try runLaunchctl(["bootout", "gui/\(uid)/\(launchAgentLabel)"], allowAlreadyLoaded: true)
+        try await runLaunchctl(["bootout", "gui/\(uid)/\(launchAgentLabel)"], allowAlreadyLoaded: true)
     }
 
-    private func runLaunchctl(_ arguments: [String], allowAlreadyLoaded: Bool) throws {
-        let result = try runLaunchctlProcess(
+    private func runLaunchctl(_ arguments: [String], allowAlreadyLoaded: Bool) async throws {
+        let result = try await runLaunchctlProcess(
             arguments,
             captureStdout: false,
             captureStderr: true
@@ -773,9 +775,9 @@ final class RetrievalDaemonManager {
         }
     }
 
-    private func isLaunchAgentLoaded(serviceTarget: String) -> Bool {
+    private func isLaunchAgentLoaded(serviceTarget: String) async -> Bool {
         do {
-            let result = try runLaunchctlProcess(
+            let result = try await runLaunchctlProcess(
                 ["print", serviceTarget],
                 captureStdout: false,
                 captureStderr: false
@@ -796,7 +798,7 @@ final class RetrievalDaemonManager {
         _ arguments: [String],
         captureStdout: Bool,
         captureStderr: Bool
-    ) throws -> LaunchctlProcessResult {
+    ) async throws -> LaunchctlProcessResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         process.arguments = arguments
@@ -843,21 +845,37 @@ final class RetrievalDaemonManager {
             }
         }
 
-        let completion = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            completion.signal()
-        }
+        let timeoutSeconds = launchctlTimeoutSeconds
+        let argsDescription = arguments.joined(separator: " ")
+
         try process.run()
 
-        let timeout = DispatchTime.now() + launchctlTimeoutSeconds
-        guard completion.wait(timeout: timeout) == .success else {
-            process.terminate()
-            throw NSError(
-                domain: "RetrievalDaemonManager",
-                code: 8,
-                userInfo: [NSLocalizedDescriptionKey: "launchctl command timed out: \(arguments.joined(separator: " "))"]
-            )
+        let lock = NSLock()
+        var didResume = false
+
+        let terminationStatus: Int32 = try await withCheckedThrowingContinuation { continuation in
+            process.terminationHandler = { p in
+                lock.lock()
+                guard !didResume else { lock.unlock(); return }
+                didResume = true
+                lock.unlock()
+                continuation.resume(returning: p.terminationStatus)
+            }
+
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds) {
+                process.terminate()
+                lock.lock()
+                guard !didResume else { lock.unlock(); return }
+                didResume = true
+                lock.unlock()
+                continuation.resume(throwing: NSError(
+                    domain: "RetrievalDaemonManager",
+                    code: 8,
+                    userInfo: [NSLocalizedDescriptionKey: "launchctl command timed out: \(argsDescription)"]
+                ))
+            }
         }
+
         process.terminationHandler = nil
 
         try? stdoutHandle?.close()
@@ -868,7 +886,7 @@ final class RetrievalDaemonManager {
         let standardOutput = stdoutURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
         let standardError = stderrURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
         return LaunchctlProcessResult(
-            terminationStatus: process.terminationStatus,
+            terminationStatus: terminationStatus,
             standardOutput: standardOutput,
             standardError: standardError
         )
@@ -933,7 +951,7 @@ final class RetrievalDaemonManager {
         guard !expectedVersion.isEmpty else { return }
         guard let runningVersion = await runningDaemonVersion() else { return }
         guard runningVersion != expectedVersion else { return }
-        if shouldTreatLegacyHealthVersionAsCurrent(runningVersion: runningVersion, expectedVersion: expectedVersion) {
+        if await shouldTreatLegacyHealthVersionAsCurrent(runningVersion: runningVersion, expectedVersion: expectedVersion) {
             return
         }
 
@@ -944,7 +962,7 @@ final class RetrievalDaemonManager {
             return
         }
         if let refreshed = await runningDaemonVersion(),
-           shouldTreatLegacyHealthVersionAsCurrent(runningVersion: refreshed, expectedVersion: expectedVersion) {
+           await shouldTreatLegacyHealthVersionAsCurrent(runningVersion: refreshed, expectedVersion: expectedVersion) {
             return
         }
 
@@ -955,7 +973,7 @@ final class RetrievalDaemonManager {
             return
         }
         if let refreshed = await runningDaemonVersion(),
-           shouldTreatLegacyHealthVersionAsCurrent(runningVersion: refreshed, expectedVersion: expectedVersion) {
+           await shouldTreatLegacyHealthVersionAsCurrent(runningVersion: refreshed, expectedVersion: expectedVersion) {
             return
         }
 
@@ -971,19 +989,19 @@ final class RetrievalDaemonManager {
         let serviceTarget = "gui/\(uid)/\(launchAgentLabel)"
 
         // Aggressively tear down any existing daemon instance first.
-        try runLaunchctl(["kill", "SIGKILL", serviceTarget], allowAlreadyLoaded: true)
+        try await runLaunchctl(["kill", "SIGKILL", serviceTarget], allowAlreadyLoaded: true)
         do {
-            try runLaunchctl(["bootout", serviceTarget], allowAlreadyLoaded: true)
+            try await runLaunchctl(["bootout", serviceTarget], allowAlreadyLoaded: true)
         } catch {
-            if !isIgnorableBootoutFailure(error, serviceTarget: serviceTarget) {
+            if await !isIgnorableBootoutFailure(error, serviceTarget: serviceTarget) {
                 throw error
             }
             print("RetrievalDaemonManager: Ignoring label bootout failure: \(error.localizedDescription)")
         }
         do {
-            try runLaunchctl(["bootout", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
+            try await runLaunchctl(["bootout", "gui/\(uid)", resolvedLaunchAgentURL().path], allowAlreadyLoaded: true)
         } catch {
-            if !isIgnorableBootoutFailure(error, serviceTarget: serviceTarget) {
+            if await !isIgnorableBootoutFailure(error, serviceTarget: serviceTarget) {
                 throw error
             }
             print("RetrievalDaemonManager: Ignoring path bootout failure: \(error.localizedDescription)")
@@ -991,27 +1009,27 @@ final class RetrievalDaemonManager {
         try? await Task.sleep(for: .milliseconds(250))
 
         // If launchd still thinks the service is loaded, kickstart in-place. Otherwise bootstrap it.
-        if isLaunchAgentLoaded(serviceTarget: serviceTarget) {
-            try runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
+        if await isLaunchAgentLoaded(serviceTarget: serviceTarget) {
+            try await runLaunchctl(["kickstart", "-k", serviceTarget], allowAlreadyLoaded: true)
         } else {
-            try loadLaunchAgent()
+            try await loadLaunchAgent()
         }
         _ = await waitForHealthyState(maxAttempts: 8)
     }
 
-    private func isIgnorableBootoutFailure(_ error: Error, serviceTarget: String) -> Bool {
+    private func isIgnorableBootoutFailure(_ error: Error, serviceTarget: String) async -> Bool {
         let message = (error as NSError).localizedDescription.lowercased()
         if message.contains("input/output error") || message.contains("boot-out failed: 5") {
             // launchctl can emit EIO during transitional states; proceed to kickstart/load path.
             return true
         }
         // If launchd no longer reports the service, the bootout failure is effectively harmless.
-        return !isLaunchAgentLoaded(serviceTarget: serviceTarget)
+        return await !isLaunchAgentLoaded(serviceTarget: serviceTarget)
     }
 
-    private func shouldTreatLegacyHealthVersionAsCurrent(runningVersion: String, expectedVersion: String) -> Bool {
+    private func shouldTreatLegacyHealthVersionAsCurrent(runningVersion: String, expectedVersion: String) async -> Bool {
         guard !isHashVersion(runningVersion) else { return false }
-        guard let binaryVersion = runningDaemonBinaryVersion(), binaryVersion == expectedVersion else { return false }
+        guard let binaryVersion = await runningDaemonBinaryVersion(), binaryVersion == expectedVersion else { return false }
         print(
             "RetrievalDaemonManager: Health reported legacy daemon version '\(runningVersion)', " +
             "but running binary hash matches expected '\(expectedVersion)'."
@@ -1019,18 +1037,18 @@ final class RetrievalDaemonManager {
         return true
     }
 
-    private func runningDaemonBinaryVersion() -> String? {
+    private func runningDaemonBinaryVersion() async -> String? {
         let uid = getuid()
         let serviceTarget = "gui/\(uid)/\(launchAgentLabel)"
-        let programPath = launchAgentProgramPath(serviceTarget: serviceTarget) ?? daemonBinaryURL().path
+        let programPath = await launchAgentProgramPath(serviceTarget: serviceTarget) ?? daemonBinaryURL().path
         let url = URL(fileURLWithPath: programPath)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return try? daemonBinaryVersion(at: url)
     }
 
-    private func launchAgentProgramPath(serviceTarget: String) -> String? {
+    private func launchAgentProgramPath(serviceTarget: String) async -> String? {
         do {
-            let result = try runLaunchctlProcess(
+            let result = try await runLaunchctlProcess(
                 ["print", serviceTarget],
                 captureStdout: true,
                 captureStderr: false

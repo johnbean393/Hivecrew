@@ -102,6 +102,11 @@ final class VoiceOrchestrator: ObservableObject {
     init() {
         setupAudioCallbacks()
         setupVideoCallbacks()
+
+        videoSourceManager.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 
     // MARK: - Connection Lifecycle

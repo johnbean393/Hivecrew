@@ -75,6 +75,9 @@ public final class VideoSourceManager: ObservableObject {
             try? await cameraCapture.startCapture(deviceID: deviceID)
             if cameraCapture.isCapturing {
                 activeSource = .camera(deviceID: deviceID)
+                if let device = cameraCapture.availableCameras.first(where: { $0.uniqueID == deviceID }) {
+                    cameraCapture.setUserPreferred(device)
+                }
             }
         }
     }

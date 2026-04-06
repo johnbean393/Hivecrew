@@ -10,6 +10,7 @@
 import Foundation
 @preconcurrency import AVFoundation
 import AudioToolbox
+import os
 
 // MARK: - VoiceProcessingIO Bridge
 
@@ -29,7 +30,7 @@ private final class VPIOBridge: @unchecked Sendable {
     var captureCallback: (@Sendable (Data) -> Void)?
 
     // Playback ring buffer (written from main, read from render callback)
-    private let pbLock = NSLock()
+    private var pbLock = os_unfair_lock_s()
     private var pbBuffer = Data()
     let outputLevelBox: LevelBox
 
@@ -43,21 +44,21 @@ private final class VPIOBridge: @unchecked Sendable {
     }
 
     func writePlayback(_ data: Data) {
-        pbLock.lock()
+        os_unfair_lock_lock(&pbLock)
         pbBuffer.append(data)
-        pbLock.unlock()
+        os_unfair_lock_unlock(&pbLock)
     }
 
     func readPlayback(count: Int) -> Data {
-        pbLock.lock()
+        os_unfair_lock_lock(&pbLock)
         if pbBuffer.isEmpty {
-            pbLock.unlock()
+            os_unfair_lock_unlock(&pbLock)
             return Data(count: count)
         }
         let available = min(count, pbBuffer.count)
         let chunk = Data(pbBuffer.prefix(available))
         pbBuffer.removeFirst(available)
-        pbLock.unlock()
+        os_unfair_lock_unlock(&pbLock)
         if available < count {
             return chunk + Data(count: count - available)
         }
@@ -65,28 +66,28 @@ private final class VPIOBridge: @unchecked Sendable {
     }
 
     func clearPlayback() {
-        pbLock.lock()
+        os_unfair_lock_lock(&pbLock)
         pbBuffer.removeAll()
-        pbLock.unlock()
+        os_unfair_lock_unlock(&pbLock)
     }
 
     var isPlaybackEmpty: Bool {
-        pbLock.lock()
-        defer { pbLock.unlock() }
+        os_unfair_lock_lock(&pbLock)
+        defer { os_unfair_lock_unlock(&pbLock) }
         return pbBuffer.isEmpty
     }
 }
 
 private final class MuteStateBox: @unchecked Sendable {
-    let lock = NSLock()
+    var lock = os_unfair_lock_s()
     var value = false
 }
 
 private final class LevelBox: @unchecked Sendable {
-    let lock = NSLock()
+    var lock = os_unfair_lock_s()
     var level: Float = 0
-    func update(_ v: Float) { lock.lock(); level = v; lock.unlock() }
-    func read() -> Float { lock.lock(); defer { lock.unlock() }; return level }
+    func update(_ v: Float) { os_unfair_lock_lock(&lock); level = v; os_unfair_lock_unlock(&lock) }
+    func read() -> Float { os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }; return level }
 }
 
 // MARK: - VPIO Callbacks (file-scope, no captures)
@@ -109,9 +110,9 @@ private func vpioInputCallback(
     let status = AudioUnitRender(audioUnit, ioActionFlags, inTimeStamp, 1, inNumberFrames, &bufferList)
     guard status == noErr else { return status }
 
-    bridge.muteBox.lock.lock()
+    os_unfair_lock_lock(&bridge.muteBox.lock)
     let muted = bridge.muteBox.value
-    bridge.muteBox.lock.unlock()
+    os_unfair_lock_unlock(&bridge.muteBox.lock)
     if muted { return noErr }
 
     let mBuf = bufferList.mBuffers
@@ -233,9 +234,9 @@ public final class AudioManager: ObservableObject {
 
     @Published public var isMuted = false {
         didSet {
-            muteState.lock.lock()
+            os_unfair_lock_lock(&muteState.lock)
             muteState.value = isMuted
-            muteState.lock.unlock()
+            os_unfair_lock_unlock(&muteState.lock)
         }
     }
 
@@ -428,16 +429,24 @@ public final class AudioManager: ObservableObject {
     }
 
     private func teardownVPIO() {
-        if let graph = vpioGraph {
-            AUGraphStop(graph)
-            if let au = vpioBridge?.audioUnit {
-                AudioUnitUninitialize(au)
-            }
-            DisposeAUGraph(graph)
-        }
+        let graph = vpioGraph
+        let audioUnit = vpioBridge?.audioUnit
+        let bridge = vpioBridge
+
         vpioGraph = nil
         vpioBridge?.audioUnit = nil
         vpioBridge = nil
+
+        if let graph {
+            DispatchQueue.global(qos: .default).async {
+                AUGraphStop(graph)
+                if let au = audioUnit {
+                    AudioUnitUninitialize(au)
+                }
+                DisposeAUGraph(graph)
+                withExtendedLifetime(bridge) {}
+            }
+        }
     }
 
     // MARK: - Level Metering

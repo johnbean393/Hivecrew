@@ -11,6 +11,8 @@ import AVFoundation
 import CoreImage
 import AppKit
 
+private let kSystemPreferredCameraKeyPath = "systemPreferredCamera"
+
 @MainActor
 public final class CameraCaptureManager: NSObject, ObservableObject {
 
@@ -62,6 +64,8 @@ public final class CameraCaptureManager: NSObject, ObservableObject {
         }
     }
 
+    @Published public private(set) var systemPreferredCamera: AVCaptureDevice?
+
     private var deviceObservation: NSKeyValueObservation?
     private var discoverySession: AVCaptureDevice.DiscoverySession?
     private var discoveryObservation: NSKeyValueObservation?
@@ -81,12 +85,52 @@ public final class CameraCaptureManager: NSObject, ObservableObject {
                 self?.refreshAvailableCameras()
             }
         }
+
+        systemPreferredCamera = AVCaptureDevice.systemPreferredCamera
+        AVCaptureDevice.self.addObserver(self, forKeyPath: kSystemPreferredCameraKeyPath, options: [.new], context: nil)
+
+        NotificationCenter.default.addObserver(self, selector: #selector(deviceConnectionChanged),
+                                               name: .AVCaptureDeviceWasConnected, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(deviceConnectionChanged),
+                                               name: .AVCaptureDeviceWasDisconnected, object: nil)
+    }
+
+    deinit {
+        AVCaptureDevice.self.removeObserver(self, forKeyPath: kSystemPreferredCameraKeyPath)
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    nonisolated override public func observeValue(
+        forKeyPath keyPath: String?,
+        of object: Any?,
+        change: [NSKeyValueChangeKey: Any]?,
+        context: UnsafeMutableRawPointer?
+    ) {
+        switch keyPath {
+        case kSystemPreferredCameraKeyPath:
+            Task { @MainActor [weak self] in
+                self?.systemPreferredCamera = AVCaptureDevice.systemPreferredCamera
+                self?.refreshAvailableCameras()
+            }
+        default:
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
+        }
+    }
+
+    @objc nonisolated private func deviceConnectionChanged() {
+        Task { @MainActor [weak self] in self?.refreshAvailableCameras() }
     }
 
     // MARK: - Public API
 
     public func refreshAvailableCameras() {
         availableCameras = discoverySession?.devices ?? []
+    }
+
+    /// Persist the user's camera choice so the system remembers it across
+    /// app launches and updates `systemPreferredCamera` accordingly.
+    public func setUserPreferred(_ device: AVCaptureDevice) {
+        AVCaptureDevice.userPreferredCamera = device
     }
 
     public func startCapture(deviceID: String? = nil) async throws {
