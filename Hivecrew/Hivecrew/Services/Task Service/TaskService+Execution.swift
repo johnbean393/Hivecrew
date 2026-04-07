@@ -566,6 +566,9 @@ extension TaskService {
         
         objectWillChange.send()
         
+        // Notify cluster of capacity change
+        NotificationCenter.default.post(name: .clusterCapacityChanged, object: nil)
+        
         // Check if there are queued tasks waiting for a VM
         await processQueuedTasks()
     }

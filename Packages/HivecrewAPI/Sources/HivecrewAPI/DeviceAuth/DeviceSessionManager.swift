@@ -283,4 +283,15 @@ public actor DeviceSessionManager {
         return true
     }
     
+    /// Revoke all authorized devices at once
+    public func revokeAllDevices() {
+        let count = authorizedDevices.count
+        guard count > 0 else { return }
+        pendingPairings.removeAll()
+        authorizedDevices.removeAll()
+        saveDevices()
+        notifyDevicesChanged()
+        logger.info("All authorized devices revoked (\(count) device(s))")
+    }
+    
 }

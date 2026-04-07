@@ -38,6 +38,25 @@ final class APIServerManager {
     private var taskService: TaskService?
     private var modelContext: ModelContext?
     
+    /// Public read-only reference to TaskService for cluster announcements
+    var taskServiceRef: TaskService? { taskService }
+    
+    /// Revokes all authorized devices (e.g. when removing remote access).
+    func revokeAllAuthorizedDevices() async {
+        await deviceSessionManager?.revokeAllDevices()
+    }
+    
+    /// Returns provider names from the local model context for cluster capability announcements.
+    func localProviderNames() -> [String] {
+        guard let ctx = modelContext else { return [] }
+        let descriptor = FetchDescriptor<LLMProviderRecord>()
+        let providers = (try? ctx.fetch(descriptor)) ?? []
+        return providers.map(\.displayName)
+    }
+    
+    /// Shared RemoteTaskIndex for the coordinator
+    private(set) var remoteTaskIndex: RemoteTaskIndex?
+    
     private init() {}
     
     /// Configure the manager with required dependencies
@@ -145,8 +164,8 @@ final class APIServerManager {
         // Create file storage
         let fileStorage = TaskFileStorage()
         
-        // Create service provider
-        let serviceProvider = APIServiceProviderBridge(
+        // Create local service provider
+        let localProvider = APIServiceProviderBridge(
             taskService: taskService,
             schedulerService: SchedulerService.shared,
             vmServiceClient: VMServiceClient.shared,
@@ -154,10 +173,52 @@ final class APIServerManager {
             fileStorage: fileStorage
         )
         
+        // Determine cluster role and build appropriate service provider
+        let clusterManager = ClusterManager.shared
+        var clusterServiceProvider: ClusterServiceProvider?
+        var clusterToken: String?
+        let serviceProvider: APIServiceProvider
+        
+        Task {
+            let role = await clusterManager.role
+            let token = await clusterManager.clusterToken
+            
+            await MainActor.run {
+                if role == .coordinator {
+                    print("APIServerManager: Coordinator mode — using FederatedServiceProvider")
+                }
+            }
+        }
+        
+        // Check synchronously via cached keychain value
+        let cachedClusterToken = RemoteAccessKeychain.retrieveClusterToken()
+        let isCoordinator = UserDefaults.standard.bool(forKey: "clusterCoordinatorEnabled")
+        
+        if isCoordinator, let token = cachedClusterToken {
+            let taskIndex = RemoteTaskIndex()
+            self.remoteTaskIndex = taskIndex
+            
+            let fedProvider = FederatedServiceProvider(
+                localProvider: localProvider,
+                clusterManager: clusterManager,
+                remoteTaskIndex: taskIndex
+            )
+            fedProvider.startDrainObserver()
+            serviceProvider = fedProvider
+            
+            let clusterBridge = ClusterServiceProviderBridge(
+                clusterManager: clusterManager,
+                remoteTaskIndex: taskIndex
+            )
+            clusterServiceProvider = clusterBridge
+            clusterToken = token
+        } else {
+            serviceProvider = localProvider
+            clusterToken = cachedClusterToken
+        }
+        
         // Create device session manager for pairing-based auth
-        // Load or generate signing key from Keychain
         let signingKeyData = DeviceAuthKeychain.loadSigningKey() ?? {
-            // Generate a fresh 256-bit signing key and persist to Keychain
             let newKey = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
             DeviceAuthKeychain.saveSigningKey(newKey)
             return newKey
@@ -169,11 +230,9 @@ final class APIServerManager {
         )
         self.deviceSessionManager = sessionManager
         
-        // Configure the device auth service and set as delegate
         let deviceAuthService = DeviceAuthService.shared
         deviceAuthService.configure(with: sessionManager)
         
-        // Start the session manager and set delegate (must be done from a Task since it's an actor)
         Task {
             await sessionManager.start()
             await sessionManager.setDelegate(deviceAuthService)
@@ -184,7 +243,9 @@ final class APIServerManager {
             configuration: config,
             serviceProvider: serviceProvider,
             fileStorage: fileStorage,
-            deviceSessionManager: sessionManager
+            deviceSessionManager: sessionManager,
+            clusterServiceProvider: clusterServiceProvider,
+            clusterToken: clusterToken
         )
         
         self.currentServer = server

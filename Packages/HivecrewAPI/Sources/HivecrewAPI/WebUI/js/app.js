@@ -108,6 +108,9 @@ document.addEventListener('alpine:init', () => {
         // System Status
         systemStatus: null,
         
+        // Cluster
+        clusterStatus: null,
+        
         // Screenshot
         screenshotUrl: '',
         screenshotTimer: null,
@@ -1592,6 +1595,22 @@ document.addEventListener('alpine:init', () => {
                 }
             } catch (error) {
                 console.error('Failed to load system status:', error);
+            }
+            
+            await this.loadClusterStatus();
+        },
+        
+        async loadClusterStatus() {
+            try {
+                const response = await this.apiFetch('/api/v1/cluster/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.clusterStatus = data;
+                } else {
+                    this.clusterStatus = null;
+                }
+            } catch (error) {
+                this.clusterStatus = null;
             }
         },
         

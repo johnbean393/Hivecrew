@@ -207,6 +207,10 @@ struct HivecrewApp: App {
         Task.detached(priority: .utility) {
             try? await Task.sleep(for: .milliseconds(350))
             await RemoteAccessManager.shared.reconnectIfNeeded()
+            
+            // Initialize cluster state after remote access is connected
+            try? await Task.sleep(for: .milliseconds(200))
+            await ClusterManager.shared.initialize()
         }
         
         // Configure MCP server manager (connections are established lazily)

@@ -3202,3 +3202,60 @@ label.checkbox-label {
         max-width: calc(100vw - 24px);
     }
 }
+
+/* ============================================================
+   Cluster UI
+   ============================================================ */
+
+.cluster-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.cluster-indicator svg {
+    color: var(--accent-color);
+    flex-shrink: 0;
+}
+
+.peer-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.peer-dot.peer-online {
+    background-color: #34c759;
+}
+
+.peer-dot.peer-offline {
+    background-color: var(--text-tertiary);
+}
+
+.peer-dot.peer-unreachable {
+    background-color: #ff9500;
+}
+
+.node-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    background: var(--accent-color-alpha, rgba(0, 122, 255, 0.12));
+    color: var(--accent-color);
+    line-height: 1.4;
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

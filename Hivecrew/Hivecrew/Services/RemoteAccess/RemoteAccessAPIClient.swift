@@ -45,13 +45,14 @@ actor RemoteAccessAPIClient {
     
     // MARK: - Tunnel Endpoints
     
-    /// Create a new tunnel. Returns tunnel info including the tunnel token.
-    func createTunnel(sessionToken: String) async throws -> TunnelCreateResponse {
-        return try await post("/tunnels", body: EmptyBody(), token: sessionToken)
+    /// Create a new tunnel (supports multiple per account). Returns tunnel info including the tunnel token.
+    func createTunnel(sessionToken: String, name: String? = nil) async throws -> TunnelCreateResponse {
+        let body = CreateTunnelRequest(name: name)
+        return try await post("/tunnels", body: body, token: sessionToken)
     }
     
-    /// Get the current user's tunnel info
-    func getTunnel(sessionToken: String) async throws -> TunnelGetResponse {
+    /// Get all tunnels for the authenticated account
+    func getTunnels(sessionToken: String) async throws -> TunnelsGetResponse {
         return try await get("/tunnels", token: sessionToken)
     }
     
@@ -67,6 +68,26 @@ actor RemoteAccessAPIClient {
             body: EmptyBody(),
             token: sessionToken
         )
+    }
+    
+    // MARK: - Cluster Endpoints
+    
+    /// Designate a tunnel as the cluster coordinator for this account.
+    /// Returns a shared cluster token and the coordinator's public URL.
+    func designateCoordinator(tunnelId: String, sessionToken: String) async throws -> ClusterDesignateResponse {
+        let body = ClusterDesignateRequest(tunnelId: tunnelId)
+        return try await post("/cluster/designate", body: body, token: sessionToken)
+    }
+    
+    /// Get cluster info for the authenticated account.
+    /// Returns coordinator URL, caller's role, peers, and cluster token.
+    func getClusterInfo(sessionToken: String) async throws -> ClusterInfoResponse {
+        return try await get("/cluster/info", token: sessionToken)
+    }
+    
+    /// Remove the coordinator designation and dissolve the cluster.
+    func removeCluster(sessionToken: String) async throws {
+        let _: MessageResponse = try await post("/cluster/remove", body: EmptyBody(), token: sessionToken)
     }
     
     // MARK: - HTTP Helpers
@@ -149,6 +170,10 @@ private struct VerifyResponse: Decodable {
     let token: String
 }
 
+private struct CreateTunnelRequest: Encodable {
+    let name: String?
+}
+
 struct TunnelCreateResponse: Decodable {
     let tunnelId: String
     let subdomain: String
@@ -163,10 +188,41 @@ struct TunnelInfo: Decodable {
     let url: String
     let createdAt: Double
     let lastHeartbeat: Double
+    let name: String?
+    let role: String?
 }
 
-struct TunnelGetResponse: Decodable {
-    let tunnel: TunnelInfo?
+struct TunnelsGetResponse: Decodable {
+    let tunnels: [TunnelInfo]
+}
+
+// MARK: - Cluster Request / Response Types
+
+private struct ClusterDesignateRequest: Encodable {
+    let tunnelId: String
+}
+
+struct ClusterDesignateResponse: Decodable {
+    let clusterToken: String
+    let coordinatorUrl: String
+}
+
+struct ClusterInfoResponse: Decodable {
+    let hasCluster: Bool
+    let role: String?
+    let clusterToken: String?
+    let coordinatorTunnelId: String?
+    let coordinatorUrl: String?
+    let peers: [ClusterPeerInfo]
+}
+
+struct ClusterPeerInfo: Decodable {
+    let tunnelId: String
+    let subdomain: String
+    let name: String?
+    let role: String
+    let url: String
+    let lastHeartbeat: Double
 }
 
 private struct ErrorBody: Decodable {

@@ -117,7 +117,8 @@ actor RemoteAccessManager {
         await updateStatus(state: .provisioning)
         
         do {
-            let response = try await apiClient.createTunnel(sessionToken: sessionToken)
+            let machineName = Host.current().localizedName
+            let response = try await apiClient.createTunnel(sessionToken: sessionToken, name: machineName)
             
             // Store tunnel credentials in Keychain
             RemoteAccessKeychain.storeTunnelToken(response.tunnelToken)
@@ -215,7 +216,7 @@ actor RemoteAccessManager {
         await updateStatus(state: .disconnected, subdomain: snapshot.subdomain, email: snapshot.email)
     }
     
-    /// Remove remote access completely (delete tunnel, clear credentials)
+    /// Remove remote access completely (delete tunnel, clear credentials, revoke all devices)
     func remove() async {
         // Stop cloudflared
         await disconnect()
@@ -229,9 +230,11 @@ actor RemoteAccessManager {
                 try await apiClient.deleteTunnel(tunnelId: tunnelId, sessionToken: sessionToken)
             } catch {
                 print("RemoteAccessManager: Failed to delete tunnel on server: \(error)")
-                // Continue with local cleanup anyway
             }
         }
+        
+        // Revoke all authorized devices so stale sessions can't reconnect
+        await APIServerManager.shared.revokeAllAuthorizedDevices()
         
         // Clear all local credentials
         RemoteAccessKeychain.clearAll()

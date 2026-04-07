@@ -223,6 +223,18 @@ public protocol APIServiceProvider: Sendable {
     func getTaskActivity(id: String, since: Int) async throws -> APIActivityResponse
 }
 
+// MARK: - Cluster Service Provider
+
+/// Abstraction layer for cluster operations.
+/// The coordinator supplies a concrete implementation when cluster mode is active.
+public protocol ClusterServiceProvider: Sendable {
+    func handleAnnouncement(_ announcement: PeerAnnouncement) async throws
+    func handleTaskUpdate(_ update: PeerTaskUpdate) async throws
+    func handleDeparture(tunnelId: String) async throws
+    func getClusterStatus() async throws -> APIClusterStatus
+    func getClusterPeers() async throws -> [APIClusterPeer]
+}
+
 // MARK: - Request Context
 
 /// Hummingbird request context used by all API routes.

@@ -27,6 +27,12 @@ public actor HivecrewAPIServer {
     /// Device session manager for pairing-based authentication
     private let deviceSessionManager: DeviceSessionManager?
     
+    /// Optional cluster service provider (non-nil when this machine is a coordinator)
+    private let clusterServiceProvider: ClusterServiceProvider?
+    
+    /// Cluster token for inter-node authentication
+    private let clusterToken: String?
+    
     /// Running server instance
     private var application: (any ApplicationProtocol)?
     
@@ -45,12 +51,16 @@ public actor HivecrewAPIServer {
         configuration: APIConfiguration,
         serviceProvider: APIServiceProvider,
         fileStorage: TaskFileStorage? = nil,
-        deviceSessionManager: DeviceSessionManager? = nil
+        deviceSessionManager: DeviceSessionManager? = nil,
+        clusterServiceProvider: ClusterServiceProvider? = nil,
+        clusterToken: String? = nil
     ) {
         self.configuration = configuration
         self.serviceProvider = serviceProvider
         self.fileStorage = fileStorage ?? TaskFileStorage()
         self.deviceSessionManager = deviceSessionManager
+        self.clusterServiceProvider = clusterServiceProvider
+        self.clusterToken = clusterToken
         
         var logger = Logger(label: "com.pattonium.api")
         logger.logLevel = .info
@@ -129,7 +139,8 @@ public actor HivecrewAPIServer {
             unauthenticatedPrefixes: [
                 "/api/v1/auth/pair/",
                 "/api/v1/auth/check"
-            ]
+            ],
+            clusterToken: clusterToken
         ))
         
         // Create API v1 group
@@ -164,6 +175,10 @@ public actor HivecrewAPIServer {
         ProvisioningRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         SystemRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         EventRoutes(serviceProvider: serviceProvider).register(with: apiV1)
+        
+        if let clusterServiceProvider = clusterServiceProvider {
+            ClusterRoutes(clusterServiceProvider: clusterServiceProvider).register(with: apiV1)
+        }
         
         // Health check endpoint (no auth required)
         router.get("health") { _, _ in

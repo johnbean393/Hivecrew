@@ -184,6 +184,8 @@ public struct APITask: Codable, Sendable {
     public let pendingWriteback: APIPendingWriteback?
     public let pendingWritebackCount: Int?
     public let appliedWritebackPaths: [String]?
+    public let nodeId: String?
+    public let nodeName: String?
     
     public init(
         id: String,
@@ -217,7 +219,9 @@ public struct APITask: Codable, Sendable {
         pendingPermission: APIPermissionRequest? = nil,
         pendingWriteback: APIPendingWriteback? = nil,
         pendingWritebackCount: Int? = nil,
-        appliedWritebackPaths: [String]? = nil
+        appliedWritebackPaths: [String]? = nil,
+        nodeId: String? = nil,
+        nodeName: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -251,6 +255,8 @@ public struct APITask: Codable, Sendable {
         self.pendingWriteback = pendingWriteback
         self.pendingWritebackCount = pendingWritebackCount
         self.appliedWritebackPaths = appliedWritebackPaths
+        self.nodeId = nodeId
+        self.nodeName = nodeName
     }
 }
 
@@ -266,6 +272,8 @@ public struct APITaskSummary: Codable, Sendable {
     public let completedAt: Date?
     public let inputFileCount: Int
     public let outputFileCount: Int
+    public let nodeId: String?
+    public let nodeName: String?
     
     public init(
         id: String,
@@ -277,7 +285,9 @@ public struct APITaskSummary: Codable, Sendable {
         startedAt: Date? = nil,
         completedAt: Date? = nil,
         inputFileCount: Int = 0,
-        outputFileCount: Int = 0
+        outputFileCount: Int = 0,
+        nodeId: String? = nil,
+        nodeName: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -289,6 +299,8 @@ public struct APITaskSummary: Codable, Sendable {
         self.completedAt = completedAt
         self.inputFileCount = inputFileCount
         self.outputFileCount = outputFileCount
+        self.nodeId = nodeId
+        self.nodeName = nodeName
     }
 }
 

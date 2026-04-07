@@ -45,7 +45,8 @@ class HivecrewAppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task { @MainActor in
-            // Gracefully stop cloudflared tunnel before termination
+            // Gracefully stop cloudflared tunnel and announce cluster departure
+            await ClusterManager.shared.shutdown()
             await RemoteAccessManager.shared.shutdown()
             
             if AppTerminationManager.shared.shouldTerminate() {

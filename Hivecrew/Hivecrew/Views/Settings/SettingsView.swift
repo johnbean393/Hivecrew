@@ -21,6 +21,7 @@ struct SettingsView: View {
         case mcp = "MCP"
         case credentials = "Credentials"
         case api = "Connect"
+        case cluster = "Cluster"
         case developer = "Developer"
         
         var id: String { rawValue }
@@ -35,6 +36,7 @@ struct SettingsView: View {
             case .mcp: return "MCP"
             case .credentials: return String(localized: "Credentials")
             case .api: return String(localized: "Connect")
+            case .cluster: return String(localized: "Cluster")
             case .developer: return String(localized: "Developer")
             }
         }
@@ -49,6 +51,7 @@ struct SettingsView: View {
             case .mcp: return "puzzlepiece.extension"
             case .credentials: return "key.fill"
             case .api: return "antenna.radiowaves.left.and.right"
+            case .cluster: return "square.stack.3d.up"
             case .developer: return "hammer"
             }
         }
@@ -64,6 +67,7 @@ struct SettingsView: View {
             mcpTab
             credentialsTab
             apiTab
+            clusterTab
             developerTab
         }
         .frame(width: 840, height: 624)
@@ -122,6 +126,12 @@ struct SettingsView: View {
         APISettingsView()
             .tabItem { Label(SettingsTab.api.localizedName, systemImage: SettingsTab.api.icon) }
             .tag(SettingsTab.api)
+    }
+    
+    private var clusterTab: some View {
+        ClusterSettingsView()
+            .tabItem { Label(SettingsTab.cluster.localizedName, systemImage: SettingsTab.cluster.icon) }
+            .tag(SettingsTab.cluster)
     }
     
     private var developerTab: some View {
