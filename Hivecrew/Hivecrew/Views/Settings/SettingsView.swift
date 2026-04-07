@@ -16,6 +16,7 @@ struct SettingsView: View {
         case providers = "Providers"
         case environment = "Environment"
         case tasks = "Tasks"
+        case tools = "Tools"
         case voice = "Voice"
         case mcp = "MCP"
         case credentials = "Credentials"
@@ -29,6 +30,7 @@ struct SettingsView: View {
             case .providers: return String(localized: "Providers")
             case .environment: return String(localized: "Environment")
             case .tasks: return String(localized: "Tasks")
+            case .tools: return String(localized: "Tools")
             case .voice: return String(localized: "Voice")
             case .mcp: return "MCP"
             case .credentials: return String(localized: "Credentials")
@@ -42,6 +44,7 @@ struct SettingsView: View {
             case .providers: return "brain.head.profile"
             case .environment: return "desktopcomputer"
             case .tasks: return "checklist"
+            case .tools: return "wrench.and.screwdriver"
             case .voice: return "waveform"
             case .mcp: return "puzzlepiece.extension"
             case .credentials: return "key.fill"
@@ -56,13 +59,14 @@ struct SettingsView: View {
             providersTab
             environmentTab
             tasksTab
+            toolsTab
             voiceTab
             mcpTab
             credentialsTab
             apiTab
             developerTab
         }
-        .frame(width: 650, height: 500)
+        .frame(width: 840, height: 624)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSettingsTab)) { notification in
             if let tab = notification.object as? SettingsTab {
                 selectedTab = tab
@@ -88,6 +92,12 @@ struct SettingsView: View {
         TaskDefaultsSettingsView()
             .tabItem { Label(SettingsTab.tasks.localizedName, systemImage: SettingsTab.tasks.icon) }
             .tag(SettingsTab.tasks)
+    }
+    
+    private var toolsTab: some View {
+        ToolsSettingsView()
+            .tabItem { Label(SettingsTab.tools.localizedName, systemImage: SettingsTab.tools.icon) }
+            .tag(SettingsTab.tools)
     }
     
     private var voiceTab: some View {

@@ -2,49 +2,21 @@
 //  EnvironmentSettingsView.swift
 //  Hivecrew
 //
-//  Environment settings: VM templates, concurrency, storage, and safety options
+//  Environment settings: VM templates, concurrency, and storage
 //
 
 import SwiftUI
 import UniformTypeIdentifiers
 import HivecrewShared
 
-/// Session trace retention policy
-enum TraceRetentionPolicy: String, CaseIterable, Identifiable {
-    case keepAll = "keep_all"
-    case last7Days = "7_days"
-    case last30Days = "30_days"
-    
-    var id: String { rawValue }
-    
-    var displayName: String {
-        switch self {
-        case .keepAll: return String(localized: "Keep all")
-        case .last7Days: return String(localized: "Last 7 days")
-        case .last30Days: return String(localized: "Last 30 days")
-        }
-    }
-    
-    var description: String {
-        switch self {
-        case .keepAll: return String(localized: "Session traces are never automatically deleted")
-        case .last7Days: return String(localized: "Traces older than 7 days are deleted on launch")
-        case .last30Days: return String(localized: "Traces older than 30 days are deleted on launch")
-        }
-    }
-}
-
-/// Environment settings tab - VM templates, concurrency, storage, and safety
+/// Environment settings tab - VM templates, concurrency, and storage
 struct EnvironmentSettingsView: View {
     @EnvironmentObject var vmService: VMServiceClient
+    @Environment(\.openWindow) private var openWindow
     
     // Template & concurrency
     @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
     @AppStorage("maxConcurrentVMs") private var maxConcurrentVMs = 2
-    
-    // Safety settings
-    @AppStorage("requireConfirmationForShell") private var requireConfirmationForShell = false
-    @AppStorage("traceRetentionPolicy") private var traceRetentionPolicy: String = TraceRetentionPolicy.keepAll.rawValue
     
     @State private var templates: [TemplateInfo] = []
     @State private var isLoadingTemplates = false
@@ -54,10 +26,6 @@ struct EnvironmentSettingsView: View {
     @State private var templateToDelete: TemplateInfo?
     @State private var isImporting = false
     @State private var importError: String?
-    
-    private var selectedRetentionPolicy: TraceRetentionPolicy {
-        TraceRetentionPolicy(rawValue: traceRetentionPolicy) ?? .keepAll
-    }
 
     private func clampMaxConcurrentVMSetting() {
         let clamped = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
@@ -71,7 +39,7 @@ struct EnvironmentSettingsView: View {
             templateSelectionSection
             templateManagementSection
             concurrencySection
-            safetySection
+            personalContextSection
             storageSection
         }
         .formStyle(.grouped)
@@ -254,6 +222,25 @@ struct EnvironmentSettingsView: View {
         }
     }
     
+    // MARK: - Personal Context Section
+    
+    private var personalContextSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Personal Context Index")
+                    .font(.headline)
+                Text("Manage retrieval indexing in a dedicated window, including per-source indexing progress and readiness.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Button("Open Retrieval Index…") {
+                    openWindow(id: "retrieval-index-window")
+                }
+            }
+        } header: {
+            Text("Personal Context")
+        }
+    }
+    
     // MARK: - Storage Section
     
     private var storageSection: some View {
@@ -274,31 +261,6 @@ struct EnvironmentSettingsView: View {
             
             Button("Open VM Folder in Finder") {
                 NSWorkspace.shared.open(AppPaths.vmDirectory)
-            }
-        }
-    }
-    
-    // MARK: - Safety Section
-    
-    private var safetySection: some View {
-        Section("Safety & Retention") {
-            VStack(alignment: .leading) {
-                Toggle("Confirm shell commands", isOn: $requireConfirmationForShell)
-                Text("Require user approval before the agent executes shell commands in the VM")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("Trace Retention", selection: $traceRetentionPolicy) {
-                    ForEach(TraceRetentionPolicy.allCases) { policy in
-                        Text(policy.displayName).tag(policy.rawValue)
-                    }
-                }
-                
-                Text(selectedRetentionPolicy.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }

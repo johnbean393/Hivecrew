@@ -2,41 +2,46 @@
 //  TaskDefaultsSettingsView.swift
 //  Hivecrew
 //
-//  Task settings: operating limits, file output, and web tools configuration
+//  Task settings: operating limits, file output, safety, and notifications
 //
 
 import SwiftUI
-import SwiftData
 import TipKit
 import UniformTypeIdentifiers
 
-/// Tasks settings tab - operating limits, output directory, and web tools
+/// Session trace retention policy
+enum TraceRetentionPolicy: String, CaseIterable, Identifiable {
+    case keepAll = "keep_all"
+    case last7Days = "7_days"
+    case last30Days = "30_days"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .keepAll: return String(localized: "Keep all")
+        case .last7Days: return String(localized: "Last 7 days")
+        case .last30Days: return String(localized: "Last 30 days")
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .keepAll: return String(localized: "Session traces are never automatically deleted")
+        case .last7Days: return String(localized: "Traces older than 7 days are deleted on launch")
+        case .last30Days: return String(localized: "Traces older than 30 days are deleted on launch")
+        }
+    }
+}
+
+/// Tasks settings tab - operating limits, output directory, safety, and notifications
 struct TaskDefaultsSettingsView: View {
-    @Environment(\.openWindow) var openWindow
-    @Environment(\.modelContext) private var modelContext
-    @Query var providers: [LLMProviderRecord]
     
     // Task limits
     @AppStorage("defaultTaskTimeoutMinutes") private var defaultTaskTimeoutMinutes = 90
     @AppStorage("defaultMaxIterations") private var defaultMaxIterations = 300
     @AppStorage("maxCompletionAttempts") private var maxCompletionAttempts = 3
     @AppStorage("outputDirectoryPath") private var outputDirectoryPath: String = ""
-    
-    // Web tools
-    @AppStorage("searchEngine") var searchEngine: String = "duckduckgo"
-    @AppStorage("defaultResultCount") var defaultResultCount: Int = 10
-    @State var searchAPIKey: String = ""
-    @State var serpAPIKey: String = ""
-    @State var showSearchAPIKey = false
-    @State var showSerpAPIKey = false
-    
-    // Skills
-    @AppStorage("automaticSkillMatching") var automaticSkillMatching = true
-    
-    // Image generation
-    @AppStorage("imageGenerationEnabled") var imageGenerationEnabled = false
-    @AppStorage("imageGenerationProvider") var imageGenerationProvider: String = "openRouter"
-    @AppStorage("imageGenerationModel") var imageGenerationModel: String = ImageGenerationAvailability.defaultOpenRouterModel
     
     // Notification settings
     @AppStorage("notifyTaskCompleted") private var notifyTaskCompleted = true
@@ -47,6 +52,10 @@ struct TaskDefaultsSettingsView: View {
     
     // Local writeback
     @AppStorage(WritebackAutoApplySettings.attachmentUpdatesKey) private var autoApplyAttachmentUpdates = WritebackAutoApplySettings.defaults.autoApplyAttachmentUpdates
+    
+    // Safety settings
+    @AppStorage("requireConfirmationForShell") private var requireConfirmationForShell = false
+    @AppStorage("traceRetentionPolicy") private var traceRetentionPolicy: String = TraceRetentionPolicy.keepAll.rawValue
     
     @State private var showingFolderPicker = false
     
@@ -63,34 +72,22 @@ struct TaskDefaultsSettingsView: View {
         return URL(fileURLWithPath: outputDirectoryPath)
     }
     
+    private var selectedRetentionPolicy: TraceRetentionPolicy {
+        TraceRetentionPolicy(rawValue: traceRetentionPolicy) ?? .keepAll
+    }
+    
     var body: some View {
         Form {
             limitsSection
             outputSection
             writebackSection
+            safetySection
             notificationsSection
-            webToolsSection
-            imageGenerationSection
-            skillsSection
         }
         .formStyle(.grouped)
         .padding()
         .onAppear {
             syncWritebackDefaults()
-            loadSearchProviderKeys()
-            syncImageGenerationDefaults()
-        }
-        .onChange(of: searchAPIKey) { _, newValue in
-            updateSearchAPIKey(newValue)
-        }
-        .onChange(of: serpAPIKey) { _, newValue in
-            updateSerpAPIKey(newValue)
-        }
-        .onChange(of: imageGenerationProvider) { _, _ in
-            syncImageGenerationDefaults(forceModelReset: true)
-        }
-        .onChange(of: providers.count) { _, _ in
-            syncImageGenerationDefaults()
         }
         .fileImporter(
             isPresented: $showingFolderPicker,
@@ -204,7 +201,7 @@ struct TaskDefaultsSettingsView: View {
         }
     }
     
-    // MARK: - Notifications Section
+    // MARK: - Writeback Section
     
     private var writebackSection: some View {
         Section("Local Writeback") {
@@ -217,6 +214,33 @@ struct TaskDefaultsSettingsView: View {
             }
         }
     }
+    
+    // MARK: - Safety Section
+    
+    private var safetySection: some View {
+        Section("Safety & Retention") {
+            VStack(alignment: .leading) {
+                Toggle("Confirm shell commands", isOn: $requireConfirmationForShell)
+                Text("Require user approval before the agent executes shell commands in the VM")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Trace Retention", selection: $traceRetentionPolicy) {
+                    ForEach(TraceRetentionPolicy.allCases) { policy in
+                        Text(policy.displayName).tag(policy.rawValue)
+                    }
+                }
+                
+                Text(selectedRetentionPolicy.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    // MARK: - Notifications Section
     
     private var notificationsSection: some View {
         Section("Notifications") {
@@ -235,15 +259,7 @@ struct TaskDefaultsSettingsView: View {
         }
     }
     
-    // MARK: - Web Tools Section
-    
-    var hasSearchAPIKey: Bool {
-        !searchAPIKey.isEmpty
-    }
-    
-    var hasSerpAPIKey: Bool {
-        !serpAPIKey.isEmpty
-    }
+    // MARK: - Helpers
     
     private var displayPath: String {
         if outputDirectoryPath.isEmpty {
@@ -252,54 +268,14 @@ struct TaskDefaultsSettingsView: View {
         return outputDirectoryPath.replacingOccurrences(of: NSHomeDirectory(), with: "~")
     }
     
-    /// Function to show the output directory in Finder
     private func showInFinder() {
         NSWorkspace.shared.open(effectiveOutputDirectory)
-    }
-    
-    private func loadSearchProviderKeys() {
-        searchAPIKey = SearchProviderKeychain.retrieveSearchAPIKey() ?? ""
-        serpAPIKey = SearchProviderKeychain.retrieveSerpAPIKey() ?? ""
-    }
-    
-    private func updateSearchAPIKey(_ key: String) {
-        if key.isEmpty {
-            SearchProviderKeychain.deleteSearchAPIKey()
-        } else {
-            SearchProviderKeychain.storeSearchAPIKey(key)
-        }
-    }
-    
-    private func updateSerpAPIKey(_ key: String) {
-        if key.isEmpty {
-            SearchProviderKeychain.deleteSerpAPIKey()
-        } else {
-            SearchProviderKeychain.storeSerpAPIKey(key)
-        }
     }
 
     private func syncWritebackDefaults() {
         WritebackAutoApplySettings.migrateLegacyDefaultsIfNeeded()
         let settings = WritebackAutoApplySettings.load()
         autoApplyAttachmentUpdates = settings.autoApplyAttachmentUpdates
-    }
-    
-    private func syncImageGenerationDefaults(forceModelReset: Bool = false) {
-        ImageGenerationAvailability.autoConfigureIfNeeded(modelContext: modelContext)
-        
-        guard let provider = ImageGenerationProvider(rawValue: imageGenerationProvider) else {
-            return
-        }
-        
-        let normalizedModel = imageGenerationModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if forceModelReset || normalizedModel.isEmpty {
-            imageGenerationModel = ImageGenerationAvailability.defaultModel(for: provider)
-        }
-        
-        let hasExplicitEnablePreference = UserDefaults.standard.object(forKey: "imageGenerationEnabled") != nil
-        if isProviderConfigured && (forceModelReset || !hasExplicitEnablePreference) {
-            imageGenerationEnabled = true
-        }
     }
 }
 

@@ -1,7 +1,67 @@
-import SwiftUI
+//
+//  ToolsSettingsView.swift
+//  Hivecrew
+//
+//  Agent tools configuration: web search, image generation, and skills
+//
 
-extension TaskDefaultsSettingsView {
-    var webToolsSection: some View {
+import SwiftUI
+import SwiftData
+
+/// Tools settings tab - web search, image generation, and skill matching
+struct ToolsSettingsView: View {
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.modelContext) private var modelContext
+    @Query private var providers: [LLMProviderRecord]
+
+    // Web search
+    @AppStorage("searchEngine") private var searchEngine: String = "duckduckgo"
+    @AppStorage("defaultResultCount") private var defaultResultCount: Int = 10
+    @State private var searchAPIKey: String = ""
+    @State private var serpAPIKey: String = ""
+    @State private var showSearchAPIKey = false
+    @State private var showSerpAPIKey = false
+
+    // Image generation
+    @AppStorage("imageGenerationEnabled") private var imageGenerationEnabled = false
+    @AppStorage("imageGenerationProvider") private var imageGenerationProvider: String = "openRouter"
+    @AppStorage("imageGenerationModel") private var imageGenerationModel: String = ImageGenerationAvailability.defaultOpenRouterModel
+
+    // Skills
+    @AppStorage("automaticSkillMatching") private var automaticSkillMatching = true
+
+    private var hasSearchAPIKey: Bool { !searchAPIKey.isEmpty }
+    private var hasSerpAPIKey: Bool { !serpAPIKey.isEmpty }
+
+    var body: some View {
+        Form {
+            webSearchSection
+            imageGenerationSection
+            skillsSection
+        }
+        .formStyle(.grouped)
+        .padding()
+        .onAppear {
+            loadSearchProviderKeys()
+            syncImageGenerationDefaults()
+        }
+        .onChange(of: searchAPIKey) { _, newValue in
+            updateSearchAPIKey(newValue)
+        }
+        .onChange(of: serpAPIKey) { _, newValue in
+            updateSerpAPIKey(newValue)
+        }
+        .onChange(of: imageGenerationProvider) { _, _ in
+            syncImageGenerationDefaults(forceModelReset: true)
+        }
+        .onChange(of: providers.count) { _, _ in
+            syncImageGenerationDefaults()
+        }
+    }
+
+    // MARK: - Web Search Section
+
+    private var webSearchSection: some View {
         Section("Web Search") {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("Search Provider", selection: $searchEngine) {
@@ -40,7 +100,7 @@ extension TaskDefaultsSettingsView {
     }
 
     @ViewBuilder
-    func apiKeyField(label: String, key: Binding<String>, showKey: Binding<Bool>, hasKey: Bool) -> some View {
+    private func apiKeyField(label: String, key: Binding<String>, showKey: Binding<Bool>, hasKey: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(label)
@@ -63,33 +123,9 @@ extension TaskDefaultsSettingsView {
         }
     }
 
-    var skillsSection: some View {
-        Section("Agent Skills") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Skills")
-                        Text("Reusable instructions that enhance agent capabilities")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Manage Skills...") { openWindow(id: "skills-window") }
-                }
+    // MARK: - Image Generation Section
 
-                Divider()
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Automatic Skill Matching", isOn: $automaticSkillMatching)
-                    Text("Automatically match enabled skills to tasks using AI when no skills are explicitly mentioned via @. When disabled, only explicitly mentioned skills will be used.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    var imageGenerationSection: some View {
+    private var imageGenerationSection: some View {
         Section("Image Generation") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -136,7 +172,7 @@ extension TaskDefaultsSettingsView {
         }
     }
 
-    var openRouterConfigView: some View {
+    private var openRouterConfigView: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: hasOpenRouterProvider ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -149,7 +185,7 @@ extension TaskDefaultsSettingsView {
         .padding(.vertical, 4)
     }
 
-    var geminiConfigView: some View {
+    private var geminiConfigView: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 4) {
                 Image(systemName: hasGeminiProvider ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -162,21 +198,96 @@ extension TaskDefaultsSettingsView {
         .padding(.vertical, 4)
     }
 
-    var modelHelpText: String {
+    // MARK: - Skills Section
+
+    private var skillsSection: some View {
+        Section("Agent Skills") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Skills")
+                        Text("Reusable instructions that enhance agent capabilities")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Manage Skills...") { openWindow(id: "skills-window") }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Automatic Skill Matching", isOn: $automaticSkillMatching)
+                    Text("Automatically match enabled skills to tasks using AI when no skills are explicitly mentioned via @. When disabled, only explicitly mentioned skills will be used.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    // MARK: - Computed Properties
+
+    private var modelHelpText: String {
         imageGenerationProvider == "openRouter"
             ? "e.g., google/gemini-3.1-flash-image-preview, google/gemini-3-pro-image-preview"
             : "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview"
     }
 
-    var hasOpenRouterProvider: Bool {
+    private var hasOpenRouterProvider: Bool {
         ImageGenerationAvailability.hasConfiguredProvider(type: .openRouter, providers: providers)
     }
 
-    var hasGeminiProvider: Bool {
+    private var hasGeminiProvider: Bool {
         ImageGenerationAvailability.hasConfiguredProvider(type: .gemini, providers: providers)
     }
 
-    var isProviderConfigured: Bool {
+    private var isProviderConfigured: Bool {
         imageGenerationProvider == "openRouter" ? hasOpenRouterProvider : hasGeminiProvider
     }
+
+    // MARK: - Helpers
+
+    private func loadSearchProviderKeys() {
+        searchAPIKey = SearchProviderKeychain.retrieveSearchAPIKey() ?? ""
+        serpAPIKey = SearchProviderKeychain.retrieveSerpAPIKey() ?? ""
+    }
+
+    private func updateSearchAPIKey(_ key: String) {
+        if key.isEmpty {
+            SearchProviderKeychain.deleteSearchAPIKey()
+        } else {
+            SearchProviderKeychain.storeSearchAPIKey(key)
+        }
+    }
+
+    private func updateSerpAPIKey(_ key: String) {
+        if key.isEmpty {
+            SearchProviderKeychain.deleteSerpAPIKey()
+        } else {
+            SearchProviderKeychain.storeSerpAPIKey(key)
+        }
+    }
+
+    private func syncImageGenerationDefaults(forceModelReset: Bool = false) {
+        ImageGenerationAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+
+        guard let provider = ImageGenerationProvider(rawValue: imageGenerationProvider) else {
+            return
+        }
+
+        let normalizedModel = imageGenerationModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if forceModelReset || normalizedModel.isEmpty {
+            imageGenerationModel = ImageGenerationAvailability.defaultModel(for: provider)
+        }
+
+        let hasExplicitEnablePreference = UserDefaults.standard.object(forKey: "imageGenerationEnabled") != nil
+        if isProviderConfigured && (forceModelReset || !hasExplicitEnablePreference) {
+            imageGenerationEnabled = true
+        }
+    }
+}
+
+#Preview {
+    ToolsSettingsView()
 }
