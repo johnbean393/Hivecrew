@@ -52,6 +52,15 @@ final class MentionInsertionController: ObservableObject {
         textView.invalidateIntrinsicContentSize()
     }
     
+    /// Replace the text view content with the given string, regardless of focus state
+    func setTextContent(_ content: String) {
+        guard let textView = textView, let coordinator = coordinator else { return }
+        coordinator.isProgrammaticUpdate = true
+        textView.string = content
+        textView.setSelectedRange(NSRange(location: content.count, length: 0))
+        textView.invalidateIntrinsicContentSize()
+    }
+    
     /// Insert a newline at the current cursor position
     func insertNewline() {
         guard let textView = textView else { return }

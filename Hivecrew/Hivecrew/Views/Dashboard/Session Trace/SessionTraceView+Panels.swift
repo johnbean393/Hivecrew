@@ -651,23 +651,18 @@ extension SessionTraceView {
             .help("Insert this task into the dashboard composer as continuation context")
 
             Button {
-                showingRerunModelSelection = true
+                NotificationCenter.default.post(
+                    name: .loadTaskIntoPromptBar,
+                    object: nil,
+                    userInfo: ["taskId": task.id]
+                )
+                dismiss()
             } label: {
-                footerLabel("brain", text: "Choose Model")
+                footerLabel("pencil.and.list.clipboard", text: "Edit and Rerun")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.blue)
-            .help("Rerun this task with a different model")
-            .sheet(isPresented: $showingRerunModelSelection) {
-                RerunModelSelectionSheet(task: task) { providerId, modelId, reasoningEnabled, reasoningEffort in
-                    handleRerun(
-                        providerId: providerId,
-                        modelId: modelId,
-                        reasoningEnabled: reasoningEnabled,
-                        reasoningEffort: reasoningEffort
-                    )
-                }
-            }
+            .help("Load this task's prompt, attachments, and model into the prompt bar")
         }
 
         // Show deliverables button

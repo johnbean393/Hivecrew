@@ -19,7 +19,7 @@ struct TaskRowView: View {
     @State var showingTrace: Bool = false
     @State var showingPlanReview: Bool = false
     @State var showingWritebackReview: Bool = false
-    @State var showingRerunModelSelection: Bool = false
+    
     @State var showingMissingAttachments: Bool = false
     @State var missingAttachmentsValidation: RerunAttachmentValidation?
     @State var rerunTargetOverride: (providerId: String, modelId: String, reasoningEnabled: Bool?, reasoningEffort: String?)?
@@ -133,16 +133,6 @@ struct TaskRowView: View {
                 )
             }
         }
-        .sheet(isPresented: $showingRerunModelSelection) {
-            RerunModelSelectionSheet(task: task) { providerId, modelId, reasoningEnabled, reasoningEffort in
-                handleRerun(
-                    providerId: providerId,
-                    modelId: modelId,
-                    reasoningEnabled: reasoningEnabled,
-                    reasoningEffort: reasoningEffort
-                )
-            }
-        }
         .contextMenu {
             // View trace option
             Button {
@@ -180,9 +170,9 @@ struct TaskRowView: View {
                 }
                 
                 Button {
-                    showingRerunModelSelection = true
+                    loadTaskIntoPromptBar()
                 } label: {
-                    Label("Rerun with Different Model...", systemImage: "brain")
+                    Label("Edit and Rerun", systemImage: "pencil.and.list.clipboard")
                 }
             }
             
@@ -223,6 +213,7 @@ struct TaskRowView: View {
 extension Notification.Name {
     static let navigateToTask = Notification.Name("navigateToTask")
     static let continueFromTask = Notification.Name("continueFromTask")
+    static let loadTaskIntoPromptBar = Notification.Name("loadTaskIntoPromptBar")
     static let startVoiceCall = Notification.Name("startVoiceCall")
 }
 

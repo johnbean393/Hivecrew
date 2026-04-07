@@ -35,7 +35,7 @@ struct SessionTraceView: View {
     @State var sessionTokenUsageSummary: TraceTokenUsage? = nil
     @State var selectedTab: TraceTab = .trace
     @State var planState: PlanState? = nil
-    @State var showingRerunModelSelection: Bool = false
+    
     @State var showingMissingAttachments: Bool = false
     @State var missingAttachmentsValidation: RerunAttachmentValidation? = nil
     @State var rerunTargetOverride: (providerId: String, modelId: String, reasoningEnabled: Bool?, reasoningEffort: String?)? = nil

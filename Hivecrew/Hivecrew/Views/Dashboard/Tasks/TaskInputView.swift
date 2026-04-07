@@ -148,6 +148,13 @@ struct TaskInputView: View {
                 mentionInsertionController.insertAtCurrentCursor(suggestion: suggestion)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .loadTaskIntoPromptBar)) { notification in
+            guard let taskId = notification.userInfo?["taskId"] as? String,
+                  let task = taskService.tasks.first(where: { $0.id == taskId }) else {
+                return
+            }
+            loadTaskIntoPromptBar(task)
+        }
     }
     
     private func submitTask() async {
@@ -334,6 +341,33 @@ struct TaskInputView: View {
             unique[url.path] = url
         }
         return unique.values.sorted { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
+    }
+
+    private func loadTaskIntoPromptBar(_ task: TaskRecord) {
+        taskDescription = task.taskDescription
+        selectedProviderId = task.providerId
+        selectedModelId = task.modelId
+        reasoningEnabled = task.reasoningEnabled
+        reasoningEffort = task.reasoningEffort
+        serviceTier = task.serviceTier
+        planFirstEnabled = task.planFirstEnabled
+        mentionedSkillNames = task.mentionedSkillNames ?? []
+        referencedTaskIds = task.referencedTaskIds ?? []
+        continuationSourceTaskId = task.continuationSourceTaskId
+
+        attachments = task.attachmentInfos.compactMap { info in
+            let url = URL(fileURLWithPath: info.originalPath)
+            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+            return PromptAttachment(url: url)
+        }
+
+        useMultiplePromptModels = false
+        copyCount = .one
+
+        DispatchQueue.main.async {
+            mentionInsertionController.setTextContent(task.taskDescription)
+            mentionInsertionController.focusTextView()
+        }
     }
 
     private var resolvedContinuationSourceTaskID: String? {

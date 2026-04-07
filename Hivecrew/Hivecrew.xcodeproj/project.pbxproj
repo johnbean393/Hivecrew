@@ -7,14 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		C10100012FA3000100000001 /* ClusterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100072FA3000100000007 /* ClusterManager.swift */; };
-		C10100022FA3000100000002 /* PeerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100082FA3000100000008 /* PeerNode.swift */; };
-		C10100032FA3000100000003 /* PeerAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100092FA3000100000009 /* PeerAPIClient.swift */; };
-		C10100042FA3000100000004 /* ClusterAnnouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000A2FA300010000000A /* ClusterAnnouncer.swift */; };
-		C10100052FA3000100000005 /* RemoteTaskIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000B2FA300010000000B /* RemoteTaskIndex.swift */; };
-		C10100062FA3000100000006 /* FederatedServiceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000C2FA300010000000C /* FederatedServiceProvider.swift */; };
-		C101000D2FA300010000000D /* ClusterServiceProviderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000E2FA300010000000E /* ClusterServiceProviderBridge.swift */; };
-		C101000F2FA300010000000F /* ClusterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100102FA3000100000010 /* ClusterSettingsView.swift */; };
 		2019E33D2F13997E0041819D /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33C2F13997E0041819D /* OpenAI */; };
 		2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33F2F139C0000041819 /* HivecrewLLM */; };
 		2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2019E34F2F13A00000041819 /* LLMProviderRecord.swift */; };
@@ -107,7 +99,7 @@
 		207B73062F3A588D00572AF5 /* VMProvisioningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73052F3A588D00572AF5 /* VMProvisioningView.swift */; };
 		207B73082F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */; };
 		207DD2F72F8495FD003405A5 /* ToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207DD2F62F8495FD003405A5 /* ToolsSettingsView.swift */; };
-		20846D832F58290F00DF473C /* RerunModelSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20846D822F58290F00DF473C /* RerunModelSelectionSheet.swift */; };
+
 		20867BF52F8354BC00F82B63 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 30B100042F72000300000004 /* HivecrewVoice */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
@@ -265,6 +257,14 @@
 		40B1F01500000001 /* VoiceProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01500000001 /* VoiceProviderSetupView.swift */; };
 		40B1F01600000001 /* VoiceRetrievalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01600000001 /* VoiceRetrievalModels.swift */; };
 		40B1F01700000001 /* HostFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A1F01700000001 /* HostFileReader.swift */; };
+		C10100012FA3000100000001 /* ClusterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100072FA3000100000007 /* ClusterManager.swift */; };
+		C10100022FA3000100000002 /* PeerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100082FA3000100000008 /* PeerNode.swift */; };
+		C10100032FA3000100000003 /* PeerAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100092FA3000100000009 /* PeerAPIClient.swift */; };
+		C10100042FA3000100000004 /* ClusterAnnouncer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000A2FA300010000000A /* ClusterAnnouncer.swift */; };
+		C10100052FA3000100000005 /* RemoteTaskIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000B2FA300010000000B /* RemoteTaskIndex.swift */; };
+		C10100062FA3000100000006 /* FederatedServiceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000C2FA300010000000C /* FederatedServiceProvider.swift */; };
+		C101000D2FA300010000000D /* ClusterServiceProviderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000E2FA300010000000E /* ClusterServiceProviderBridge.swift */; };
+		C101000F2FA300010000000F /* ClusterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100102FA3000100000010 /* ClusterSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -306,14 +306,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		C10100072FA3000100000007 /* ClusterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterManager.swift; sourceTree = "<group>"; };
-		C10100082FA3000100000008 /* PeerNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerNode.swift; sourceTree = "<group>"; };
-		C10100092FA3000100000009 /* PeerAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerAPIClient.swift; sourceTree = "<group>"; };
-		C101000A2FA300010000000A /* ClusterAnnouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterAnnouncer.swift; sourceTree = "<group>"; };
-		C101000B2FA300010000000B /* RemoteTaskIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteTaskIndex.swift; sourceTree = "<group>"; };
-		C101000C2FA300010000000C /* FederatedServiceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FederatedServiceProvider.swift; sourceTree = "<group>"; };
-		C101000E2FA300010000000E /* ClusterServiceProviderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterServiceProviderBridge.swift; sourceTree = "<group>"; };
-		C10100102FA3000100000010 /* ClusterSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterSettingsView.swift; sourceTree = "<group>"; };
 		2019E34F2F13A00000041819 /* LLMProviderRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProviderRecord.swift; sourceTree = "<group>"; };
 		202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCopyCountButton.swift; sourceTree = "<group>"; };
 		202F646A2F2D26DE00F6F359 /* ImageGenerationAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageGenerationAvailability.swift; sourceTree = "<group>"; };
@@ -400,7 +392,7 @@
 		207B73052F3A588D00572AF5 /* VMProvisioningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningView.swift; sourceTree = "<group>"; };
 		207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+ModelCapabilities.swift"; sourceTree = "<group>"; };
 		207DD2F62F8495FD003405A5 /* ToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsSettingsView.swift; sourceTree = "<group>"; };
-		20846D822F58290F00DF473C /* RerunModelSelectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RerunModelSelectionSheet.swift; sourceTree = "<group>"; };
+
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -557,6 +549,14 @@
 		40A1F01500000001 /* VoiceProviderSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProviderSetupView.swift; sourceTree = "<group>"; };
 		40A1F01600000001 /* VoiceRetrievalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRetrievalModels.swift; sourceTree = "<group>"; };
 		40A1F01700000001 /* HostFileReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostFileReader.swift; sourceTree = "<group>"; };
+		C10100072FA3000100000007 /* ClusterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterManager.swift; sourceTree = "<group>"; };
+		C10100082FA3000100000008 /* PeerNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerNode.swift; sourceTree = "<group>"; };
+		C10100092FA3000100000009 /* PeerAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerAPIClient.swift; sourceTree = "<group>"; };
+		C101000A2FA300010000000A /* ClusterAnnouncer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterAnnouncer.swift; sourceTree = "<group>"; };
+		C101000B2FA300010000000B /* RemoteTaskIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteTaskIndex.swift; sourceTree = "<group>"; };
+		C101000C2FA300010000000C /* FederatedServiceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FederatedServiceProvider.swift; sourceTree = "<group>"; };
+		C101000E2FA300010000000E /* ClusterServiceProviderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterServiceProviderBridge.swift; sourceTree = "<group>"; };
+		C10100102FA3000100000010 /* ClusterSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterSettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -672,18 +672,6 @@
 				20360DB92F3821C400A9B998 /* README.md */,
 			);
 			path = cloudflared;
-			sourceTree = "<group>";
-		};
-		C10100112FA3000100000011 /* Cluster */ = {
-			isa = PBXGroup;
-			children = (
-				C10100072FA3000100000007 /* ClusterManager.swift */,
-				C10100082FA3000100000008 /* PeerNode.swift */,
-				C10100092FA3000100000009 /* PeerAPIClient.swift */,
-				C101000A2FA300010000000A /* ClusterAnnouncer.swift */,
-				C101000B2FA300010000000B /* RemoteTaskIndex.swift */,
-			);
-			path = Cluster;
 			sourceTree = "<group>";
 		};
 		20360DC12F38234300A9B998 /* RemoteAccess */ = {
@@ -1186,7 +1174,7 @@
 		AAAA00062F1E200000000006 /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
-				20846D822F58290F00DF473C /* RerunModelSelectionSheet.swift */,
+				
 				20E22E002F3EC845003EFCE4 /* ContextSuggestionDrawerView.swift */,
 				20E22DFE2F3EC818003EFCE4 /* ElapsedTimeView.swift */,
 				202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */,
@@ -1250,6 +1238,18 @@
 				209C619E2F12ABD700062D0E /* VMPlaceholderView.swift */,
 			);
 			path = VM;
+			sourceTree = "<group>";
+		};
+		C10100112FA3000100000011 /* Cluster */ = {
+			isa = PBXGroup;
+			children = (
+				C10100072FA3000100000007 /* ClusterManager.swift */,
+				C10100082FA3000100000008 /* PeerNode.swift */,
+				C10100092FA3000100000009 /* PeerAPIClient.swift */,
+				C101000A2FA300010000000A /* ClusterAnnouncer.swift */,
+				C101000B2FA300010000000B /* RemoteTaskIndex.swift */,
+			);
+			path = Cluster;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1532,7 +1532,7 @@
 				20E22E1B2F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift in Sources */,
 				202F64852F2DB88700F6F359 /* PlanningStatePublisher.swift in Sources */,
 				202F64862F2DB88700F6F359 /* PlanParser.swift in Sources */,
-				20846D832F58290F00DF473C /* RerunModelSelectionSheet.swift in Sources */,
+				
 				202F64872F2DB88700F6F359 /* PlanningPrompts.swift in Sources */,
 				202F64882F2DB88700F6F359 /* PlanningAgent.swift in Sources */,
 				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
@@ -1899,7 +1899,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1914,7 +1914,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.18;
+				MARKETING_VERSION = 1.19;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1936,7 +1936,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1951,7 +1951,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.18;
+				MARKETING_VERSION = 1.19;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

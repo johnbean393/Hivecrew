@@ -352,4 +352,12 @@ extension TaskRowView {
             userInfo: ["taskId": task.id]
         )
     }
+
+    func loadTaskIntoPromptBar() {
+        NotificationCenter.default.post(
+            name: .loadTaskIntoPromptBar,
+            object: nil,
+            userInfo: ["taskId": task.id]
+        )
+    }
 }
