@@ -72,11 +72,34 @@ extension ResponsesAPIClient {
                             accumulatedText += delta
                             onContentUpdate?(accumulatedText)
                         }
+                    case "response.output_text.done":
+                        if let text = event["text"] as? String, !text.isEmpty {
+                            accumulatedText = mergeStreamedText(current: accumulatedText, candidate: text)
+                            onContentUpdate?(accumulatedText)
+                        }
                     case "response.reasoning_text.delta", "response.reasoning.delta":
                         let delta = event["delta"] as? String ?? ""
                         if !delta.isEmpty {
                             accumulatedReasoning += delta
                             onReasoningUpdate?(accumulatedReasoning)
+                        }
+                    case "response.reasoning_text.done", "response.reasoning.done":
+                        if let text = event["text"] as? String, !text.isEmpty {
+                            accumulatedReasoning = mergeStreamedText(current: accumulatedReasoning, candidate: text)
+                            onReasoningUpdate?(accumulatedReasoning)
+                        }
+                    case "response.content_part.done":
+                        if let part = event["part"] as? [String: Any] {
+                            let partType = part["type"] as? String
+                            if (partType == "output_text" || partType == "text"),
+                               let text = part["text"] as? String, !text.isEmpty {
+                                accumulatedText = mergeStreamedText(current: accumulatedText, candidate: text)
+                                onContentUpdate?(accumulatedText)
+                            } else if (partType == "reasoning" || partType == "reasoning_text"),
+                                      let text = part["text"] as? String, !text.isEmpty {
+                                accumulatedReasoning = mergeStreamedText(current: accumulatedReasoning, candidate: text)
+                                onReasoningUpdate?(accumulatedReasoning)
+                            }
                         }
                     case "response.function_call_arguments.delta":
                         let callID = (event["call_id"] as? String)
@@ -90,6 +113,31 @@ extension ResponsesAPIClient {
                             current.arguments += delta
                         }
                         toolCallsByCallID[callID] = current
+                    case "response.function_call_arguments.done":
+                        let callID = (event["call_id"] as? String)
+                            ?? (event["item_id"] as? String)
+                            ?? "call_\(toolCallsByCallID.count)"
+                        var current = toolCallsByCallID[callID] ?? (name: event["name"] as? String ?? "", arguments: "")
+                        if let name = event["name"] as? String, !name.isEmpty {
+                            current.name = name
+                        }
+                        if let arguments = event["arguments"] as? String, !arguments.isEmpty {
+                            current.arguments = arguments
+                        }
+                        toolCallsByCallID[callID] = current
+                    case "response.output_item.added":
+                        if let item = event["item"] as? [String: Any],
+                           (item["type"] as? String) == "function_call" {
+                            let callID = (item["call_id"] as? String)
+                                ?? (item["id"] as? String)
+                                ?? "call_\(toolCallsByCallID.count)"
+                            var current = toolCallsByCallID[callID] ?? (name: "", arguments: "")
+                            current.name = (item["name"] as? String) ?? current.name
+                            if let args = item["arguments"] as? String, !args.isEmpty {
+                                current.arguments = args
+                            }
+                            toolCallsByCallID[callID] = current
+                        }
                     case "response.output_item.done":
                         if let item = event["item"] as? [String: Any],
                            (item["type"] as? String) == "function_call" {
@@ -105,7 +153,12 @@ extension ResponsesAPIClient {
                         }
                     case "response.completed":
                         if let response = event["response"] as? [String: Any] {
-                            return parseFinalResponseEnvelope(response)
+                            return buildCompletedStreamingResponse(
+                                response,
+                                fallbackText: accumulatedText,
+                                fallbackReasoning: accumulatedReasoning,
+                                fallbackToolCallsByCallID: toolCallsByCallID
+                            )
                         }
                     case "response.failed":
                         let message = (event["error"] as? [String: Any])?["message"] as? String ?? "Response failed"
@@ -234,6 +287,76 @@ extension ResponsesAPIClient {
             choices: [LLMResponseChoice(index: 0, message: message, finishReason: finishReason)],
             usage: usage
         )
+    }
+
+    func buildCompletedStreamingResponse(
+        _ envelope: [String: Any],
+        fallbackText: String,
+        fallbackReasoning: String,
+        fallbackToolCallsByCallID: [String: (name: String, arguments: String)]
+    ) -> LLMResponse {
+        let parsed = parseFinalResponseEnvelope(envelope)
+
+        let mergedText = mergeStreamedText(
+            current: parsed.text ?? "",
+            candidate: fallbackText
+        )
+        let mergedReasoning = mergeStreamedText(
+            current: parsed.reasoning ?? "",
+            candidate: fallbackReasoning
+        )
+        let mergedToolCalls = mergeToolCalls(
+            primary: parsed.toolCalls,
+            fallbackByCallID: fallbackToolCallsByCallID
+        )
+
+        let message = LLMMessage(
+            role: .assistant,
+            content: [.text(mergedText)],
+            name: parsed.message?.name,
+            toolCalls: mergedToolCalls.isEmpty ? nil : mergedToolCalls,
+            toolCallId: nil,
+            reasoning: mergedReasoning.isEmpty ? nil : mergedReasoning
+        )
+
+        let finishReason: LLMFinishReason? = mergedToolCalls.isEmpty ? parsed.finishReason : .toolCalls
+
+        return LLMResponse(
+            id: parsed.id,
+            model: parsed.model,
+            created: parsed.created,
+            choices: [LLMResponseChoice(index: 0, message: message, finishReason: finishReason)],
+            usage: parsed.usage
+        )
+    }
+
+    func mergeStreamedText(current: String, candidate: String) -> String {
+        guard !candidate.isEmpty else { return current }
+        guard !current.isEmpty else { return candidate }
+        if candidate == current || candidate.hasPrefix(current) {
+            return candidate
+        }
+        return current
+    }
+
+    func mergeToolCalls(
+        primary: [LLMToolCall]?,
+        fallbackByCallID: [String: (name: String, arguments: String)]
+    ) -> [LLMToolCall] {
+        if let primary, !primary.isEmpty {
+            return primary
+        }
+
+        return fallbackByCallID
+            .compactMap { key, value in
+                guard !value.name.isEmpty else { return nil }
+                return LLMToolCall(
+                    id: key,
+                    type: "function",
+                    function: LLMFunctionCall(name: value.name, arguments: value.arguments)
+                )
+            }
+            .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     }
 
     func parseUsage(_ usageDict: [String: Any]?) -> LLMUsage? {

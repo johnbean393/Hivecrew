@@ -90,10 +90,9 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         self.reasoningCapability = reasoningCapability
     }
 
-    /// Fallback-safe display title for UI surfaces.
+    /// Display title for UI surfaces – always uses the canonical lowercase `id`.
     public var displayName: String {
-        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? id : trimmed
+        id
     }
 
     /// Best-effort signal for image/vision input support.
@@ -139,8 +138,7 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
     }
 
     private var primarySortText: String {
-        let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmedName.isEmpty ? id : trimmedName
+        id
     }
 
     private enum SortToken: Equatable {

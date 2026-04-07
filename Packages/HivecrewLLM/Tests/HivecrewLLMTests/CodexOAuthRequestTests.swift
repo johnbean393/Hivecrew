@@ -501,4 +501,82 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(snapshot?.credits?.unlimited, false)
         XCTAssertEqual(snapshot?.credits?.balance, 12.5)
     }
+
+    func testBuildCompletedStreamingResponseUsesAccumulatedTextWhenCompletedEnvelopeIsEmpty() {
+        let client = ResponsesAPIClient(
+            configuration: LLMConfiguration(
+                id: "codex-oauth-test",
+                displayName: "Codex OAuth Test",
+                baseURL: nil,
+                apiKey: "",
+                model: "gpt-5.4-mini",
+                organizationId: nil,
+                backendMode: .codexOAuth,
+                authMode: .chatGPTOAuth
+            )
+        )
+
+        let response = client.buildCompletedStreamingResponse(
+            [
+                "id": "resp_123",
+                "model": "gpt-5.4-mini",
+                "output": [],
+                "usage": [
+                    "input_tokens": 11,
+                    "output_tokens": 2,
+                    "total_tokens": 13
+                ]
+            ],
+            fallbackText: "OK",
+            fallbackReasoning: "",
+            fallbackToolCallsByCallID: [:]
+        )
+
+        XCTAssertEqual(response.id, "resp_123")
+        XCTAssertEqual(response.text, "OK")
+        XCTAssertEqual(response.finishReason, .stop)
+        XCTAssertNil(response.toolCalls)
+        XCTAssertEqual(response.usage?.totalTokens, 13)
+    }
+
+    func testBuildCompletedStreamingResponseUsesAccumulatedToolCallsWhenCompletedEnvelopeIsEmpty() {
+        let client = ResponsesAPIClient(
+            configuration: LLMConfiguration(
+                id: "codex-oauth-test",
+                displayName: "Codex OAuth Test",
+                baseURL: nil,
+                apiKey: "",
+                model: "gpt-5.4-mini",
+                organizationId: nil,
+                backendMode: .codexOAuth,
+                authMode: .chatGPTOAuth
+            )
+        )
+
+        let response = client.buildCompletedStreamingResponse(
+            [
+                "id": "resp_456",
+                "model": "gpt-5.4-mini",
+                "output": []
+            ],
+            fallbackText: "",
+            fallbackReasoning: "",
+            fallbackToolCallsByCallID: [
+                "call_123": (
+                    name: "write_file",
+                    arguments: #"{"path":"hello.txt","content":"Hello world!"}"#
+                )
+            ]
+        )
+
+        XCTAssertEqual(response.id, "resp_456")
+        XCTAssertEqual(response.finishReason, .toolCalls)
+        XCTAssertEqual(response.toolCalls?.count, 1)
+        XCTAssertEqual(response.toolCalls?.first?.id, "call_123")
+        XCTAssertEqual(response.toolCalls?.first?.function.name, "write_file")
+        XCTAssertEqual(
+            response.toolCalls?.first?.function.arguments,
+            #"{"path":"hello.txt","content":"Hello world!"}"#
+        )
+    }
 }
