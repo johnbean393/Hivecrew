@@ -132,8 +132,7 @@ class SchedulerService: ObservableObject {
         print("SchedulerService: Running scheduled task '\(schedule.title)'")
         
         do {
-            // Create the task using TaskService
-            _ = try await taskService.createTask(
+            let request = TaskCreationRequest(
                 description: schedule.taskDescription,
                 providerId: schedule.providerId,
                 modelId: schedule.modelId,
@@ -141,9 +140,39 @@ class SchedulerService: ObservableObject {
                 reasoningEffort: schedule.reasoningEffort,
                 serviceTier: schedule.serviceTier,
                 attachedFilePaths: schedule.attachedFilePaths,
+                attachmentInfos: nil,
                 outputDirectory: schedule.outputDirectory,
-                mentionedSkillNames: schedule.mentionedSkillNames ?? []
+                mentionedSkillNames: schedule.mentionedSkillNames ?? [],
+                referencedTaskIds: [],
+                continuationSourceTaskId: nil,
+                retrievalContextPackId: nil,
+                retrievalInlineContextBlocks: [],
+                retrievalContextAttachmentPaths: [],
+                retrievalSelectedSuggestionIds: [],
+                retrievalModeOverrides: [:],
+                planFirstEnabled: false,
+                planMarkdown: nil,
+                planSelectedSkillNames: nil,
+                localAccessGrants: [],
+                clusterCoordinatorTaskId: nil,
+                clusterExecutionAttempt: 0
             )
+            
+            if APIServerManager.shared.federatedProvider != nil {
+                try await APIServerManager.shared.createTaskViaCluster(request)
+            } else {
+                _ = try await taskService.createTask(
+                    description: request.description,
+                    providerId: request.providerId,
+                    modelId: request.modelId,
+                    reasoningEnabled: request.reasoningEnabled,
+                    reasoningEffort: request.reasoningEffort,
+                    serviceTier: request.serviceTier,
+                    attachedFilePaths: request.attachedFilePaths,
+                    outputDirectory: request.outputDirectory,
+                    mentionedSkillNames: schedule.mentionedSkillNames ?? []
+                )
+            }
             
             // Update the schedule's state
             schedule.updateNextRunAfterExecution()

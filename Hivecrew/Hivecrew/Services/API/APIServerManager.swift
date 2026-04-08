@@ -39,6 +39,9 @@ final class APIServerManager {
     private var modelContext: ModelContext?
     private var localServiceProvider: APIServiceProviderBridge?
     
+    /// Federated provider (non-nil when this machine is coordinator)
+    private(set) var federatedProvider: FederatedServiceProvider?
+    
     /// Public read-only reference to TaskService for cluster announcements
     var taskServiceRef: TaskService? { taskService }
     
@@ -50,6 +53,65 @@ final class APIServerManager {
     /// Revokes all authorized devices (e.g. when removing remote access).
     func revokeAllAuthorizedDevices() async {
         await deviceSessionManager?.revokeAllDevices()
+    }
+    
+    /// Creates a task through the federated cluster provider, dispatching to
+    /// peers when local capacity is full. Falls back to local-only TaskService
+    /// if the federated provider is unavailable.
+    /// Returns the canonical task ID.
+    @discardableResult
+    func createTaskViaCluster(_ request: TaskCreationRequest) async throws -> String {
+        guard let fedProvider = federatedProvider,
+              let localProvider = localServiceProvider else {
+            let task = try await taskService?.createTask(
+                description: request.description,
+                providerId: request.providerId,
+                modelId: request.modelId,
+                reasoningEnabled: request.reasoningEnabled,
+                reasoningEffort: request.reasoningEffort,
+                serviceTier: request.serviceTier,
+                attachedFilePaths: request.attachedFilePaths,
+                attachmentInfos: request.attachmentInfos,
+                outputDirectory: request.outputDirectory,
+                mentionedSkillNames: request.mentionedSkillNames,
+                referencedTaskIds: request.referencedTaskIds,
+                continuationSourceTaskId: request.continuationSourceTaskId,
+                retrievalContextPackId: request.retrievalContextPackId,
+                retrievalInlineContextBlocks: request.retrievalInlineContextBlocks,
+                retrievalContextAttachmentPaths: request.retrievalContextAttachmentPaths,
+                retrievalSelectedSuggestionIds: request.retrievalSelectedSuggestionIds,
+                retrievalModeOverrides: request.retrievalModeOverrides,
+                planFirstEnabled: request.planFirstEnabled,
+                planMarkdown: request.planMarkdown,
+                planSelectedSkillNames: request.planSelectedSkillNames,
+                localAccessGrants: request.localAccessGrants,
+                clusterCoordinatorTaskId: request.clusterCoordinatorTaskId,
+                clusterExecutionAttempt: request.clusterExecutionAttempt
+            )
+            return task?.id ?? ""
+        }
+        
+        let providerName = localProvider.getProviderName(for: request.providerId)
+        
+        let apiTask = try await fedProvider.createTask(
+            description: request.description,
+            providerName: providerName,
+            modelId: request.modelId,
+            reasoningEnabled: request.reasoningEnabled,
+            reasoningEffort: request.reasoningEffort,
+            attachedFilePaths: request.attachedFilePaths,
+            outputDirectory: request.outputDirectory,
+            planFirst: request.planFirstEnabled,
+            mentionedSkillNames: request.mentionedSkillNames,
+            referencedTaskIds: request.referencedTaskIds,
+            continuationSourceTaskId: request.continuationSourceTaskId,
+            contextPackId: request.retrievalContextPackId,
+            contextSuggestionIds: request.retrievalSelectedSuggestionIds,
+            contextModeOverrides: request.retrievalModeOverrides,
+            contextInlineBlocks: request.retrievalInlineContextBlocks,
+            contextAttachmentPaths: request.retrievalContextAttachmentPaths
+        )
+        return apiTask.id
     }
     
     /// Returns provider names from the local model context for cluster capability announcements.
@@ -99,6 +161,7 @@ final class APIServerManager {
         currentServer = nil
         deviceSessionManager = nil
         localServiceProvider = nil
+        federatedProvider = nil
         serverSuccessfullyStarted = false
         startedPort = nil
         APIServerStatus.shared.serverStopped()
@@ -217,8 +280,10 @@ final class APIServerManager {
             )
             fedProvider.startDrainObserver()
             serviceProvider = fedProvider
+            self.federatedProvider = fedProvider
             clusterToken = token
         } else {
+            self.federatedProvider = nil
             serviceProvider = localProvider
             clusterToken = cachedClusterToken
         }

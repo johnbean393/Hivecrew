@@ -718,50 +718,64 @@ private struct WritebackReviewRowModel: Identifiable {
 struct InlineQuickLookPreview: NSViewRepresentable {
     let url: URL
 
-    func makeNSView(context: Context) -> NSView {
-        let container = NSView()
-        guard let preview = QLPreviewView(frame: .zero, style: .normal) else {
-            return container
-        }
-        preview.autostarts = true
-        preview.shouldCloseWithWindow = false
-        preview.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(preview)
-        NSLayoutConstraint.activate([
-            preview.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            preview.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            preview.topAnchor.constraint(equalTo: container.topAnchor),
-            preview.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-        ])
-        context.coordinator.previewView = preview
-        updatePreview(preview)
+    func makeNSView(context: Context) -> PreviewContainerView {
+        let container = PreviewContainerView()
+        container.update(with: url)
         return container
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        guard let preview = context.coordinator.previewView,
-              !context.coordinator.isClosed else { return }
-        updatePreview(preview)
+    func updateNSView(_ nsView: PreviewContainerView, context: Context) {
+        nsView.update(with: url)
     }
 
-    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
-        coordinator.isClosed = true
-        coordinator.previewView?.close()
-        coordinator.previewView = nil
+    static func dismantleNSView(_ nsView: PreviewContainerView, coordinator: ()) {
+        nsView.closePreview()
     }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
+    final class PreviewContainerView: NSView {
+        private let previewView: QLPreviewView?
+        private var pendingURL: URL?
 
-    private func updatePreview(_ preview: QLPreviewView) {
-        guard preview.window != nil else { return }
-        preview.previewItem = url as NSURL
-        preview.refreshPreviewItem()
-    }
+        override init(frame frameRect: NSRect) {
+            self.previewView = QLPreviewView(frame: .zero, style: .normal)
+            super.init(frame: frameRect)
 
-    final class Coordinator {
-        var previewView: QLPreviewView?
-        var isClosed = false
+            guard let previewView else { return }
+            previewView.autostarts = true
+            previewView.shouldCloseWithWindow = false
+            previewView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(previewView)
+            NSLayoutConstraint.activate([
+                previewView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                previewView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                previewView.topAnchor.constraint(equalTo: topAnchor),
+                previewView.bottomAnchor.constraint(equalTo: bottomAnchor)
+            ])
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            refreshPreviewIfPossible()
+        }
+
+        func update(with url: URL) {
+            pendingURL = url
+            refreshPreviewIfPossible()
+        }
+
+        func closePreview() {
+            previewView?.close()
+        }
+
+        private func refreshPreviewIfPossible() {
+            guard let previewView, let pendingURL, window != nil else { return }
+            previewView.previewItem = pendingURL as NSURL
+            previewView.refreshPreviewItem()
+        }
     }
 }

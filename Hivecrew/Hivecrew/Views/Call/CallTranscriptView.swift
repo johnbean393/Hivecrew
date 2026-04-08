@@ -120,7 +120,8 @@ struct TranscriptToolUseView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            if let path = record.previewFilePath {
+            if let path = record.previewFilePath,
+               FileManager.default.fileExists(atPath: path) {
                 FilePreviewThumbnail(path: path, onTap: {
                     NSWorkspace.shared.open(URL(fileURLWithPath: path))
                 })
@@ -190,7 +191,7 @@ struct TranscriptToolUseView: View {
 
     private func fileURL(for result: VoiceFileSearchResult) -> URL? {
         let path = result.path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard path.hasPrefix("/") else { return nil }
+        guard path.hasPrefix("/"), FileManager.default.fileExists(atPath: path) else { return nil }
         return URL(fileURLWithPath: path)
     }
 
@@ -238,6 +239,8 @@ private struct FilePreviewThumbnail: View {
     }
 
     private func generateThumbnail() async {
+        guard FileManager.default.fileExists(atPath: path) else { return }
+
         let imageExts: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "heif", "webp", "tiff", "bmp"]
         if imageExts.contains(url.pathExtension.lowercased()),
            let nsImage = NSImage(contentsOf: url) {

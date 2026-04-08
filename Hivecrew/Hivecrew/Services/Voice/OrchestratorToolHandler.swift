@@ -322,11 +322,6 @@ enum OrchestratorToolHandler {
                 .filter { !$0.isEmpty }
         }
 
-        let confirmedSearchPaths = orchestrator.confirmedTranscriptFileSearchPaths()
-        if !confirmedSearchPaths.isEmpty {
-            filePaths = Array(Set(filePaths + confirmedSearchPaths)).sorted()
-        }
-
         let invalidPaths = filePaths.filter { !FileManager.default.fileExists(atPath: $0) }
         if !invalidPaths.isEmpty {
             let listed = invalidPaths.map { "  • \($0)" }.joined(separator: "\n")
@@ -334,12 +329,47 @@ enum OrchestratorToolHandler {
         }
 
         do {
-            let task = try await taskService.createTask(
+            let request = TaskCreationRequest(
                 description: description,
                 providerId: providerId,
                 modelId: modelId,
-                attachedFilePaths: filePaths
+                reasoningEnabled: nil,
+                reasoningEffort: nil,
+                serviceTier: nil,
+                attachedFilePaths: filePaths,
+                attachmentInfos: nil,
+                outputDirectory: nil,
+                mentionedSkillNames: [],
+                referencedTaskIds: [],
+                continuationSourceTaskId: nil,
+                retrievalContextPackId: nil,
+                retrievalInlineContextBlocks: [],
+                retrievalContextAttachmentPaths: [],
+                retrievalSelectedSuggestionIds: [],
+                retrievalModeOverrides: [:],
+                planFirstEnabled: false,
+                planMarkdown: nil,
+                planSelectedSkillNames: nil,
+                localAccessGrants: [],
+                clusterCoordinatorTaskId: nil,
+                clusterExecutionAttempt: 0
             )
+            
+            let task: TaskRecord
+            if await APIServerManager.shared.federatedProvider != nil {
+                let taskId = try await APIServerManager.shared.createTaskViaCluster(request)
+                guard let created = await taskService.tasks.first(where: { $0.id == taskId }) else {
+                    return .textOnly("Task created via cluster but could not locate record.")
+                }
+                task = created
+            } else {
+                task = try await taskService.createTask(
+                    description: description,
+                    providerId: providerId,
+                    modelId: modelId,
+                    attachedFilePaths: filePaths
+                )
+            }
             let worker = workerRegistry.assignName(for: task.id, taskTitle: task.title)
             orchestrator.addRelevantTask(task.id)
             var result = "Task created. Worker \(worker.displayName) is on it — \"\(task.title)\". Task ID: \(task.id)"
@@ -749,9 +779,18 @@ enum OrchestratorToolHandler {
             }
 
             let suggestResponse = try JSONDecoder().decode(VoiceRetrievalSuggestResponse.self, from: data)
-            let suggestions = suggestResponse.suggestions
+            let allSuggestions = suggestResponse.suggestions
+            let suggestions = allSuggestions.filter { suggestion in
+                let trimmedPath = suggestion.sourcePathOrHandle.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmedPath.hasPrefix("/") else { return true }
+                return FileManager.default.fileExists(atPath: trimmedPath)
+            }
+            let skippedCount = allSuggestions.count - suggestions.count
 
             guard !suggestions.isEmpty else {
+                if skippedCount > 0 {
+                    return .textOnly("Found only unavailable file results for '\(query)'. Those stale paths were skipped. Ask the user for more details or run search_files again.")
+                }
                 return .textOnly("No matching files found for '\(query)'. Ask the user for more details or proceed without attachments.")
             }
 
@@ -769,6 +808,9 @@ enum OrchestratorToolHandler {
             for (i, s) in suggestions.enumerated() {
                 let score = String(format: "%.2f", s.relevanceScore)
                 lines.append("\(i + 1). [\(score)] \(s.sourcePathOrHandle) — \(s.title)")
+            }
+            if skippedCount > 0 {
+                lines.append("Skipped \(skippedCount) unavailable file result\(skippedCount == 1 ? "" : "s").")
             }
             lines.append("Pass desired paths to create_task via the attachments parameter.")
             let responseText = lines.joined(separator: "\n")

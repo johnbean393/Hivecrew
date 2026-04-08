@@ -337,6 +337,13 @@ private func loadPromptAttachmentThumbnail(
     size: CGFloat,
     assign: @escaping (NSImage?) -> Void
 ) {
+    guard FileManager.default.fileExists(atPath: url.path) else {
+        DispatchQueue.main.async {
+            assign(nil)
+        }
+        return
+    }
+
     let request = QLThumbnailGenerator.Request(
         fileAt: url,
         size: CGSize(width: size * 2, height: size * 2),

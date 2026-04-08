@@ -242,7 +242,13 @@ struct TaskInputView: View {
                 )
             }
 
-            _ = try await taskService.createTasks(taskRequests)
+            if APIServerManager.shared.federatedProvider != nil {
+                for request in taskRequests {
+                    try await APIServerManager.shared.createTaskViaCluster(request)
+                }
+            } else {
+                _ = try await taskService.createTasks(taskRequests)
+            }
             
             // Track task creation for tips
             TipStore.shared.donateTaskCreated()
