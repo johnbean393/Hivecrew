@@ -158,6 +158,7 @@ actor RemoteAccessManager {
             
             // Start heartbeat
             startHeartbeat()
+            await ClusterManager.shared.handleTunnelDidConnect()
             
             print("RemoteAccessManager: Connected at \(url)")
         } catch {
@@ -250,6 +251,26 @@ actor RemoteAccessManager {
         heartbeatTask?.cancel()
         reconnectTask?.cancel()
         await cloudflaredManager.stop()
+    }
+    
+    func handleSystemWillSleep() async {
+        heartbeatTask?.cancel()
+        reconnectTask?.cancel()
+        await cloudflaredManager.stop()
+        
+        let snapshot = await loadReconnectSnapshot()
+        await updateStatus(state: .disconnected, subdomain: snapshot.subdomain, email: snapshot.email)
+    }
+    
+    func handleSystemDidWake() async {
+        let snapshot = await loadReconnectSnapshot()
+        guard snapshot.enabled, snapshot.isConfigured else { return }
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard let self, !Task.isCancelled else { return }
+            await self.reconnect()
+        }
     }
     
     // MARK: - Heartbeat

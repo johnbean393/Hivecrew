@@ -58,12 +58,96 @@ public struct PeerAnnouncement: Codable, Sendable {
 /// A worker pushing a task status change to the coordinator's shadow index
 public struct PeerTaskUpdate: Codable, Sendable {
     public let tunnelId: String
-    public let taskId: String
+    public let canonicalTaskId: String
+    public let workerTaskId: String
+    public let executionAttempt: Int
     public let task: APITask
     
-    public init(tunnelId: String, taskId: String, task: APITask) {
+    public init(
+        tunnelId: String,
+        canonicalTaskId: String,
+        workerTaskId: String,
+        executionAttempt: Int,
+        task: APITask
+    ) {
         self.tunnelId = tunnelId
-        self.taskId = taskId
+        self.canonicalTaskId = canonicalTaskId
+        self.workerTaskId = workerTaskId
+        self.executionAttempt = executionAttempt
+        self.task = task
+    }
+}
+
+public struct ClusterExecuteNowRequest: Codable, Sendable {
+    public let canonicalTaskId: String
+    public let executionAttempt: Int
+    public let description: String
+    public let providerName: String
+    public let modelId: String
+    public let reasoningEnabled: Bool?
+    public let reasoningEffort: String?
+    public let attachedFilePaths: [String]
+    public let outputDirectory: String?
+    public let planFirst: Bool
+    public let planMarkdown: String?
+    public let mentionedSkillNames: [String]
+    public let referencedTaskIds: [String]
+    public let continuationSourceTaskId: String?
+    public let contextPackId: String?
+    public let contextSuggestionIds: [String]
+    public let contextModeOverrides: [String: String]
+    public let contextInlineBlocks: [String]
+    public let contextAttachmentPaths: [String]
+    
+    public init(
+        canonicalTaskId: String,
+        executionAttempt: Int,
+        description: String,
+        providerName: String,
+        modelId: String,
+        reasoningEnabled: Bool? = nil,
+        reasoningEffort: String? = nil,
+        attachedFilePaths: [String] = [],
+        outputDirectory: String? = nil,
+        planFirst: Bool,
+        planMarkdown: String? = nil,
+        mentionedSkillNames: [String] = [],
+        referencedTaskIds: [String] = [],
+        continuationSourceTaskId: String? = nil,
+        contextPackId: String? = nil,
+        contextSuggestionIds: [String] = [],
+        contextModeOverrides: [String: String] = [:],
+        contextInlineBlocks: [String] = [],
+        contextAttachmentPaths: [String] = []
+    ) {
+        self.canonicalTaskId = canonicalTaskId
+        self.executionAttempt = executionAttempt
+        self.description = description
+        self.providerName = providerName
+        self.modelId = modelId
+        self.reasoningEnabled = reasoningEnabled
+        self.reasoningEffort = reasoningEffort
+        self.attachedFilePaths = attachedFilePaths
+        self.outputDirectory = outputDirectory
+        self.planFirst = planFirst
+        self.planMarkdown = planMarkdown
+        self.mentionedSkillNames = mentionedSkillNames
+        self.referencedTaskIds = referencedTaskIds
+        self.continuationSourceTaskId = continuationSourceTaskId
+        self.contextPackId = contextPackId
+        self.contextSuggestionIds = contextSuggestionIds
+        self.contextModeOverrides = contextModeOverrides
+        self.contextInlineBlocks = contextInlineBlocks
+        self.contextAttachmentPaths = contextAttachmentPaths
+    }
+}
+
+public struct ClusterExecuteNowResponse: Codable, Sendable {
+    public let workerTaskId: String
+    public let task: APITask
+    
+    public init(workerTaskId: String, task: APITask) {
+        self.workerTaskId = workerTaskId
         self.task = task
     }
 }

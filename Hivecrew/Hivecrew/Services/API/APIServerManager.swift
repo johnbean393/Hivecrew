@@ -37,9 +37,15 @@ final class APIServerManager {
     /// Dependencies needed to create the server
     private var taskService: TaskService?
     private var modelContext: ModelContext?
+    private var localServiceProvider: APIServiceProviderBridge?
     
     /// Public read-only reference to TaskService for cluster announcements
     var taskServiceRef: TaskService? { taskService }
+    
+    func localTaskSnapshot(taskId: String) async -> APITask? {
+        guard let localServiceProvider else { return nil }
+        return try? await localServiceProvider.getTask(id: taskId)
+    }
     
     /// Revokes all authorized devices (e.g. when removing remote access).
     func revokeAllAuthorizedDevices() async {
@@ -92,6 +98,7 @@ final class APIServerManager {
         serverTask = nil
         currentServer = nil
         deviceSessionManager = nil
+        localServiceProvider = nil
         serverSuccessfullyStarted = false
         startedPort = nil
         APIServerStatus.shared.serverStopped()
@@ -172,10 +179,18 @@ final class APIServerManager {
             modelContext: modelContext,
             fileStorage: fileStorage
         )
+        self.localServiceProvider = localProvider
         
         // Determine cluster role and build appropriate service provider
         let clusterManager = ClusterManager.shared
-        var clusterServiceProvider: ClusterServiceProvider?
+        let taskIndex = RemoteTaskIndex()
+        self.remoteTaskIndex = taskIndex
+        let clusterBridge = ClusterServiceProviderBridge(
+            localProvider: localProvider,
+            clusterManager: clusterManager,
+            remoteTaskIndex: taskIndex
+        )
+        let clusterServiceProvider: ClusterServiceProvider = clusterBridge
         var clusterToken: String?
         let serviceProvider: APIServiceProvider
         
@@ -195,9 +210,6 @@ final class APIServerManager {
         let isCoordinator = UserDefaults.standard.bool(forKey: "clusterCoordinatorEnabled")
         
         if isCoordinator, let token = cachedClusterToken {
-            let taskIndex = RemoteTaskIndex()
-            self.remoteTaskIndex = taskIndex
-            
             let fedProvider = FederatedServiceProvider(
                 localProvider: localProvider,
                 clusterManager: clusterManager,
@@ -205,12 +217,6 @@ final class APIServerManager {
             )
             fedProvider.startDrainObserver()
             serviceProvider = fedProvider
-            
-            let clusterBridge = ClusterServiceProviderBridge(
-                clusterManager: clusterManager,
-                remoteTaskIndex: taskIndex
-            )
-            clusterServiceProvider = clusterBridge
             clusterToken = token
         } else {
             serviceProvider = localProvider

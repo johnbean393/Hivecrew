@@ -231,6 +231,7 @@ public protocol ClusterServiceProvider: Sendable {
     func handleAnnouncement(_ announcement: PeerAnnouncement) async throws
     func handleTaskUpdate(_ update: PeerTaskUpdate) async throws
     func handleDeparture(tunnelId: String) async throws
+    func executeNow(_ request: ClusterExecuteNowRequest) async throws -> ClusterExecuteNowResponse
     func getClusterStatus() async throws -> APIClusterStatus
     func getClusterPeers() async throws -> [APIClusterPeer]
 }

@@ -261,7 +261,7 @@ struct VoiceProviderSetupView: View {
     private func saveProvider() {
         let provider = LLMProviderRecord(
             displayName: displayName,
-            baseURL: "https://generativelanguage.googleapis.com/v1beta",
+            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
             organizationId: nil,
             backendMode: .chatCompletions,
             authMode: .apiKey,

@@ -66,9 +66,18 @@ enum TaskStatus: Int, Codable, CaseIterable {
     }
 }
 
+enum ClusterExecutionState: Int, Codable, CaseIterable {
+    case none = 0
+    case dispatchingRemote = 1
+    case runningRemote = 2
+    case recoveringRemote = 3
+}
+
 /// SwiftData model for persisting task records
 @Model
 final class TaskRecord {
+    static let remoteOnlyProviderPrefix = "cluster-remote:"
+    
     /// Unique identifier for this task
     @Attribute(.unique) var id: String
     
@@ -165,6 +174,31 @@ final class TaskRecord {
     /// Whether the task was verified as successful by the completion check
     /// nil = not yet checked, true = verified success, false = verified failure
     var wasSuccessful: Bool?
+    
+    // MARK: - Cluster Execution Properties
+    
+    /// Coordinator-owned canonical task ID for worker-side execution records.
+    /// Nil for normal local tasks and coordinator-side canonical task records.
+    var clusterCoordinatorTaskId: String?
+    
+    /// Remote worker execution task ID currently leased by the coordinator.
+    var clusterWorkerTaskId: String?
+    
+    /// Peer tunnel ID currently executing this coordinator-owned task.
+    var clusterPeerId: String?
+    
+    /// Human-readable peer name for UI display while remotely executing.
+    var clusterPeerName: String?
+    
+    /// Monotonic attempt/generation number for coordinator-owned remote execution.
+    var clusterExecutionAttempt: Int = 0
+    
+    private var clusterExecutionStateRaw: Int = ClusterExecutionState.none.rawValue
+    
+    var clusterExecutionState: ClusterExecutionState {
+        get { ClusterExecutionState(rawValue: clusterExecutionStateRaw) ?? .none }
+        set { clusterExecutionStateRaw = newValue.rawValue }
+    }
     
     // MARK: - Plan Mode Properties
     
@@ -332,7 +366,13 @@ final class TaskRecord {
         planSelectedSkillNames: [String]? = nil,
         localAccessGrants: [LocalAccessGrant] = [],
         pendingWritebackOperations: [PendingWritebackOperation] = [],
-        appliedWritebackPaths: [String]? = nil
+        appliedWritebackPaths: [String]? = nil,
+        clusterCoordinatorTaskId: String? = nil,
+        clusterWorkerTaskId: String? = nil,
+        clusterPeerId: String? = nil,
+        clusterPeerName: String? = nil,
+        clusterExecutionAttempt: Int = 0,
+        clusterExecutionState: ClusterExecutionState = .none
     ) {
         self.id = id
         self.title = title
@@ -367,6 +407,12 @@ final class TaskRecord {
         self.localAccessGrantsData = try? JSONEncoder().encode(localAccessGrants)
         self.pendingWritebackOperationsData = try? JSONEncoder().encode(pendingWritebackOperations)
         self.appliedWritebackPaths = appliedWritebackPaths
+        self.clusterCoordinatorTaskId = clusterCoordinatorTaskId
+        self.clusterWorkerTaskId = clusterWorkerTaskId
+        self.clusterPeerId = clusterPeerId
+        self.clusterPeerName = clusterPeerName
+        self.clusterExecutionAttempt = clusterExecutionAttempt
+        self.clusterExecutionStateRaw = clusterExecutionState.rawValue
         
         // Use new attachment infos if provided, otherwise fall back to legacy paths
         if let infos = attachmentInfos {
@@ -406,5 +452,23 @@ final class TaskRecord {
             let minutes = (seconds % 3600) / 60
             return "\(hours)h \(minutes)m"
         }
+    }
+    
+    var requiresRemoteClusterExecution: Bool {
+        providerId.hasPrefix(Self.remoteOnlyProviderPrefix)
+    }
+    
+    var isExecutingRemotely: Bool {
+        clusterExecutionState == .runningRemote || clusterExecutionState == .dispatchingRemote
+    }
+    
+    /// True if this task was (or is being) executed on a remote cluster node.
+    var wasExecutedRemotely: Bool {
+        clusterPeerName != nil
+    }
+    
+    var remoteNodeDisplayName: String? {
+        guard isExecutingRemotely || wasExecutedRemotely else { return nil }
+        return clusterPeerName
     }
 }

@@ -247,7 +247,7 @@ struct ProviderEditSheet: View {
         backendMode = provider.backendMode
         authMode = provider.authMode
 
-        baseURL = provider.baseURL ?? ""
+        baseURL = normalizedLLMProviderBaseURLString(provider.baseURL) ?? ""
         organizationId = provider.organizationId ?? ""
         isDefault = provider.isDefault
         timeoutInterval = provider.timeoutInterval
@@ -262,7 +262,7 @@ struct ProviderEditSheet: View {
 
     private func save() {
         let normalizedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedBaseURL = normalizedOptional(baseURL)
+        let normalizedBaseURL = normalizedLLMProviderBaseURLString(normalizedOptional(baseURL))
         let normalizedOrg = normalizedOptional(organizationId)
 
         if let existingProvider = provider {

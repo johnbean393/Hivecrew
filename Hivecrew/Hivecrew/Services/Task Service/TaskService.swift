@@ -35,6 +35,8 @@ struct TaskCreationRequest {
     let planMarkdown: String?
     let planSelectedSkillNames: [String]?
     let localAccessGrants: [LocalAccessGrant]
+    let clusterCoordinatorTaskId: String?
+    let clusterExecutionAttempt: Int
 }
 
 /// Service for managing tasks and agent execution
@@ -136,7 +138,10 @@ class TaskService: ObservableObject {
         planFirstEnabled: Bool = false,
         planMarkdown: String? = nil,
         planSelectedSkillNames: [String]? = nil,
-        localAccessGrants: [LocalAccessGrant] = []
+        localAccessGrants: [LocalAccessGrant] = [],
+        clusterCoordinatorTaskId: String? = nil,
+        clusterExecutionAttempt: Int = 0,
+        autoStart: Bool = true
     ) async throws -> TaskRecord {
         let request = TaskCreationRequest(
             description: description,
@@ -159,16 +164,18 @@ class TaskService: ObservableObject {
             planFirstEnabled: planFirstEnabled,
             planMarkdown: planMarkdown,
             planSelectedSkillNames: planSelectedSkillNames,
-            localAccessGrants: localAccessGrants
+            localAccessGrants: localAccessGrants,
+            clusterCoordinatorTaskId: clusterCoordinatorTaskId,
+            clusterExecutionAttempt: clusterExecutionAttempt
         )
 
-        guard let task = try await createTasks([request]).first else {
+        guard let task = try await createTasks([request], autoStart: autoStart).first else {
             throw TaskServiceError.noModelContext
         }
         return task
     }
 
-    func createTasks(_ requests: [TaskCreationRequest]) async throws -> [TaskRecord] {
+    func createTasks(_ requests: [TaskCreationRequest], autoStart: Bool = true) async throws -> [TaskRecord] {
         guard !requests.isEmpty else {
             return []
         }
@@ -225,7 +232,9 @@ class TaskService: ObservableObject {
                 retrievalSelectedSuggestionIds: request.retrievalSelectedSuggestionIds.isEmpty ? nil : request.retrievalSelectedSuggestionIds,
                 retrievalModeOverrides: request.retrievalModeOverrides.isEmpty ? nil : request.retrievalModeOverrides,
                 planFirstEnabled: request.planFirstEnabled,
-                localAccessGrants: request.localAccessGrants
+                localAccessGrants: request.localAccessGrants,
+                clusterCoordinatorTaskId: request.clusterCoordinatorTaskId,
+                clusterExecutionAttempt: request.clusterExecutionAttempt
             )
 
             if let planMarkdown = request.planMarkdown {
@@ -255,8 +264,10 @@ class TaskService: ObservableObject {
                 )
             }
 
-            Task {
-                await startTask(task)
+            if autoStart {
+                Task {
+                    await startTask(task)
+                }
             }
         }
 

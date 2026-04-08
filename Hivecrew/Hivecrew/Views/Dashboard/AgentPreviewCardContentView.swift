@@ -58,6 +58,16 @@ struct AgentPreviewCardContent: View {
     }
     
     private var statusDescription: String {
+        if let nodeName = task.remoteNodeDisplayName {
+            switch task.clusterExecutionState {
+            case .dispatchingRemote:
+                return "Starting on \(nodeName)"
+            case .runningRemote:
+                return "Running on \(nodeName)"
+            default:
+                break
+            }
+        }
         switch effectiveStatus {
         case .queued:
             return "Queued"
@@ -169,6 +179,10 @@ struct AgentPreviewCardContent: View {
             
             Spacer()
             
+            if let nodeName = task.remoteNodeDisplayName {
+                StatusPill(text: nodeName, color: .blue)
+            }
+            
             if needsIntervention {
                 StatusPill(text: interventionPillText, color: .orange)
             } else {
@@ -212,6 +226,21 @@ struct AgentPreviewCardContent: View {
                 Image(nsImage: screenshot)
                     .resizable()
                     .scaledToFill()
+            } else if task.isExecutingRemotely {
+                VStack(spacing: 6) {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.blue)
+                    if let nodeName = task.remoteNodeDisplayName {
+                        Text(nodeName)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.blue)
+                    }
+                    Text("Running remotely")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 VStack(spacing: 6) {
                     Image(systemName: "desktopcomputer")
@@ -307,6 +336,8 @@ struct AgentPreviewCardContent: View {
             showingPlanReview = true
         } else if effectiveStatus == .writebackReview {
             showingWritebackReview = true
+        } else if effectiveStatus == .queued || effectiveStatus == .waitingForVM {
+            return
         } else if effectiveStatus == .running || effectiveStatus == .paused {
             navigateToTask(task.id)
         } else {

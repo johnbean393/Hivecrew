@@ -85,6 +85,8 @@ struct SessionTraceView: View {
         Group {
             if isLoading {
                 loadingView
+            } else if task.wasExecutedRemotely, errorMessage != nil || events.isEmpty {
+                remoteExecutionView
             } else if let error = errorMessage {
                 errorView(error)
             } else if events.isEmpty {
@@ -158,6 +160,11 @@ struct SessionTraceView: View {
     var statusDisplayText: String {
         if task.status == .completed, let success = task.wasSuccessful {
             return success ? String(localized: "Verified Complete") : String(localized: "Incomplete")
+        }
+        if task.isExecutingRemotely, let nodeName = task.remoteNodeDisplayName {
+            return task.clusterExecutionState == .dispatchingRemote
+                ? "Starting on \(nodeName)"
+                : "Running on \(nodeName)"
         }
         return task.status.displayName
     }
@@ -250,6 +257,35 @@ struct SessionTraceView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Remote Execution View
+    
+    private var remoteExecutionView: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "server.rack")
+                .font(.system(size: 40))
+                .foregroundStyle(.blue)
+            Text("Ran on \(task.clusterPeerName ?? "remote node")")
+                .font(.headline)
+            Text("The session trace for this task is available on that machine.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
+            Spacer()
+            
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

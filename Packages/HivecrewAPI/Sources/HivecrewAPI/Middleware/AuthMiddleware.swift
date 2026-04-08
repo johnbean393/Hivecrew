@@ -24,7 +24,8 @@ public struct AuthMiddleware<Context: RequestContext>: RouterMiddleware, Sendabl
     private let clusterTokenPrefixes: [String] = [
         "/api/v1/cluster/announce",
         "/api/v1/cluster/task-update",
-        "/api/v1/cluster/depart"
+        "/api/v1/cluster/depart",
+        "/api/v1/cluster/execute-now"
     ]
     
     public init(

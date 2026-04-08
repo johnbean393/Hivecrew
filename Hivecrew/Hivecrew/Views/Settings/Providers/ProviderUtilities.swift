@@ -84,7 +84,7 @@ struct LLMProviderPreset: Identifiable {
         LLMProviderPreset(id: "moonshot", name: "Moonshot AI", baseURL: "https://api.moonshot.ai/v1"),
         LLMProviderPreset(id: "openai", name: "OpenAI", baseURL: "https://api.openai.com/v1"),
         LLMProviderPreset(id: "anthropic", name: "Anthropic", baseURL: "https://api.anthropic.com/v1"),
-        LLMProviderPreset(id: "google", name: "Google AI Studio", baseURL: "https://generativelanguage.googleapis.com/v1beta"),
+        LLMProviderPreset(id: "google", name: "Google AI Studio", baseURL: "https://generativelanguage.googleapis.com/v1beta/openai"),
         LLMProviderPreset(id: "xai", name: "xAI", baseURL: "https://api.xai.com/v1"),
         LLMProviderPreset(id: "lmstudio", name: "LM Studio", baseURL: "http://localhost:1234/v1"),
         LLMProviderPreset(id: "ollama", name: "Ollama", baseURL: "http://localhost:11434/v1"),
@@ -209,7 +209,7 @@ enum ProviderConnectionTester {
 
         // Build the API URL
         let apiURL: URL
-        if let customBase = baseURL.isEmpty ? nil : URL(string: baseURL) {
+        if let customBase = normalizedLLMProviderBaseURLString(baseURL).flatMap(URL.init(string:)) {
             apiURL = customBase.appendingPathComponent("models")
         } else {
             apiURL = defaultLLMProviderBaseURL.appendingPathComponent("models")

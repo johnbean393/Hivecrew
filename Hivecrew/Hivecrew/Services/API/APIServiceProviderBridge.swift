@@ -83,6 +83,105 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         
         return convertToAPITask(task)
     }
+    
+    func createClusterExecutionTask(
+        canonicalTaskId: String,
+        executionAttempt: Int,
+        description: String,
+        providerName: String,
+        modelId: String,
+        reasoningEnabled: Bool?,
+        reasoningEffort: String?,
+        attachedFilePaths: [String],
+        outputDirectory: String?,
+        planMarkdown: String?,
+        mentionedSkillNames: [String],
+        referencedTaskIds: [String],
+        continuationSourceTaskId: String?,
+        contextPackId: String?,
+        contextSuggestionIds: [String],
+        contextModeOverrides: [String: String],
+        contextInlineBlocks: [String],
+        contextAttachmentPaths: [String]
+    ) async throws -> APITask {
+        guard taskService.canStartTaskImmediately() else {
+            throw APIError.conflict("No free execution slot on worker.")
+        }
+        
+        let providerId = try await findProviderIdByName(providerName)
+        let task = try await taskService.createTask(
+            description: description,
+            providerId: providerId,
+            modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
+            attachedFilePaths: attachedFilePaths,
+            outputDirectory: outputDirectory,
+            mentionedSkillNames: mentionedSkillNames,
+            referencedTaskIds: referencedTaskIds,
+            continuationSourceTaskId: continuationSourceTaskId,
+            retrievalContextPackId: contextPackId,
+            retrievalInlineContextBlocks: contextInlineBlocks,
+            retrievalContextAttachmentPaths: contextAttachmentPaths,
+            retrievalSelectedSuggestionIds: contextSuggestionIds,
+            retrievalModeOverrides: contextModeOverrides,
+            planFirstEnabled: false,
+            planMarkdown: planMarkdown,
+            clusterCoordinatorTaskId: canonicalTaskId,
+            clusterExecutionAttempt: executionAttempt,
+            autoStart: false
+        )
+        
+        guard await taskService.startTaskImmediatelyIfPossible(task) else {
+            await taskService.deleteTask(task)
+            throw APIError.conflict("No free execution slot on worker.")
+        }
+        
+        return convertToAPITask(task)
+    }
+    
+    func createCanonicalClusterTask(
+        description: String,
+        providerName: String,
+        modelId: String,
+        reasoningEnabled: Bool?,
+        reasoningEffort: String?,
+        attachedFilePaths: [String],
+        outputDirectory: String?,
+        planFirst: Bool,
+        mentionedSkillNames: [String],
+        referencedTaskIds: [String],
+        continuationSourceTaskId: String?,
+        contextPackId: String?,
+        contextSuggestionIds: [String],
+        contextModeOverrides: [String: String],
+        contextInlineBlocks: [String],
+        contextAttachmentPaths: [String],
+        autoStart: Bool
+    ) async throws -> TaskRecord {
+        let providerId = (try? await findProviderIdByName(providerName))
+            ?? "\(TaskRecord.remoteOnlyProviderPrefix)\(providerName)"
+        
+        return try await taskService.createTask(
+            description: description,
+            providerId: providerId,
+            modelId: modelId,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
+            attachedFilePaths: attachedFilePaths,
+            outputDirectory: outputDirectory,
+            mentionedSkillNames: mentionedSkillNames,
+            referencedTaskIds: referencedTaskIds,
+            continuationSourceTaskId: continuationSourceTaskId,
+            retrievalContextPackId: contextPackId,
+            retrievalInlineContextBlocks: contextInlineBlocks,
+            retrievalContextAttachmentPaths: contextAttachmentPaths,
+            retrievalSelectedSuggestionIds: contextSuggestionIds,
+            retrievalModeOverrides: contextModeOverrides,
+            planFirstEnabled: planFirst,
+            autoStart: autoStart
+        )
+    }
 
     func createTaskBatch(
         description: String,
@@ -133,7 +232,9 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                     planFirstEnabled: planFirst,
                     planMarkdown: nil,
                     planSelectedSkillNames: nil,
-                    localAccessGrants: []
+                    localAccessGrants: [],
+                    clusterCoordinatorTaskId: nil,
+                    clusterExecutionAttempt: 0
                 ),
                 count: max(target.copyCount, 1)
             )

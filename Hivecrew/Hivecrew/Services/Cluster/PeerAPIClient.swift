@@ -85,6 +85,10 @@ actor PeerAPIClient {
     
     // MARK: - Tasks
     
+    func executeNow(_ request: ClusterExecuteNowRequest) async throws -> ClusterExecuteNowResponse {
+        return try await post("/api/v1/cluster/execute-now", body: request)
+    }
+    
     func createTask(
         description: String,
         providerName: String,

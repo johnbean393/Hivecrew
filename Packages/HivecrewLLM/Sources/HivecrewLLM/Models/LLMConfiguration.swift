@@ -16,9 +16,42 @@ public let defaultLLMProviderBaseURL = URL(string: "https://openrouter.ai/api/v1
 public let defaultLLMProviderBaseURLString = "https://openrouter.ai/api/v1"
 
 public let codexOAuthBaseURL = URL(string: "https://chatgpt.com/backend-api/codex")!
+public let googleAIGenerativeLanguageHost = "generativelanguage.googleapis.com"
 let codexOAuthClientVersionQueryName = "client_version"
 private let codexOAuthFallbackClientVersion = "0.107.0"
 private let cachedCodexOAuthClientVersion = resolveCodexOAuthClientVersion()
+
+public func normalizedLLMProviderBaseURL(_ baseURL: URL?) -> URL? {
+    guard let baseURL else { return nil }
+    guard let host = baseURL.host?.lowercased(),
+          host.contains(googleAIGenerativeLanguageHost) else {
+        return baseURL
+    }
+
+    let pathComponents = baseURL.pathComponents.filter { $0 != "/" }
+    if pathComponents.contains(where: { $0.caseInsensitiveCompare("openai") == .orderedSame }) {
+        return baseURL
+    }
+
+    var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+    var normalizedPath = components?.path ?? baseURL.path
+
+    if normalizedPath.isEmpty || normalizedPath == "/" {
+        normalizedPath = "/v1beta"
+    } else if normalizedPath.hasSuffix("/") {
+        normalizedPath.removeLast()
+    }
+
+    components?.path = normalizedPath + "/openai"
+    return components?.url ?? baseURL
+}
+
+public func normalizedLLMProviderBaseURLString(_ rawValue: String?) -> String? {
+    let trimmed = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !trimmed.isEmpty else { return nil }
+    guard let parsed = URL(string: trimmed) else { return trimmed }
+    return normalizedLLMProviderBaseURL(parsed)?.absoluteString ?? trimmed
+}
 
 func resolvedCodexOAuthClientVersion() -> String {
     cachedCodexOAuthClientVersion

@@ -340,6 +340,9 @@ actor ClusterManager {
         node.status = .offline
         peers[tunnelId] = node
         await publishPeerUpdate()
+        await MainActor.run {
+            NotificationCenter.default.post(name: .clusterPeerBecameUnavailable, object: tunnelId)
+        }
         print("ClusterManager: Marked peer \(tunnelId) as offline")
     }
     
@@ -448,11 +451,21 @@ actor ClusterManager {
         }
     }
     
-    /// Called by the worker when a task's status changes
-    func notifyTaskStatusChanged(task: APITask) {
+    /// Called by the worker when a coordinator-owned task's status changes
+    func notifyTaskStatusChanged(
+        canonicalTaskId: String,
+        workerTaskId: String,
+        executionAttempt: Int,
+        task: APITask
+    ) {
         guard role == .worker else { return }
         Task {
-            await announcer?.announceTaskUpdate(task: task)
+            await announcer?.announceTaskUpdate(
+                canonicalTaskId: canonicalTaskId,
+                workerTaskId: workerTaskId,
+                executionAttempt: executionAttempt,
+                task: task
+            )
         }
     }
     
@@ -461,6 +474,20 @@ actor ClusterManager {
         stopHealthChecks()
         if role == .worker {
             await announcer?.announceDeparture()
+        }
+    }
+    
+    func handleSystemWillSleep() async {
+        stopHealthChecks()
+        if role == .worker {
+            await announcer?.announceDeparture()
+        }
+    }
+    
+    func handleTunnelDidConnect() async {
+        await initialize()
+        if role == .worker {
+            await announcer?.announceCapacity()
         }
     }
     
@@ -519,6 +546,9 @@ actor ClusterManager {
                 peers[id] = peer
                 stateChanged = true
                 print("ClusterManager: Health probe failed for \(peer.name ?? id), marking offline")
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .clusterPeerBecameUnavailable, object: id)
+                }
             }
         }
         
@@ -571,4 +601,5 @@ extension Notification.Name {
     /// Posted when a peer with free slots appears or comes back online.
     /// The coordinator should check if local queued tasks can be offloaded.
     static let clusterPeerBecameAvailable = Notification.Name("clusterPeerBecameAvailable")
+    static let clusterPeerBecameUnavailable = Notification.Name("clusterPeerBecameUnavailable")
 }

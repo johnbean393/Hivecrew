@@ -234,7 +234,9 @@ struct TaskInputView: View {
                         planFirstEnabled: planFirstEnabled,
                         planMarkdown: nil,
                         planSelectedSkillNames: nil,
-                        localAccessGrants: localAccessGrants
+                        localAccessGrants: localAccessGrants,
+                        clusterCoordinatorTaskId: nil,
+                        clusterExecutionAttempt: 0
                     ),
                     count: target.copyCount
                 )

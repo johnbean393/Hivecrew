@@ -67,10 +67,27 @@ extension TaskRowView {
                         Text(success ? String(localized: "Verified Complete") : String(localized: "Incomplete"))
                             .font(.caption)
                             .foregroundStyle(success ? .green : .red)
+                    } else if task.isExecutingRemotely {
+                        Text(task.clusterExecutionState == .dispatchingRemote ? "Starting" : "Running Remotely")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     } else {
                         Text(effectiveStatus.displayName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    
+                    if let nodeName = task.remoteNodeDisplayName {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        HStack(spacing: 3) {
+                            Image(systemName: "server.rack")
+                                .font(.caption2)
+                            Text(nodeName)
+                                .font(.caption)
+                        }
+                        .foregroundStyle(.blue)
                     }
 
                     if !effectiveStatus.isActive, task.completedAt != nil {
@@ -236,6 +253,8 @@ extension TaskRowView {
             showingPlanReview = true
         } else if effectiveStatus == .writebackReview {
             showingWritebackReview = true
+        } else if effectiveStatus == .queued || effectiveStatus == .waitingForVM {
+            return
         } else if isActivelyRunning {
             navigateToTask(task.id)
         } else {

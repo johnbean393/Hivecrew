@@ -61,6 +61,8 @@ class AppTerminationManager: ObservableObject {
         terminationReplyPending = false
         showTerminationConfirmation = false
         await performGracefulShutdown()
+        await ClusterManager.shared.shutdown()
+        await RemoteAccessManager.shared.shutdown()
         
         // Terminate the app
         NSApplication.shared.reply(toApplicationShouldTerminate: true)

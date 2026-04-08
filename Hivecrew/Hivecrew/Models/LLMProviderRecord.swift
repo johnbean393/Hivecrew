@@ -109,7 +109,7 @@ final class LLMProviderRecord {
     /// Parsed base URL
     var parsedBaseURL: URL? {
         guard let baseURL = baseURL else { return nil }
-        return URL(string: baseURL)
+        return normalizedLLMProviderBaseURL(URL(string: baseURL))
     }
 
     /// A display string showing provider name

@@ -351,7 +351,7 @@ struct OnboardingProviderStep: View {
         let provider = LLMProviderRecord(
             id: draftProviderId,
             displayName: displayName,
-            baseURL: isCodexMode ? nil : normalizedOptional(baseURL),
+            baseURL: isCodexMode ? nil : normalizedLLMProviderBaseURLString(normalizedOptional(baseURL)),
             organizationId: nil,
             backendMode: backendMode,
             authMode: isCodexMode ? .chatGPTOAuth : .apiKey,

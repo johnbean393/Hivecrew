@@ -68,10 +68,21 @@ actor ClusterAnnouncer {
     }
     
     /// Push a task status update to the coordinator
-    func announceTaskUpdate(task: APITask) async {
+    func announceTaskUpdate(
+        canonicalTaskId: String,
+        workerTaskId: String,
+        executionAttempt: Int,
+        task: APITask
+    ) async {
         guard let tunnelId = RemoteAccessKeychain.retrieveTunnelId() else { return }
         
-        let update = PeerTaskUpdate(tunnelId: tunnelId, taskId: task.id, task: task)
+        let update = PeerTaskUpdate(
+            tunnelId: tunnelId,
+            canonicalTaskId: canonicalTaskId,
+            workerTaskId: workerTaskId,
+            executionAttempt: executionAttempt,
+            task: task
+        )
         
         do {
             try await post("/api/v1/cluster/task-update", body: update)

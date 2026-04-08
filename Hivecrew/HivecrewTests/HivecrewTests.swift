@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HivecrewAPI
 import HivecrewLLM
 import HivecrewShared
 import Testing
@@ -67,6 +68,54 @@ struct HivecrewTests {
         #expect(task.referencedTaskIds == nil)
         #expect(task.continuationSourceTaskId == nil)
         #expect(task.retrievalInlineContextBlocks.isEmpty)
+    }
+    
+    @Test
+    func taskRecordRecognizesRemoteOnlyProviderPrefix() {
+        let remoteTask = TaskRecord(
+            title: "Remote only",
+            taskDescription: "Run remotely",
+            providerId: "\(TaskRecord.remoteOnlyProviderPrefix)OpenRouter",
+            modelId: "model"
+        )
+        let localTask = TaskRecord(
+            title: "Local",
+            taskDescription: "Run locally",
+            providerId: "provider",
+            modelId: "model"
+        )
+        
+        #expect(remoteTask.requiresRemoteClusterExecution)
+        #expect(!localTask.requiresRemoteClusterExecution)
+    }
+    
+    @Test
+    func remoteTaskIndexMapsCanonicalAndWorkerTaskIDs() async {
+        let index = RemoteTaskIndex()
+        let task = APITask(
+            id: "canonical-task",
+            title: "Cluster task",
+            description: "Run something",
+            status: .running,
+            providerName: "Provider",
+            modelId: "model",
+            createdAt: Date()
+        )
+        
+        await index.register(
+            canonicalTaskId: "canonical-task",
+            peerId: "peer-1",
+            workerTaskId: "worker-task-42",
+            task: task
+        )
+        
+        #expect(await index.peerId(for: "canonical-task") == "peer-1")
+        #expect(await index.workerTaskId(for: "canonical-task") == "worker-task-42")
+        #expect(await index.canonicalTaskId(peerId: "peer-1", workerTaskId: "worker-task-42") == "canonical-task")
+        
+        await index.remove(canonicalTaskId: "canonical-task")
+        #expect(await index.peerId(for: "canonical-task") == nil)
+        #expect(await index.canonicalTaskId(peerId: "peer-1", workerTaskId: "worker-task-42") == nil)
     }
 
     @Test

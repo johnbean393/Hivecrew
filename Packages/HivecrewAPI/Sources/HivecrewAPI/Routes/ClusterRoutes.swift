@@ -25,6 +25,7 @@ public struct ClusterRoutes: Sendable {
         cluster.post("announce", use: handleAnnounce)
         cluster.post("task-update", use: handleTaskUpdate)
         cluster.post("depart", use: handleDepart)
+        cluster.post("execute-now", use: handleExecuteNow)
         
         // Web UI → Coordinator (normal auth: API key / session cookie)
         cluster.get("status", use: getClusterStatus)
@@ -46,6 +47,13 @@ public struct ClusterRoutes: Sendable {
         let update = try await request.decode(as: PeerTaskUpdate.self, context: context)
         try await clusterServiceProvider.handleTaskUpdate(update)
         return try createJSONResponse(["status": "ok"])
+    }
+    
+    @Sendable
+    func handleExecuteNow(request: Request, context: APIRequestContext) async throws -> Response {
+        let executeNowRequest = try await request.decode(as: ClusterExecuteNowRequest.self, context: context)
+        let response = try await clusterServiceProvider.executeNow(executeNowRequest)
+        return try createJSONResponse(response)
     }
     
     @Sendable

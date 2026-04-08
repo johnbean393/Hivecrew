@@ -121,7 +121,9 @@ extension APIServiceProviderBridge {
             pendingPermission: pendingPermission,
             pendingWriteback: pendingWriteback,
             pendingWritebackCount: task.pendingWritebackOperations.count,
-            appliedWritebackPaths: task.appliedWritebackPaths
+            appliedWritebackPaths: task.appliedWritebackPaths,
+            nodeId: task.clusterPeerId,
+            nodeName: task.clusterPeerName
         )
     }
     
@@ -138,11 +140,16 @@ extension APIServiceProviderBridge {
             startedAt: task.startedAt,
             completedAt: task.completedAt,
             inputFileCount: task.attachedFilePaths.count,
-            outputFileCount: task.outputFilePaths?.count ?? 0
+            outputFileCount: task.outputFilePaths?.count ?? 0,
+            nodeId: task.clusterPeerId,
+            nodeName: task.clusterPeerName
         )
     }
     
     func getProviderName(for providerId: String) -> String {
+        if providerId.hasPrefix(TaskRecord.remoteOnlyProviderPrefix) {
+            return String(providerId.dropFirst(TaskRecord.remoteOnlyProviderPrefix.count))
+        }
         let descriptor = FetchDescriptor<LLMProviderRecord>(
             predicate: #Predicate { $0.id == providerId }
         )

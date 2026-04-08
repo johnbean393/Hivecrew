@@ -12,53 +12,73 @@ import HivecrewAPI
 actor RemoteTaskIndex {
     
     struct RemoteTaskEntry: Sendable {
-        let taskId: String
+        let canonicalTaskId: String
         let peerId: String
+        let workerTaskId: String
         var cachedTask: APITask
     }
     
-    private var entries: [String: RemoteTaskEntry] = [:]
+    private var entriesByCanonicalTaskId: [String: RemoteTaskEntry] = [:]
+    private var canonicalTaskIdByWorkerTaskKey: [String: String] = [:]
     
     // MARK: - Registration
     
-    func register(taskId: String, peerId: String, task: APITask) {
-        entries[taskId] = RemoteTaskEntry(taskId: taskId, peerId: peerId, cachedTask: task)
+    func register(canonicalTaskId: String, peerId: String, workerTaskId: String, task: APITask) {
+        let entry = RemoteTaskEntry(
+            canonicalTaskId: canonicalTaskId,
+            peerId: peerId,
+            workerTaskId: workerTaskId,
+            cachedTask: task
+        )
+        entriesByCanonicalTaskId[canonicalTaskId] = entry
+        canonicalTaskIdByWorkerTaskKey[workerTaskKey(peerId: peerId, workerTaskId: workerTaskId)] = canonicalTaskId
     }
     
-    func update(taskId: String, task: APITask) {
-        entries[taskId]?.cachedTask = task
+    func update(canonicalTaskId: String, task: APITask) {
+        entriesByCanonicalTaskId[canonicalTaskId]?.cachedTask = task
     }
     
-    func remove(taskId: String) {
-        entries.removeValue(forKey: taskId)
+    func remove(canonicalTaskId: String) {
+        guard let removed = entriesByCanonicalTaskId.removeValue(forKey: canonicalTaskId) else { return }
+        canonicalTaskIdByWorkerTaskKey.removeValue(
+            forKey: workerTaskKey(peerId: removed.peerId, workerTaskId: removed.workerTaskId)
+        )
     }
     
     // MARK: - Lookup
     
-    func peerId(for taskId: String) -> String? {
-        entries[taskId]?.peerId
+    func peerId(for canonicalTaskId: String) -> String? {
+        entriesByCanonicalTaskId[canonicalTaskId]?.peerId
     }
     
-    func cachedTask(for taskId: String) -> APITask? {
-        entries[taskId]?.cachedTask
+    func workerTaskId(for canonicalTaskId: String) -> String? {
+        entriesByCanonicalTaskId[canonicalTaskId]?.workerTaskId
     }
     
-    func allCachedTasks() -> [APITask] {
-        entries.values.map(\.cachedTask)
+    func cachedTask(for canonicalTaskId: String) -> APITask? {
+        entriesByCanonicalTaskId[canonicalTaskId]?.cachedTask
     }
     
+    func canonicalTaskId(peerId: String, workerTaskId: String) -> String? {
+        canonicalTaskIdByWorkerTaskKey[workerTaskKey(peerId: peerId, workerTaskId: workerTaskId)]
+    }
+
     func tasksForPeer(_ peerId: String) -> [RemoteTaskEntry] {
-        entries.values.filter { $0.peerId == peerId }
+        entriesByCanonicalTaskId.values.filter { $0.peerId == peerId }
     }
     
     /// Remove all entries for a peer (e.g. when it goes offline and tasks can't be tracked)
     func removeTasksForPeer(_ peerId: String) {
-        let idsToRemove = entries.filter { $0.value.peerId == peerId }.map(\.key)
+        let idsToRemove = entriesByCanonicalTaskId.filter { $0.value.peerId == peerId }.map(\.key)
         for id in idsToRemove {
-            entries.removeValue(forKey: id)
+            remove(canonicalTaskId: id)
         }
     }
     
-    var count: Int { entries.count }
-    var isEmpty: Bool { entries.isEmpty }
+    var count: Int { entriesByCanonicalTaskId.count }
+    var isEmpty: Bool { entriesByCanonicalTaskId.isEmpty }
+    
+    private func workerTaskKey(peerId: String, workerTaskId: String) -> String {
+        "\(peerId)::\(workerTaskId)"
+    }
 }

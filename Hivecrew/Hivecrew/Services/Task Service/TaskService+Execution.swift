@@ -85,28 +85,22 @@ extension TaskService {
     }
 
     
-    /// Start executing a task with an ephemeral VM
-    func startTask(_ task: TaskRecord) async {
-        guard let context = modelContext else { return }
-        
-        // Check if this task is already being processed (prevents duplicate processing)
+    func canStartTaskImmediately() -> Bool {
+        let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
+        let runningDeveloperVMs = countRunningDeveloperVMs()
+        let pendingCount = syncPendingVMCount()
+        let teardownCount = tearingDownVMIds.count
+        let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs + teardownCount
+        return currentlyActive < effectiveMax
+    }
+    
+    @discardableResult
+    private func reserveExecutionSlot(for task: TaskRecord, context: ModelContext) -> Bool {
         guard !tasksInProgress.contains(task.id) else {
             print("TaskService: Task '\(task.title)' is already being processed, skipping duplicate call")
-            return
+            return false
         }
         
-        // MARK: - Plan First Mode
-        // If plan mode is enabled and no plan exists yet, generate a plan BEFORE checking VM capacity.
-        // Planning does not require a VM, so it should proceed even when VMs are at capacity.
-        if task.planFirstEnabled && task.planMarkdown == nil {
-            tasksInProgress.insert(task.id)
-            await runPlanningPhase(task: task, context: context)
-            tasksInProgress.remove(task.id)
-            return // Planning phase complete, wait for user to execute
-        }
-        
-        // Check if we can create a new VM (within concurrency limit)
-        // Count running agents, pending VMs, AND running developer VMs
         let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
         let runningDeveloperVMs = countRunningDeveloperVMs()
         let pendingCount = syncPendingVMCount()
@@ -115,28 +109,75 @@ extension TaskService {
         
         print("TaskService: Concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), tearingDown=\(teardownCount), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
         
-        if currentlyActive >= effectiveMax {
-            // At capacity - keep task as queued, will be picked up when a slot opens
+        guard currentlyActive < effectiveMax else {
             if task.status != .queued {
                 task.status = .queued
                 try? context.save()
                 objectWillChange.send()
             }
             print("TaskService: At max concurrent VMs (\(effectiveMax), active: \(currentlyActive)). Task '\(task.title)' remains queued.")
-            return
+            return false
         }
         
-        // Mark this task as in-progress to prevent duplicate processing
         tasksInProgress.insert(task.id)
-        
-        // Reserve a slot for this VM
         pendingVMCount += 1
         print("TaskService: Reserved VM slot for task '\(task.title)' (pending: \(pendingVMCount), running: \(runningAgents.count))")
         
-        // Now update status to waiting for VM (we're actually processing it now)
         task.status = .waitingForVM
         try? context.save()
         objectWillChange.send()
+        return true
+    }
+    
+    @discardableResult
+    func startTaskImmediatelyIfPossible(_ task: TaskRecord) async -> Bool {
+        guard let context = modelContext else { return false }
+        guard reserveExecutionSlot(for: task, context: context) else { return false }
+        Task {
+            await startTask(task, skipCapacityReservation: true)
+        }
+        return true
+    }
+    
+    private func notifyClusterTaskUpdateIfNeeded(_ task: TaskRecord) {
+        guard let canonicalTaskId = task.clusterCoordinatorTaskId else { return }
+        Task {
+            guard let apiTask = await APIServerManager.shared.localTaskSnapshot(taskId: task.id) else { return }
+            await ClusterManager.shared.notifyTaskStatusChanged(
+                canonicalTaskId: canonicalTaskId,
+                workerTaskId: task.id,
+                executionAttempt: task.clusterExecutionAttempt,
+                task: apiTask
+            )
+        }
+    }
+    
+    func startTask(_ task: TaskRecord, skipCapacityReservation: Bool = false) async {
+        guard let context = modelContext else { return }
+        
+        // MARK: - Plan First Mode
+        // If plan mode is enabled and no plan exists yet, generate a plan BEFORE checking VM capacity.
+        // Planning does not require a VM, so it should proceed even when VMs are at capacity.
+        if task.planFirstEnabled && task.planMarkdown == nil {
+            guard !tasksInProgress.contains(task.id) else { return }
+            tasksInProgress.insert(task.id)
+            await runPlanningPhase(task: task, context: context)
+            tasksInProgress.remove(task.id)
+            return // Planning phase complete, wait for user to execute
+        }
+        
+        guard !task.requiresRemoteClusterExecution else {
+            if task.status != .queued {
+                task.status = .queued
+                try? context.save()
+                objectWillChange.send()
+            }
+            return
+        }
+        
+        if !skipCapacityReservation, !reserveExecutionSlot(for: task, context: context) {
+            return
+        }
         
         // Get the default template ID from settings
         let templateId = getDefaultTemplateId()
@@ -408,6 +449,7 @@ extension TaskService {
             task.startedAt = Date()
             try? context.save()
             objectWillChange.send()
+            notifyClusterTaskUpdateIfNeeded(task)
             
             // Create session
             let sessionId = UUID().uuidString
@@ -672,6 +714,7 @@ extension TaskService {
         }
 
         try? context.save()
+        notifyClusterTaskUpdateIfNeeded(task)
 
         // Send completion notification
         sendTaskCompletionNotification(task: task)
@@ -712,6 +755,7 @@ extension TaskService {
         task.errorMessage = error.localizedDescription
         task.completedAt = Date()
         try? context.save()
+        notifyClusterTaskUpdateIfNeeded(task)
 
         if let connection, let vmId {
             await syncGuestArtifactsToSharedFolder(connection: connection)
@@ -784,6 +828,7 @@ extension TaskService {
         task.status = .cancelled
         task.completedAt = Date()
         try? modelContext?.save()
+        notifyClusterTaskUpdateIfNeeded(task)
         
         runningAgents.removeValue(forKey: task.id)
         tasksInProgress.remove(task.id)
@@ -817,6 +862,7 @@ extension TaskService {
         try? modelContext?.save()
         
         objectWillChange.send()
+        notifyClusterTaskUpdateIfNeeded(task)
     }
     
     /// Resume a paused task with optional instructions
@@ -828,6 +874,7 @@ extension TaskService {
         try? modelContext?.save()
         
         objectWillChange.send()
+        notifyClusterTaskUpdateIfNeeded(task)
     }
     
     /// Re-queue a running task (used when app is terminating)
@@ -944,7 +991,12 @@ extension TaskService {
     func processQueuedTasks() async {
         // Find queued tasks that aren't already being processed, sorted by creation time (oldest first)
         let queuedTasks = tasks
-            .filter { $0.status == .queued && !tasksInProgress.contains($0.id) }
+            .filter {
+                $0.status == .queued &&
+                !$0.requiresRemoteClusterExecution &&
+                $0.clusterExecutionState == .none &&
+                !tasksInProgress.contains($0.id)
+            }
             .sorted { $0.createdAt < $1.createdAt }
         
         guard !queuedTasks.isEmpty else { return }
@@ -1023,13 +1075,21 @@ extension TaskService {
         
         do {
             // Create LLM client
-            let llmClient = try await createLLMClient(
-                providerId: task.providerId,
-                modelId: task.modelId,
-                reasoningEnabled: task.reasoningEnabled,
-                reasoningEffort: task.reasoningEffort,
-                serviceTier: task.serviceTier
-            )
+            let llmClient: any LLMClientProtocol
+            if task.requiresRemoteClusterExecution {
+                llmClient = try await createWorkerLLMClient(
+                    fallbackProviderId: task.providerId,
+                    fallbackModelId: task.modelId
+                )
+            } else {
+                llmClient = try await createLLMClient(
+                    providerId: task.providerId,
+                    modelId: task.modelId,
+                    reasoningEnabled: task.reasoningEnabled,
+                    reasoningEffort: task.reasoningEffort,
+                    serviceTier: task.serviceTier
+                )
+            }
             
             // Create planning agent
             let planningAgent = PlanningAgent(llmClient: llmClient, embeddingService: skillManager.embeddingService)
