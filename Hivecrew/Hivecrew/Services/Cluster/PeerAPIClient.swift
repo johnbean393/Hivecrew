@@ -152,6 +152,33 @@ actor PeerAPIClient {
         }
         return try await get("/api/v1/tasks", queryItems: queryItems)
     }
+
+    func getTaskFiles(taskId: String, canonicalTaskId: String) async throws -> APITaskFilesResponse {
+        let response: APITaskFilesResponse = try await get("/api/v1/tasks/\(taskId)/files")
+        return APITaskFilesResponse(taskId: canonicalTaskId, inputFiles: response.inputFiles, outputFiles: response.outputFiles)
+    }
+
+    func downloadTaskFile(taskId: String, filename: String, isInput: Bool) async throws -> (data: Data, mimeType: String) {
+        let typeQuery = isInput ? "?type=input" : ""
+        guard let url = URL(string: "\(baseURL)/api/v1/tasks/\(taskId)/files/\(filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? filename)\(typeQuery)") else {
+            throw PeerAPIError.invalidURL
+        }
+        return try await fetchBinary(url: url)
+    }
+
+    func getTraceBundle(taskId: String, canonicalTaskId: String) async throws -> APITaskTraceBundleResponse {
+        let response: APITaskTraceBundleResponse = try await get("/api/v1/tasks/\(taskId)/trace-bundle")
+        return APITaskTraceBundleResponse(taskId: canonicalTaskId, files: response.files)
+    }
+
+    func downloadTraceFile(taskId: String, relativePath: String) async throws -> (data: Data, mimeType: String) {
+        guard var components = URLComponents(string: "\(baseURL)/api/v1/tasks/\(taskId)/trace-file") else {
+            throw PeerAPIError.invalidURL
+        }
+        components.queryItems = [URLQueryItem(name: "path", value: relativePath)]
+        guard let url = components.url else { throw PeerAPIError.invalidURL }
+        return try await fetchBinary(url: url)
+    }
     
     func performAction(taskId: String, action: String, instructions: String? = nil) async throws -> APITask {
         var body: [String: String] = ["action": action]
@@ -186,6 +213,56 @@ actor PeerAPIClient {
     func respondToPermission(taskId: String, permissionId: String, approved: Bool) async throws {
         let body = PermissionResponseBody(permissionId: permissionId, approved: approved)
         let _: EmptyOKResponse = try await post("/api/v1/tasks/\(taskId)/permission/respond", body: body)
+    }
+
+    func stageInputFiles(stagingId: String, filePaths: [String]) async throws -> [String] {
+        guard !filePaths.isEmpty else { return [] }
+
+        let boundary = "HivecrewBoundary-\(UUID().uuidString)"
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("hivecrew-cluster-stage-\(UUID().uuidString).multipart")
+        FileManager.default.createFile(atPath: tempURL.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: tempURL)
+        defer {
+            try? handle.close()
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        try handle.write(contentsOf: Data("--\(boundary)\r\n".utf8))
+        try handle.write(contentsOf: Data("Content-Disposition: form-data; name=\"stagingId\"\r\n\r\n".utf8))
+        try handle.write(contentsOf: Data("\(stagingId)\r\n".utf8))
+
+        for path in filePaths {
+            let fileURL = URL(fileURLWithPath: path)
+            let filename = fileURL.lastPathComponent
+            let mimeType = APIFile.mimeType(for: filename)
+            try handle.write(contentsOf: Data("--\(boundary)\r\n".utf8))
+            try handle.write(contentsOf: Data("Content-Disposition: form-data; name=\"files\"; filename=\"\(filename)\"\r\n".utf8))
+            try handle.write(contentsOf: Data("Content-Type: \(mimeType)\r\n\r\n".utf8))
+            let fileData = try Data(contentsOf: fileURL)
+            try handle.write(contentsOf: fileData)
+            try handle.write(contentsOf: Data("\r\n".utf8))
+        }
+
+        try handle.write(contentsOf: Data("--\(boundary)--\r\n".utf8))
+
+        guard let url = URL(string: "\(baseURL)/api/v1/cluster/stage-inputs") else {
+            throw PeerAPIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await session.upload(for: request, fromFile: tempURL)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PeerAPIError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw PeerAPIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        let decoded = try Self.decoder.decode(ClusterStageInputFilesResponse.self, from: data)
+        return decoded.stagedFilePaths
     }
     
     // MARK: - HTTP Helpers
@@ -234,6 +311,20 @@ actor PeerAPIClient {
         }
         return try Self.decoder.decode(R.self, from: data)
     }
+
+    private func fetchBinary(url: URL) async throws -> (data: Data, mimeType: String) {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PeerAPIError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw PeerAPIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return (data, httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream")
+    }
 }
 
 // MARK: - Request Bodies
@@ -260,6 +351,10 @@ private struct CreateTaskBody: Encodable {
 private struct PermissionResponseBody: Encodable {
     let permissionId: String
     let approved: Bool
+}
+
+private struct ClusterStageInputFilesResponse: Decodable {
+    let stagedFilePaths: [String]
 }
 
 private struct EmptyOKResponse: Decodable {}

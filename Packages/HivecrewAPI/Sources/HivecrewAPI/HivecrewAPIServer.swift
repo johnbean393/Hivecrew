@@ -27,7 +27,7 @@ public actor HivecrewAPIServer {
     /// Device session manager for pairing-based authentication
     private let deviceSessionManager: DeviceSessionManager?
     
-    /// Optional cluster service provider (non-nil when this machine is a coordinator)
+    /// Optional cluster service provider (non-nil when this machine participates in the mesh)
     private let clusterServiceProvider: ClusterServiceProvider?
     
     /// Cluster token for inter-node authentication
@@ -177,7 +177,12 @@ public actor HivecrewAPIServer {
         EventRoutes(serviceProvider: serviceProvider).register(with: apiV1)
         
         if let clusterServiceProvider = clusterServiceProvider {
-            ClusterRoutes(clusterServiceProvider: clusterServiceProvider).register(with: apiV1)
+            ClusterRoutes(
+                clusterServiceProvider: clusterServiceProvider,
+                fileStorage: fileStorage,
+                maxFileSize: configuration.maxFileSize,
+                maxTotalUploadSize: configuration.maxTotalUploadSize
+            ).register(with: apiV1)
         }
         
         // Health check endpoint (no auth required)

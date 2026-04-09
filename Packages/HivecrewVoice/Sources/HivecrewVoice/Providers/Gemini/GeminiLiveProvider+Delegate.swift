@@ -13,6 +13,7 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
         didOpenWithProtocol protocol: String?
     ) {
         Task { @MainActor in
+            guard self.isCurrentWebSocketTask(webSocketTask) else { return }
             if let cont = self.connectionContinuation {
                 self.connectionContinuation = nil
                 cont.resume()
@@ -29,6 +30,7 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
         let detail = Self.closeReason(code: closeCode, data: reason)
         let error = GeminiError.connectionFailed(detail)
         Task { @MainActor in
+            guard self.isCurrentWebSocketTask(webSocketTask) else { return }
             self.connectionState = .disconnected
             self.isReceiving = false
             self.webSocket = nil
@@ -55,6 +57,7 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
         let detail = Self.describeURLSessionError(error, task: task)
         let surfaced = GeminiError.connectionFailed(detail)
         Task { @MainActor in
+            guard self.isCurrentWebSocketTask(task) else { return }
             self.isReceiving = false
             self.webSocket = nil
 
@@ -88,6 +91,7 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
             return serverReason
         }
         switch code {
+        case .invalid:            return "Invalid close code"
         case .normalClosure:      return "Connection closed"
         case .goingAway:          return "Server going away"
         case .protocolError:      return "Protocol error"

@@ -25,7 +25,8 @@ public struct AuthMiddleware<Context: RequestContext>: RouterMiddleware, Sendabl
         "/api/v1/cluster/announce",
         "/api/v1/cluster/task-update",
         "/api/v1/cluster/depart",
-        "/api/v1/cluster/execute-now"
+        "/api/v1/cluster/execute-now",
+        "/api/v1/cluster/stage-inputs"
     ]
     
     public init(
@@ -59,7 +60,7 @@ public struct AuthMiddleware<Context: RequestContext>: RouterMiddleware, Sendabl
             }
         }
         
-        // Cluster token auth for worker→coordinator endpoints
+        // Cluster token auth for internal peer-to-peer endpoints
         let isClusterEndpoint = clusterTokenPrefixes.contains { path.hasPrefix($0) }
         if isClusterEndpoint, let expectedClusterToken = clusterToken, !expectedClusterToken.isEmpty {
             if let authHeader = request.headers[.authorization] {
@@ -84,7 +85,7 @@ public struct AuthMiddleware<Context: RequestContext>: RouterMiddleware, Sendabl
                     return try await next(request, context)
                 }
                 
-                // Also accept cluster token for all API endpoints (coordinator calling worker)
+                // Also accept cluster token for all API endpoints (peer-to-peer forwarding)
                 if let expectedClusterToken = clusterToken, !expectedClusterToken.isEmpty,
                    providedKey == expectedClusterToken {
                     return try await next(request, context)

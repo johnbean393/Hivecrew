@@ -159,6 +159,9 @@ actor RemoteAccessManager {
             // Start heartbeat
             startHeartbeat()
             await ClusterManager.shared.handleTunnelDidConnect()
+            await MainActor.run {
+                APIServerManager.shared.restart()
+            }
             
             print("RemoteAccessManager: Connected at \(url)")
         } catch {
@@ -242,6 +245,9 @@ actor RemoteAccessManager {
         UserDefaults.standard.set(false, forKey: "remoteAccessEnabled")
         UserDefaults.standard.removeObject(forKey: "remoteAccessSubdomain")
         UserDefaults.standard.removeObject(forKey: "remoteAccessEmail")
+        await MainActor.run {
+            APIServerManager.shared.restart()
+        }
         
         await resetStatus()
     }

@@ -64,6 +64,67 @@ import Foundation
     #expect(sessionConfig.realtimeInputConfig?.turnCoverage == "TURN_INCLUDES_AUDIO_ACTIVITY_AND_ALL_VIDEO")
 }
 
+@MainActor
+@Test func staleGeminiCloseCallbackDoesNotInterruptReconnect() async throws {
+    let provider = GeminiLiveProvider()
+    provider.configure(apiKey: "test")
+
+    let oldSocket = makeTestGeminiWebSocketTask(provider: provider)
+    let newSocket = makeTestGeminiWebSocketTask(provider: provider)
+    provider.webSocket = newSocket
+    provider.connectionState = .connecting
+
+    let connectTask = Task {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            provider.connectionContinuation = continuation
+        }
+    }
+
+    provider.urlSession(
+        provider.urlSession,
+        webSocketTask: oldSocket,
+        didCloseWith: .goingAway,
+        reason: nil
+    )
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(provider.webSocket === newSocket)
+    #expect(provider.connectionState == .connecting)
+
+    provider.urlSession(provider.urlSession, webSocketTask: newSocket, didOpenWithProtocol: nil)
+    try await connectTask.value
+}
+
+@MainActor
+@Test func staleGeminiTaskErrorDoesNotInterruptReconnect() async throws {
+    let provider = GeminiLiveProvider()
+    provider.configure(apiKey: "test")
+
+    let oldSocket = makeTestGeminiWebSocketTask(provider: provider)
+    let newSocket = makeTestGeminiWebSocketTask(provider: provider)
+    provider.webSocket = newSocket
+    provider.connectionState = .connecting
+
+    let connectTask = Task {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            provider.connectionContinuation = continuation
+        }
+    }
+
+    provider.urlSession(
+        provider.urlSession,
+        task: oldSocket,
+        didCompleteWithError: TestURLSessionError.connectionLost
+    )
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(provider.webSocket === newSocket)
+    #expect(provider.connectionState == .connecting)
+
+    provider.urlSession(provider.urlSession, webSocketTask: newSocket, didOpenWithProtocol: nil)
+    try await connectTask.value
+}
+
 @Test func audioPolicyConvenienceBuildersPreserveAutomaticProviderVAD() async throws {
     let semantic = VoiceSessionConfig.AudioPolicy.OpenAI.TurnDetection.semantic(eagerness: .low)
     let server = VoiceSessionConfig.AudioPolicy.OpenAI.TurnDetection.server(
@@ -228,6 +289,22 @@ import Foundation
     #expect(outputs.count == 1)
     #expect(outputs[0].0.count == 480)
     #expect(outputs[0].1.decision.gate == .pass)
+}
+
+@MainActor
+private func makeTestGeminiWebSocketTask(provider: GeminiLiveProvider) -> URLSessionWebSocketTask {
+    provider.urlSession.webSocketTask(with: URL(string: "wss://example.com/socket")!)
+}
+
+private enum TestURLSessionError: LocalizedError {
+    case connectionLost
+
+    var errorDescription: String? {
+        switch self {
+        case .connectionLost:
+            return "Connection lost"
+        }
+    }
 }
 
 @Test func uplinkAudioPipelineDoesNotClipInitialChunkBeforeFirstDecision() async throws {

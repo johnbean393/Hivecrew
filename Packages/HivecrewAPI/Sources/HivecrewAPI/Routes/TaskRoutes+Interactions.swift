@@ -157,4 +157,41 @@ extension TaskRoutes {
             body: .init(byteBuffer: ByteBuffer(data: data))
         )
     }
+
+    @Sendable
+    func getTraceBundle(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+
+        let bundle = try await serviceProvider.getTaskTraceBundle(id: taskId)
+        return try createJSONResponse(bundle)
+    }
+
+    @Sendable
+    func downloadTraceFile(request: Request, context: APIRequestContext) async throws -> Response {
+        guard let taskId = context.parameters.get("id") else {
+            throw APIError.badRequest("Missing task ID")
+        }
+
+        let queryItems = parseQueryItems(from: request.uri.string)
+        guard let relativePath = queryItems["path"], !relativePath.isEmpty else {
+            throw APIError.badRequest("Missing trace file path")
+        }
+
+        let (data, mimeType) = try await serviceProvider.getTaskTraceFileData(
+            taskId: taskId,
+            relativePath: relativePath
+        )
+
+        var headers = HTTPFields()
+        headers[.contentType] = mimeType
+        headers[.contentLength] = "\(data.count)"
+
+        return Response(
+            status: .ok,
+            headers: headers,
+            body: .init(byteBuffer: ByteBuffer(data: data))
+        )
+    }
 }

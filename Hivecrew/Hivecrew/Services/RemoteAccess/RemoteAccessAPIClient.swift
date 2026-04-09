@@ -72,22 +72,14 @@ actor RemoteAccessAPIClient {
     
     // MARK: - Cluster Endpoints
     
-    /// Designate a tunnel as the cluster coordinator for this account.
-    /// Returns a shared cluster token and the coordinator's public URL.
-    func designateCoordinator(tunnelId: String, sessionToken: String) async throws -> ClusterDesignateResponse {
-        let body = ClusterDesignateRequest(tunnelId: tunnelId)
-        return try await post("/cluster/designate", body: body, token: sessionToken)
-    }
-    
-    /// Get cluster info for the authenticated account.
-    /// Returns coordinator URL, caller's role, peers, and cluster token.
+    /// Get cluster mesh info for the authenticated account.
     func getClusterInfo(sessionToken: String) async throws -> ClusterInfoResponse {
-        return try await get("/cluster/info", token: sessionToken)
+        return try await get("/cluster/mesh-info", token: sessionToken)
     }
-    
-    /// Remove the coordinator designation and dissolve the cluster.
-    func removeCluster(sessionToken: String) async throws {
-        let _: MessageResponse = try await post("/cluster/remove", body: EmptyBody(), token: sessionToken)
+
+    /// Ensure a cluster token exists for the authenticated account and join the mesh view.
+    func ensureCluster(sessionToken: String) async throws -> ClusterInfoResponse {
+        return try await post("/cluster/ensure", body: EmptyBody(), token: sessionToken)
     }
     
     // MARK: - HTTP Helpers
@@ -198,29 +190,17 @@ struct TunnelsGetResponse: Decodable {
 
 // MARK: - Cluster Request / Response Types
 
-private struct ClusterDesignateRequest: Encodable {
-    let tunnelId: String
-}
-
-struct ClusterDesignateResponse: Decodable {
-    let clusterToken: String
-    let coordinatorUrl: String
-}
-
 struct ClusterInfoResponse: Decodable {
     let hasCluster: Bool
-    let role: String?
     let clusterToken: String?
-    let coordinatorTunnelId: String?
-    let coordinatorUrl: String?
     let peers: [ClusterPeerInfo]
+    let meshEnabled: Bool?
 }
 
 struct ClusterPeerInfo: Decodable {
     let tunnelId: String
     let subdomain: String
     let name: String?
-    let role: String
     let url: String
     let lastHeartbeat: Double
 }

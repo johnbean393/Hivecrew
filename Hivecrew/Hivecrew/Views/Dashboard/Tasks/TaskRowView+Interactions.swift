@@ -67,6 +67,10 @@ extension TaskRowView {
                         Text(success ? String(localized: "Verified Complete") : String(localized: "Incomplete"))
                             .font(.caption)
                             .foregroundStyle(success ? .green : .red)
+                    } else if task.isInternalClusterExecution {
+                        Text("Serving Cluster Task")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
                     } else if task.isExecutingRemotely {
                         Text(task.clusterExecutionState == .dispatchingRemote ? "Starting" : "Running Remotely")
                             .font(.caption)
@@ -88,6 +92,15 @@ extension TaskRowView {
                                 .font(.caption)
                         }
                         .foregroundStyle(.blue)
+                    }
+
+                    if let ownerLabel {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Text(ownerLabel)
+                            .font(.caption)
+                            .foregroundStyle(.blue)
                     }
 
                     if !effectiveStatus.isActive, task.completedAt != nil {
@@ -256,6 +269,10 @@ extension TaskRowView {
         } else if effectiveStatus == .queued || effectiveStatus == .waitingForVM {
             return
         } else if isActivelyRunning {
+            if task.isExecutingRemotely {
+                showingTrace = true
+                return
+            }
             navigateToTask(task.id)
         } else {
             showingTrace = true

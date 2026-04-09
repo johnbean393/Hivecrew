@@ -172,7 +172,7 @@ struct CallTaskDetailView: View {
                             SubagentTraceEventRow(
                                 event: event,
                                 sessionDirectory: sessionDir,
-                                parseTraceEvents: { SessionTraceParser.parseEvents(from: $0) }
+                                parseTraceEvents: { SessionTraceParser.parseEvents(from: $0, sessionDirectory: sessionDir) }
                             )
                         } else {
                             HistoricalTraceEventRow(
@@ -307,7 +307,7 @@ struct CallTaskDetailView: View {
                                 SubagentTraceEventRow(
                                     event: event,
                                     sessionDirectory: sessionDir,
-                                    parseTraceEvents: { SessionTraceParser.parseEvents(from: $0) }
+                                    parseTraceEvents: { SessionTraceParser.parseEvents(from: $0, sessionDirectory: sessionDir) }
                                 )
                             } else {
                                 HistoricalTraceEventRow(
@@ -376,7 +376,7 @@ struct CallTaskDetailView: View {
         let traceFile = AppPaths.sessionDirectory(id: sessionId).appendingPathComponent("trace.jsonl")
         do {
             let content = try String(contentsOf: traceFile, encoding: .utf8)
-            traceEvents = SessionTraceParser.parseEvents(from: content)
+            traceEvents = SessionTraceParser.parseEvents(from: content, sessionDirectory: AppPaths.sessionDirectory(id: sessionId))
             screenshotEvents = traceEvents.filter { $0.screenshotPath != nil }
             if let first = screenshotEvents.first {
                 currentScreenshotPath = first.screenshotPath

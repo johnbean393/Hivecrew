@@ -59,7 +59,9 @@ struct AgentPreviewStripView: View {
     }
     
     private func sortedItems() -> [AgentPreviewItem] {
-        let activeTasks = taskService.tasks.filter { taskService.isTaskEffectivelyActive($0) }
+        let activeTasks = taskService.tasks.filter {
+            taskService.isTaskEffectivelyActive($0)
+        }
         let items = activeTasks.map { task in
             let publisher = taskService.statePublishers[task.id]
             return AgentPreviewItem(

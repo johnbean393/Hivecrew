@@ -2,14 +2,15 @@
 //  ClusterAnnouncer.swift
 //  Hivecrew
 //
-//  Runs on worker machines. Pushes capacity and task status updates to the coordinator.
+//  Legacy helper for pushing cluster updates to a specific peer endpoint.
+//  The active mesh path now broadcasts directly from ClusterManager.
 //
 
 import Foundation
 import HivecrewAPI
 
 actor ClusterAnnouncer {
-    private let coordinatorUrl: String
+    private let clusterBaseURL: String
     private let clusterToken: String
     private let session: URLSession
     
@@ -19,8 +20,8 @@ actor ClusterAnnouncer {
         return e
     }()
     
-    init(coordinatorUrl: String, clusterToken: String) {
-        self.coordinatorUrl = coordinatorUrl
+    init(clusterBaseURL: String, clusterToken: String) {
+        self.clusterBaseURL = clusterBaseURL
         self.clusterToken = clusterToken
         
         let config = URLSessionConfiguration.default
@@ -31,7 +32,7 @@ actor ClusterAnnouncer {
     
     // MARK: - Announcements
     
-    /// Push current capacity to the coordinator.
+    /// Push current capacity to the target cluster peer.
     /// Reads local tunnel info and task counts to build the announcement.
     func announceCapacity() async {
         guard let tunnelId = RemoteAccessKeychain.retrieveTunnelId(),
@@ -67,7 +68,7 @@ actor ClusterAnnouncer {
         }
     }
     
-    /// Push a task status update to the coordinator
+    /// Push a task status update to the target cluster peer.
     func announceTaskUpdate(
         canonicalTaskId: String,
         workerTaskId: String,
@@ -91,7 +92,7 @@ actor ClusterAnnouncer {
         }
     }
     
-    /// Tell the coordinator we are going offline
+    /// Tell the target cluster peer we are going offline.
     func announceDeparture() async {
         guard let tunnelId = RemoteAccessKeychain.retrieveTunnelId() else { return }
         
@@ -127,7 +128,7 @@ actor ClusterAnnouncer {
     }
     
     private func post<B: Encodable>(_ path: String, body: B) async throws {
-        guard let url = URL(string: "\(coordinatorUrl)\(path)") else { return }
+        guard let url = URL(string: "\(clusterBaseURL)\(path)") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")

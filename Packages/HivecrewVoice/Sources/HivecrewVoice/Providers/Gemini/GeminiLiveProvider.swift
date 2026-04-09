@@ -182,4 +182,9 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
         hasher.combine(data.suffix(32))
         return hasher.finalize()
     }
+
+    func isCurrentWebSocketTask(_ task: URLSessionTask) -> Bool {
+        guard let webSocket else { return false }
+        return webSocket === task
+    }
 }

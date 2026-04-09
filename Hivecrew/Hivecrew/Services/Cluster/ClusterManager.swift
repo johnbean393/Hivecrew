@@ -2,19 +2,18 @@
 //  ClusterManager.swift
 //  Hivecrew
 //
-//  Central actor managing cluster state: role, peer table, and dispatch decisions
+//  Central actor managing cluster membership, peer state, and dispatch decisions
 //
 
 import Combine
 import Foundation
 import HivecrewAPI
 
-// MARK: - Cluster Role
+// MARK: - Cluster Membership
 
 enum ClusterRole: String, Sendable {
     case none
-    case coordinator
-    case worker
+    case member
 }
 
 // MARK: - Observable Status
@@ -25,24 +24,27 @@ final class ClusterStatus: ObservableObject {
     
     @Published var role: ClusterRole = .none
     @Published var peers: [PeerNode] = []
-    @Published var coordinatorUrl: String?
     
     private init() {}
     
-    func update(role: ClusterRole, peers: [PeerNode] = [], coordinatorUrl: String? = nil) {
+    func update(role: ClusterRole, peers: [PeerNode] = []) {
         self.role = role
         self.peers = peers
-        self.coordinatorUrl = coordinatorUrl
     }
     
     func updatePeers(_ peers: [PeerNode]) {
         self.peers = peers
     }
+
+    func displayName(forPeerId peerId: String?) -> String? {
+        guard let peerId else { return nil }
+        guard let peer = peers.first(where: { $0.id == peerId }) else { return peerId }
+        return peer.name ?? peer.subdomain
+    }
     
     func reset() {
         role = .none
         peers = []
-        coordinatorUrl = nil
     }
 }
 
@@ -53,11 +55,9 @@ actor ClusterManager {
     
     private(set) var role: ClusterRole = .none
     private(set) var peers: [String: PeerNode] = [:]
-    private(set) var coordinatorUrl: String?
     private(set) var clusterToken: String?
     
     private let apiClient = RemoteAccessAPIClient()
-    private var announcer: ClusterAnnouncer?
     private var capacityObserver: Any?
     private var healthCheckTask: Task<Void, Never>?
     
@@ -91,62 +91,49 @@ actor ClusterManager {
     /// Called once during app startup after remote access is connected.
     func initialize() async {
         guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
-            await configure(role: .none, clusterToken: nil, coordinatorUrl: nil)
+            await configure(role: .none, clusterToken: nil)
             return
         }
         
         do {
-            let info = try await apiClient.getClusterInfo(sessionToken: sessionToken)
+            var info = try await apiClient.getClusterInfo(sessionToken: sessionToken)
             
-            guard info.hasCluster else {
-                await configure(role: .none, clusterToken: nil, coordinatorUrl: nil)
-                return
+            if !info.hasCluster {
+                info = try await apiClient.ensureCluster(sessionToken: sessionToken)
+                guard info.hasCluster else {
+                    await configure(role: .none, clusterToken: nil)
+                    return
+                }
             }
             
             guard let token = info.clusterToken else {
-                await configure(role: .none, clusterToken: nil, coordinatorUrl: nil)
+                await configure(role: .none, clusterToken: nil)
                 return
             }
             
-            // Derive role by comparing our local tunnelId against the coordinator's
             let myTunnelId = RemoteAccessKeychain.retrieveTunnelId()
-            let isCoordinator = myTunnelId != nil && myTunnelId == info.coordinatorTunnelId
             let directoryPeers = info.peers.filter { $0.tunnelId != myTunnelId }
-            
-            if isCoordinator {
-                await configure(role: .coordinator, clusterToken: token, coordinatorUrl: info.coordinatorUrl)
-                RemoteAccessKeychain.storeClusterToken(token)
-                await bootstrapPeersFromDirectory(directoryPeers, clusterToken: token)
-            } else {
-                guard let coordUrl = info.coordinatorUrl else {
-                    await configure(role: .none, clusterToken: nil, coordinatorUrl: nil)
-                    return
-                }
-                await configure(role: .worker, clusterToken: token, coordinatorUrl: coordUrl)
-                RemoteAccessKeychain.storeClusterToken(token)
-                RemoteAccessKeychain.storeCoordinatorUrl(coordUrl)
-                startAnnouncer(coordinatorUrl: coordUrl, clusterToken: token)
-            }
+
+            await configure(role: .member, clusterToken: token)
+            RemoteAccessKeychain.storeClusterToken(token)
+            await bootstrapPeersFromDirectory(directoryPeers, clusterToken: token)
         } catch {
             print("ClusterManager: Failed to get cluster info: \(error)")
             
             // Fall back to cached credentials
-            if let cachedToken = RemoteAccessKeychain.retrieveClusterToken(),
-               let cachedUrl = RemoteAccessKeychain.retrieveCoordinatorUrl() {
-                await configure(role: .worker, clusterToken: cachedToken, coordinatorUrl: cachedUrl)
-                startAnnouncer(coordinatorUrl: cachedUrl, clusterToken: cachedToken)
+            if let cachedToken = RemoteAccessKeychain.retrieveClusterToken() {
+                await configure(role: .member, clusterToken: cachedToken)
             }
         }
     }
     
     // MARK: - Configuration
     
-    func configure(role: ClusterRole, clusterToken: String?, coordinatorUrl: String?) async {
+    func configure(role: ClusterRole, clusterToken: String?) async {
         self.role = role
         self.clusterToken = clusterToken
-        self.coordinatorUrl = coordinatorUrl
         
-        if role == .coordinator {
+        if role != .none {
             startHealthChecks()
         } else {
             stopHealthChecks()
@@ -155,7 +142,7 @@ actor ClusterManager {
         
         let currentPeers = Array(peers.values)
         await MainActor.run {
-            ClusterStatus.shared.update(role: role, peers: currentPeers, coordinatorUrl: coordinatorUrl)
+            ClusterStatus.shared.update(role: role, peers: currentPeers)
         }
         
         print("ClusterManager: Configured as \(role.rawValue)")
@@ -259,7 +246,7 @@ actor ClusterManager {
         Date(timeIntervalSince1970: lastHeartbeat / 1000)
     }
     
-    // MARK: - Coordinator: Peer Management
+    // MARK: - Peer Management
     
     func registerPeer(_ announcement: PeerAnnouncement) async {
         let node = PeerNode(
@@ -354,7 +341,7 @@ actor ClusterManager {
         print("ClusterManager: Marked peer \(tunnelId) as unreachable")
     }
     
-    // MARK: - Coordinator: Dispatch
+    // MARK: - Dispatch
     
     /// Atomically selects the best peer AND reserves a slot on it.
     /// This prevents concurrent callers from selecting the same peer before
@@ -363,7 +350,14 @@ actor ClusterManager {
         providerName: String? = nil,
         modelId: String? = nil,
         excluding: Set<String> = []
-    ) -> PeerNode? {
+    ) async -> PeerNode? {
+        if let providerName, let modelId {
+            await refreshCapabilitiesForDispatch(
+                providerName: providerName,
+                modelId: modelId,
+                excluding: excluding
+            )
+        }
         guard let peer = bestAvailablePeerInternal(
             providerName: providerName, modelId: modelId, excluding: excluding
         ) else {
@@ -387,30 +381,14 @@ actor ClusterManager {
         modelId: String? = nil,
         excluding: Set<String> = []
     ) -> PeerNode? {
-        let online = peers.values.filter { peer in
-            guard peer.status == .online && peer.availableSlots > 0 && !excluding.contains(peer.id) else {
-                return false
-            }
-            if let providerName, let modelId {
-                if peer.providers.isEmpty {
-                    return true
-                }
-                return peer.hasProvider(name: providerName, modelId: modelId)
-            }
-            return true
-        }
-        guard !online.isEmpty else { return nil }
-        
         let order = UserDefaults.standard.stringArray(forKey: Self.dispatchOrderKey) ?? []
-        if !order.isEmpty {
-            for tunnelId in order {
-                if let peer = online.first(where: { $0.id == tunnelId }) {
-                    return peer
-                }
-            }
-        }
-        
-        return online.sorted { $0.availableSlots > $1.availableSlots }.first
+        return Self.selectBestPeer(
+            from: Array(peers.values),
+            preferredOrder: order,
+            providerName: providerName,
+            modelId: modelId,
+            excluding: excluding
+        )
     }
     
     private func reserveSlotInternal(peerId: String) {
@@ -433,61 +411,57 @@ actor ClusterManager {
         UserDefaults.standard.set(order, forKey: Self.dispatchOrderKey)
     }
     
-    // MARK: - Worker: Announcer
-    
-    private func startAnnouncer(coordinatorUrl: String, clusterToken: String) {
-        announcer = ClusterAnnouncer(coordinatorUrl: coordinatorUrl, clusterToken: clusterToken)
-        
-        Task {
-            await announcer?.announceCapacity()
-        }
-    }
-    
-    /// Called by the worker when its own task capacity changes
+    // MARK: - Mesh Updates
+
+    /// Called when local task capacity changes.
+    /// Every member broadcasts to known peers so they can make fresh dispatch decisions.
     func notifyCapacityChanged() {
-        guard role == .worker else { return }
         Task {
-            await announcer?.announceCapacity()
+            await broadcastCapacityUpdate()
         }
     }
     
-    /// Called by the worker when a coordinator-owned task's status changes
+    /// Called by the executor when an owner-owned task's status changes.
     func notifyTaskStatusChanged(
         canonicalTaskId: String,
         workerTaskId: String,
         executionAttempt: Int,
         task: APITask
     ) {
-        guard role == .worker else { return }
         Task {
-            await announcer?.announceTaskUpdate(
-                canonicalTaskId: canonicalTaskId,
-                workerTaskId: workerTaskId,
-                executionAttempt: executionAttempt,
-                task: task
+            guard let ownerNodeId = await self.currentOwnerNodeId(forWorkerTaskId: workerTaskId) else { return }
+            await pushTaskUpdate(
+                ownerNodeId: ownerNodeId,
+                update: PeerTaskUpdate(
+                    tunnelId: RemoteAccessKeychain.retrieveTunnelId() ?? "",
+                    canonicalTaskId: canonicalTaskId,
+                    workerTaskId: workerTaskId,
+                    executionAttempt: executionAttempt,
+                    task: task
+                )
             )
         }
     }
     
-    /// Graceful shutdown: tell coordinator we're leaving
+    /// Graceful shutdown: tell peers we're leaving
     func shutdown() async {
         stopHealthChecks()
-        if role == .worker {
-            await announcer?.announceDeparture()
+        if role != .none {
+            await broadcastDeparture()
         }
     }
     
     func handleSystemWillSleep() async {
         stopHealthChecks()
-        if role == .worker {
-            await announcer?.announceDeparture()
+        if role != .none {
+            await broadcastDeparture()
         }
     }
     
     func handleTunnelDidConnect() async {
         await initialize()
-        if role == .worker {
-            await announcer?.announceCapacity()
+        if role != .none {
+            await broadcastCapacityUpdate()
         }
     }
     
@@ -499,6 +473,7 @@ actor ClusterManager {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Self.healthCheckInterval))
                 guard !Task.isCancelled else { break }
+                await self?.refreshPeersFromDirectoryIfNeeded()
                 await self?.probeAllPeers()
             }
         }
@@ -572,6 +547,27 @@ actor ClusterManager {
             }
         }
     }
+
+    private func refreshPeersFromDirectoryIfNeeded() async {
+        guard role != .none,
+              let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
+            return
+        }
+
+        do {
+            let info = try await apiClient.getClusterInfo(sessionToken: sessionToken)
+            guard info.hasCluster, let token = info.clusterToken else { return }
+            let myTunnelId = RemoteAccessKeychain.retrieveTunnelId()
+            let directoryPeers = info.peers.filter { $0.tunnelId != myTunnelId }
+
+            self.clusterToken = token
+            RemoteAccessKeychain.storeClusterToken(token)
+
+            await bootstrapPeersFromDirectory(directoryPeers, clusterToken: token)
+        } catch {
+            print("ClusterManager: Failed to refresh peer directory: \(error)")
+        }
+    }
     
     private static func probePeerHealth(url: String) async -> Bool {
         guard let healthURL = URL(string: "\(url)/health") else { return false }
@@ -591,6 +587,165 @@ actor ClusterManager {
             ClusterStatus.shared.updatePeers(currentPeers)
         }
     }
+
+    private func refreshCapabilitiesForDispatch(
+        providerName: String,
+        modelId: String,
+        excluding: Set<String>
+    ) async {
+        guard let token = clusterToken else { return }
+
+        let unknownPeers = peers.values.filter { peer in
+            guard peer.status == .online, peer.availableSlots > 0, !excluding.contains(peer.id) else {
+                return false
+            }
+            return peer.capabilityMatch(providerName: providerName, modelId: modelId) == .unknown
+        }
+        guard !unknownPeers.isEmpty else { return }
+
+        await withTaskGroup(of: Void.self) { group in
+            for peer in unknownPeers {
+                group.addTask {
+                    await self.fetchPeerCapabilities(
+                        peerId: peer.id,
+                        baseURL: peer.tunnelUrl,
+                        clusterToken: token
+                    )
+                }
+            }
+        }
+    }
+
+    nonisolated static func selectBestPeer(
+        from peers: [PeerNode],
+        preferredOrder: [String],
+        providerName: String? = nil,
+        modelId: String? = nil,
+        excluding: Set<String> = []
+    ) -> PeerNode? {
+        let candidates = peers.filter { peer in
+            guard peer.status == .online, peer.availableSlots > 0, !excluding.contains(peer.id) else {
+                return false
+            }
+            guard let providerName, let modelId else { return true }
+            return peer.capabilityMatch(providerName: providerName, modelId: modelId) == .supported
+        }
+        guard !candidates.isEmpty else { return nil }
+
+        if !preferredOrder.isEmpty {
+            for tunnelId in preferredOrder {
+                if let peer = candidates.first(where: { $0.id == tunnelId }) {
+                    return peer
+                }
+            }
+        }
+
+        return candidates.sorted {
+            if $0.availableSlots == $1.availableSlots {
+                return $0.id < $1.id
+            }
+            return $0.availableSlots > $1.availableSlots
+        }.first
+    }
+
+    @MainActor
+    private func currentOwnerNodeId(forWorkerTaskId workerTaskId: String) -> String? {
+        APIServerManager.shared.taskServiceRef?.tasks.first(where: { $0.id == workerTaskId })?.clusterOwnerNodeId
+    }
+
+    private func broadcastCapacityUpdate() async {
+        guard role != .none,
+              let selfId = RemoteAccessKeychain.retrieveTunnelId(),
+              let subdomain = RemoteAccessKeychain.retrieveSubdomain(),
+              !selfId.isEmpty,
+              !subdomain.isEmpty else {
+            return
+        }
+
+        let capacity = await localCapacity()
+        let providerNames = await localProviderNames()
+
+        let announcement = PeerAnnouncement(
+            tunnelId: selfId,
+            subdomain: subdomain,
+            name: Host.current().localizedName,
+            tunnelUrl: "https://\(subdomain).hivecrew.org",
+            availableSlots: capacity.available,
+            runningTasks: capacity.running,
+            queuedTasks: capacity.queued,
+            providers: providerNames.map {
+                PeerProviderSummary(providerName: $0, modelIds: [])
+            }
+        )
+
+        let currentPeers = peers.values.filter { $0.id != selfId }
+        await withTaskGroup(of: Void.self) { group in
+            for peer in currentPeers {
+                group.addTask {
+                    await self.postClusterPayload(
+                        announcement,
+                        to: "\(peer.tunnelUrl)/api/v1/cluster/announce"
+                    )
+                }
+            }
+        }
+    }
+
+    private func broadcastDeparture() async {
+        guard let selfId = RemoteAccessKeychain.retrieveTunnelId(), !selfId.isEmpty else { return }
+        let departure = PeerDeparture(tunnelId: selfId)
+        let currentPeers = peers.values.filter { $0.id != selfId }
+        await withTaskGroup(of: Void.self) { group in
+            for peer in currentPeers {
+                group.addTask {
+                    await self.postClusterPayload(
+                        departure,
+                        to: "\(peer.tunnelUrl)/api/v1/cluster/depart"
+                    )
+                }
+            }
+        }
+    }
+
+    private func pushTaskUpdate(ownerNodeId: String, update: PeerTaskUpdate) async {
+        guard let ownerPeer = peers[ownerNodeId] else { return }
+        await postClusterPayload(update, to: "\(ownerPeer.tunnelUrl)/api/v1/cluster/task-update")
+    }
+
+    @MainActor
+    private func localCapacity() -> (available: Int, running: Int, queued: Int) {
+        let maxConcurrent = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
+        guard let taskService = APIServerManager.shared.taskServiceRef else {
+            return (maxConcurrent, 0, 0)
+        }
+
+        let running = taskService.runningAgents.count
+        let queued = taskService.tasks.filter {
+            !$0.isInternalClusterExecution && $0.status == .queued
+        }.count
+        return (max(0, maxConcurrent - running), running, queued)
+    }
+
+    @MainActor
+    private func localProviderNames() -> [String] {
+        APIServerManager.shared.localProviderNames()
+    }
+
+    private func postClusterPayload<B: Encodable>(_ body: B, to urlString: String) async {
+        guard let token = clusterToken,
+              let url = URL(string: urlString) else { return }
+
+        do {
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+            _ = try await URLSession.shared.data(for: request)
+        } catch {
+            print("ClusterManager: Failed posting cluster payload to \(urlString): \(error)")
+        }
+    }
 }
 
 // MARK: - Notifications
@@ -599,7 +754,7 @@ extension Notification.Name {
     static let clusterCapacityChanged = Notification.Name("clusterCapacityChanged")
     static let clusterTaskStatusChanged = Notification.Name("clusterTaskStatusChanged")
     /// Posted when a peer with free slots appears or comes back online.
-    /// The coordinator should check if local queued tasks can be offloaded.
+    /// Local queue draining should re-check whether work can be offloaded.
     static let clusterPeerBecameAvailable = Notification.Name("clusterPeerBecameAvailable")
     static let clusterPeerBecameUnavailable = Notification.Name("clusterPeerBecameUnavailable")
 }

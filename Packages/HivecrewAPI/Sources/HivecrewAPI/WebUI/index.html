@@ -143,7 +143,7 @@
                         </div>
                     </div>
                     <div class="nav-actions">
-                        <template x-if="clusterStatus && clusterStatus.role === 'coordinator'">
+                        <template x-if="clusterStatus && clusterStatus.role !== 'none'">
                             <div class="cluster-indicator" :title="clusterStatus.totalRunning + '/' + clusterStatus.totalCapacity + ' slots in use across ' + (clusterStatus.peers.length + 1) + ' machines'">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                                     <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"></polygon>

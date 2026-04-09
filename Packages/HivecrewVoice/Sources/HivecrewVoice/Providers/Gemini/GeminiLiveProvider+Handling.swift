@@ -9,23 +9,26 @@ extension GeminiLiveProvider {
 
     // MARK: - Receive Loop
 
-    func startReceiving() {
-        guard !isReceiving else { return }
+    func startReceiving(for webSocketTask: URLSessionWebSocketTask) {
+        guard !isReceiving, isCurrentWebSocketTask(webSocketTask) else { return }
         isReceiving = true
 
-        Task { [weak self] in
-            await self?.receiveLoop()
+        Task { [weak self, weak webSocketTask] in
+            guard let self, let webSocketTask else { return }
+            await self.receiveLoop(for: webSocketTask)
         }
     }
 
-    func receiveLoop() async {
-        while isReceiving, let ws = webSocket {
+    func receiveLoop(for webSocketTask: URLSessionWebSocketTask) async {
+        while isReceiving, isCurrentWebSocketTask(webSocketTask) {
             do {
-                let message = try await ws.receive()
+                let message = try await webSocketTask.receive()
+                guard isCurrentWebSocketTask(webSocketTask) else { break }
                 await handleMessage(message)
             } catch {
                 if isReceiving {
                     await MainActor.run {
+                        guard self.isCurrentWebSocketTask(webSocketTask) else { return }
                         self.isReceiving = false
                         self.resumeSessionIfNeeded()
                     }

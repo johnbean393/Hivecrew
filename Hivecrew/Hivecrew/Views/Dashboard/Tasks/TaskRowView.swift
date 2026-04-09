@@ -13,6 +13,7 @@ import Combine
 struct TaskRowView: View {
     let task: TaskRecord
     @EnvironmentObject var taskService: TaskService
+    @ObservedObject private var clusterStatus = ClusterStatus.shared
     @State var isHovered: Bool = false
     @State var isRenaming: Bool = false
     @State var draftTitle: String = ""
@@ -35,6 +36,12 @@ struct TaskRowView: View {
 
     var effectiveStatus: TaskStatus {
         taskService.effectiveStatus(for: task)
+    }
+
+    var ownerLabel: String? {
+        guard task.isInternalClusterExecution else { return nil }
+        guard let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId) else { return nil }
+        return ownerName
     }
     
     var statusColor: Color {

@@ -21,7 +21,6 @@ enum RemoteAccessKeychain {
     private static let subdomainKey = "subdomain"
     private static let tunnelIdKey = "tunnel-id"
     private static let clusterTokenKey = "cluster-token"
-    private static let coordinatorUrlKey = "coordinator-url"
     
     // MARK: - Session Token (JWT)
     
@@ -109,29 +108,13 @@ enum RemoteAccessKeychain {
         delete(key: clusterTokenKey)
     }
     
-    // MARK: - Coordinator URL
-    
-    @discardableResult
-    static func storeCoordinatorUrl(_ url: String) -> Bool {
-        store(key: coordinatorUrlKey, value: url)
-    }
-    
-    static func retrieveCoordinatorUrl() -> String? {
-        retrieve(key: coordinatorUrlKey)
-    }
-    
-    @discardableResult
-    static func deleteCoordinatorUrl() -> Bool {
-        delete(key: coordinatorUrlKey)
-    }
-    
     // MARK: - Clear All
     
     /// Remove all remote access credentials from Keychain
     @discardableResult
     static func clearAll() -> Bool {
         let keys = [sessionTokenKey, tunnelTokenKey, emailKey, subdomainKey, tunnelIdKey,
-                    clusterTokenKey, coordinatorUrlKey]
+                    clusterTokenKey]
         var allSuccess = true
         for key in keys {
             if !delete(key: key) {

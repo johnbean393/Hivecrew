@@ -2,8 +2,8 @@
 //  RemoteTaskIndex.swift
 //  Hivecrew
 //
-//  Coordinator-side index mapping task IDs to the peer that owns them,
-//  with cached APITask state (shadow records) for fast list aggregation.
+//  Owner-side index mapping canonical task IDs to leased executor tasks,
+//  with cached APITask state for fast aggregation and reconciliation.
 //
 
 import Foundation
@@ -65,6 +65,10 @@ actor RemoteTaskIndex {
 
     func tasksForPeer(_ peerId: String) -> [RemoteTaskEntry] {
         entriesByCanonicalTaskId.values.filter { $0.peerId == peerId }
+    }
+
+    func allEntries() -> [RemoteTaskEntry] {
+        Array(entriesByCanonicalTaskId.values)
     }
     
     /// Remove all entries for a peer (e.g. when it goes offline and tasks can't be tracked)

@@ -11,13 +11,14 @@ import TipKit
 import QuickLook
 import AppKit
 import HivecrewShared
+import HivecrewAPI
 import MarkdownView
 
 /// View for displaying session trace logs with screenshot playback synced to scroll
 struct SessionTraceView: View {
     
     let task: TaskRecord
-    @Environment(\.dismiss) var dismiss
+    @SwiftUI.Environment(\.dismiss) var dismiss
     @EnvironmentObject var taskService: TaskService
     
     @State private var traceContent: String = ""
@@ -39,6 +40,10 @@ struct SessionTraceView: View {
     @State var showingMissingAttachments: Bool = false
     @State var missingAttachmentsValidation: RerunAttachmentValidation? = nil
     @State var rerunTargetOverride: (providerId: String, modelId: String, reasoningEnabled: Bool?, reasoningEffort: String?)? = nil
+    @State private var remoteEvents: [APITaskEvent] = []
+    @State private var remoteEventSince: Int = 0
+    @State private var remoteScreenshot: NSImage?
+    @State private var remotePollTask: Task<Void, Never>?
     
     enum TraceTab: String, CaseIterable {
         case trace = "Trace"
@@ -85,6 +90,8 @@ struct SessionTraceView: View {
         Group {
             if isLoading {
                 loadingView
+            } else if shouldShowRemoteLiveTrace {
+                remoteLiveTraceView
             } else if task.wasExecutedRemotely, errorMessage != nil || events.isEmpty {
                 remoteExecutionView
             } else if let error = errorMessage {
@@ -105,10 +112,18 @@ struct SessionTraceView: View {
                 TipStore.shared.successfulTaskCompleted()
             }
         }
+        .onDisappear {
+            remotePollTask?.cancel()
+            remotePollTask = nil
+        }
         .quickLookPreview($quickLookURL)
         .sheet(isPresented: $showingSkillExtraction) {
             SkillExtractionSheet(task: task, taskService: taskService)
         }
+    }
+
+    private var shouldShowRemoteLiveTrace: Bool {
+        task.isExecutingRemotely && events.isEmpty
     }
     
     // MARK: - Main Content View
@@ -289,11 +304,112 @@ struct SessionTraceView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    private var remoteLiveTraceView: some View {
+        HStack(spacing: 0) {
+            Group {
+                if let remoteScreenshot {
+                    Image(nsImage: remoteScreenshot)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black)
+                } else {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                        Text("Waiting for remote screenshot...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(task.title)
+                            .font(.headline)
+                        Text(task.clusterPeerName.map { "Running on \($0)" } ?? "Running remotely")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+
+                Divider()
+
+                if remoteEvents.isEmpty {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                        Text("Waiting for remote activity...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(remoteEvents.enumerated()), id: \.offset) { _, event in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(formatLiveEventTimestamp(event.timestamp))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text(event.type.rawValue)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    if let summary = jsonString(event.data["summary"]) {
+                                        Text(summary)
+                                            .font(.subheadline)
+                                            .textSelection(.enabled)
+                                    }
+
+                                    if let details = jsonString(event.data["details"]), !details.isEmpty {
+                                        Text(details)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .textSelection(.enabled)
+                                    }
+
+                                    if let reasoning = jsonString(event.data["reasoning"]), !reasoning.isEmpty {
+                                        Text(reasoning)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .textSelection(.enabled)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+            .frame(width: 420)
+        }
+        .task(id: task.id) {
+            startRemotePolling()
+        }
+    }
     
     // MARK: - Load Trace
     
     private func loadTrace() {
         guard let sessionId = task.sessionId else {
+            if task.isExecutingRemotely {
+                isLoading = false
+                errorMessage = nil
+                return
+            }
             isLoading = false
             errorMessage = "No session ID"
             return
@@ -304,7 +420,7 @@ struct SessionTraceView: View {
         
         do {
             traceContent = try String(contentsOf: traceFile, encoding: .utf8)
-            events = SessionTraceParser.parseEvents(from: traceContent)
+            events = SessionTraceParser.parseEvents(from: traceContent, sessionDirectory: sessionDir)
             sessionTokenUsageSummary = calculateSessionTokenUsage(
                 from: events,
                 sessionDirectory: sessionDir
@@ -324,8 +440,61 @@ struct SessionTraceView: View {
         } catch {
             isLoading = false
             sessionTokenUsageSummary = nil
-            errorMessage = error.localizedDescription
+            if task.isExecutingRemotely {
+                errorMessage = nil
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
+    }
+
+    @MainActor
+    private func startRemotePolling() {
+        remotePollTask?.cancel()
+        remotePollTask = Task {
+            while !Task.isCancelled {
+                await pollRemoteTrace()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    @MainActor
+    private func pollRemoteTrace() async {
+        guard let provider = APIServerManager.shared.federatedProvider else { return }
+
+        if let screenshot = try? await provider.getTaskScreenshot(id: task.id),
+           let image = NSImage(data: screenshot.data) {
+            remoteScreenshot = image
+        }
+
+        if let response = try? await provider.getTaskActivity(id: task.id, since: remoteEventSince) {
+            if !response.events.isEmpty {
+                remoteEvents.append(contentsOf: response.events)
+            }
+            remoteEventSince = response.total
+        }
+    }
+
+    private func jsonString(_ value: JSONValue?) -> String? {
+        switch value {
+        case .string(let value):
+            return value
+        case .int(let value):
+            return String(value)
+        case .double(let value):
+            return String(value)
+        case .bool(let value):
+            return value ? "true" : "false"
+        default:
+            return nil
+        }
+    }
+
+    private func formatLiveEventTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
     
     private func loadPlanState(sessionId: String) {
@@ -346,7 +515,7 @@ struct SessionTraceView: View {
     }
 
     func parseTraceEvents(from content: String) -> [TraceEventInfo] {
-        SessionTraceParser.parseEvents(from: content)
+        SessionTraceParser.parseEvents(from: content, sessionDirectory: sessionDirectory)
     }
 
     private func calculateSessionTokenUsage(

@@ -140,7 +140,7 @@ extension TaskService {
     }
     
     private func notifyClusterTaskUpdateIfNeeded(_ task: TaskRecord) {
-        guard let canonicalTaskId = task.clusterCoordinatorTaskId else { return }
+        guard let canonicalTaskId = task.clusterOwnerTaskId else { return }
         Task {
             guard let apiTask = await APIServerManager.shared.localTaskSnapshot(taskId: task.id) else { return }
             await ClusterManager.shared.notifyTaskStatusChanged(
@@ -624,17 +624,31 @@ extension TaskService {
         sessionId: String,
         context: ModelContext
     ) async {
-        // Update task with result based on termination reason
+        await syncGuestArtifactsToSharedFolder(connection: connection)
+
+        // Copy outbox files to output directory BEFORE deleting the VM
+        // Files are saved into a subfolder named after the task title + timestamp
+        if result.terminationReason != .cancelled {
+            await extractPersistedArtifacts(task: task, vmId: vmId, sessionId: sessionId)
+            
+            // Donate deliverable received event if files were produced
+            if let paths = task.outputFilePaths, !paths.isEmpty {
+                await MainActor.run {
+                    TipStore.shared.donateDeliverableReceived()
+                }
+            }
+        }
+
+        // Only publish terminal task state after artifact extraction has finished.
+        // This prevents remote owners from observing a completed task before
+        // outputFilePaths has been populated on the executor.
         task.completedAt = Date()
         task.resultSummary = result.summary
-
-        // Store verified success status
         task.wasSuccessful = result.success
 
         switch result.terminationReason {
         case .completed:
             task.status = .completed
-            // Track task completion for tips
             await MainActor.run {
                 TipStore.shared.donateTaskCompleted()
                 if result.success == true {
@@ -664,28 +678,12 @@ extension TaskService {
             }
         }
 
-        // Update state publisher status (matches .failed/.cancelled pattern elsewhere)
         switch result.terminationReason {
         case .completed:  statePublishers[task.id]?.status = .completed
         case .failed:     statePublishers[task.id]?.status = .failed
         case .cancelled:  statePublishers[task.id]?.status = .cancelled
         case .timedOut:   statePublishers[task.id]?.status = .failed
         case .maxIterations: statePublishers[task.id]?.status = .failed
-        }
-        
-        await syncGuestArtifactsToSharedFolder(connection: connection)
-
-        // Copy outbox files to output directory BEFORE deleting the VM
-        // Files are saved into a subfolder named after the task title + timestamp
-        if result.terminationReason != .cancelled {
-            await extractPersistedArtifacts(task: task, vmId: vmId, sessionId: sessionId)
-            
-            // Donate deliverable received event if files were produced
-            if let paths = task.outputFilePaths, !paths.isEmpty {
-                await MainActor.run {
-                    TipStore.shared.donateDeliverableReceived()
-                }
-            }
         }
         
         // Update session record
@@ -750,12 +748,6 @@ extension TaskService {
         } else {
             print("TaskService: Pending slot was already released (pending: \(pendingVMCount))")
         }
-        
-        task.status = .failed
-        task.errorMessage = error.localizedDescription
-        task.completedAt = Date()
-        try? context.save()
-        notifyClusterTaskUpdateIfNeeded(task)
 
         if let connection, let vmId {
             await syncGuestArtifactsToSharedFolder(connection: connection)
@@ -767,6 +759,12 @@ extension TaskService {
                 }
             }
         }
+
+        task.status = .failed
+        task.errorMessage = error.localizedDescription
+        task.completedAt = Date()
+        try? context.save()
+        notifyClusterTaskUpdateIfNeeded(task)
         
         // Send failure notification
         sendTaskCompletionNotification(task: task)

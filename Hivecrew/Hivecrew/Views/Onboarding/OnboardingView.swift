@@ -126,10 +126,6 @@ struct OnboardingView: View {
         case .voice:
             VoiceProviderSetupView(
                 isConfigured: $voiceConfigured,
-                showSkipButton: true,
-                onSkip: {
-                    withAnimation { goNext() }
-                },
                 onConfigured: {
                     withAnimation { goNext() }
                 }
@@ -167,15 +163,36 @@ struct OnboardingView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return)
             } else {
-                Button("Continue") {
-                    withAnimation {
-                        goNext()
+                Group {
+                    if shouldShowSkipButton {
+                        Button("Skip") {
+                            withAnimation {
+                                goNext()
+                            }
+                        }
+                    } else {
+                    Button("Continue") {
+                        withAnimation {
+                            goNext()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.return)
+                    .disabled(!canContinue)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.return)
-                .disabled(!canContinue)
             }
+        }
+    }
+
+    private var shouldShowSkipButton: Bool {
+        switch currentStep {
+        case .voice:
+            return !voiceConfigured
+        case .voiceIsolation:
+            return !voiceIsolationConfigured
+        default:
+            return false
         }
     }
     

@@ -177,20 +177,30 @@ final class TaskRecord {
     
     // MARK: - Cluster Execution Properties
     
-    /// Coordinator-owned canonical task ID for worker-side execution records.
-    /// Nil for normal local tasks and coordinator-side canonical task records.
-    var clusterCoordinatorTaskId: String?
+    /// Legacy persisted backing field for the owner task ID of an executor-side lease record.
+    /// Nil for normal local tasks and owner-side canonical task records.
+    private var clusterCoordinatorTaskId: String?
+
+    /// Canonical owner task ID for executor-side lease records.
+    var clusterOwnerTaskId: String? {
+        get { clusterCoordinatorTaskId }
+        set { clusterCoordinatorTaskId = newValue }
+    }
+
+    /// Owning node tunnel ID for executor-side cluster execution records.
+    /// Nil for locally-owned tasks.
+    var clusterOwnerNodeId: String?
     
-    /// Remote worker execution task ID currently leased by the coordinator.
+    /// Remote executor task ID currently leased by the owner.
     var clusterWorkerTaskId: String?
     
-    /// Peer tunnel ID currently executing this coordinator-owned task.
+    /// Peer tunnel ID currently executing this owner-owned task.
     var clusterPeerId: String?
     
     /// Human-readable peer name for UI display while remotely executing.
     var clusterPeerName: String?
     
-    /// Monotonic attempt/generation number for coordinator-owned remote execution.
+    /// Monotonic attempt/generation number for owner-managed remote execution.
     var clusterExecutionAttempt: Int = 0
     
     private var clusterExecutionStateRaw: Int = ClusterExecutionState.none.rawValue
@@ -367,7 +377,8 @@ final class TaskRecord {
         localAccessGrants: [LocalAccessGrant] = [],
         pendingWritebackOperations: [PendingWritebackOperation] = [],
         appliedWritebackPaths: [String]? = nil,
-        clusterCoordinatorTaskId: String? = nil,
+        clusterOwnerTaskId: String? = nil,
+        clusterOwnerNodeId: String? = nil,
         clusterWorkerTaskId: String? = nil,
         clusterPeerId: String? = nil,
         clusterPeerName: String? = nil,
@@ -407,7 +418,8 @@ final class TaskRecord {
         self.localAccessGrantsData = try? JSONEncoder().encode(localAccessGrants)
         self.pendingWritebackOperationsData = try? JSONEncoder().encode(pendingWritebackOperations)
         self.appliedWritebackPaths = appliedWritebackPaths
-        self.clusterCoordinatorTaskId = clusterCoordinatorTaskId
+        self.clusterCoordinatorTaskId = clusterOwnerTaskId
+        self.clusterOwnerNodeId = clusterOwnerNodeId
         self.clusterWorkerTaskId = clusterWorkerTaskId
         self.clusterPeerId = clusterPeerId
         self.clusterPeerName = clusterPeerName
@@ -460,6 +472,12 @@ final class TaskRecord {
     
     var isExecutingRemotely: Bool {
         clusterExecutionState == .runningRemote || clusterExecutionState == .dispatchingRemote
+    }
+
+    /// Internal executor-side record created for a remotely-owned task.
+    /// These should stay out of normal task lists and dashboards.
+    var isInternalClusterExecution: Bool {
+        clusterOwnerTaskId != nil
     }
     
     /// True if this task was (or is being) executed on a remote cluster node.

@@ -143,7 +143,10 @@ extension GeminiLiveProvider {
 
         let setupMessage = SetupMessage(setup: buildSessionConfig(config: config, resumeHandle: resumeHandle))
 
-        startReceiving()
+        guard let webSocket else {
+            throw GeminiError.notConnected
+        }
+        startReceiving(for: webSocket)
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             self.setupContinuation = continuation

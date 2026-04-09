@@ -351,7 +351,7 @@ enum OrchestratorToolHandler {
                 planMarkdown: nil,
                 planSelectedSkillNames: nil,
                 localAccessGrants: [],
-                clusterCoordinatorTaskId: nil,
+                clusterOwnerTaskId: nil,
                 clusterExecutionAttempt: 0
             )
             

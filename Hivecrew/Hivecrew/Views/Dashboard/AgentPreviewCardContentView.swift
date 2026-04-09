@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import HivecrewAPI
 
 struct AgentPreviewCardContent: View {
     let task: TaskRecord
@@ -17,9 +18,15 @@ struct AgentPreviewCardContent: View {
     let previewScreenshotPath: String?
     
     @EnvironmentObject var taskService: TaskService
+    @ObservedObject private var clusterStatus = ClusterStatus.shared
     @State private var showingTrace: Bool = false
     @State private var showingPlanReview: Bool = false
     @State private var showingWritebackReview: Bool = false
+    @State private var remoteScreenshot: NSImage?
+    @State private var remoteActivitySummary: String?
+    @State private var remoteStepCount: Int = 0
+    @State private var remoteEventSince: Int = 0
+    @State private var remotePollTask: Task<Void, Never>?
     
     private var hasPendingQuestion: Bool {
         statePublisher?.pendingQuestion != nil
@@ -34,7 +41,7 @@ struct AgentPreviewCardContent: View {
     }
     
     private var stepCount: Int {
-        statePublisher?.currentStep ?? 0
+        statePublisher?.currentStep ?? remoteStepCount
     }
     
     private var activityDescription: String {
@@ -54,7 +61,16 @@ struct AgentPreviewCardContent: View {
         if let lastEntry = statePublisher?.activityLog.last?.summary, !lastEntry.isEmpty {
             return lastEntry
         }
+        if let remoteActivitySummary, !remoteActivitySummary.isEmpty {
+            return remoteActivitySummary
+        }
         return statusDescription
+    }
+
+    private var ownerLabel: String? {
+        guard task.isInternalClusterExecution else { return nil }
+        guard let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId) else { return nil }
+        return ownerName
     }
     
     private var statusDescription: String {
@@ -167,6 +183,16 @@ struct AgentPreviewCardContent: View {
         .sheet(isPresented: $showingWritebackReview) {
             WritebackReviewWindow(task: task, taskService: taskService)
         }
+        .onAppear {
+            startRemotePollingIfNeeded()
+        }
+        .onChange(of: task.clusterExecutionState) { _, _ in
+            startRemotePollingIfNeeded()
+        }
+        .onDisappear {
+            remotePollTask?.cancel()
+            remotePollTask = nil
+        }
     }
     
     private var headerRow: some View {
@@ -182,9 +208,18 @@ struct AgentPreviewCardContent: View {
             if let nodeName = task.remoteNodeDisplayName {
                 StatusPill(text: nodeName, color: .blue)
             }
+
+            if let ownerLabel {
+                StatusPill(text: ownerLabel, color: .blue)
+            }
             
             if needsIntervention {
                 StatusPill(text: interventionPillText, color: .orange)
+            } else if task.isExecutingRemotely {
+                StatusPill(
+                    text: "Remote",
+                    color: .blue
+                )
             } else {
                 StatusPill(text: effectiveStatus.displayName, color: statusPillColor)
             }
@@ -222,7 +257,7 @@ struct AgentPreviewCardContent: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(0.6))
             
-            if let screenshot = previewScreenshot {
+            if let screenshot = previewScreenshot ?? remoteScreenshot {
                 Image(nsImage: screenshot)
                     .resizable()
                     .scaledToFill()
@@ -237,9 +272,6 @@ struct AgentPreviewCardContent: View {
                             .fontWeight(.medium)
                             .foregroundStyle(.blue)
                     }
-                    Text("Running remotely")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
             } else {
                 VStack(spacing: 6) {
@@ -379,5 +411,42 @@ struct AgentPreviewCardContent: View {
         default:
             break
         }
+    }
+
+    @MainActor
+    private func startRemotePollingIfNeeded() {
+        guard task.isExecutingRemotely, statePublisher == nil else { return }
+        remotePollTask?.cancel()
+        remotePollTask = Task {
+            while !Task.isCancelled {
+                await pollRemoteSnapshot()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    @MainActor
+    private func pollRemoteSnapshot() async {
+        guard let provider = APIServerManager.shared.federatedProvider else { return }
+
+        if let screenshot = try? await provider.getTaskScreenshot(id: task.id),
+           let image = NSImage(data: screenshot.data) {
+            remoteScreenshot = image
+        }
+
+        if let response = try? await provider.getTaskActivity(id: task.id, since: remoteEventSince) {
+            if !response.events.isEmpty {
+                remoteActivitySummary = response.events.last.flatMap { eventSummary(for: $0) } ?? remoteActivitySummary
+                remoteStepCount += response.events.count
+            }
+            remoteEventSince = response.total
+        }
+    }
+
+    private func eventSummary(for event: APITaskEvent) -> String? {
+        if case .string(let summary)? = event.data["summary"] {
+            return summary
+        }
+        return nil
     }
 }

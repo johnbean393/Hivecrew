@@ -39,7 +39,7 @@ final class APIServerManager {
     private var modelContext: ModelContext?
     private var localServiceProvider: APIServiceProviderBridge?
     
-    /// Federated provider (non-nil when this machine is coordinator)
+    /// Federated provider (non-nil when this machine is participating in the cluster mesh)
     private(set) var federatedProvider: FederatedServiceProvider?
     
     /// Public read-only reference to TaskService for cluster announcements
@@ -85,7 +85,7 @@ final class APIServerManager {
                 planMarkdown: request.planMarkdown,
                 planSelectedSkillNames: request.planSelectedSkillNames,
                 localAccessGrants: request.localAccessGrants,
-                clusterCoordinatorTaskId: request.clusterCoordinatorTaskId,
+                clusterOwnerTaskId: request.clusterOwnerTaskId,
                 clusterExecutionAttempt: request.clusterExecutionAttempt
             )
             return task?.id ?? ""
@@ -122,7 +122,7 @@ final class APIServerManager {
         return providers.map(\.displayName)
     }
     
-    /// Shared RemoteTaskIndex for the coordinator
+    /// Shared owner-side lease index for remotely executing tasks
     private(set) var remoteTaskIndex: RemoteTaskIndex?
     
     private init() {}
@@ -259,20 +259,19 @@ final class APIServerManager {
         
         Task {
             let role = await clusterManager.role
-            let token = await clusterManager.clusterToken
+            _ = await clusterManager.clusterToken
             
             await MainActor.run {
-                if role == .coordinator {
-                    print("APIServerManager: Coordinator mode — using FederatedServiceProvider")
+                if role == .member {
+                    print("APIServerManager: Mesh cluster mode — using FederatedServiceProvider")
                 }
             }
         }
         
         // Check synchronously via cached keychain value
         let cachedClusterToken = RemoteAccessKeychain.retrieveClusterToken()
-        let isCoordinator = UserDefaults.standard.bool(forKey: "clusterCoordinatorEnabled")
         
-        if isCoordinator, let token = cachedClusterToken {
+        if let token = cachedClusterToken, !token.isEmpty {
             let fedProvider = FederatedServiceProvider(
                 localProvider: localProvider,
                 clusterManager: clusterManager,

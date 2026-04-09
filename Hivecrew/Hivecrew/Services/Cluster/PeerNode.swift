@@ -8,7 +8,13 @@
 import Foundation
 import HivecrewAPI
 
-/// A peer machine in the cluster known to the coordinator
+enum PeerCapabilityMatch: Equatable {
+    case supported
+    case unsupported
+    case unknown
+}
+
+/// A peer machine in the cluster known to the local mesh member
 struct PeerNode: Identifiable, Codable, Sendable {
     /// Tunnel ID (unique identifier from the Cloudflare Worker)
     let id: String
@@ -31,12 +37,23 @@ struct PeerNode: Identifiable, Codable, Sendable {
     /// Provider/model capabilities advertised by this peer
     var providers: [PeerProviderSummary]
     
-    /// Returns true if this peer can plausibly handle the given provider+model.
-    /// When modelIds is empty (capabilities not yet enumerated), matches by provider name alone.
-    func hasProvider(name: String, modelId: String) -> Bool {
-        providers.contains { prov in
-            prov.providerName == name && (prov.modelIds.isEmpty || prov.modelIds.contains(modelId))
+    /// Returns the capability state for dispatch decisions.
+    /// Unknown capability information should not be treated as a positive match.
+    nonisolated func capabilityMatch(providerName: String, modelId: String) -> PeerCapabilityMatch {
+        guard !providers.isEmpty else { return .unknown }
+
+        let lowercasedProviderName = providerName.lowercased()
+        guard let provider = providers.first(where: { $0.providerName.lowercased() == lowercasedProviderName }) else {
+            return .unsupported
         }
+        guard !provider.modelIds.isEmpty else {
+            return .unknown
+        }
+        return provider.modelIds.contains(modelId) ? .supported : .unsupported
+    }
+
+    nonisolated var hasUnknownCapabilities: Bool {
+        providers.isEmpty || providers.contains(where: { $0.modelIds.isEmpty })
     }
 }
 

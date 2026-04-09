@@ -11,6 +11,7 @@ import SwiftUI
 struct ActiveTaskRow: View {
     let task: TaskRecord
     @EnvironmentObject var taskService: TaskService
+    @ObservedObject private var clusterStatus = ClusterStatus.shared
     
     private var statePublisher: AgentStatePublisher? {
         taskService.statePublisher(for: task.id)
@@ -24,14 +25,35 @@ struct ActiveTaskRow: View {
                 Text(task.title)
                     .font(.headline)
                     .lineLimit(1)
-                Text(task.status.displayName)
+                Text(statusText)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(task.isExecutingRemotely ? .blue : .secondary)
+                if let ownerLabel {
+                    Text(ownerLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
             }
             
             Spacer()
         }
         .padding(.vertical, 4)
+    }
+
+    private var statusText: String {
+        if task.isExecutingRemotely, let nodeName = task.remoteNodeDisplayName {
+            return "Running on \(nodeName)"
+        }
+        if task.isInternalClusterExecution {
+            return "Serving cluster task"
+        }
+        return task.status.displayName
+    }
+
+    private var ownerLabel: String? {
+        guard task.isInternalClusterExecution else { return nil }
+        guard let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId) else { return nil }
+        return ownerName
     }
     
     @ViewBuilder

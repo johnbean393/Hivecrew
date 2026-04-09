@@ -10,7 +10,7 @@ import Foundation
 // MARK: - Provider Capability Summary
 
 /// Lightweight summary of a provider's name and model IDs, sent in peer announcements
-/// so the coordinator knows which models each machine supports.
+/// so mesh members know which models each machine supports.
 public struct PeerProviderSummary: Codable, Sendable, Hashable {
     public let providerName: String
     public let modelIds: [String]
@@ -21,9 +21,9 @@ public struct PeerProviderSummary: Codable, Sendable, Hashable {
     }
 }
 
-// MARK: - Inbound (worker → coordinator)
+// MARK: - Inbound (peer → peer)
 
-/// A worker announcing its identity and current capacity to the coordinator
+/// A peer announcing its identity and current capacity to other mesh members
 public struct PeerAnnouncement: Codable, Sendable {
     public let tunnelId: String
     public let subdomain: String
@@ -55,7 +55,7 @@ public struct PeerAnnouncement: Codable, Sendable {
     }
 }
 
-/// A worker pushing a task status change to the coordinator's shadow index
+/// An executor pushing a task status change back to the owner node
 public struct PeerTaskUpdate: Codable, Sendable {
     public let tunnelId: String
     public let canonicalTaskId: String
@@ -80,6 +80,7 @@ public struct PeerTaskUpdate: Codable, Sendable {
 
 public struct ClusterExecuteNowRequest: Codable, Sendable {
     public let canonicalTaskId: String
+    public let ownerTunnelId: String
     public let executionAttempt: Int
     public let description: String
     public let providerName: String
@@ -101,6 +102,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
     
     public init(
         canonicalTaskId: String,
+        ownerTunnelId: String,
         executionAttempt: Int,
         description: String,
         providerName: String,
@@ -121,6 +123,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
         contextAttachmentPaths: [String] = []
     ) {
         self.canonicalTaskId = canonicalTaskId
+        self.ownerTunnelId = ownerTunnelId
         self.executionAttempt = executionAttempt
         self.description = description
         self.providerName = providerName
@@ -152,7 +155,15 @@ public struct ClusterExecuteNowResponse: Codable, Sendable {
     }
 }
 
-/// A worker signaling that it is going offline
+public struct ClusterStageInputFilesResponse: Codable, Sendable {
+    public let stagedFilePaths: [String]
+
+    public init(stagedFilePaths: [String]) {
+        self.stagedFilePaths = stagedFilePaths
+    }
+}
+
+/// A peer signaling that it is going offline
 public struct PeerDeparture: Codable, Sendable {
     public let tunnelId: String
     
@@ -161,7 +172,7 @@ public struct PeerDeparture: Codable, Sendable {
     }
 }
 
-// MARK: - Outbound (coordinator → web UI)
+// MARK: - Outbound (mesh member → web UI)
 
 /// Aggregate cluster status for the web UI
 public struct APIClusterStatus: Codable, Sendable {

@@ -86,6 +86,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     
     func createClusterExecutionTask(
         canonicalTaskId: String,
+        ownerTunnelId: String,
         executionAttempt: Int,
         description: String,
         providerName: String,
@@ -109,6 +110,11 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         }
         
         let providerId = try await findProviderIdByName(providerName)
+        let clusterOutputDirectory = AppPaths.appSupportDirectory
+            .appendingPathComponent("ClusterLeaseOutputs", isDirectory: true)
+            .appendingPathComponent(canonicalTaskId, isDirectory: true)
+            .appendingPathComponent("attempt-\(executionAttempt)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: clusterOutputDirectory, withIntermediateDirectories: true)
         let task = try await taskService.createTask(
             description: description,
             providerId: providerId,
@@ -116,7 +122,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             attachedFilePaths: attachedFilePaths,
-            outputDirectory: outputDirectory,
+            outputDirectory: clusterOutputDirectory.path,
             mentionedSkillNames: mentionedSkillNames,
             referencedTaskIds: referencedTaskIds,
             continuationSourceTaskId: continuationSourceTaskId,
@@ -127,10 +133,12 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             retrievalModeOverrides: contextModeOverrides,
             planFirstEnabled: false,
             planMarkdown: planMarkdown,
-            clusterCoordinatorTaskId: canonicalTaskId,
+            clusterOwnerTaskId: canonicalTaskId,
             clusterExecutionAttempt: executionAttempt,
             autoStart: false
         )
+        task.clusterOwnerNodeId = ownerTunnelId
+        try? modelContext.save()
         
         guard await taskService.startTaskImmediatelyIfPossible(task) else {
             await taskService.deleteTask(task)
@@ -233,7 +241,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                     planMarkdown: nil,
                     planSelectedSkillNames: nil,
                     localAccessGrants: [],
-                    clusterCoordinatorTaskId: nil,
+                    clusterOwnerTaskId: nil,
                     clusterExecutionAttempt: 0
                 ),
                 count: max(target.copyCount, 1)
@@ -251,7 +259,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         sortBy: String,
         order: String
     ) async throws -> APITaskListResponse {
-        var tasks = taskService.tasks
+        var tasks = taskService.tasks.filter { !$0.isInternalClusterExecution }
         
         // Filter by status if provided
         if let statusFilter = status {
@@ -448,6 +456,37 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         let mimeType = APIFile.mimeType(for: filename)
         
         return (data, mimeType)
+    }
+
+    func getTaskTraceBundle(id: String) async throws -> APITaskTraceBundleResponse {
+        guard let task = taskService.tasks.first(where: { $0.id == id }) else {
+            throw APIError.notFound("Task with ID '\(id)' not found")
+        }
+        guard let sessionId = task.sessionId else {
+            return APITaskTraceBundleResponse(taskId: id, files: [])
+        }
+
+        let sessionDirectory = AppPaths.sessionDirectory(id: sessionId)
+        guard FileManager.default.fileExists(atPath: sessionDirectory.path) else {
+            return APITaskTraceBundleResponse(taskId: id, files: [])
+        }
+
+        let files = traceBundleFiles(in: sessionDirectory)
+        return APITaskTraceBundleResponse(taskId: id, files: files)
+    }
+
+    func getTaskTraceFileData(taskId: String, relativePath: String) async throws -> (data: Data, mimeType: String) {
+        guard let task = taskService.tasks.first(where: { $0.id == taskId }) else {
+            throw APIError.notFound("Task with ID '\(taskId)' not found")
+        }
+        guard let sessionId = task.sessionId else {
+            throw APIError.notFound("No session trace available for task '\(taskId)'")
+        }
+
+        let sessionDirectory = AppPaths.sessionDirectory(id: sessionId)
+        let fileURL = try traceBundleURL(in: sessionDirectory, relativePath: relativePath)
+        let data = try Data(contentsOf: fileURL)
+        return (data, APIFile.mimeType(for: fileURL.lastPathComponent))
     }
 
     func getTaskWritebackReview(id: String) async throws -> APIWritebackReview? {
@@ -1273,5 +1312,60 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             throw APIError.notFound("Provider with name '\(name)' not found")
         }
         return provider.id
+    }
+
+    private func traceBundleFiles(in sessionDirectory: URL) -> [APITraceBundleFile] {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: sessionDirectory, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else {
+            return []
+        }
+
+        var files: [APITraceBundleFile] = []
+        for case let fileURL as URL in enumerator {
+            guard
+                let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                values.isRegularFile == true
+            else {
+                continue
+            }
+
+            let relativePath = fileURL.path.replacingOccurrences(of: sessionDirectory.path + "/", with: "")
+            guard shouldIncludeInTraceBundle(relativePath) else { continue }
+
+            files.append(APITraceBundleFile(
+                path: relativePath,
+                size: Int64(values.fileSize ?? 0),
+                mimeType: APIFile.mimeType(for: fileURL.lastPathComponent)
+            ))
+        }
+
+        return files.sorted { $0.path < $1.path }
+    }
+
+    private func traceBundleURL(in sessionDirectory: URL, relativePath: String) throws -> URL {
+        let sanitized = relativePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitized.isEmpty else {
+            throw APIError.badRequest("Missing trace file path")
+        }
+
+        let fileURL = sessionDirectory.appendingPathComponent(sanitized).standardizedFileURL
+        let rootURL = sessionDirectory.standardizedFileURL
+        guard fileURL.path.hasPrefix(rootURL.path) else {
+            throw APIError.badRequest("Invalid trace file path")
+        }
+        guard shouldIncludeInTraceBundle(sanitized) else {
+            throw APIError.notFound("Trace file '\(sanitized)' not found")
+        }
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw APIError.notFound("Trace file '\(sanitized)' not found")
+        }
+        return fileURL
+    }
+
+    private func shouldIncludeInTraceBundle(_ relativePath: String) -> Bool {
+        relativePath == "trace.jsonl"
+            || relativePath == "plan_state.json"
+            || relativePath.hasPrefix("screenshots/")
+            || relativePath.hasPrefix("subagents/")
     }
 }

@@ -505,6 +505,56 @@ extension TaskService {
         return copiedPaths
     }
 
+    /// Persist output files downloaded from a remote executor onto this machine
+    /// using the same local output directory rules as local task completion.
+    func storeRemoteOutputFiles(
+        taskTitle: String,
+        customOutputDirectory: String? = nil,
+        files: [(name: String, data: Data)]
+    ) -> [String] {
+        let fm = FileManager.default
+
+        let baseOutputDirectory: URL
+        if let customDir = customOutputDirectory, !customDir.isEmpty {
+            baseOutputDirectory = URL(fileURLWithPath: customDir)
+        } else {
+            let outputDirectoryPath = UserDefaults.standard.string(forKey: "outputDirectoryPath") ?? ""
+            if outputDirectoryPath.isEmpty {
+                baseOutputDirectory = fm.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                    ?? URL(fileURLWithPath: NSHomeDirectory())
+            } else {
+                baseOutputDirectory = URL(fileURLWithPath: outputDirectoryPath)
+            }
+        }
+
+        let subfolderName = generateOutputSubfolderName(taskTitle: taskTitle)
+        let outputDirectory = baseOutputDirectory.appendingPathComponent(subfolderName)
+        try? fm.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+
+        var storedPaths: [String] = []
+        for file in files {
+            var destinationURL = outputDirectory.appendingPathComponent(file.name)
+            let baseName = (file.name as NSString).deletingPathExtension
+            let ext = (file.name as NSString).pathExtension
+            var counter = 1
+
+            while fm.fileExists(atPath: destinationURL.path) {
+                let replacementName = ext.isEmpty ? "\(baseName) (\(counter))" : "\(baseName) (\(counter)).\(ext)"
+                destinationURL = outputDirectory.appendingPathComponent(replacementName)
+                counter += 1
+            }
+
+            do {
+                try file.data.write(to: destinationURL)
+                storedPaths.append(destinationURL.path)
+            } catch {
+                print("TaskService: Failed to store remote output '\(file.name)': \(error)")
+            }
+        }
+
+        return storedPaths
+    }
+
     /// Copy a VM workspace snapshot into the durable session artifacts directory.
     func persistWorkspaceSnapshot(vmId: String, sessionId: String) {
         let fm = FileManager.default

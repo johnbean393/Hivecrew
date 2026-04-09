@@ -78,6 +78,12 @@ public protocol APIServiceProvider: Sendable {
     
     /// Download raw file data for a specific task file.
     func getTaskFileData(taskId: String, filename: String, isInput: Bool) async throws -> (data: Data, mimeType: String)
+
+    /// Retrieve the set of session trace artifacts for a task.
+    func getTaskTraceBundle(id: String) async throws -> APITaskTraceBundleResponse
+
+    /// Download raw data for a trace artifact relative to the session directory.
+    func getTaskTraceFileData(taskId: String, relativePath: String) async throws -> (data: Data, mimeType: String)
     
     /// Retrieve the latest VM screenshot for a running task.
     ///
@@ -226,7 +232,7 @@ public protocol APIServiceProvider: Sendable {
 // MARK: - Cluster Service Provider
 
 /// Abstraction layer for cluster operations.
-/// The coordinator supplies a concrete implementation when cluster mode is active.
+/// The local mesh member supplies a concrete implementation when cluster mode is active.
 public protocol ClusterServiceProvider: Sendable {
     func handleAnnouncement(_ announcement: PeerAnnouncement) async throws
     func handleTaskUpdate(_ update: PeerTaskUpdate) async throws

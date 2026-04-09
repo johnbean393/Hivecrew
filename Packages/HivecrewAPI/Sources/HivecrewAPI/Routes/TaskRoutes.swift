@@ -74,5 +74,11 @@ public final class TaskRoutes: Sendable {
         
         // GET /tasks/:id/files/:filename - Download file
         tasks.get(":id/files/:filename", use: downloadFile)
+
+        // GET /tasks/:id/trace-bundle - List trace artifacts
+        tasks.get(":id/trace-bundle", use: getTraceBundle)
+
+        // GET /tasks/:id/trace-file?path=... - Download one trace artifact
+        tasks.get(":id/trace-file", use: downloadTraceFile)
     }
 }

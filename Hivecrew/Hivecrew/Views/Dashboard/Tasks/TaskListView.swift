@@ -28,10 +28,11 @@ struct TaskListView: View {
     }
     
     var filteredTasks: [TaskRecord] {
+        let visibleTasks = taskService.tasks.filter { shouldDisplayTask($0) }
         if searchText.isEmpty {
-            return taskService.tasks
+            return visibleTasks
         } else {
-            return taskService.tasks.filter {
+            return visibleTasks.filter {
                 $0.title.localizedCaseInsensitiveContains(searchText) ||
                 $0.taskDescription.localizedCaseInsensitiveContains(searchText)
             }
@@ -48,7 +49,7 @@ struct TaskListView: View {
             } else {
                 List {
                     if searchText.isEmpty {
-                        ForEach(taskService.tasks, id: \.id) { task in
+                        ForEach(taskService.tasks.filter { shouldDisplayTask($0) }, id: \.id) { task in
                             taskRow(for: task)
                         }
                         .onMove(perform: taskService.moveTasks)
@@ -97,6 +98,10 @@ struct TaskListView: View {
                     )
             }
         }
+    }
+
+    private func shouldDisplayTask(_ task: TaskRecord) -> Bool {
+        !task.isInternalClusterExecution || taskService.effectiveStatus(for: task).isActive
     }
     
     private var tabButtons: some View {

@@ -154,7 +154,7 @@ class SchedulerService: ObservableObject {
                 planMarkdown: nil,
                 planSelectedSkillNames: nil,
                 localAccessGrants: [],
-                clusterCoordinatorTaskId: nil,
+                clusterOwnerTaskId: nil,
                 clusterExecutionAttempt: 0
             )
             

@@ -1,7 +1,7 @@
 import Foundation
 
 enum SessionTraceParser {
-    static func parseEvents(from content: String) -> [TraceEventInfo] {
+    static func parseEvents(from content: String, sessionDirectory: URL? = nil) -> [TraceEventInfo] {
         let lines = content.components(separatedBy: "\n").filter { !$0.isEmpty }
 
         return lines.compactMap { line -> TraceEventInfo? in
@@ -42,6 +42,11 @@ enum SessionTraceParser {
                 subagentDomain = extracted.subagentDomain
             }
 
+            if let sessionDirectory {
+                screenshotPath = resolveImportedAssetPath(screenshotPath, sessionDirectory: sessionDirectory)
+                subagentTracePath = resolveImportedAssetPath(subagentTracePath, sessionDirectory: sessionDirectory)
+            }
+
             return TraceEventInfo(
                 id: id,
                 type: type,
@@ -61,6 +66,33 @@ enum SessionTraceParser {
                 subagentDomain: subagentDomain
             )
         }
+    }
+
+    private static func resolveImportedAssetPath(_ rawPath: String?, sessionDirectory: URL) -> String? {
+        guard let rawPath else { return nil }
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if !trimmed.hasPrefix("/") {
+            return trimmed
+        }
+
+        for marker in ["subagents/", "screenshots/"] {
+            if let range = trimmed.range(of: marker) {
+                let suffix = String(trimmed[range.lowerBound...])
+                return sessionDirectory.appendingPathComponent(suffix).path
+            }
+        }
+
+        let filename = URL(fileURLWithPath: trimmed).lastPathComponent
+        if !filename.isEmpty {
+            let screenshotCandidate = sessionDirectory.appendingPathComponent("screenshots").appendingPathComponent(filename)
+            if FileManager.default.fileExists(atPath: screenshotCandidate.path) {
+                return screenshotCandidate.path
+            }
+        }
+
+        return trimmed
     }
 
     private static func extractEventDetails(from data: [String: Any], type: String) -> (

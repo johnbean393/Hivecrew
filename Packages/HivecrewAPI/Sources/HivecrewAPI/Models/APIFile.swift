@@ -50,6 +50,28 @@ public struct APITaskFilesResponse: Codable, Sendable {
     }
 }
 
+public struct APITraceBundleFile: Codable, Sendable {
+    public let path: String
+    public let size: Int64
+    public let mimeType: String
+
+    public init(path: String, size: Int64, mimeType: String) {
+        self.path = path
+        self.size = size
+        self.mimeType = mimeType
+    }
+}
+
+public struct APITaskTraceBundleResponse: Codable, Sendable {
+    public let taskId: String
+    public let files: [APITraceBundleFile]
+
+    public init(taskId: String, files: [APITraceBundleFile]) {
+        self.taskId = taskId
+        self.files = files
+    }
+}
+
 // MARK: - MIME Type Detection
 
 public extension APIFile {

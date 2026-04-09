@@ -2177,6 +2177,7 @@
       }
     },
     "Act as Coordinator" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3885,7 +3886,11 @@
     "AIza..." : {
       "shouldTranslate" : false
     },
+    "All machines signed in with the same email participate in the cluster automatically when remote access is connected." : {
+
+    },
     "All machines signed in with the same email. Workers automatically register with the coordinator when they come online." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3930,6 +3935,9 @@
           }
         }
       }
+    },
+    "Allow" : {
+
     },
     "Allow agents to generate images using AI. Generated images are saved to the VM's images inbox folder." : {
       "localizations" : {
@@ -4070,6 +4078,7 @@
       }
     },
     "Another machine in the cluster is already the coordinator." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7857,6 +7866,7 @@
       }
     },
     "Cluster Role" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9838,6 +9848,7 @@
       }
     },
     "Coordinator" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13658,7 +13669,11 @@
         }
       }
     },
+    "Drag machines to set dispatch priority." : {
+
+    },
     "Drag workers to set task dispatch priority." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14303,6 +14318,7 @@
       }
     },
     "Enable coordinator mode to allow this machine to distribute tasks to other Hivecrew instances signed in with the same email." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28096,6 +28112,7 @@
       }
     },
     "Remove Coordinator Role?" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30675,6 +30692,9 @@
         }
       }
     },
+    "Running on %@" : {
+
+    },
     "Running on port %lld" : {
       "localizations" : {
         "de" : {
@@ -32937,6 +32957,9 @@
         }
       }
     },
+    "Serving Cluster Task" : {
+
+    },
     "Session Traces" : {
       "localizations" : {
         "de" : {
@@ -33260,6 +33283,7 @@
       }
     },
     "Set up remote access in the Connect tab before configuring cluster mode. All machines in the cluster must be signed in with the same email." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -33304,6 +33328,9 @@
           }
         }
       }
+    },
+    "Set up remote access in the Connect tab before joining the cluster mesh. All machines in the cluster must be signed in with the same email." : {
+
     },
     "Set up Remote Access to use the Web UI from your phone or any browser. Pair devices securely with a one-time code—no passwords needed." : {
       "localizations" : {
@@ -37171,7 +37198,11 @@
         }
       }
     },
+    "This Device" : {
+
+    },
     "This machine is part of a cluster. The coordinator may dispatch tasks here when its own capacity is full." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -37218,6 +37249,7 @@
       }
     },
     "This machine will dispatch overflow tasks to other machines in the cluster." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -37494,6 +37526,7 @@
       }
     },
     "This will dissolve the cluster. All machines will return to standalone mode." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -39987,6 +40020,12 @@
     "Voice provider detected" : {
 
     },
+    "Waiting for remote activity..." : {
+
+    },
+    "Waiting for remote screenshot..." : {
+
+    },
     "Waiting for screenshot…" : {
       "localizations" : {
         "de" : {
@@ -40912,6 +40951,7 @@
       }
     },
     "Worker Status" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

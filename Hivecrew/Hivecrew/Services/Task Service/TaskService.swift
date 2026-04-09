@@ -35,7 +35,7 @@ struct TaskCreationRequest {
     let planMarkdown: String?
     let planSelectedSkillNames: [String]?
     let localAccessGrants: [LocalAccessGrant]
-    let clusterCoordinatorTaskId: String?
+    let clusterOwnerTaskId: String?
     let clusterExecutionAttempt: Int
 }
 
@@ -139,7 +139,7 @@ class TaskService: ObservableObject {
         planMarkdown: String? = nil,
         planSelectedSkillNames: [String]? = nil,
         localAccessGrants: [LocalAccessGrant] = [],
-        clusterCoordinatorTaskId: String? = nil,
+        clusterOwnerTaskId: String? = nil,
         clusterExecutionAttempt: Int = 0,
         autoStart: Bool = true
     ) async throws -> TaskRecord {
@@ -165,7 +165,7 @@ class TaskService: ObservableObject {
             planMarkdown: planMarkdown,
             planSelectedSkillNames: planSelectedSkillNames,
             localAccessGrants: localAccessGrants,
-            clusterCoordinatorTaskId: clusterCoordinatorTaskId,
+            clusterOwnerTaskId: clusterOwnerTaskId,
             clusterExecutionAttempt: clusterExecutionAttempt
         )
 
@@ -233,7 +233,7 @@ class TaskService: ObservableObject {
                 retrievalModeOverrides: request.retrievalModeOverrides.isEmpty ? nil : request.retrievalModeOverrides,
                 planFirstEnabled: request.planFirstEnabled,
                 localAccessGrants: request.localAccessGrants,
-                clusterCoordinatorTaskId: request.clusterCoordinatorTaskId,
+                clusterOwnerTaskId: request.clusterOwnerTaskId,
                 clusterExecutionAttempt: request.clusterExecutionAttempt
             )
 

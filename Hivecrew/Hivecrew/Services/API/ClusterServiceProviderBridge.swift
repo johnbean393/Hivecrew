@@ -92,7 +92,6 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             task.completedAt = update.task.completedAt
             task.resultSummary = update.task.resultSummary
             task.errorMessage = update.task.errorMessage
-            task.outputFilePaths = update.task.outputFiles.map(\.name)
             task.wasSuccessful = update.task.wasSuccessful
             
             switch update.task.status {
@@ -102,10 +101,26 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed, .writebackReview:
                 task.status = localProvider.convertFromAPIStatus(update.task.status)
                 task.clusterExecutionState = .none
-                task.clusterWorkerTaskId = nil
-                task.clusterPeerId = nil
-                task.clusterPeerName = nil
-                Task { await self.remoteTaskIndex.remove(canonicalTaskId: canonicalTaskId) }
+                Task {
+                    guard let peer else { return }
+                    let client = PeerAPIClient(
+                        baseURL: peer.tunnelUrl,
+                        clusterToken: await self.clusterManager.clusterToken ?? ""
+                    )
+                    let imported = await RemoteExecutionArtifactImporter.importArtifacts(
+                        task: task,
+                        remoteTask: update.task,
+                        peer: peer,
+                        workerTaskId: update.workerTaskId,
+                        client: client,
+                        taskService: localProvider.taskService,
+                        modelContext: localProvider.modelContext
+                    )
+                    if imported {
+                        task.clusterWorkerTaskId = nil
+                        await self.remoteTaskIndex.remove(canonicalTaskId: canonicalTaskId)
+                    }
+                }
             case .queued:
                 task.status = .queued
                 task.clusterExecutionState = .recoveringRemote
@@ -123,6 +138,7 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
     func executeNow(_ request: ClusterExecuteNowRequest) async throws -> ClusterExecuteNowResponse {
         let task = try await localProvider.createClusterExecutionTask(
             canonicalTaskId: request.canonicalTaskId,
+            ownerTunnelId: request.ownerTunnelId,
             executionAttempt: request.executionAttempt,
             description: request.description,
             providerName: request.providerName,

@@ -364,6 +364,258 @@ struct HivecrewTests {
         #expect(execution.results[0].url == expected.url)
         #expect(execution.notes.contains("Retried with duckduckgo."))
     }
+
+    @Test
+    func remoteOnlyTaskDispatchesEvenWhenLocalSlotsAreAvailable() {
+        #expect(
+            FederatedServiceProvider.shouldDispatchRemotely(
+                requiresRemoteClusterExecution: true,
+                localAvailableSlots: 2
+            )
+        )
+    }
+
+    @Test
+    func localTaskStaysLocalWhenCapacityIsAvailable() {
+        #expect(
+            !FederatedServiceProvider.shouldDispatchRemotely(
+                requiresRemoteClusterExecution: false,
+                localAvailableSlots: 1
+            )
+        )
+    }
+
+    @Test
+    func localTaskDispatchesWhenNoLocalCapacityRemains() {
+        #expect(
+            FederatedServiceProvider.shouldDispatchRemotely(
+                requiresRemoteClusterExecution: false,
+                localAvailableSlots: 0
+            )
+        )
+    }
+
+    @Test
+    func localTaskDispatchesWhenLocalCapacityCannotBeRead() {
+        #expect(
+            FederatedServiceProvider.shouldDispatchRemotely(
+                requiresRemoteClusterExecution: false,
+                localAvailableSlots: nil
+            )
+        )
+    }
+
+    @Test
+    func selectBestPeerPrefersManualOrderWhenPeerSupportsModel() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 1, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-b", availableSlots: 4, providers: [provider("OpenAI", ["gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: ["peer-a", "peer-b"],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-a")
+    }
+
+    @Test
+    func selectBestPeerSkipsPreferredPeerWhenRequestedModelIsMissing() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 3, providers: [provider("OpenAI", ["gpt-4.1"])]),
+            makePeer(id: "peer-b", availableSlots: 1, providers: [provider("OpenAI", ["gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: ["peer-a", "peer-b"],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-b")
+    }
+
+    @Test
+    func selectBestPeerIgnoresOfflinePeers() {
+        let peers = [
+            makePeer(id: "peer-a", status: .offline, availableSlots: 8, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-b", availableSlots: 1, providers: [provider("OpenAI", ["gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: [],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-b")
+    }
+
+    @Test
+    func selectBestPeerIgnoresPeersWithoutFreeSlots() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 0, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-b", availableSlots: 2, providers: [provider("OpenAI", ["gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: [],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-b")
+    }
+
+    @Test
+    func selectBestPeerFallsBackToHighestCapacityWhenNoPreferenceApplies() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 1, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-b", availableSlots: 5, providers: [provider("OpenAI", ["gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: [],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-b")
+    }
+
+    @Test
+    func selectBestPeerHonorsExcludingSetAcrossRetries() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 5, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-b", availableSlots: 2, providers: [provider("OpenAI", ["gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: [],
+            providerName: "OpenAI",
+            modelId: "gpt-5",
+            excluding: ["peer-a"]
+        )
+
+        #expect(selected?.id == "peer-b")
+    }
+
+    @Test
+    func peerCapabilityIsUnknownWithoutFetchedCapabilities() {
+        let peer = makePeer(id: "peer-a", availableSlots: 1, providers: [])
+        #expect(peer.capabilityMatch(providerName: "OpenAI", modelId: "gpt-5") == .unknown)
+    }
+
+    @Test
+    func peerCapabilityIsUnknownWhenProviderModelsHaveNotBeenEnumerated() {
+        let peer = makePeer(id: "peer-a", availableSlots: 1, providers: [provider("OpenAI", [])])
+        #expect(peer.capabilityMatch(providerName: "OpenAI", modelId: "gpt-5") == .unknown)
+    }
+
+    @Test
+    func peerCapabilityIsUnsupportedWhenProviderIsMissing() {
+        let peer = makePeer(id: "peer-a", availableSlots: 1, providers: [provider("Anthropic", ["claude-sonnet-4.5"])])
+        #expect(peer.capabilityMatch(providerName: "OpenAI", modelId: "gpt-5") == .unsupported)
+    }
+
+    @Test
+    func peerCapabilityIsUnsupportedWhenModelIsMissingFromProvider() {
+        let peer = makePeer(id: "peer-a", availableSlots: 1, providers: [provider("OpenAI", ["gpt-4.1"])])
+        #expect(peer.capabilityMatch(providerName: "OpenAI", modelId: "gpt-5") == .unsupported)
+    }
+
+    @Test
+    func peerCapabilityIsSupportedWhenProviderAdvertisesSelectedModel() {
+        let peer = makePeer(id: "peer-a", availableSlots: 1, providers: [provider("OpenAI", ["gpt-5"])])
+        #expect(peer.capabilityMatch(providerName: "OpenAI", modelId: "gpt-5") == .supported)
+    }
+
+    @Test
+    func distributionChoosesOnlyPeerAdvertisingSelectedModelWhenPeersDiffer() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 5, providers: [provider("OpenAI", ["gpt-4.1"])]),
+            makePeer(id: "peer-b", availableSlots: 1, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-c", availableSlots: 10, providers: [provider("Anthropic", ["claude-sonnet-4.5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: ["peer-a", "peer-c", "peer-b"],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-b")
+    }
+
+    @Test
+    func fiveNodeClusterSkipsUnsupportedPeersUntilFirstCompatiblePreferredPeer() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 8, providers: [provider("OpenAI", ["gpt-4.1"])]),
+            makePeer(id: "peer-b", availableSlots: 7, providers: [provider("Anthropic", ["claude-sonnet-4.5"])]),
+            makePeer(id: "peer-c", availableSlots: 2, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-d", availableSlots: 9, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-e", availableSlots: 6, providers: [provider("OpenAI", ["gpt-4.1", "gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: ["peer-a", "peer-b", "peer-c", "peer-d", "peer-e"],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-c")
+    }
+
+    @Test
+    func fiveNodeClusterFallsBackToHighestCapacityAmongCompatiblePeersWhenNoOrderMatches() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 3, providers: [provider("OpenAI", ["gpt-4.1"])]),
+            makePeer(id: "peer-b", availableSlots: 4, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-c", availableSlots: 6, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-d", availableSlots: 2, providers: [provider("Anthropic", ["claude-sonnet-4.5"])]),
+            makePeer(id: "peer-e", availableSlots: 5, providers: [provider("OpenAI", ["gpt-5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: ["peer-z"],
+            providerName: "OpenAI",
+            modelId: "gpt-5"
+        )
+
+        #expect(selected?.id == "peer-c")
+    }
+
+    @Test
+    func fiveNodeClusterRetrySelectsNextCompatiblePeerAfterExcludingEarlierChoices() {
+        let peers = [
+            makePeer(id: "peer-a", availableSlots: 5, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-b", availableSlots: 4, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-c", availableSlots: 3, providers: [provider("OpenAI", ["gpt-4.1"])]),
+            makePeer(id: "peer-d", availableSlots: 2, providers: [provider("OpenAI", ["gpt-5"])]),
+            makePeer(id: "peer-e", availableSlots: 1, providers: [provider("Anthropic", ["claude-sonnet-4.5"])])
+        ]
+
+        let selected = ClusterManager.selectBestPeer(
+            from: peers,
+            preferredOrder: ["peer-a", "peer-b", "peer-c", "peer-d", "peer-e"],
+            providerName: "OpenAI",
+            modelId: "gpt-5",
+            excluding: ["peer-a", "peer-b"]
+        )
+
+        #expect(selected?.id == "peer-d")
+    }
 }
 
 private extension HivecrewTests {
@@ -411,5 +663,29 @@ private extension HivecrewTests {
             atomically: true,
             encoding: .utf8
         )
+    }
+
+    func makePeer(
+        id: String,
+        status: PeerStatus = .online,
+        availableSlots: Int,
+        providers: [PeerProviderSummary]
+    ) -> PeerNode {
+        PeerNode(
+            id: id,
+            subdomain: id,
+            name: id,
+            tunnelUrl: "https://\(id).hivecrew.org",
+            status: status,
+            availableSlots: availableSlots,
+            runningTasks: 0,
+            queuedTasks: 0,
+            lastSeen: Date(),
+            providers: providers
+        )
+    }
+
+    func provider(_ name: String, _ modelIds: [String]) -> PeerProviderSummary {
+        PeerProviderSummary(providerName: name, modelIds: modelIds)
     }
 }
