@@ -28,6 +28,7 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     var onAudioReceived: (@Sendable (Data) -> Void)?
     var onTranscription: (@Sendable (VoiceTranscription) -> Void)?
     var onToolCall: (@Sendable (VoiceToolCall) -> Void)?
+    var onInputActivity: (@Sendable (VoiceInputActivityEvent) -> Void)?
     var onInterrupted: (@Sendable () -> Void)?
     var onTurnComplete: (@Sendable () -> Void)?
     var onError: (@Sendable (Error) -> Void)?
@@ -42,9 +43,11 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     var apiKey: String = ""
     var isReceiving = false
 
-    static let availableModels = ["gemini-3.1-flash-live-preview"]
+    static let availableModels = ["gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-preview-12-2025"]
     static let defaultModel = "gemini-3.1-flash-live-preview"
+    static let quotaFallbackModel = "gemini-2.5-flash-native-audio-preview-12-2025"
     var model: String = "gemini-3.1-flash-live-preview"
+    var activeModel: String? { model }
     let apiVersion: String = "v1beta"
 
     var currentSessionConfig: VoiceSessionConfig?
@@ -58,6 +61,7 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
 
     var currentTurnTranscription: String = ""
     var seenAudioFingerprints = Set<Int>()
+    var hasActiveInputAudioStream = false
 
     // MARK: - Init
 
@@ -91,13 +95,14 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
         )
         do {
             try await sendJSON(message)
+            hasActiveInputAudioStream = true
         } catch {
             print("Audio send failed: \(error.localizedDescription)")
         }
     }
 
     func sendAudioStreamEnd() async throws {
-        guard connectionState == .connected else { return }
+        guard connectionState == .connected, hasActiveInputAudioStream else { return }
 
         let message = RealtimeInputMessage(
             realtimeInput: .init(
@@ -108,6 +113,7 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
             )
         )
         try await sendJSON(message)
+        hasActiveInputAudioStream = false
     }
 
     func sendVideoFrame(_ jpegData: Data) async throws {

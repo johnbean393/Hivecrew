@@ -37,7 +37,7 @@ struct IdleCallView: View {
                     size: 64,
                     iconSize: 28
                 ) {
-                    Task { await orchestrator.startCall() }
+                    NotificationCenter.default.post(name: .startVoiceCall, object: nil)
                 }
 
                 CallControlButton(
@@ -72,6 +72,10 @@ struct IdleCallView: View {
                 Text(msg)
                     .font(.caption)
                     .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .frame(maxWidth: 400)
+                    .textSelection(.enabled)
                     .padding(.horizontal)
             }
 
@@ -153,6 +157,16 @@ struct VoiceSettingsPopover: View {
             }
             .labelsHidden()
 
+            Divider()
+
+            VoiceInputControlsSection(
+                audioManager: orchestrator.audioManager,
+                inputDeviceIDRaw: Binding(
+                    get: { orchestrator.inputDeviceIDRaw },
+                    set: { orchestrator.inputDeviceIDRaw = $0 }
+                )
+            )
+
             if currentProviderType == .gemini {
                 Toggle("Web Search", isOn: $orchestrator.webSearchEnabled)
                     .toggleStyle(.switch)
@@ -175,6 +189,6 @@ struct VoiceSettingsPopover: View {
             }
         }
         .padding()
-        .frame(width: 300)
+        .frame(width: 360)
     }
 }

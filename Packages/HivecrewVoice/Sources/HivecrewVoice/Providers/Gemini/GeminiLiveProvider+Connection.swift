@@ -21,7 +21,16 @@ extension GeminiLiveProvider {
         reconnectTask?.cancel()
         reconnectTask = nil
 
-        try await establishConnection(config: config, resumeHandle: nil, resetUsage: true)
+        do {
+            try await establishConnection(config: config, resumeHandle: nil, resetUsage: true)
+        } catch {
+            let isQuotaError = error.localizedDescription.contains("exceeded your current quota")
+            let canFallback = model != GeminiLiveProvider.quotaFallbackModel
+            guard isQuotaError, canFallback else { throw error }
+
+            model = GeminiLiveProvider.quotaFallbackModel
+            try await establishConnection(config: config, resumeHandle: nil, resetUsage: true)
+        }
     }
 
     func disconnect() {
@@ -31,6 +40,7 @@ extension GeminiLiveProvider {
         reconnectTask?.cancel()
         reconnectTask = nil
         isReceiving = false
+        hasActiveInputAudioStream = false
         webSocket?.cancel(with: .normalClosure, reason: nil)
         webSocket = nil
         connectionState = .disconnected
@@ -38,9 +48,9 @@ extension GeminiLiveProvider {
         currentTurnTranscription = ""
         seenAudioFingerprints.removeAll()
 
-        connectionContinuation?.resume(throwing: GeminiError.connectionFailed)
+        connectionContinuation?.resume(throwing: GeminiError.connectionFailed("Disconnected by user"))
         connectionContinuation = nil
-        setupContinuation?.resume(throwing: GeminiError.connectionFailed)
+        setupContinuation?.resume(throwing: GeminiError.connectionFailed("Disconnected by user"))
         setupContinuation = nil
     }
 
@@ -126,7 +136,7 @@ extension GeminiLiveProvider {
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
                 if let cont = self.connectionContinuation {
                     self.connectionContinuation = nil
-                    cont.resume(throwing: GeminiError.connectionFailed)
+                    cont.resume(throwing: GeminiError.connectionFailed("Connection timed out"))
                 }
             }
         }
@@ -142,7 +152,7 @@ extension GeminiLiveProvider {
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
                 if let cont = self.setupContinuation {
                     self.setupContinuation = nil
-                    cont.resume(throwing: GeminiError.connectionFailed)
+                    cont.resume(throwing: GeminiError.connectionFailed("Session setup timed out"))
                 }
             }
 
@@ -159,10 +169,11 @@ extension GeminiLiveProvider {
         }
     }
 
-    private func buildSessionConfig(
+    func buildSessionConfig(
         config: VoiceSessionConfig,
         resumeHandle: String?
     ) -> GeminiSessionConfig {
+        let audioPolicy = config.audioPolicy.gemini
         let functionDecls: [GeminiSessionConfig.Tool.FunctionDeclaration]? = config.tools.isEmpty ? nil :
             config.tools.map { tool in
                 GeminiSessionConfig.Tool.FunctionDeclaration(
@@ -218,13 +229,14 @@ extension GeminiLiveProvider {
             },
             realtimeInputConfig: GeminiSessionConfig.RealtimeInputConfig(
                 automaticActivityDetection: .init(
-                    disabled: false,
-                    startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-                    prefixPaddingMs: 100,
-                    endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
-                    silenceDurationMs: 500
+                    disabled: !audioPolicy.automaticActivityDetectionEnabled,
+                    startOfSpeechSensitivity: audioPolicy.startOfSpeechSensitivity.rawValue,
+                    prefixPaddingMs: audioPolicy.prefixPaddingMs,
+                    endOfSpeechSensitivity: audioPolicy.endOfSpeechSensitivity.rawValue,
+                    silenceDurationMs: audioPolicy.silenceDurationMs
                 ),
-                activityHandling: "START_OF_ACTIVITY_INTERRUPTS"
+                activityHandling: audioPolicy.activityHandling.rawValue,
+                turnCoverage: audioPolicy.turnCoverage?.rawValue
             ),
             sessionResumption: GeminiSessionConfig.SessionResumptionConfig(handle: resumeHandle),
             outputAudioTranscription: GeminiSessionConfig.AudioTranscriptionConfig(),

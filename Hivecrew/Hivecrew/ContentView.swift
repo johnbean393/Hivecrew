@@ -20,7 +20,6 @@ struct ContentView: View {
     @State private var pendingPermissionTaskId: String?
     @State private var pendingPermission: PermissionRequest?
     @State private var showVoiceSetup = false
-    @State private var voiceSetupConfigured = false
     
     // Keyboard shortcut monitor for tab switching
     @State private var tabSwitchMonitor: Any?
@@ -97,14 +96,7 @@ struct ContentView: View {
             selectedTab = .dashboard
         }
         .onReceive(NotificationCenter.default.publisher(for: .startVoiceCall)) { _ in
-            if voiceOrchestrator.isVoiceConfigured {
-                selectedTab = .call
-                if voiceOrchestrator.callState == .idle {
-                    Task { await voiceOrchestrator.startCall() }
-                }
-            } else {
-                showVoiceSetup = true
-            }
+            startVoiceCallOrShowSetup()
         }
         .agentQuestionSheet($pendingQuestion) { _ in
             if let questionId = pendingQuestion?.id {
@@ -149,29 +141,19 @@ struct ContentView: View {
             }
         }
         .sheet(isPresented: $showVoiceSetup) {
-            VStack(spacing: 0) {
-                VoiceProviderSetupView(
-                    isConfigured: $voiceSetupConfigured,
-                    onConfigured: {
-                        showVoiceSetup = false
-                        selectedTab = .call
+            VoiceSetupFlowView(
+                onComplete: {
+                    showVoiceSetup = false
+                    selectedTab = .call
+                    if voiceOrchestrator.callState == .idle {
+                        Task { await voiceOrchestrator.startCall() }
                     }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                Divider()
-
-                HStack {
-                    Spacer()
-                    Button("Cancel") {
-                        showVoiceSetup = false
-                        selectedTab = .dashboard
-                    }
-                    .keyboardShortcut(.cancelAction)
+                },
+                onCancel: {
+                    showVoiceSetup = false
+                    selectedTab = .dashboard
                 }
-                .padding(20)
-            }
-            .frame(width: 600, height: 500)
+            )
         }
         .onChange(of: selectedTab) { oldValue, newValue in
             if newValue == .call && !voiceOrchestrator.isVoiceConfigured {
@@ -207,6 +189,17 @@ struct ContentView: View {
             }
             
             return nil // consume the event
+        }
+    }
+
+    private func startVoiceCallOrShowSetup() {
+        if voiceOrchestrator.isVoiceConfigured {
+            selectedTab = .call
+            if voiceOrchestrator.callState == .idle {
+                Task { await voiceOrchestrator.startCall() }
+            }
+        } else {
+            showVoiceSetup = true
         }
     }
 }

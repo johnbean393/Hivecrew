@@ -8,6 +8,22 @@
 
 import Foundation
 
+public struct VoiceInputActivityEvent: Sendable {
+    public enum Kind: String, Sendable {
+        case speechStarted
+        case speechStopped
+        case streamCommitted
+    }
+
+    public let kind: Kind
+    public let offsetMs: Int?
+
+    public init(kind: Kind, offsetMs: Int? = nil) {
+        self.kind = kind
+        self.offsetMs = offsetMs
+    }
+}
+
 @MainActor
 public protocol RealtimeVoiceProvider: ObservableObject {
 
@@ -45,6 +61,7 @@ public protocol RealtimeVoiceProvider: ObservableObject {
     var onAudioReceived: (@Sendable (Data) -> Void)? { get set }
     var onTranscription: (@Sendable (VoiceTranscription) -> Void)? { get set }
     var onToolCall: (@Sendable (VoiceToolCall) -> Void)? { get set }
+    var onInputActivity: (@Sendable (VoiceInputActivityEvent) -> Void)? { get set }
     var onInterrupted: (@Sendable () -> Void)? { get set }
     var onTurnComplete: (@Sendable () -> Void)? { get set }
     var onError: (@Sendable (Error) -> Void)? { get set }
@@ -63,4 +80,8 @@ public protocol RealtimeVoiceProvider: ObservableObject {
 
     var isModelSpeaking: Bool { get }
     var totalTokenCount: Int { get }
+
+    /// The model identifier actively in use (may differ from the requested
+    /// model after quota fallback or server-side substitution).
+    var activeModel: String? { get }
 }

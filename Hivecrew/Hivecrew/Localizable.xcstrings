@@ -2407,6 +2407,7 @@
       }
     },
     "Add a Google AI Studio API key to enable real-time voice conversations powered by Gemini Live." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2543,6 +2544,9 @@
           }
         }
       }
+    },
+    "Add a voice-capable provider to enable real-time voice conversations." : {
+
     },
     "Add an LLM provider to get started with agent tasks." : {
       "localizations" : {
@@ -5031,6 +5035,9 @@
         }
       }
     },
+    "Audio" : {
+
+    },
     "Authentication" : {
       "localizations" : {
         "de" : {
@@ -6137,6 +6144,9 @@
         }
       }
     },
+    "Building voice profile…" : {
+
+    },
     "Busy" : {
       "localizations" : {
         "de" : {
@@ -6412,6 +6422,9 @@
           }
         }
       }
+    },
+    "Cancel Enrollment" : {
+
     },
     "Cancel planning" : {
       "localizations" : {
@@ -11434,6 +11447,9 @@
         }
       }
     },
+    "Delete Profile" : {
+
+    },
     "Delete Provider" : {
       "localizations" : {
         "de" : {
@@ -14654,6 +14670,9 @@
         }
       }
     },
+    "Enroll Your Voice" : {
+
+    },
     "Enter a message. Press %@ to send." : {
       "localizations" : {
         "de" : {
@@ -16732,6 +16751,9 @@
         }
       }
     },
+    "gemini-2.5-flash-native-audio-preview-12-2025" : {
+
+    },
     "gemini-3.1-flash-live-preview" : {
       "shouldTranslate" : false
     },
@@ -17015,6 +17037,7 @@
       "shouldTranslate" : false
     },
     "Google AI Studio provider detected" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17479,6 +17502,15 @@
           }
         }
       }
+    },
+    "Hold for at least 1 second" : {
+
+    },
+    "Hold to record" : {
+
+    },
+    "Hold to Record" : {
+
     },
     "HTTP (Remote Server)" : {
       "localizations" : {
@@ -18675,6 +18707,9 @@
           }
         }
       }
+    },
+    "Input" : {
+
     },
     "Input Source" : {
       "localizations" : {
@@ -21160,6 +21195,9 @@
           }
         }
       }
+    },
+    "Microphone" : {
+
     },
     "min" : {
       "localizations" : {
@@ -26328,6 +26366,9 @@
         }
       }
     },
+    "Preparing microphone…" : {
+
+    },
     "Presets" : {
       "localizations" : {
         "de" : {
@@ -26373,6 +26414,12 @@
           }
         }
       }
+    },
+    "Press and hold to record your voice for this prompt" : {
+
+    },
+    "Press and hold, or hold **Space**" : {
+
     },
     "Preview" : {
       "localizations" : {
@@ -27159,6 +27206,9 @@
         }
       }
     },
+    "Read this aloud:" : {
+
+    },
     "Ready" : {
       "localizations" : {
         "de" : {
@@ -27434,6 +27484,15 @@
           }
         }
       }
+    },
+    "Record a short voice sample so Hivecrew can keep Gemini and GPT-Realtime focused on your speech." : {
+
+    },
+    "Record in a quiet room and read each prompt at your own pace." : {
+
+    },
+    "Recording" : {
+
     },
     "Recurring" : {
       "localizations" : {
@@ -27756,6 +27815,9 @@
           }
         }
       }
+    },
+    "Release to finish" : {
+
     },
     "Remote Access" : {
       "localizations" : {
@@ -31027,6 +31089,9 @@
           }
         }
       }
+    },
+    "Save Voice Session Audio + Logs" : {
+
     },
     "Saving skill..." : {
       "localizations" : {
@@ -35811,6 +35876,9 @@
         }
       }
     },
+    "System Default" : {
+
+    },
     "Tab" : {
       "localizations" : {
         "de" : {
@@ -39864,6 +39932,12 @@
         }
       }
     },
+    "Voice enrollment complete" : {
+
+    },
+    "Voice Isolation" : {
+
+    },
     "Voice provider configured" : {
       "localizations" : {
         "de" : {
@@ -39909,6 +39983,9 @@
           }
         }
       }
+    },
+    "Voice provider detected" : {
+
     },
     "Waiting for screenshot…" : {
       "localizations" : {
@@ -40415,6 +40492,9 @@
           }
         }
       }
+    },
+    "When enabled, Gemini and OpenAI voice sessions are captured under ~/Library/Application Support/Hivecrew/Debug/Voice Mode/Sessions for debugging." : {
+
     },
     "When enabled, new subagent runs use the configured worker model instead of the main task model unless a flow overrides it." : {
       "localizations" : {
@@ -41200,6 +41280,7 @@
       }
     },
     "Your existing Google AI Studio provider will be used for voice mode. You can update voice settings later in Settings → Voice." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -41244,6 +41325,9 @@
           }
         }
       }
+    },
+    "Your existing voice provider will be used for voice mode. You can update voice settings later in Settings → Voice." : {
+
     }
   },
   "version" : "1.1"

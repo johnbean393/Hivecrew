@@ -9,6 +9,7 @@
 
 import Foundation
 import SwiftData
+import Security
 import HivecrewVoice
 
 enum VoiceProviderType: String, Sendable {
@@ -28,6 +29,7 @@ enum VoiceAvailability {
     static let voiceVoiceNameKey = "voice_voice_name"
     static let voiceThinkingLevelKey = "voice_thinking_level"
     static let voiceMediaResolutionKey = "voice_media_resolution"
+    static let developerVoiceSessionCaptureKey = "developer_voice_session_capture_enabled"
 
     static let defaultGeminiModel = "gemini-3.1-flash-live-preview"
     static let defaultOpenAIModel = "gpt-realtime-1.5"
@@ -229,5 +231,59 @@ enum VoiceAvailability {
 
     private static func normalizedString(_ value: String?) -> String {
         (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+enum VoiceIsolationProfileStore {
+    private static let keychainService = "com.pattonium.hivecrew.voice"
+    private static let keychainAccount = "speaker-isolation-profile"
+
+    static func loadProfile() -> SpeakerIsolationProfile? {
+        guard let data = retrieveData() else { return nil }
+        return try? JSONDecoder().decode(SpeakerIsolationProfile.self, from: data)
+    }
+
+    static func saveProfile(_ profile: SpeakerIsolationProfile) throws {
+        let data = try JSONEncoder().encode(profile)
+        guard storeData(data) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
+    @discardableResult
+    static func deleteProfile() -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
+    }
+
+    private static func storeData(_ data: Data) -> Bool {
+        _ = deleteProfile()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+    }
+
+    private static func retrieveData() -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess else { return nil }
+        return result as? Data
     }
 }

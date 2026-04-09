@@ -28,6 +28,7 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     var onAudioReceived: (@Sendable (Data) -> Void)?
     var onTranscription: (@Sendable (VoiceTranscription) -> Void)?
     var onToolCall: (@Sendable (VoiceToolCall) -> Void)?
+    var onInputActivity: (@Sendable (VoiceInputActivityEvent) -> Void)?
     var onInterrupted: (@Sendable () -> Void)?
     var onTurnComplete: (@Sendable () -> Void)?
     var onError: (@Sendable (Error) -> Void)?
@@ -45,6 +46,7 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     static let availableModels = ["gpt-realtime-1.5", "gpt-realtime-mini"]
     static let defaultModel = "gpt-realtime-1.5"
     var model: String = "gpt-realtime-1.5"
+    var activeModel: String? { model }
 
     static let availableVoices: [(id: String, name: String, descriptor: String)] = [
         ("marin", "Marin", "Natural"),
@@ -66,6 +68,7 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     var setupContinuation: CheckedContinuation<Void, Error>?
 
     var currentOutputTranscript: String = ""
+    var hasBufferedInputAudio = false
 
     // MARK: - Init
 
@@ -92,14 +95,16 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
         let event = InputAudioBufferAppendEvent(audio: pcmData.base64EncodedString())
         do {
             try await sendJSON(event)
+            hasBufferedInputAudio = true
         } catch {
             print("Audio send failed: \(error.localizedDescription)")
         }
     }
 
     func sendAudioStreamEnd() async throws {
-        guard connectionState == .connected else { return }
+        guard connectionState == .connected, hasBufferedInputAudio else { return }
         try await sendJSON(InputAudioBufferCommitEvent())
+        hasBufferedInputAudio = false
     }
 
     func sendVideoFrame(_ jpegData: Data) async throws {

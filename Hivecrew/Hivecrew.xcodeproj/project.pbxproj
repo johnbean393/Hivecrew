@@ -87,6 +87,8 @@
 		204DF45D2F162AF8004AB99B /* TodoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4552F162AF8004AB99B /* TodoManager.swift */; };
 		204DF45E2F162AF8004AB99B /* DuckDuckGoSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4522F162AF8004AB99B /* DuckDuckGoSearch.swift */; };
 		204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 204DF4612F16404E004AB99B /* VideoExporter.swift */; };
+		2051DC642F871F0E002927A4 /* advanced_dfnet16k_model_best_onnx.tar.gz in Resources */ = {isa = PBXBuildFile; fileRef = 2051DC632F871F0E002927A4 /* advanced_dfnet16k_model_best_onnx.tar.gz */; };
+		2051DC672F872025002927A4 /* libweya_nc.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 2051DC662F872025002927A4 /* libweya_nc.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		2052ACB52F1D1984007E4475 /* APIServiceProviderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */; };
 		2052ACB62F1D1984007E4475 /* APIKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB32F1D1984007E4475 /* APIKeyManager.swift */; };
 		2052ACB82F1D19B0007E4475 /* APISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2052ACB72F1D19B0007E4475 /* APISettingsView.swift */; };
@@ -99,7 +101,6 @@
 		207B73062F3A588D00572AF5 /* VMProvisioningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73052F3A588D00572AF5 /* VMProvisioningView.swift */; };
 		207B73082F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */; };
 		207DD2F72F8495FD003405A5 /* ToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207DD2F62F8495FD003405A5 /* ToolsSettingsView.swift */; };
-
 		20867BF52F8354BC00F82B63 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 30B100042F72000300000004 /* HivecrewVoice */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
@@ -292,6 +293,16 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		2051DC652F872017002927A4 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				2051DC672F872025002927A4 /* libweya_nc.dylib in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		209C5FED2F12973D00062D0E /* Embed XPC Services */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -381,6 +392,9 @@
 		204DF4562F162AF8004AB99B /* WebpageExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageExtractor.swift; sourceTree = "<group>"; };
 		204DF4572F162AF8004AB99B /* WebpageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageReader.swift; sourceTree = "<group>"; };
 		204DF4612F16404E004AB99B /* VideoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoExporter.swift; sourceTree = "<group>"; };
+		2051DC612F871EED002927A4 /* libweya_nc.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libweya_nc.dylib; path = Vendor/Hush/libweya_nc.dylib; sourceTree = "<group>"; };
+		2051DC632F871F0E002927A4 /* advanced_dfnet16k_model_best_onnx.tar.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; name = advanced_dfnet16k_model_best_onnx.tar.gz; path = Vendor/Hush/advanced_dfnet16k_model_best_onnx.tar.gz; sourceTree = "<group>"; };
+		2051DC662F872025002927A4 /* libweya_nc.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libweya_nc.dylib; path = Vendor/Hush/libweya_nc.dylib; sourceTree = "<group>"; };
 		2052ACB32F1D1984007E4475 /* APIKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyManager.swift; sourceTree = "<group>"; };
 		2052ACB42F1D1984007E4475 /* APIServiceProviderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceProviderBridge.swift; sourceTree = "<group>"; };
 		2052ACB72F1D19B0007E4475 /* APISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsView.swift; sourceTree = "<group>"; };
@@ -392,7 +406,6 @@
 		207B73052F3A588D00572AF5 /* VMProvisioningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMProvisioningView.swift; sourceTree = "<group>"; };
 		207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+ModelCapabilities.swift"; sourceTree = "<group>"; };
 		207DD2F62F8495FD003405A5 /* ToolsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsSettingsView.swift; sourceTree = "<group>"; };
-
 		209C5F942F12947F00062D0E /* Hivecrew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivecrew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FA32F12948000062D0E /* HivecrewTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		209C5FAD2F12948000062D0E /* HivecrewUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HivecrewUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -782,6 +795,7 @@
 		2053666A2F2FE3F70097E3FE /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				2051DC612F871EED002927A4 /* libweya_nc.dylib */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -789,6 +803,8 @@
 		209C5F8B2F12947F00062D0E = {
 			isa = PBXGroup;
 			children = (
+				2051DC662F872025002927A4 /* libweya_nc.dylib */,
+				2051DC632F871F0E002927A4 /* advanced_dfnet16k_model_best_onnx.tar.gz */,
 				209C61A62F12ABD700062D0E /* Hivecrew */,
 				209C61C12F12ABDA00062D0E /* HivecrewTests */,
 				209C61C52F12ABDC00062D0E /* HivecrewUITests */,
@@ -1174,7 +1190,6 @@
 		AAAA00062F1E200000000006 /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
-				
 				20E22E002F3EC845003EFCE4 /* ContextSuggestionDrawerView.swift */,
 				20E22DFE2F3EC818003EFCE4 /* ElapsedTimeView.swift */,
 				202F64982F2E84D500F6F359 /* MissingAttachmentsSheet.swift */,
@@ -1264,6 +1279,7 @@
 				209C5F922F12947F00062D0E /* Resources */,
 				30B100032F72000100000003 /* Build Retrieval Daemon */,
 				209C5FED2F12973D00062D0E /* Embed XPC Services */,
+				2051DC652F872017002927A4 /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -1421,6 +1437,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2051DC642F871F0E002927A4 /* advanced_dfnet16k_model_best_onnx.tar.gz in Resources */,
 				20C413F62F14302F00C6E8A9 /* Hivecrew.icon in Resources */,
 				209C61BE2F12ABD700062D0E /* Assets.xcassets in Resources */,
 				20360DB52F36958600A9B998 /* Localizable.xcstrings in Resources */,
@@ -1532,7 +1549,6 @@
 				20E22E1B2F3EC8FE003EFCE4 /* AgentPreviewCardContentView.swift in Sources */,
 				202F64852F2DB88700F6F359 /* PlanningStatePublisher.swift in Sources */,
 				202F64862F2DB88700F6F359 /* PlanParser.swift in Sources */,
-				
 				202F64872F2DB88700F6F359 /* PlanningPrompts.swift in Sources */,
 				202F64882F2DB88700F6F359 /* PlanningAgent.swift in Sources */,
 				204DF4622F16404E004AB99B /* VideoExporter.swift in Sources */,
@@ -1913,6 +1929,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Vendor/Hush",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.19;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
@@ -1949,6 +1969,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Vendor/Hush",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.19;

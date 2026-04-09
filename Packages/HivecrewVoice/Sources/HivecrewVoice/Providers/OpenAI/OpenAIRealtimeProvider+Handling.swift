@@ -78,12 +78,21 @@ extension OpenAIRealtimeProvider {
                     }
 
                 case "input_audio_buffer.speech_started":
+                    self.onInputActivity?(
+                        VoiceInputActivityEvent(kind: .speechStarted, offsetMs: event.audioStartMs)
+                    )
                     self.isModelSpeaking = false
                     self.currentOutputTranscript = ""
                     self.onInterrupted?()
 
                 case "input_audio_buffer.speech_stopped":
-                    break
+                    self.onInputActivity?(
+                        VoiceInputActivityEvent(kind: .speechStopped, offsetMs: event.audioEndMs)
+                    )
+
+                case "input_audio_buffer.committed":
+                    self.hasBufferedInputAudio = false
+                    self.onInputActivity?(VoiceInputActivityEvent(kind: .streamCommitted))
 
                 case "response.output_audio.delta":
                     if let base64 = event.delta,

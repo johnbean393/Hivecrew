@@ -130,6 +130,7 @@ extension GeminiLiveProvider {
 
         // Interruption
         if content.interrupted == true {
+            print("[VoiceMetrics][Gemini] server interrupted current turn")
             isModelSpeaking = false
             onInterrupted?()
             currentTurnTranscription = ""
@@ -138,6 +139,7 @@ extension GeminiLiveProvider {
 
         // Turn complete
         if content.turnComplete == true {
+            print("[VoiceMetrics][Gemini] server turn completed")
             isModelSpeaking = false
             onTurnComplete?()
             currentTurnTranscription = ""

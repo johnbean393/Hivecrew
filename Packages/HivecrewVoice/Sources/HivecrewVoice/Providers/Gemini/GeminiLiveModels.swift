@@ -55,6 +55,7 @@ struct GeminiSessionConfig: Encodable {
     struct RealtimeInputConfig: Encodable {
         let automaticActivityDetection: AutomaticActivityDetection?
         let activityHandling: String?
+        let turnCoverage: String?
 
         struct AutomaticActivityDetection: Encodable {
             let disabled: Bool?
@@ -244,7 +245,7 @@ enum GeminiError: LocalizedError {
     case missingAPIKey
     case invalidURL
     case encodingError
-    case connectionFailed
+    case connectionFailed(String)
     case notConnected
 
     var errorDescription: String? {
@@ -252,7 +253,7 @@ enum GeminiError: LocalizedError {
         case .missingAPIKey: return "API key is required"
         case .invalidURL: return "Invalid WebSocket URL"
         case .encodingError: return "Failed to encode message"
-        case .connectionFailed: return "Failed to connect to Gemini"
+        case .connectionFailed(let reason): return "Gemini: \(reason)"
         case .notConnected: return "Not connected to Gemini"
         }
     }

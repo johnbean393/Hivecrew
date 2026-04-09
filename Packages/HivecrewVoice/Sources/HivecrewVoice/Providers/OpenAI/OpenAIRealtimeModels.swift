@@ -38,10 +38,12 @@ struct SessionUpdateEvent: Encodable {
     struct AudioInputConfig: Encodable {
         let format: AudioFormat?
         let transcription: InputAudioTranscription?
+        let noiseReduction: NoiseReduction?
         let turnDetection: TurnDetection?
 
         enum CodingKeys: String, CodingKey {
             case format, transcription
+            case noiseReduction = "noise_reduction"
             case turnDetection = "turn_detection"
         }
     }
@@ -61,6 +63,24 @@ struct SessionUpdateEvent: Encodable {
     }
 
     struct TurnDetection: Encodable {
+        let type: String
+        let threshold: Double?
+        let prefixPaddingMs: Int?
+        let silenceDurationMs: Int?
+        let eagerness: String?
+        let createResponse: Bool?
+        let interruptResponse: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case type, threshold, eagerness
+            case prefixPaddingMs = "prefix_padding_ms"
+            case silenceDurationMs = "silence_duration_ms"
+            case createResponse = "create_response"
+            case interruptResponse = "interrupt_response"
+        }
+    }
+
+    struct NoiseReduction: Encodable {
         let type: String
     }
 

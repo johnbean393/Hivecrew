@@ -44,6 +44,34 @@ public enum AppPaths {
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()
+
+    /// Developer/debug artifacts that should not mix with user-facing session data.
+    public static let debugDirectory: URL = {
+        let url = appSupportDirectory.appendingPathComponent("Debug", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    public static let debugVoiceModeDirectory: URL = {
+        let url = debugDirectory.appendingPathComponent("Voice Mode", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    public static let debugVoiceModeSessionsDirectory: URL = {
+        let url = debugVoiceModeDirectory.appendingPathComponent("Sessions", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    public static func debugVoiceModeSessionDirectory(id: String, startedAt: Date) -> URL {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let name = "\(id)_\(formatter.string(from: startedAt))"
+        return debugVoiceModeSessionsDirectory.appendingPathComponent(name, isDirectory: true)
+    }
     
     // MARK: - VM Storage
     

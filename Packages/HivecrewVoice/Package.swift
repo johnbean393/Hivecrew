@@ -13,9 +13,15 @@ let package = Package(
             targets: ["HivecrewVoice"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.13.6")
+    ],
     targets: [
         .target(
-            name: "HivecrewVoice"
+            name: "HivecrewVoice",
+            dependencies: [
+                "FluidAudio"
+            ]
         ),
         .testTarget(
             name: "HivecrewVoiceTests",

@@ -138,7 +138,7 @@ struct InputSourcePickerView: View {
     private func selectSource(_ source: VideoSource) {
         Task {
             if startCallOnSelection {
-                await orchestrator.startCall()
+                NotificationCenter.default.post(name: .startVoiceCall, object: nil)
             }
             await orchestrator.videoSourceManager.activate(source: source)
             dismiss()

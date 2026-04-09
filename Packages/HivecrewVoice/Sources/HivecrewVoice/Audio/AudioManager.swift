@@ -10,6 +10,7 @@
 import Foundation
 @preconcurrency import AVFoundation
 import AudioToolbox
+import CoreAudio
 import os
 
 // MARK: - VoiceProcessingIO Bridge
@@ -88,6 +89,11 @@ private final class LevelBox: @unchecked Sendable {
     var level: Float = 0
     func update(_ v: Float) { os_unfair_lock_lock(&lock); level = v; os_unfair_lock_unlock(&lock) }
     func read() -> Float { os_unfair_lock_lock(&lock); defer { os_unfair_lock_unlock(&lock) }; return level }
+}
+
+private struct VPIOCleanupState: @unchecked Sendable {
+    let graph: AUGraph
+    let audioUnit: AudioUnit?
 }
 
 // MARK: - VPIO Callbacks (file-scope, no captures)
@@ -220,6 +226,138 @@ private func resampleInt16Mono(_ data: Data, from sourceRate: Double, to targetR
     return output
 }
 
+private func audioObjectDataSize(
+    objectID: AudioObjectID,
+    address: inout AudioObjectPropertyAddress
+) -> UInt32? {
+    var dataSize: UInt32 = 0
+    let status = AudioObjectGetPropertyDataSize(objectID, &address, 0, nil, &dataSize)
+    guard status == noErr else { return nil }
+    return dataSize
+}
+
+private func inputAudioDeviceIDs() -> [AudioDeviceID] {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    guard let dataSize = audioObjectDataSize(objectID: AudioObjectID(kAudioObjectSystemObject), address: &address) else {
+        return []
+    }
+
+    let count = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+    var deviceIDs = Array(repeating: AudioDeviceID(), count: count)
+    var mutableDataSize = dataSize
+    let status = AudioObjectGetPropertyData(
+        AudioObjectID(kAudioObjectSystemObject),
+        &address,
+        0,
+        nil,
+        &mutableDataSize,
+        &deviceIDs
+    )
+    guard status == noErr else { return [] }
+    return deviceIDs.filter(audioDeviceHasInputStreams)
+}
+
+private func audioDeviceHasInputStreams(_ deviceID: AudioDeviceID) -> Bool {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyStreams,
+        mScope: kAudioDevicePropertyScopeInput,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    guard let dataSize = audioObjectDataSize(objectID: deviceID, address: &address) else {
+        return false
+    }
+    return dataSize > 0
+}
+
+private func defaultInputAudioDeviceID() -> AudioDeviceID? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultInputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    var deviceID = AudioDeviceID()
+    var dataSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+    let status = AudioObjectGetPropertyData(
+        AudioObjectID(kAudioObjectSystemObject),
+        &address,
+        0,
+        nil,
+        &dataSize,
+        &deviceID
+    )
+    guard status == noErr, deviceID != 0 else { return nil }
+    return deviceID
+}
+
+private func audioDeviceStringProperty(
+    _ selector: AudioObjectPropertySelector,
+    deviceID: AudioDeviceID
+) -> String? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: selector,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    var unmanagedValue: Unmanaged<CFString>?
+    var dataSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    let status = withUnsafeMutablePointer(to: &unmanagedValue) { pointer in
+        AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, pointer)
+    }
+    guard status == noErr, let value = unmanagedValue?.takeUnretainedValue() else { return nil }
+    return value as String
+}
+
+private func audioDeviceTransportType(_ deviceID: AudioDeviceID) -> UInt32? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyTransportType,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    var transportType: UInt32 = 0
+    var dataSize = UInt32(MemoryLayout<UInt32>.size)
+    let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &transportType)
+    guard status == noErr else { return nil }
+    return transportType
+}
+
+private func audioDeviceID(forUID uid: String) -> AudioDeviceID? {
+    inputAudioDeviceIDs().first { deviceID in
+        audioDeviceStringProperty(kAudioDevicePropertyDeviceUID, deviceID: deviceID) == uid
+    }
+}
+
+private func microphoneModeDisplayName(_ mode: AVCaptureDevice.MicrophoneMode) -> String {
+    switch mode {
+    case .standard:
+        return "Standard"
+    case .voiceIsolation:
+        return "Voice Isolation"
+    case .wideSpectrum:
+        return "Wide Spectrum"
+    @unknown default:
+        return "Unknown"
+    }
+}
+
+public struct AudioInputDevice: Identifiable, Hashable, Sendable {
+    public enum Kind: String, Sendable {
+        case builtIn
+        case external
+        case aggregate
+        case virtual
+        case unknown
+    }
+
+    public let id: String
+    public let name: String
+    public let kind: Kind
+    public let isDefault: Bool
+}
+
 // MARK: - AudioManager
 
 @MainActor
@@ -231,6 +369,11 @@ public final class AudioManager: ObservableObject {
     @Published public private(set) var outputLevel: Float = 0
     @Published public private(set) var isCapturing = false
     @Published public private(set) var isPlaying = false
+    @Published public private(set) var availableInputDevices: [AudioInputDevice] = []
+    @Published public private(set) var activeInputDeviceID: String?
+    @Published public private(set) var activeInputDeviceName: String = "System Default"
+    @Published public private(set) var activeMicrophoneModeName: String = "Standard"
+    @Published public private(set) var preferredMicrophoneModeName: String = "Standard"
 
     @Published public var isMuted = false {
         didSet {
@@ -263,21 +406,101 @@ public final class AudioManager: ObservableObject {
     private var levelUpdateTimer: Timer?
     private var playbackDrainTicks = 0
     private static let bytesPerSample = 2
+    private var preferredInputDeviceID: String?
+    private var lastVoiceProcessingEnabled = false
 
     // MARK: - Init
 
-    public init() {}
+    public init() {
+        refreshInputDevices()
+    }
 
     // MARK: - Voice Processing
 
     public func showMicrophoneModePicker() {
         AVCaptureDevice.showSystemUserInterface(.microphoneModes)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.refreshInputDevices()
+        }
+    }
+
+    public func refreshInputDevices() {
+        let currentDeviceID = currentInputAudioDeviceID()
+        let defaultDeviceID = defaultInputAudioDeviceID()
+
+        availableInputDevices = inputAudioDeviceIDs()
+            .compactMap { deviceID in
+                guard let uid = audioDeviceStringProperty(kAudioDevicePropertyDeviceUID, deviceID: deviceID),
+                      let name = audioDeviceStringProperty(kAudioObjectPropertyName, deviceID: deviceID) else {
+                    return nil
+                }
+
+                return AudioInputDevice(
+                    id: uid,
+                    name: name,
+                    kind: inputDeviceKind(for: audioDeviceTransportType(deviceID)),
+                    isDefault: deviceID == defaultDeviceID
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.isDefault != rhs.isDefault {
+                    return lhs.isDefault && !rhs.isDefault
+                }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+
+        if let currentDeviceID,
+           let currentUID = audioDeviceStringProperty(kAudioDevicePropertyDeviceUID, deviceID: currentDeviceID) {
+            activeInputDeviceID = currentUID
+            activeInputDeviceName = availableInputDevices.first(where: { $0.id == currentUID })?.name ?? "System Default"
+        } else {
+            activeInputDeviceID = nil
+            activeInputDeviceName = "System Default"
+        }
+
+        preferredMicrophoneModeName = microphoneModeDisplayName(AVCaptureDevice.preferredMicrophoneMode)
+        activeMicrophoneModeName = microphoneModeDisplayName(AVCaptureDevice.activeMicrophoneMode)
+    }
+
+    public func setPreferredInputDevice(_ deviceID: String?) {
+        preferredInputDeviceID = normalizedDeviceID(deviceID)
+        refreshInputDevices()
+    }
+
+    public func selectInputDevice(_ deviceID: String?) async throws {
+        preferredInputDeviceID = normalizedDeviceID(deviceID)
+        refreshInputDevices()
+
+        guard isCapturing else { return }
+        stopCapture()
+        try await startCapture(voiceProcessingEnabled: lastVoiceProcessingEnabled)
+    }
+
+    public func inputDevice(matching deviceID: String?) -> AudioInputDevice? {
+        guard let normalized = normalizedDeviceID(deviceID) else { return nil }
+        return availableInputDevices.first(where: { $0.id == normalized })
+    }
+
+    static func recommendedPreset(for deviceKind: AudioInputDevice.Kind?) -> VoiceSessionConfig.AudioPolicy.Preset {
+        switch deviceKind {
+        case .builtIn:
+            return .noisyRoom
+        case .external, .aggregate, .virtual, .unknown, .none:
+            return .balanced
+        }
+    }
+
+    public func recommendedPreset(for deviceID: String?) -> VoiceSessionConfig.AudioPolicy.Preset {
+        let candidateDevice = inputDevice(matching: deviceID)
+            ?? inputDevice(matching: activeInputDeviceID)
+        return Self.recommendedPreset(for: candidateDevice?.kind)
     }
 
     // MARK: - Capture
 
     public func startCapture(voiceProcessingEnabled: Bool = false) async throws {
         guard !isCapturing else { return }
+        lastVoiceProcessingEnabled = voiceProcessingEnabled
 
         let permission = await withCheckedContinuation { continuation in
             AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -289,6 +512,7 @@ public final class AudioManager: ObservableObject {
         try setupVPIO()
         isCapturing = true
         startLevelMetering()
+        refreshInputDevices()
         print("[AudioManager] VPIO capture started with AEC at \(configuredOutputRate) Hz")
     }
 
@@ -300,6 +524,7 @@ public final class AudioManager: ObservableObject {
         inputLevel = 0
         outputLevel = 0
         stopLevelMetering()
+        refreshInputDevices()
     }
 
     // MARK: - Playback
@@ -325,6 +550,73 @@ public final class AudioManager: ObservableObject {
 
     /// No-op: VPIO handles echo cancellation natively.
     public func setServerModelSpeaking(_ isSpeaking: Bool) {}
+
+    private func normalizedDeviceID(_ deviceID: String?) -> String? {
+        let trimmed = (deviceID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func inputDeviceKind(for transportType: UInt32?) -> AudioInputDevice.Kind {
+        guard let transportType else { return .unknown }
+        switch transportType {
+        case UInt32(kAudioDeviceTransportTypeBuiltIn):
+            return .builtIn
+        case UInt32(kAudioDeviceTransportTypeAggregate):
+            return .aggregate
+        case UInt32(kAudioDeviceTransportTypeVirtual):
+            return .virtual
+        case UInt32(kAudioDeviceTransportTypeUSB),
+             UInt32(kAudioDeviceTransportTypeBluetooth),
+             UInt32(kAudioDeviceTransportTypeBluetoothLE),
+             UInt32(kAudioDeviceTransportTypeDisplayPort),
+             UInt32(kAudioDeviceTransportTypeHDMI),
+             UInt32(kAudioDeviceTransportTypeAirPlay):
+            return .external
+        default:
+            return .external
+        }
+    }
+
+    private func currentInputAudioDeviceID() -> AudioDeviceID? {
+        if let audioUnit = vpioBridge?.audioUnit {
+            var deviceID = AudioDeviceID()
+            var dataSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+            let status = AudioUnitGetProperty(
+                audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &deviceID,
+                &dataSize
+            )
+            if status == noErr, deviceID != 0 {
+                return deviceID
+            }
+        }
+
+        return defaultInputAudioDeviceID()
+    }
+
+    private func applyPreferredInputDevice(to audioUnit: AudioUnit) {
+        guard let preferredInputDeviceID,
+              let deviceID = audioDeviceID(forUID: preferredInputDeviceID) else {
+            return
+        }
+
+        var mutableDeviceID = deviceID
+        let status = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &mutableDeviceID,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+
+        if status != noErr {
+            print("[AudioManager] Failed to select preferred input device: \(status)")
+        }
+    }
 
     // MARK: - VPIO Setup
 
@@ -402,6 +694,8 @@ public final class AudioManager: ObservableObject {
                                       UInt32(MemoryLayout.size(ofValue: bypassVP)))
         guard status == noErr else { throw AudioError.engineCreationFailed }
 
+        applyPreferredInputDevice(to: audioUnit)
+
         bridge.audioUnit = audioUnit
         self.vpioBridge = bridge
 
@@ -438,12 +732,13 @@ public final class AudioManager: ObservableObject {
         vpioBridge = nil
 
         if let graph {
+            let cleanupState = VPIOCleanupState(graph: graph, audioUnit: audioUnit)
             DispatchQueue.global(qos: .default).async {
-                AUGraphStop(graph)
-                if let au = audioUnit {
+                AUGraphStop(cleanupState.graph)
+                if let au = cleanupState.audioUnit {
                     AudioUnitUninitialize(au)
                 }
-                DisposeAUGraph(graph)
+                DisposeAUGraph(cleanupState.graph)
                 withExtendedLifetime(bridge) {}
             }
         }

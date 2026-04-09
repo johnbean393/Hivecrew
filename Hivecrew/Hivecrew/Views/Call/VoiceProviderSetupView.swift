@@ -28,8 +28,8 @@ struct VoiceProviderSetupView: View {
     @State private var testResult: ConnectionTestResult?
     @State private var hasSaved = false
 
-    private var hasGeminiProvider: Bool {
-        VoiceAvailability.hasConfiguredProvider(type: .gemini, providers: providers)
+    private var hasConfiguredVoiceProvider: Bool {
+        VoiceAvailability.isConfigured(modelContext: modelContext)
     }
 
     private var canSaveProvider: Bool {
@@ -43,7 +43,7 @@ struct VoiceProviderSetupView: View {
                 VStack(spacing: 24) {
                     headerSection
                     
-                    if hasGeminiProvider {
+                    if hasConfiguredVoiceProvider {
                         alreadyConfiguredSection
                     } else {
                         formSection
@@ -53,16 +53,16 @@ struct VoiceProviderSetupView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            if hasGeminiProvider || hasSaved {
+            if hasConfiguredVoiceProvider || hasSaved {
                 statusBanner
             }
         }
         .padding(.horizontal)
         .onAppear {
-            isConfigured = hasGeminiProvider
+            isConfigured = hasConfiguredVoiceProvider
         }
         .onChange(of: providers.count) { _, _ in
-            let configured = hasGeminiProvider
+            let configured = hasConfiguredVoiceProvider
             isConfigured = configured
             if configured {
                 VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
@@ -78,11 +78,11 @@ struct VoiceProviderSetupView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.purple)
 
-            Text("Configure Voice Provider")
+                Text("Configure Voice Provider")
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Add a Google AI Studio API key to enable real-time voice conversations powered by Gemini Live.")
+            Text("Add a voice-capable provider to enable real-time voice conversations.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -98,11 +98,11 @@ struct VoiceProviderSetupView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.title3)
-                Text("Google AI Studio provider detected")
+                Text("Voice provider detected")
                     .font(.callout)
             }
 
-            Text("Your existing Google AI Studio provider will be used for voice mode. You can update voice settings later in Settings → Voice.")
+            Text("Your existing voice provider will be used for voice mode. You can update voice settings later in Settings → Voice.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -281,5 +281,166 @@ struct VoiceProviderSetupView: View {
         testResult = nil
 
         onConfigured?()
+    }
+}
+
+struct VoiceSetupFlowView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    var onComplete: (() -> Void)?
+    var onCancel: (() -> Void)?
+
+    @State private var currentStep: Step = .provider
+    @State private var providerConfigured = false
+    @State private var enrollmentConfigured = false
+
+    enum Step: Int, CaseIterable {
+        case provider = 0
+        case enrollment = 1
+
+        var title: String {
+            switch self {
+            case .provider: return "Voice Provider"
+            case .enrollment: return "Voice Enrollment"
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            progressIndicator
+                .padding(.top, 24)
+                .padding(.bottom, 16)
+
+            Divider()
+
+            stepContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            navigationButtons
+                .padding(20)
+        }
+        .frame(width: 720, height: 700)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            refreshStepState()
+        }
+        .onChange(of: providerConfigured) { _, newValue in
+            if newValue && currentStep == .provider {
+                withAnimation {
+                    currentStep = .enrollment
+                }
+            }
+        }
+        .onChange(of: enrollmentConfigured) { _, newValue in
+            if newValue {
+                completeSetup()
+            }
+        }
+    }
+
+    private var progressIndicator: some View {
+        HStack(spacing: 8) {
+            ForEach(Step.allCases, id: \.rawValue) { step in
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(step.rawValue <= currentStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .frame(width: 10, height: 10)
+
+                    Text(step.title)
+                        .font(.caption)
+                        .fontWeight(step == currentStep ? .semibold : .regular)
+                        .foregroundStyle(step.rawValue <= currentStep.rawValue ? .primary : .secondary)
+
+                    if step != Step.allCases.last {
+                        Rectangle()
+                            .fill(step.rawValue < currentStep.rawValue ? Color.accentColor : Color.secondary.opacity(0.3))
+                            .frame(width: 30, height: 2)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch currentStep {
+        case .provider:
+            VoiceProviderSetupView(
+                isConfigured: $providerConfigured,
+                onConfigured: {
+                    withAnimation {
+                        currentStep = .enrollment
+                    }
+                }
+            )
+        case .enrollment:
+            VoiceEnrollmentSetupView(
+                isConfigured: $enrollmentConfigured,
+                onConfigured: {
+                    completeSetup()
+                }
+            )
+        }
+    }
+
+    private var navigationButtons: some View {
+        HStack {
+            if currentStep == .enrollment {
+                Button("Back") {
+                    withAnimation {
+                        currentStep = .provider
+                    }
+                }
+                .keyboardShortcut(.leftArrow, modifiers: [])
+            }
+
+            Spacer()
+
+            Button("Cancel") {
+                onCancel?()
+                dismiss()
+            }
+            .keyboardShortcut(.cancelAction)
+
+            if currentStep == .provider {
+                Button("Continue") {
+                    withAnimation {
+                        currentStep = .enrollment
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.return)
+                .disabled(!providerConfigured)
+            } else {
+                Button("Done") {
+                    completeSetup()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.return)
+                .disabled(!enrollmentConfigured)
+            }
+        }
+    }
+
+    private func refreshStepState() {
+        providerConfigured = VoiceAvailability.isConfigured(modelContext: modelContext)
+        enrollmentConfigured = VoiceIsolationProfileStore.loadProfile() != nil
+        if !providerConfigured {
+            currentStep = .provider
+        } else if !enrollmentConfigured {
+            currentStep = .enrollment
+        } else {
+            completeSetup()
+        }
+    }
+
+    private func completeSetup() {
+        guard providerConfigured, enrollmentConfigured else { return }
+        onComplete?()
+        dismiss()
     }
 }

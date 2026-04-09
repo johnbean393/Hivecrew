@@ -15,6 +15,7 @@ struct DeveloperSettingsView: View {
     
     @AppStorage("developerModeEnabled") private var developerModeEnabled = false
     @AppStorage("developerVMIds") private var developerVMIdsData: Data = Data()
+    @AppStorage(VoiceAvailability.developerVoiceSessionCaptureKey) private var voiceSessionCaptureEnabled = false
     
     @State private var templates: [TemplateInfo] = []
     @State private var isLoadingTemplates = false
@@ -75,6 +76,7 @@ struct DeveloperSettingsView: View {
             if developerModeEnabled {
                 createVMSection
                 developerVMsSection
+                audioSection
             }
         }
         .formStyle(.grouped)
@@ -123,6 +125,22 @@ struct DeveloperSettingsView: View {
             }
         } header: {
             Text("Developer Mode")
+        }
+    }
+    
+    // MARK: - Audio Section
+    private var audioSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Save Voice Session Audio + Logs", isOn: $voiceSessionCaptureEnabled)
+                    .toggleStyle(.switch)
+                
+                Text("When enabled, Gemini and OpenAI voice sessions are captured under ~/Library/Application Support/Hivecrew/Debug/Voice Mode/Sessions for debugging.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Audio")
         }
     }
     

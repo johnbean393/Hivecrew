@@ -26,6 +26,7 @@ extension OpenAIRealtimeProvider {
     func disconnect() {
         isManualDisconnect = true
         isReceiving = false
+        hasBufferedInputAudio = false
         webSocket?.cancel(with: .normalClosure, reason: nil)
         webSocket = nil
         connectionState = .disconnected
@@ -100,6 +101,7 @@ extension OpenAIRealtimeProvider {
     }
 
     func buildSessionUpdate(config: VoiceSessionConfig) -> SessionUpdateEvent {
+        let audioPolicy = config.audioPolicy.openAI
         let toolDefs: [SessionUpdateEvent.ToolDefinition]? = config.tools.isEmpty ? nil :
             config.tools.map { tool in
                 SessionUpdateEvent.ToolDefinition(
@@ -132,7 +134,18 @@ extension OpenAIRealtimeProvider {
                     input: .init(
                         format: .init(type: "audio/pcm", rate: 24000),
                         transcription: .init(model: "gpt-4o-mini-transcribe"),
-                        turnDetection: .init(type: "semantic_vad")
+                        noiseReduction: audioPolicy.noiseReduction.map {
+                            SessionUpdateEvent.NoiseReduction(type: $0.rawValue)
+                        },
+                        turnDetection: .init(
+                            type: audioPolicy.turnDetection.mode.rawValue,
+                            threshold: audioPolicy.turnDetection.threshold,
+                            prefixPaddingMs: audioPolicy.turnDetection.prefixPaddingMs,
+                            silenceDurationMs: audioPolicy.turnDetection.silenceDurationMs,
+                            eagerness: audioPolicy.turnDetection.eagerness?.rawValue,
+                            createResponse: audioPolicy.createResponse,
+                            interruptResponse: audioPolicy.interruptResponse
+                        )
                     ),
                     output: .init(
                         format: .init(type: "audio/pcm", rate: 24000),

@@ -13,6 +13,7 @@ import SwiftData
 import Combine
 import ScreenCaptureKit
 import HivecrewVoice
+import HivecrewShared
 
 // MARK: - Call State Machine
 
@@ -47,6 +48,7 @@ final class VoiceOrchestrator: ObservableObject {
     var isVoiceConfigured: Bool {
         guard let modelContext else { return false }
         return VoiceAvailability.isConfigured(modelContext: modelContext)
+            && VoiceIsolationProfileStore.loadProfile() != nil
     }
 
     // MARK: - Published State
@@ -62,7 +64,12 @@ final class VoiceOrchestrator: ObservableObject {
     @Published var relevantTaskIds: [String] = []
     @Published var focusedTaskId: String?
     @Published var isMuted = false {
-        didSet { audioManager.isMuted = isMuted }
+        didSet {
+            audioManager.isMuted = isMuted
+            if isMuted, currentAudioPolicy.streamEndBehavior.sendOnMute {
+                flushProviderInputStream(reason: "mute")
+            }
+        }
     }
     @Published var inputLevel: Float = 0
     @Published var outputLevel: Float = 0
@@ -80,15 +87,25 @@ final class VoiceOrchestrator: ObservableObject {
     @AppStorage("voice_voice_name") var voiceName: String = "Leda"
     @AppStorage("voice_thinking_level") var thinkingLevelRaw: String = "low"
     @AppStorage("voice_media_resolution") var mediaResolutionRaw: String = "medium"
-    
+    @AppStorage("voice_input_device_id") var inputDeviceIDRaw: String = ""
     @AppStorage("voice_include_thoughts") var includeThoughts: Bool = true
     @AppStorage("voice_web_search_enabled") var webSearchEnabled: Bool = true
+    @AppStorage(VoiceAvailability.developerVoiceSessionCaptureKey) var developerVoiceSessionCaptureEnabled: Bool = false
 
     var backend: VoiceProviderBackend {
         guard let type = VoiceProviderType(rawValue: voiceProviderTypeRaw) else {
             return .geminiLive
         }
         return VoiceAvailability.backend(for: type)
+    }
+
+    var selectedInputDeviceID: String? {
+        let trimmed = inputDeviceIDRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var automaticallyDerivedAudioPreset: VoiceSessionConfig.AudioPolicy.Preset {
+        audioManager.recommendedPreset(for: selectedInputDeviceID)
     }
 
     // MARK: - Internal
@@ -104,15 +121,272 @@ final class VoiceOrchestrator: ObservableObject {
     private var pendingOverlapStartedAt: TimeInterval?
     private var loggedFirstOverlapUplink = false
     private var loggedFirstInputTranscriptAfterOverlap = false
+    private var currentAudioPolicy = VoiceSessionConfig.AudioPolicy()
+    private var metrics = VoiceSessionMetrics()
+    private var uplinkPipeline: UplinkAudioPipeline?
+    private var captureWriter: VoiceSessionCaptureWriter?
+    private var activeIsolationProfile: SpeakerIsolationProfile?
+    private var activeVoiceSessionID: String?
+
+    private struct VoiceSessionMetrics {
+        var startedAt = Date()
+        var preset: String = ""
+        var inputDeviceName: String = "System Default"
+        var activeMicrophoneModeName: String = "Standard"
+        var speechStartedCount = 0
+        var speechStoppedCount = 0
+        var streamCommittedCount = 0
+        var interruptionCount = 0
+        var inputTranscriptCount = 0
+        var outputTranscriptCount = 0
+        var isolationPassCount = 0
+        var isolationAttenuateCount = 0
+        var isolationMuteCount = 0
+        var averageIsolationDistance: Float = 0
+        var captureDirectoryPath: String?
+    }
 
     init() {
         setupAudioCallbacks()
         setupVideoCallbacks()
 
+        audioManager.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
         videoSourceManager.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.objectWillChange.send() }
             .store(in: &cancellables)
+    }
+
+    private func makeAudioPolicy() -> VoiceSessionConfig.AudioPolicy {
+        let preset = automaticallyDerivedAudioPreset
+        let selectedDeviceKind = audioManager.inputDevice(matching: selectedInputDeviceID)?.kind
+            ?? audioManager.inputDevice(matching: audioManager.activeInputDeviceID)?.kind
+            ?? .unknown
+
+        let openAINoiseReduction: VoiceSessionConfig.AudioPolicy.OpenAI.NoiseReduction? = {
+            switch selectedDeviceKind {
+            case .builtIn, .aggregate, .virtual:
+                return .farField
+            case .external:
+                return .nearField
+            case .unknown:
+                return nil
+            }
+        }()
+
+        let openAIConfig: VoiceSessionConfig.AudioPolicy.OpenAI
+        let geminiConfig: VoiceSessionConfig.AudioPolicy.Gemini
+
+        switch preset {
+        case .balanced:
+            openAIConfig = .init(
+                turnDetection: .semantic(eagerness: .low),
+                createResponse: true,
+                interruptResponse: true,
+                noiseReduction: openAINoiseReduction
+            )
+            geminiConfig = .init(
+                automaticActivityDetectionEnabled: true,
+                startOfSpeechSensitivity: .high,
+                endOfSpeechSensitivity: .low,
+                prefixPaddingMs: 100,
+                silenceDurationMs: 500,
+                activityHandling: .startOfActivityInterrupts,
+                turnCoverage: nil
+            )
+        case .noisyRoom:
+            openAIConfig = .init(
+                turnDetection: .server(
+                    threshold: 0.72,
+                    prefixPaddingMs: 300,
+                    silenceDurationMs: 700
+                ),
+                createResponse: true,
+                interruptResponse: true,
+                noiseReduction: openAINoiseReduction ?? .farField
+            )
+            geminiConfig = .init(
+                automaticActivityDetectionEnabled: true,
+                startOfSpeechSensitivity: .low,
+                endOfSpeechSensitivity: .low,
+                prefixPaddingMs: 180,
+                silenceDurationMs: 700,
+                activityHandling: .startOfActivityInterrupts,
+                turnCoverage: nil
+            )
+        }
+
+        return VoiceSessionConfig.AudioPolicy(
+            preset: preset,
+            streamEndBehavior: .init(sendOnMute: true, sendOnSuspend: true, sendOnCallEnd: true),
+            localSpeakerIsolation: .init(
+                enabled: true,
+                strictMode: true,
+                internalSampleRate: 16_000,
+                analysisWindowMs: 900,
+                decisionStrideMs: 180,
+                outputHoldbackMs: 300,
+                confidenceThresholds: .init(pass: 0.48, attenuate: 0.66, mute: 0.86),
+                profileUpdatePolicy: .highConfidenceOnly,
+                extractorKind: .baselinePassthrough
+            ),
+            openAI: openAIConfig,
+            gemini: geminiConfig
+        )
+    }
+
+    private func flushProviderInputStream(reason: String) {
+        guard let provider else { return }
+        recordCaptureEvent(category: .provider, message: "flush_input_stream", metadata: ["reason": reason])
+        Task { @MainActor in
+            try? await provider.sendAudioStreamEnd()
+            print("[VoiceMetrics] Flushed provider input stream due to \(reason)")
+        }
+    }
+
+    private func disconnectProvider(flushStreamFirst: Bool) {
+        let activeProvider = provider
+        provider = nil
+
+        guard let activeProvider else { return }
+        if flushStreamFirst {
+            Task { @MainActor in
+                try? await activeProvider.sendAudioStreamEnd()
+                activeProvider.disconnect()
+            }
+        } else {
+            activeProvider.disconnect()
+        }
+    }
+
+    private func recordInputActivity(_ activity: VoiceInputActivityEvent) {
+        switch activity.kind {
+        case .speechStarted:
+            metrics.speechStartedCount += 1
+        case .speechStopped:
+            metrics.speechStoppedCount += 1
+        case .streamCommitted:
+            metrics.streamCommittedCount += 1
+        }
+
+        if let offsetMs = activity.offsetMs {
+            print("[VoiceMetrics] Provider input activity \(activity.kind.rawValue) at \(offsetMs) ms")
+        } else {
+            print("[VoiceMetrics] Provider input activity \(activity.kind.rawValue)")
+        }
+    }
+
+    private func logAudioSessionStart() {
+        print(
+            "[VoiceMetrics] Session started provider=\(backend) preset=\(currentAudioPolicy.preset.rawValue) " +
+            "device=\(audioManager.activeInputDeviceName) micMode=\(audioManager.activeMicrophoneModeName) " +
+            "speaker_isolation=\(currentAudioPolicy.localSpeakerIsolation.enabled)"
+        )
+    }
+
+    private func logVoiceMetricsSummary() {
+        let duration = Int(Date().timeIntervalSince(metrics.startedAt))
+        print(
+            "[VoiceMetrics] Session summary duration_s=\(duration) preset=\(metrics.preset) " +
+            "device=\(metrics.inputDeviceName) micMode=\(metrics.activeMicrophoneModeName) " +
+            "speech_started=\(metrics.speechStartedCount) speech_stopped=\(metrics.speechStoppedCount) " +
+            "stream_commits=\(metrics.streamCommittedCount) interruptions=\(metrics.interruptionCount) " +
+            "input_transcripts=\(metrics.inputTranscriptCount) output_transcripts=\(metrics.outputTranscriptCount) " +
+            "isolation_pass=\(metrics.isolationPassCount) isolation_attenuate=\(metrics.isolationAttenuateCount) " +
+            "isolation_mute=\(metrics.isolationMuteCount) avg_distance=\(String(format: "%.3f", metrics.averageIsolationDistance))"
+        )
+        if let captureDirectoryPath = metrics.captureDirectoryPath {
+            print("[VoiceMetrics] Session capture saved at \(captureDirectoryPath)")
+        }
+    }
+
+    private func updateIsolationMetrics(with decision: SpeakerIsolationDecision) {
+        switch decision.gate {
+        case .pass:
+            metrics.isolationPassCount += 1
+        case .attenuate:
+            metrics.isolationAttenuateCount += 1
+        case .mute:
+            metrics.isolationMuteCount += 1
+        }
+        if let distance = decision.distance {
+            let totalDecisions = max(1, metrics.isolationPassCount + metrics.isolationAttenuateCount + metrics.isolationMuteCount)
+            let previousTotal = metrics.averageIsolationDistance * Float(max(0, totalDecisions - 1))
+            metrics.averageIsolationDistance = (previousTotal + distance) / Float(totalDecisions)
+        }
+        Task {
+            await captureWriter?.record(
+                .init(
+                    category: .capture,
+                    message: "speaker_isolation_decision",
+                    metadata: [
+                        "gate": decision.gate.rawValue,
+                        "distance": decision.distance.map { String(format: "%.4f", $0) } ?? "n/a",
+                        "analysis_power": String(format: "%.4f", decision.analysisPower)
+                    ]
+                )
+            )
+        }
+    }
+
+    private func recordCaptureEvent(
+        category: VoiceSessionCaptureEvent.Category,
+        message: String,
+        metadata: [String: String] = [:]
+    ) {
+        guard let captureWriter else { return }
+        Task {
+            await captureWriter.record(.init(category: category, message: message, metadata: metadata))
+        }
+    }
+
+    private func makeCaptureWriter(
+        providerInputSampleRate: Double,
+        providerOutputSampleRate: Double,
+        audioPolicy: VoiceSessionConfig.AudioPolicy,
+        startedAt: Date,
+        sessionID: String
+    ) -> VoiceSessionCaptureWriter? {
+        guard developerVoiceSessionCaptureEnabled else { return nil }
+        let directoryURL = AppPaths.debugVoiceModeSessionDirectory(id: sessionID, startedAt: startedAt)
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        let buildVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        let metadata = VoiceSessionCaptureMetadata(
+            provider: backend.rawValue,
+            model: selectedModel,
+            sessionID: sessionID,
+            startedAt: startedAt,
+            inputDeviceName: audioManager.activeInputDeviceName,
+            microphoneModeName: audioManager.activeMicrophoneModeName,
+            audioPreset: audioPolicy.preset.rawValue,
+            localSpeakerIsolation: audioPolicy.localSpeakerIsolation,
+            appVersion: appVersion,
+            buildVersion: buildVersion
+        )
+        do {
+            let enhancedRate: Int? = audioPolicy.localSpeakerIsolation.speechEnhancerKind != .none
+                ? Int(audioPolicy.localSpeakerIsolation.internalSampleRate)
+                : nil
+            let writer = try VoiceSessionCaptureWriter(
+                configuration: .init(
+                    directoryURL: directoryURL,
+                    metadata: metadata,
+                    rawInputSampleRate: Int(audioPolicy.localSpeakerIsolation.internalSampleRate),
+                    enhancedSampleRate: enhancedRate,
+                    uplinkSampleRate: Int(providerInputSampleRate),
+                    downlinkSampleRate: Int(providerOutputSampleRate)
+                )
+            )
+            metrics.captureDirectoryPath = directoryURL.path
+            return writer
+        } catch {
+            print("[VoiceMetrics] Failed to create voice session capture writer: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     // MARK: - Connection Lifecycle
@@ -134,6 +408,8 @@ final class VoiceOrchestrator: ObservableObject {
             return
         }
 
+        let startedAt = Date()
+
         let prov = RealtimeVoiceService.shared.createProvider(
             backend: backend,
             apiKey: credentials.apiKey,
@@ -143,13 +419,25 @@ final class VoiceOrchestrator: ObservableObject {
 
         wireProviderCallbacks(prov)
 
-        audioManager.configure(
-            inputSampleRate: prov.inputSampleRate,
-            outputSampleRate: prov.outputSampleRate
-        )
-
         let thinkingLevel = VoiceSessionConfig.ThinkingLevel(rawValue: thinkingLevelRaw) ?? .low
         let mediaRes = VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium
+        let audioPolicy = makeAudioPolicy()
+
+        guard !audioPolicy.localSpeakerIsolation.enabled || VoiceIsolationProfileStore.loadProfile() != nil else {
+            connectionState = .error("Voice isolation setup is required. Complete Settings → Voice before starting a call.")
+            provider = nil
+            return
+        }
+
+        let captureInputSampleRate = audioPolicy.localSpeakerIsolation.enabled
+            ? audioPolicy.localSpeakerIsolation.internalSampleRate
+            : prov.inputSampleRate
+
+        audioManager.configure(
+            inputSampleRate: captureInputSampleRate,
+            outputSampleRate: prov.outputSampleRate
+        )
+        audioManager.setPreferredInputDevice(inputDeviceIDRaw)
 
         // Import active tasks from previous sessions so the voice model can manage them.
         let existingTasksSummary = importActiveTasks()
@@ -170,39 +458,140 @@ final class VoiceOrchestrator: ObservableObject {
             mediaResolution: mediaRes,
             thinkingLevel: thinkingLevel,
             includeThoughts: includeThoughts,
-            webSearchEnabled: webSearchEnabled
+            webSearchEnabled: webSearchEnabled,
+            audioPolicy: audioPolicy
         )
+        currentAudioPolicy = audioPolicy
+        activeIsolationProfile = VoiceIsolationProfileStore.loadProfile()
+        activeVoiceSessionID = UUID().uuidString.lowercased()
+        metrics = VoiceSessionMetrics(
+            startedAt: startedAt,
+            preset: audioPolicy.preset.rawValue,
+            inputDeviceName: audioManager.inputDevice(matching: inputDeviceIDRaw)?.name ?? audioManager.activeInputDeviceName,
+            activeMicrophoneModeName: audioManager.activeMicrophoneModeName
+        )
+
+        captureWriter = activeVoiceSessionID.map {
+            makeCaptureWriter(
+                providerInputSampleRate: prov.inputSampleRate,
+                providerOutputSampleRate: prov.outputSampleRate,
+                audioPolicy: audioPolicy,
+                startedAt: startedAt,
+                sessionID: $0
+            )
+        } ?? nil
+
+        if audioPolicy.localSpeakerIsolation.enabled, let activeIsolationProfile {
+            let speechEnhancer: (any SpeechEnhancer)? =
+                audioPolicy.localSpeakerIsolation.speechEnhancerKind == .hush
+                ? HushSpeechEnhancer()
+                : nil
+
+            uplinkPipeline = UplinkAudioPipeline(
+                configuration: .init(
+                    providerInputSampleRate: prov.inputSampleRate,
+                    captureSampleRate: captureInputSampleRate,
+                    targetProfile: activeIsolationProfile,
+                    policy: audioPolicy.localSpeakerIsolation
+                ),
+                engine: SpeakerIsolationEngine(extractor: PassthroughTargetSpeakerExtractor()),
+                speechEnhancer: speechEnhancer,
+                captureWriter: captureWriter,
+                decisionHandler: { [weak self] decision in
+                    self?.updateIsolationMetrics(with: decision)
+                },
+                outputHandler: { [weak self] data, _ in
+                    guard let self else { return }
+                    self.logFirstOverlapUplinkChunk(data)
+                    try? await self.provider?.sendAudio(data)
+                }
+            )
+        } else {
+            uplinkPipeline = nil
+        }
+        refreshAudioCaptureCallback()
 
         connectionState = .connecting
         callState = .active
 
         do {
+            if let uplinkPipeline {
+                try await uplinkPipeline.prepare()
+            }
+            recordCaptureEvent(category: .lifecycle, message: "session_prepared", metadata: [
+                "provider": backend.rawValue,
+                "model": selectedModel,
+                "session_id": activeVoiceSessionID ?? "n/a"
+            ])
             try await prov.connect(config: config)
+            if let actualModel = prov.activeModel, actualModel != selectedModel {
+                selectedModel = actualModel
+            }
             try await audioManager.startCapture(voiceProcessingEnabled: true)
+            metrics.inputDeviceName = audioManager.activeInputDeviceName
+            metrics.activeMicrophoneModeName = audioManager.activeMicrophoneModeName
+            logAudioSessionStart()
+            recordCaptureEvent(category: .lifecycle, message: "session_started", metadata: [
+                "device": metrics.inputDeviceName,
+                "mic_mode": metrics.activeMicrophoneModeName
+            ])
             connectionState = .connected
             startIdleTimer()
             subscribeToInputLevel()
             subscribeToTaskEvents()
         } catch {
+            recordCaptureEvent(category: .error, message: "session_start_failed", metadata: [
+                "error": error.localizedDescription
+            ])
+            disconnectProvider(flushStreamFirst: false)
+            let pipeline = uplinkPipeline
+            let writer = captureWriter
+            uplinkPipeline = nil
+            captureWriter = nil
+            activeIsolationProfile = nil
+            activeVoiceSessionID = nil
+            refreshAudioCaptureCallback()
+            Task {
+                if let pipeline {
+                    _ = await pipeline.finish(flushPendingAudio: false)
+                }
+                await writer?.finish()
+            }
             connectionState = .error(error.localizedDescription)
             callState = .idle
         }
     }
 
     func endCall() {
+        recordCaptureEvent(category: .lifecycle, message: "session_ending")
+        logVoiceMetricsSummary()
         pendingEndCall = false
         resetOverlapMetrics()
         cancelTimers()
         unsubscribeFromInputLevel()
         audioManager.stopCapture()
         audioManager.stopPlayback()
-        provider?.disconnect()
+        let pipeline = uplinkPipeline
+        let writer = captureWriter
+        uplinkPipeline = nil
+        captureWriter = nil
+        activeIsolationProfile = nil
+        activeVoiceSessionID = nil
+        refreshAudioCaptureCallback()
+        disconnectProvider(flushStreamFirst: currentAudioPolicy.streamEndBehavior.sendOnCallEnd)
         Task { await videoSourceManager.deactivate() }
+        Task {
+            if let pipeline {
+                _ = await pipeline.finish(flushPendingAudio: false)
+            }
+            await writer?.finish()
+        }
         connectionState = .disconnected
         callState = .idle
         isModelSpeaking = false
         totalTokenCount = 0
         tokenCountBase = 0
+        currentAudioPolicy = .init()
         restoreQuestionWindowsAndCleanup()
     }
 
@@ -222,6 +611,9 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onAudioReceived = { [weak self] data in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                Task {
+                    await self.captureWriter?.appendDownlinkPCM(data)
+                }
                 if !self.isModelSpeaking {
                     self.isModelSpeaking = true
                     self.audioManager.setServerModelSpeaking(true)
@@ -233,6 +625,11 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onTranscription = { [weak self] transcription in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.recordCaptureEvent(category: .transcript, message: "transcription", metadata: [
+                    "source": transcription.source == .input ? "input" : "output",
+                    "length": "\(transcription.text.count)",
+                    "text": transcription.text
+                ])
                 self.handleTranscription(transcription)
             }
         }
@@ -240,15 +637,32 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onToolCall = { [weak self] toolCall in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.recordCaptureEvent(category: .provider, message: "tool_call", metadata: [
+                    "tool_name": toolCall.name,
+                    "tool_id": toolCall.id
+                ])
                 await self.handleToolCall(toolCall)
+            }
+        }
+
+        prov.onInputActivity = { [weak self] activity in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.recordCaptureEvent(category: .provider, message: "input_activity", metadata: [
+                    "kind": activity.kind.rawValue,
+                    "offset_ms": activity.offsetMs.map(String.init) ?? "n/a"
+                ])
+                self.recordInputActivity(activity)
             }
         }
 
         prov.onInterrupted = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.metrics.interruptionCount += 1
                 self.resetIdleTimer()
                 self.logServerInterrupted()
+                self.recordCaptureEvent(category: .interruption, message: "server_interrupted")
                 self.audioManager.clearPlaybackQueue()
                 self.audioManager.setServerModelSpeaking(false)
                 self.isModelSpeaking = false
@@ -263,6 +677,7 @@ final class VoiceOrchestrator: ObservableObject {
                     print("[VoiceInterruption] Turn completed without server interruption after \(elapsedMs) ms")
                     self.resetOverlapMetrics()
                 }
+                self.recordCaptureEvent(category: .provider, message: "turn_complete")
                 self.isModelSpeaking = false
                 self.audioManager.setServerModelSpeaking(false)
                 if self.pendingEndCall {
@@ -277,6 +692,9 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onError = { [weak self] error in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.recordCaptureEvent(category: .error, message: "provider_error", metadata: [
+                    "error": error.localizedDescription
+                ])
                 self.connectionState = .error(error.localizedDescription)
             }
         }
@@ -291,6 +709,7 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onReconnecting = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.recordCaptureEvent(category: .lifecycle, message: "provider_reconnecting")
                 self.connectionState = .reconnecting
             }
         }
@@ -298,6 +717,7 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onReconnected = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.recordCaptureEvent(category: .lifecycle, message: "provider_reconnected")
                 self.connectionState = .connected
             }
         }
@@ -306,14 +726,6 @@ final class VoiceOrchestrator: ObservableObject {
     // MARK: - Audio Callbacks
 
     private func setupAudioCallbacks() {
-        audioManager.onAudioCaptured = { [weak self] data in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.logFirstOverlapUplinkChunk(data)
-                try? await self.provider?.sendAudio(data)
-            }
-        }
-
         audioManager.onPlaybackFinished = { [weak self] in
             Task { @MainActor [weak self] in
                 // Brief holdoff so trailing speaker echo dissipates before
@@ -326,6 +738,25 @@ final class VoiceOrchestrator: ObservableObject {
 
         audioManager.$inputLevel.receive(on: RunLoop.main).assign(to: &$inputLevel)
         audioManager.$outputLevel.receive(on: RunLoop.main).assign(to: &$outputLevel)
+        refreshAudioCaptureCallback()
+    }
+
+    private func refreshAudioCaptureCallback() {
+        let pipeline = uplinkPipeline
+        audioManager.onAudioCaptured = { [weak self, pipeline] data in
+            guard !data.isEmpty else { return }
+            if let pipeline {
+                Task {
+                    await pipeline.enqueueCapturedPCM(data)
+                }
+            } else {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.logFirstOverlapUplinkChunk(data)
+                    try? await self.provider?.sendAudio(data)
+                }
+            }
+        }
     }
 
     private func logFirstOverlapUplinkChunk(_ data: Data) {
@@ -387,8 +818,12 @@ final class VoiceOrchestrator: ObservableObject {
     private func handleTranscription(_ transcription: VoiceTranscription) {
         resetIdleTimer()
         if transcription.source == .input {
+            metrics.inputTranscriptCount += 1
             logFirstInputTranscriptAfterOverlap(transcription.text)
             modelTranscriptPrefixToStrip = ""
+            print("[VoiceMetrics] Input transcript chunk #\(metrics.inputTranscriptCount) length=\(transcription.text.count)")
+        } else {
+            metrics.outputTranscriptCount += 1
         }
         let role: TranscriptEntry.Role = transcription.source == .input ? .user : .model
 
@@ -648,6 +1083,10 @@ final class VoiceOrchestrator: ObservableObject {
     /// callbacks can still be delivered and the model can respond once resumed.
     func suspendCall() {
         guard callState == .active || callState == .idleTimeout else { return }
+        recordCaptureEvent(category: .lifecycle, message: "session_suspended")
+        if currentAudioPolicy.streamEndBehavior.sendOnSuspend {
+            flushProviderInputStream(reason: "suspend")
+        }
         cancelTimers()
         unsubscribeFromInputLevel()
         audioManager.stopCapture()
@@ -661,7 +1100,11 @@ final class VoiceOrchestrator: ObservableObject {
     func resumeCall() async {
         guard callState == .suspended else { return }
         callState = .active
+        audioManager.setPreferredInputDevice(inputDeviceIDRaw)
         try? await audioManager.startCapture(voiceProcessingEnabled: true)
+        metrics.inputDeviceName = audioManager.activeInputDeviceName
+        metrics.activeMicrophoneModeName = audioManager.activeMicrophoneModeName
+        recordCaptureEvent(category: .lifecycle, message: "session_resumed")
         startIdleTimer()
         subscribeToInputLevel()
     }
