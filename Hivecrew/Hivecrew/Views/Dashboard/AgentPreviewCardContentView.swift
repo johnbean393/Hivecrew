@@ -429,6 +429,12 @@ struct AgentPreviewCardContent: View {
     private func pollRemoteSnapshot() async {
         guard let provider = APIServerManager.shared.federatedProvider else { return }
 
+        if let remoteTask = try? await provider.getTask(id: task.id) {
+            if let stepCount = remoteTask.stepCount {
+                remoteStepCount = stepCount
+            }
+        }
+
         if let screenshot = try? await provider.getTaskScreenshot(id: task.id),
            let image = NSImage(data: screenshot.data) {
             remoteScreenshot = image
@@ -437,7 +443,6 @@ struct AgentPreviewCardContent: View {
         if let response = try? await provider.getTaskActivity(id: task.id, since: remoteEventSince) {
             if !response.events.isEmpty {
                 remoteActivitySummary = response.events.last.flatMap { eventSummary(for: $0) } ?? remoteActivitySummary
-                remoteStepCount += response.events.count
             }
             remoteEventSince = response.total
         }
