@@ -510,14 +510,18 @@ extension SessionTraceView {
                 if usage.completion > 0 {
                     tokenUsageBadge(text: "\(formatTokenCount(usage.completion)) completion")
                 }
+                tokenDetailsButton(usage)
                 Spacer(minLength: 0)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                tokenUsageBadge(
-                    systemImage: "textformat.123",
-                    text: "\(formatTokenCount(usage.effectiveTotal)) tokens"
-                )
+                HStack(spacing: 8) {
+                    tokenUsageBadge(
+                        systemImage: "textformat.123",
+                        text: "\(formatTokenCount(usage.effectiveTotal)) tokens"
+                    )
+                    tokenDetailsButton(usage)
+                }
                 if usage.prompt > 0 || usage.completion > 0 {
                     HStack(spacing: 8) {
                         if usage.prompt > 0 {
@@ -529,6 +533,91 @@ extension SessionTraceView {
                     }
                 }
             }
+        }
+    }
+
+    private func tokenDetailsButton(_ usage: TraceTokenUsage) -> some View {
+        Button {
+            showingTokenDetails.toggle()
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingTokenDetails, arrowEdge: .bottom) {
+            tokenDetailsPopover(usage)
+        }
+    }
+
+    private func tokenDetailsPopover(_ usage: TraceTokenUsage) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Input tokens
+            tokenDetailRow(label: "Input tokens", value: usage.prompt)
+
+            // Output tokens with breakdown
+            VStack(alignment: .leading, spacing: 4) {
+                tokenDetailRow(label: "Output tokens", value: usage.completion)
+                if usage.reasoningTokens > 0 {
+                    tokenDetailRow(label: "Reasoning tokens", value: usage.reasoningTokens, indented: true)
+                }
+                tokenDetailRow(
+                    label: "Response tokens",
+                    value: usage.responseTokens,
+                    indented: true
+                )
+            }
+
+            // Cache
+            if usage.cacheReadTokens > 0 || usage.cacheCreationTokens > 0 {
+                Divider()
+                if usage.cacheReadTokens > 0 {
+                    tokenDetailRow(label: "Cache hit tokens", value: usage.cacheReadTokens)
+                }
+                if usage.cacheCreationTokens > 0 {
+                    tokenDetailRow(label: "Cache write tokens", value: usage.cacheCreationTokens)
+                }
+            }
+
+            // Model & reasoning effort
+            Divider()
+            let modelName = usage.model ?? task.modelId
+            tokenDetailTextRow(label: "Model", value: modelName)
+            if let effort = usage.reasoningEffort ?? task.reasoningEffort {
+                tokenDetailTextRow(label: "Reasoning effort", value: effort.capitalized)
+            }
+        }
+        .padding(12)
+        .frame(minWidth: 220)
+    }
+
+    private func tokenDetailRow(label: String, value: Int, indented: Bool = false) -> some View {
+        HStack {
+            if indented {
+                Spacer().frame(width: 12)
+            }
+            Text(label)
+                .font(indented ? .caption : .caption)
+                .foregroundStyle(indented ? .tertiary : .secondary)
+            Spacer()
+            Text(formatTokenCount(value))
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(indented ? .tertiary : .primary)
+        }
+    }
+
+    private func tokenDetailTextRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
     }
 

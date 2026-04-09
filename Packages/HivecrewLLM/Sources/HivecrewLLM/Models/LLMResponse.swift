@@ -26,17 +26,36 @@ public enum LLMFinishReason: String, Sendable, Codable {
 public struct LLMUsage: Sendable, Codable, Equatable {
     /// Number of tokens in the prompt
     public let promptTokens: Int
-    
+
     /// Number of tokens in the completion
     public let completionTokens: Int
-    
+
     /// Total tokens used
     public let totalTokens: Int
-    
-    public init(promptTokens: Int, completionTokens: Int, totalTokens: Int) {
+
+    /// Number of reasoning/thinking tokens (subset of completionTokens)
+    public let reasoningTokens: Int
+
+    /// Number of tokens read from cache
+    public let cacheReadTokens: Int
+
+    /// Number of tokens used to create cache
+    public let cacheCreationTokens: Int
+
+    public init(
+        promptTokens: Int,
+        completionTokens: Int,
+        totalTokens: Int,
+        reasoningTokens: Int = 0,
+        cacheReadTokens: Int = 0,
+        cacheCreationTokens: Int = 0
+    ) {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
+        self.reasoningTokens = reasoningTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.cacheCreationTokens = cacheCreationTokens
     }
 }
 

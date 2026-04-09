@@ -371,10 +371,28 @@ extension ResponsesAPIClient {
         let totalTokens = (usageDict["total_tokens"] as? Int)
             ?? (promptTokens + completionTokens)
 
+        // Reasoning tokens (Anthropic: output_tokens_details.reasoning_tokens, OpenAI: completion_tokens_details.reasoning_tokens)
+        let reasoningTokens: Int = {
+            if let details = usageDict["output_tokens_details"] as? [String: Any],
+               let r = details["reasoning_tokens"] as? Int { return r }
+            if let details = usageDict["completion_tokens_details"] as? [String: Any],
+               let r = details["reasoning_tokens"] as? Int { return r }
+            return 0
+        }()
+
+        // Cache tokens (Anthropic naming)
+        let cacheReadTokens = (usageDict["cache_read_input_tokens"] as? Int)
+            ?? (usageDict["prompt_tokens_details"] as? [String: Any])?["cached_tokens"] as? Int
+            ?? 0
+        let cacheCreationTokens = usageDict["cache_creation_input_tokens"] as? Int ?? 0
+
         return LLMUsage(
             promptTokens: promptTokens,
             completionTokens: completionTokens,
-            totalTokens: totalTokens
+            totalTokens: totalTokens,
+            reasoningTokens: reasoningTokens,
+            cacheReadTokens: cacheReadTokens,
+            cacheCreationTokens: cacheCreationTokens
         )
     }
 }

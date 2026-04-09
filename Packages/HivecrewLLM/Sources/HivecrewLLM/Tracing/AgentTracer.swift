@@ -183,6 +183,7 @@ public actor AgentTracer {
             responseText = nil
         }
         
+        let usage = response.usage
         let event = TraceEvent(
             sessionId: sessionId,
             type: .llmResponse,
@@ -192,9 +193,12 @@ public actor AgentTracer {
                 model: response.model,
                 finishReason: response.finishReason?.rawValue,
                 toolCallCount: toolCallCount,
-                promptTokens: response.usage?.promptTokens ?? 0,
-                completionTokens: response.usage?.completionTokens ?? 0,
-                totalTokens: response.usage?.totalTokens ?? 0,
+                promptTokens: usage?.promptTokens ?? 0,
+                completionTokens: usage?.completionTokens ?? 0,
+                totalTokens: usage?.totalTokens ?? 0,
+                reasoningTokens: usage?.reasoningTokens,
+                cacheReadTokens: usage?.cacheReadTokens,
+                cacheCreationTokens: usage?.cacheCreationTokens,
                 contentPreview: contentPreview,
                 responseText: responseText,
                 reasoning: response.reasoning

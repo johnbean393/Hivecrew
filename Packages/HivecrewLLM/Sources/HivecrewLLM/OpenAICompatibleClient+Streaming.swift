@@ -147,10 +147,18 @@ extension OpenAICompatibleClient {
 
                             // Extract usage (sometimes included in final chunk)
                             if let usageDict = json["usage"] as? [String: Any] {
+                                let reasoningTokens: Int = {
+                                    if let details = usageDict["completion_tokens_details"] as? [String: Any],
+                                       let r = details["reasoning_tokens"] as? Int { return r }
+                                    return 0
+                                }()
+                                let cacheReadTokens = (usageDict["prompt_tokens_details"] as? [String: Any])?["cached_tokens"] as? Int ?? 0
                                 usage = LLMUsage(
                                     promptTokens: usageDict["prompt_tokens"] as? Int ?? 0,
                                     completionTokens: usageDict["completion_tokens"] as? Int ?? 0,
-                                    totalTokens: usageDict["total_tokens"] as? Int ?? 0
+                                    totalTokens: usageDict["total_tokens"] as? Int ?? 0,
+                                    reasoningTokens: reasoningTokens,
+                                    cacheReadTokens: cacheReadTokens
                                 )
                             }
 

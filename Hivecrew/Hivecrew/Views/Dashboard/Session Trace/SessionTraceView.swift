@@ -34,6 +34,7 @@ struct SessionTraceView: View {
     @State var exportProgress: Double = 0
     @State var showingSkillExtraction: Bool = false
     @State var sessionTokenUsageSummary: TraceTokenUsage? = nil
+    @State var showingTokenDetails: Bool = false
     @State var selectedTab: TraceTab = .trace
     @State var planState: PlanState? = nil
     
@@ -537,13 +538,7 @@ struct SessionTraceView: View {
         visitedTracePaths: inout Set<String>
     ) -> TraceTokenUsage {
         var usage = events.reduce(into: TraceTokenUsage.zero) { partial, event in
-            partial = partial.adding(
-                TraceTokenUsage(
-                    prompt: event.tokenUsage.prompt,
-                    completion: event.tokenUsage.completion,
-                    total: event.tokenUsage.effectiveTotal
-                )
-            )
+            partial = partial.adding(event.tokenUsage)
         }
 
         let subagentTracePaths: Set<String> = Set(

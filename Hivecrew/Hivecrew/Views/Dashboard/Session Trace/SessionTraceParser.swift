@@ -161,13 +161,21 @@ enum SessionTraceParser {
                 let promptTokens = inner["promptTokens"] as? Int ?? 0
                 let completionTokens = inner["completionTokens"] as? Int ?? 0
                 let totalTokens = inner["totalTokens"] as? Int ?? 0
+                let reasoningTokens = inner["reasoningTokens"] as? Int ?? 0
+                let cacheReadTokens = inner["cacheReadTokens"] as? Int ?? 0
+                let cacheCreationTokens = inner["cacheCreationTokens"] as? Int ?? 0
+                let model = inner["model"] as? String
                 let fullResponseText = inner["responseText"] as? String
                 let contentPreview = inner["contentPreview"] as? String
                 reasoning = inner["reasoning"] as? String
                 tokenUsage = TraceTokenUsage(
                     prompt: promptTokens,
                     completion: completionTokens,
-                    total: totalTokens
+                    total: totalTokens,
+                    reasoningTokens: reasoningTokens,
+                    cacheReadTokens: cacheReadTokens,
+                    cacheCreationTokens: cacheCreationTokens,
+                    model: model
                 )
 
                 if toolCallCount > 0 {

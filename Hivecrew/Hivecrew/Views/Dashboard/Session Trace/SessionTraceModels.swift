@@ -13,8 +13,33 @@ struct TraceTokenUsage: Equatable {
     let prompt: Int
     let completion: Int
     let total: Int
+    let reasoningTokens: Int
+    let cacheReadTokens: Int
+    let cacheCreationTokens: Int
+    let model: String?
+    let reasoningEffort: String?
 
     static let zero = TraceTokenUsage(prompt: 0, completion: 0, total: 0)
+
+    init(
+        prompt: Int,
+        completion: Int,
+        total: Int,
+        reasoningTokens: Int = 0,
+        cacheReadTokens: Int = 0,
+        cacheCreationTokens: Int = 0,
+        model: String? = nil,
+        reasoningEffort: String? = nil
+    ) {
+        self.prompt = prompt
+        self.completion = completion
+        self.total = total
+        self.reasoningTokens = reasoningTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.cacheCreationTokens = cacheCreationTokens
+        self.model = model
+        self.reasoningEffort = reasoningEffort
+    }
 
     var effectiveTotal: Int {
         total > 0 ? total : prompt + completion
@@ -24,11 +49,21 @@ struct TraceTokenUsage: Equatable {
         prompt > 0 || completion > 0 || total > 0
     }
 
+    /// Response tokens = completion - reasoning
+    var responseTokens: Int {
+        max(0, completion - reasoningTokens)
+    }
+
     func adding(_ other: TraceTokenUsage) -> TraceTokenUsage {
         TraceTokenUsage(
             prompt: prompt + other.prompt,
             completion: completion + other.completion,
-            total: total + other.total
+            total: total + other.total,
+            reasoningTokens: reasoningTokens + other.reasoningTokens,
+            cacheReadTokens: cacheReadTokens + other.cacheReadTokens,
+            cacheCreationTokens: cacheCreationTokens + other.cacheCreationTokens,
+            model: model ?? other.model,
+            reasoningEffort: reasoningEffort ?? other.reasoningEffort
         )
     }
 }

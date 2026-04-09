@@ -210,30 +210,39 @@ public struct LLMRequestData: Sendable, Codable {
 public struct LLMResponseData: Sendable, Codable {
     /// Response ID from the API
     public let responseId: String
-    
+
     /// Model that generated the response
     public let model: String
-    
+
     /// Finish reason
     public let finishReason: String?
-    
+
     /// Number of tool calls in the response
     public let toolCallCount: Int
-    
+
     /// Token usage
     public let promptTokens: Int
     public let completionTokens: Int
     public let totalTokens: Int
-    
+
+    /// Reasoning tokens (subset of completionTokens)
+    public let reasoningTokens: Int?
+
+    /// Cache read input tokens
+    public let cacheReadTokens: Int?
+
+    /// Cache creation input tokens
+    public let cacheCreationTokens: Int?
+
     /// Truncated content preview (first 500 chars)
     public let contentPreview: String?
-    
+
     /// Full response text (only stored when toolCallCount == 0)
     public let responseText: String?
-    
+
     /// Reasoning/thinking content from models that support reasoning tokens (optional for backward compatibility)
     public let reasoning: String?
-    
+
     public init(
         responseId: String,
         model: String,
@@ -242,6 +251,9 @@ public struct LLMResponseData: Sendable, Codable {
         promptTokens: Int,
         completionTokens: Int,
         totalTokens: Int,
+        reasoningTokens: Int? = nil,
+        cacheReadTokens: Int? = nil,
+        cacheCreationTokens: Int? = nil,
         contentPreview: String?,
         responseText: String? = nil,
         reasoning: String? = nil
@@ -253,6 +265,9 @@ public struct LLMResponseData: Sendable, Codable {
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
         self.totalTokens = totalTokens
+        self.reasoningTokens = reasoningTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.cacheCreationTokens = cacheCreationTokens
         self.contentPreview = contentPreview
         self.responseText = responseText
         self.reasoning = reasoning
