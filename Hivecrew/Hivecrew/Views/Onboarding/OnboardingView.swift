@@ -22,6 +22,7 @@ struct OnboardingView: View {
     @State private var workerConfigured = false
     @State private var templateConfigured = false
     @State private var voiceConfigured = false
+    @State private var voiceIsolationConfigured = false
     
     enum OnboardingStep: Int, CaseIterable {
         case welcome = 0
@@ -30,7 +31,8 @@ struct OnboardingView: View {
         case template = 3
         case outputDirectory = 4
         case voice = 5
-        case complete = 6
+        case voiceIsolation = 6
+        case complete = 7
         
         var title: String {
             switch self {
@@ -40,6 +42,7 @@ struct OnboardingView: View {
             case .template: return "VM Template"
             case .outputDirectory: return "Output"
             case .voice: return "Voice"
+            case .voiceIsolation: return "Isolation"
             case .complete: return "Ready"
             }
         }
@@ -64,7 +67,7 @@ struct OnboardingView: View {
             navigationButtons
                 .padding(20)
         }
-        .frame(width: 720, height: 700)
+        .frame(width: 936, height: 700)
         .background(Color(nsColor: .windowBackgroundColor))
     }
     
@@ -132,6 +135,11 @@ struct OnboardingView: View {
                 }
             )
 
+        case .voiceIsolation:
+            VoiceEnrollmentSetupView(
+                isConfigured: $voiceIsolationConfigured
+            )
+
         case .complete:
             OnboardingCompleteStep()
         }
@@ -184,6 +192,8 @@ struct OnboardingView: View {
         case .outputDirectory:
             return true
         case .voice:
+            return true
+        case .voiceIsolation:
             return true
         case .complete:
             return true
