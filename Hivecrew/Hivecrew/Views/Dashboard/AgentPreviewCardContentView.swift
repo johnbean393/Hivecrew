@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 import HivecrewAPI
 
 struct AgentPreviewCardContent: View {
@@ -192,6 +193,12 @@ struct AgentPreviewCardContent: View {
         .onDisappear {
             remotePollTask?.cancel()
             remotePollTask = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            startRemotePollingIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            startRemotePollingIfNeeded()
         }
     }
     

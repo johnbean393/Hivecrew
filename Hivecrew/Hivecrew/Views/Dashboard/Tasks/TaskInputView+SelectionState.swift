@@ -1,8 +1,152 @@
 import Foundation
+import HivecrewAPI
 import HivecrewLLM
 import SwiftUI
 
 extension TaskInputView {
+    func synchronizePromptConfigurationForExecutionTarget() {
+        normalizeExecutionTargetSelection()
+        normalizeCurrentModelSelectionForExecutionTarget()
+    }
+
+    func normalizeExecutionTargetSelection() {
+        let normalized = normalizedExecutionTarget(executionTarget)
+        guard normalized != executionTarget else { return }
+        executionTarget = normalized
+    }
+
+    func normalizedExecutionTarget(_ target: TaskExecutionTarget) -> TaskExecutionTarget {
+        let onlinePeers = clusterStatus.peers.filter { $0.status == .online }
+        guard !onlinePeers.isEmpty else { return .automatic }
+
+        switch target.kind {
+        case .automatic, .local:
+            return target
+        case .peer:
+            guard let peerId = target.targetPeerId,
+                  let peer = onlinePeers.first(where: { $0.id == peerId }) else {
+                return .automatic
+            }
+            return .peer(id: peer.id, name: peer.name ?? peer.subdomain)
+        }
+    }
+
+    func normalizeCurrentModelSelectionForExecutionTarget() {
+        guard let peer = selectedExecutionPeer else { return }
+
+        if useMultiplePromptModels {
+            let normalized = normalizedSelections(
+                deduplicatedSelections(multiModelSelections),
+                fallbackProviderId: selectedProviderId
+            )
+            let filtered = normalized.filter { selection in
+                compatibleProvider(for: selection.providerId, on: peer) != nil &&
+                supportedModelIds(for: selection.providerId, on: peer).contains(selection.modelId)
+            }
+            if filtered != multiModelSelections {
+                multiModelSelections = filtered
+            }
+            return
+        }
+
+        guard let provider = compatibleProvider(for: selectedProviderId, on: peer)
+            ?? compatibleProviders(on: peer).first else {
+            return
+        }
+
+        if selectedProviderId != provider.id {
+            selectedProviderId = provider.id
+            serviceTier = resolvedServiceTier(serviceTier, for: provider.id)
+        }
+
+        let supportedModels = supportedModelIds(for: provider.id, on: peer)
+        guard !supportedModels.isEmpty else { return }
+
+        let currentModel = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !supportedModels.contains(currentModel) else { return }
+
+        let restoredModel = UserDefaults.standard.persistedModelId(for: provider.id) ?? ""
+        if supportedModels.contains(restoredModel) {
+            selectedModelId = restoredModel
+        } else if let firstSupported = supportedModels.first {
+            selectedModelId = firstSupported
+        }
+        reasoningEnabled = nil
+        reasoningEffort = nil
+    }
+
+    private var selectedExecutionPeer: PeerNode? {
+        guard executionTarget.kind == .peer,
+              let peerId = executionTarget.targetPeerId else {
+            return nil
+        }
+        return clusterStatus.peers.first(where: { $0.id == peerId && $0.status == .online })
+    }
+
+    private func compatibleProviders(on peer: PeerNode) -> [LLMProviderRecord] {
+        providers.filter { provider in
+            peer.providers.contains(where: { summary in
+                summary.providerName.caseInsensitiveCompare(provider.displayName) == .orderedSame
+            })
+        }
+    }
+
+    private func compatibleProvider(for providerId: String, on peer: PeerNode) -> LLMProviderRecord? {
+        guard let provider = providers.first(where: { $0.id == providerId }) else { return nil }
+        return peer.providers.contains(where: { summary in
+            summary.providerName.caseInsensitiveCompare(provider.displayName) == .orderedSame
+        }) ? provider : nil
+    }
+
+    private func supportedModelIds(for providerId: String, on peer: PeerNode) -> [String] {
+        guard let provider = providers.first(where: { $0.id == providerId }),
+              let summary = peer.providers.first(where: {
+                  $0.providerName.caseInsensitiveCompare(provider.displayName) == .orderedSame
+              }) else {
+            return []
+        }
+        return summary.modelIds
+    }
+
+    func peerSupportsCurrentSelection(_ peer: PeerNode) -> Bool {
+        requestedExecutionDescriptors().allSatisfy { descriptor in
+            peer.capabilityMatch(
+                providerName: descriptor.providerName,
+                modelId: descriptor.modelId
+            ) != .unsupported
+        }
+    }
+
+    func requestedExecutionDescriptors() -> [(providerName: String, modelId: String)] {
+        let providerNames = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0.displayName) })
+
+        if useMultiplePromptModels {
+            let selections = normalizedSelections(
+                deduplicatedSelections(multiModelSelections),
+                fallbackProviderId: selectedProviderId
+            )
+            return selections.compactMap { selection in
+                let providerId = selection.providerId.trimmingCharacters(in: .whitespacesAndNewlines)
+                let modelId = selection.modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !providerId.isEmpty,
+                      !modelId.isEmpty,
+                      let providerName = providerNames[providerId] else {
+                    return nil
+                }
+                return (providerName: providerName, modelId: modelId)
+            }
+        }
+
+        let providerId = selectedProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelId = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !providerId.isEmpty,
+              !modelId.isEmpty,
+              let providerName = providerNames[providerId] else {
+            return []
+        }
+        return [(providerName: providerName, modelId: modelId)]
+    }
+
     func restorePersistedModelForSelectedProvider() {
         let restoredModelId = UserDefaults.standard.persistedModelId(for: selectedProviderId) ?? ""
         if selectedModelId != restoredModelId {

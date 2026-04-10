@@ -163,6 +163,7 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
     func getClusterStatus() async throws -> APIClusterStatus {
         let role = await clusterManager.role
         let peers = await clusterManager.peers
+        let localProviders = await localProviderSummaries()
         
         let localMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
         let (localRunning, localQueued) = await MainActor.run {
@@ -172,6 +173,7 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
                 taskService?.tasks.filter { $0.status == .queued || $0.status == .waitingForVM }.count ?? 0
             )
         }
+        let localAvailableSlots = max(0, localMax - localRunning)
         
         var totalCapacity = localMax
         var totalRunning = localRunning
@@ -201,7 +203,10 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             totalRunning: totalRunning,
             totalQueued: totalQueued,
             localCapacity: localMax,
+            localAvailableSlots: localAvailableSlots,
             localRunning: localRunning,
+            localQueued: localQueued,
+            localProviders: localProviders,
             peers: peerList
         )
     }
@@ -219,5 +224,36 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
                 lastSeen: node.lastSeen
             )
         }
+    }
+
+    private func localProviderSummaries() async -> [PeerProviderSummary] {
+        let descriptor = FetchDescriptor<LLMProviderRecord>()
+        let providers = (try? localProvider.modelContext.fetch(descriptor)) ?? []
+        guard !providers.isEmpty else { return [] }
+
+        var summaries: [PeerProviderSummary] = []
+        summaries.reserveCapacity(providers.count)
+
+        for provider in providers {
+            do {
+                let models = try await localProvider.fetchModelsFromProvider(provider)
+                summaries.append(
+                    PeerProviderSummary(
+                        providerName: provider.displayName,
+                        modelIds: models.map(\.id)
+                    )
+                )
+            } catch {
+                print("ClusterServiceProviderBridge: Failed to load models for local provider \(provider.displayName): \(error)")
+                summaries.append(
+                    PeerProviderSummary(
+                        providerName: provider.displayName,
+                        modelIds: []
+                    )
+                )
+            }
+        }
+
+        return summaries
     }
 }

@@ -181,7 +181,10 @@ public struct APIClusterStatus: Codable, Sendable {
     public let totalRunning: Int
     public let totalQueued: Int
     public let localCapacity: Int
+    public let localAvailableSlots: Int
     public let localRunning: Int
+    public let localQueued: Int
+    public let localProviders: [PeerProviderSummary]
     public let peers: [APIClusterPeer]
     
     public init(
@@ -190,7 +193,10 @@ public struct APIClusterStatus: Codable, Sendable {
         totalRunning: Int,
         totalQueued: Int,
         localCapacity: Int,
+        localAvailableSlots: Int,
         localRunning: Int,
+        localQueued: Int,
+        localProviders: [PeerProviderSummary] = [],
         peers: [APIClusterPeer]
     ) {
         self.role = role
@@ -198,8 +204,50 @@ public struct APIClusterStatus: Codable, Sendable {
         self.totalRunning = totalRunning
         self.totalQueued = totalQueued
         self.localCapacity = localCapacity
+        self.localAvailableSlots = localAvailableSlots
         self.localRunning = localRunning
+        self.localQueued = localQueued
+        self.localProviders = localProviders
         self.peers = peers
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case totalCapacity
+        case totalRunning
+        case totalQueued
+        case localCapacity
+        case localAvailableSlots
+        case localRunning
+        case localQueued
+        case localProviders
+        case peers
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let role = try container.decode(String.self, forKey: .role)
+        let totalCapacity = try container.decode(Int.self, forKey: .totalCapacity)
+        let totalRunning = try container.decode(Int.self, forKey: .totalRunning)
+        let totalQueued = try container.decode(Int.self, forKey: .totalQueued)
+        let localCapacity = try container.decode(Int.self, forKey: .localCapacity)
+        let localRunning = try container.decode(Int.self, forKey: .localRunning)
+        let localAvailableSlots = try container.decodeIfPresent(Int.self, forKey: .localAvailableSlots) ?? localCapacity
+        let localQueued = try container.decodeIfPresent(Int.self, forKey: .localQueued) ?? 0
+        let localProviders = try container.decodeIfPresent([PeerProviderSummary].self, forKey: .localProviders) ?? []
+        let peers = try container.decode([APIClusterPeer].self, forKey: .peers)
+        self.init(
+            role: role,
+            totalCapacity: totalCapacity,
+            totalRunning: totalRunning,
+            totalQueued: totalQueued,
+            localCapacity: localCapacity,
+            localAvailableSlots: localAvailableSlots,
+            localRunning: localRunning,
+            localQueued: localQueued,
+            localProviders: localProviders,
+            peers: peers
+        )
     }
 }
 

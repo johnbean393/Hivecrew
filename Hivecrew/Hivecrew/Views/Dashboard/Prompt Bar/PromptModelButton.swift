@@ -13,6 +13,7 @@ struct PromptModelButton: View {
     
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var executionTarget: TaskExecutionTarget
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
     @Binding var serviceTier: LLMServiceTier?
@@ -116,6 +117,7 @@ struct PromptModelButton: View {
             PromptModelPopover(
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
+                executionTarget: $executionTarget,
                 reasoningEnabled: $reasoningEnabled,
                 reasoningEffort: $reasoningEffort,
                 serviceTier: $serviceTier,
@@ -169,6 +171,7 @@ struct PromptModelButton: View {
             PromptModelButton(
                 selectedProviderId: $providerId,
                 selectedModelId: $modelId,
+                executionTarget: .constant(.automatic),
                 reasoningEnabled: .constant(nil),
                 reasoningEffort: .constant(nil),
                 serviceTier: $serviceTier,

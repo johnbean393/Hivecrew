@@ -63,6 +63,7 @@ actor ClusterManager {
     
     private static let healthCheckInterval: TimeInterval = 10
     private static let dispatchOrderKey = "clusterDispatchOrder"
+    private static let maxReportedPeerCount = 1_000_000
     
     private static let healthSession: URLSession = {
         let config = URLSessionConfiguration.default
@@ -190,9 +191,12 @@ actor ClusterManager {
         let client = PeerAPIClient(baseURL: peer.url, clusterToken: clusterToken)
         
         do {
-            let systemStatus = try await client.systemStatus()
+            let clusterStatus = try await client.getClusterStatus()
             let existing = peers[peer.tunnelId]
             let wasUnavailable = existing?.status != .online || (existing?.availableSlots ?? 0) == 0
+            let availableSlots = Self.sanitizeReportedCount(clusterStatus.localAvailableSlots, label: "availableSlots", peerId: peer.tunnelId)
+            let runningTasks = Self.sanitizeReportedCount(clusterStatus.localRunning, label: "runningTasks", peerId: peer.tunnelId)
+            let queuedTasks = Self.sanitizeReportedCount(clusterStatus.localQueued, label: "queuedTasks", peerId: peer.tunnelId)
             
             peers[peer.tunnelId] = PeerNode(
                 id: peer.tunnelId,
@@ -200,15 +204,15 @@ actor ClusterManager {
                 name: peer.name,
                 tunnelUrl: peer.url,
                 status: .online,
-                availableSlots: systemStatus.vms.available,
-                runningTasks: systemStatus.agents.running,
-                queuedTasks: systemStatus.agents.queued,
+                availableSlots: availableSlots,
+                runningTasks: runningTasks,
+                queuedTasks: queuedTasks,
                 lastSeen: Date(),
                 providers: existing?.providers ?? []
             )
             await publishPeerUpdate()
             
-            if wasUnavailable, systemStatus.vms.available > 0 {
+            if wasUnavailable, availableSlots > 0 {
                 await MainActor.run {
                     NotificationCenter.default.post(name: .clusterPeerBecameAvailable, object: nil)
                 }
@@ -249,15 +253,18 @@ actor ClusterManager {
     // MARK: - Peer Management
     
     func registerPeer(_ announcement: PeerAnnouncement) async {
+        let availableSlots = Self.sanitizeReportedCount(announcement.availableSlots, label: "announcement availableSlots", peerId: announcement.tunnelId)
+        let runningTasks = Self.sanitizeReportedCount(announcement.runningTasks, label: "announcement runningTasks", peerId: announcement.tunnelId)
+        let queuedTasks = Self.sanitizeReportedCount(announcement.queuedTasks, label: "announcement queuedTasks", peerId: announcement.tunnelId)
         let node = PeerNode(
             id: announcement.tunnelId,
             subdomain: announcement.subdomain,
             name: announcement.name,
             tunnelUrl: announcement.tunnelUrl,
             status: .online,
-            availableSlots: announcement.availableSlots,
-            runningTasks: announcement.runningTasks,
-            queuedTasks: announcement.queuedTasks,
+            availableSlots: availableSlots,
+            runningTasks: runningTasks,
+            queuedTasks: queuedTasks,
             lastSeen: Date(),
             providers: announcement.providers ?? []
         )
@@ -310,9 +317,9 @@ actor ClusterManager {
             await registerPeer(announcement)
             return
         }
-        node.availableSlots = announcement.availableSlots
-        node.runningTasks = announcement.runningTasks
-        node.queuedTasks = announcement.queuedTasks
+        node.availableSlots = Self.sanitizeReportedCount(announcement.availableSlots, label: "capacity availableSlots", peerId: announcement.tunnelId)
+        node.runningTasks = Self.sanitizeReportedCount(announcement.runningTasks, label: "capacity runningTasks", peerId: announcement.tunnelId)
+        node.queuedTasks = Self.sanitizeReportedCount(announcement.queuedTasks, label: "capacity queuedTasks", peerId: announcement.tunnelId)
         node.status = .online
         node.lastSeen = Date()
         if let providers = announcement.providers {
@@ -320,6 +327,18 @@ actor ClusterManager {
         }
         peers[announcement.tunnelId] = node
         await publishPeerUpdate()
+    }
+
+    private static func sanitizeReportedCount(_ value: Int, label: String, peerId: String) -> Int {
+        if value < 0 {
+            print("ClusterManager: Received negative \(label) from peer \(peerId); clamping to 0")
+            return 0
+        }
+        if value > maxReportedPeerCount {
+            print("ClusterManager: Received suspicious \(label)=\(value) from peer \(peerId); clamping to \(maxReportedPeerCount)")
+            return maxReportedPeerCount
+        }
+        return value
     }
     
     func markPeerOffline(tunnelId: String) async {
@@ -366,6 +385,34 @@ actor ClusterManager {
         reserveSlotInternal(peerId: peer.id)
         return peer
     }
+
+    func reserveSpecificPeer(
+        peerId: String,
+        providerName: String? = nil,
+        modelId: String? = nil
+    ) async -> PeerNode? {
+        if let providerName, let modelId {
+            await refreshCapabilitiesIfNeeded(
+                peerId: peerId,
+                providerName: providerName,
+                modelId: modelId
+            )
+        }
+
+        guard let peer = peers[peerId],
+              peer.status == .online,
+              peer.availableSlots > 0 else {
+            return nil
+        }
+
+        if let providerName, let modelId,
+           peer.capabilityMatch(providerName: providerName, modelId: modelId) != .supported {
+            return nil
+        }
+
+        reserveSlotInternal(peerId: peer.id)
+        return peer
+    }
     
     /// Release a previously reserved slot (used when dispatch fails).
     func releaseSlot(peerId: String) {
@@ -399,6 +446,25 @@ actor ClusterManager {
     
     func allOnlinePeers() -> [PeerNode] {
         peers.values.filter { $0.status == .online }
+    }
+
+    func peer(id: String) -> PeerNode? {
+        peers[id]
+    }
+
+    func markPeerOnline(tunnelId: String) async {
+        guard var node = peers[tunnelId] else { return }
+        guard node.status != .online else { return }
+        let wasUnavailable = node.availableSlots > 0
+        node.status = .online
+        node.lastSeen = Date()
+        peers[tunnelId] = node
+        await publishPeerUpdate()
+        if wasUnavailable {
+            await MainActor.run {
+                NotificationCenter.default.post(name: .clusterPeerBecameAvailable, object: nil)
+            }
+        }
     }
     
     // MARK: - Dispatch Order
@@ -614,6 +680,26 @@ actor ClusterManager {
                 }
             }
         }
+    }
+
+    private func refreshCapabilitiesIfNeeded(
+        peerId: String,
+        providerName: String,
+        modelId: String
+    ) async {
+        guard let token = clusterToken,
+              let peer = peers[peerId],
+              peer.status == .online,
+              peer.availableSlots > 0,
+              peer.capabilityMatch(providerName: providerName, modelId: modelId) == .unknown else {
+            return
+        }
+
+        await fetchPeerCapabilities(
+            peerId: peer.id,
+            baseURL: peer.tunnelUrl,
+            clusterToken: token
+        )
     }
 
     nonisolated static func selectBestPeer(

@@ -62,6 +62,11 @@ actor PeerAPIClient {
     func getProviders() async throws -> APIProviderListResponse {
         return try await get("/api/v1/providers")
     }
+
+    func getSkills() async throws -> [APISkill] {
+        let response: APISkillListResponse = try await get("/api/v1/skills")
+        return response.skills
+    }
     
     func getProviderModels(providerId: String) async throws -> APIModelListResponse {
         return try await get("/api/v1/providers/\(providerId)/models")
@@ -69,9 +74,18 @@ actor PeerAPIClient {
     
     /// Fetch full provider capability summary (names + model IDs) from the peer.
     func fetchProviderCapabilities() async throws -> [PeerProviderSummary] {
+        let clusterStatus = try await getClusterStatus()
+        if !clusterStatus.localProviders.isEmpty {
+            return clusterStatus.localProviders
+        }
+
+        guard clusterStatus.role != "member" else {
+            return []
+        }
+
         let providersResponse: APIProviderListResponse = try await get("/api/v1/providers")
         var summaries: [PeerProviderSummary] = []
-        
+
         for provider in providersResponse.providers {
             let modelsResponse: APIModelListResponse = try await get("/api/v1/providers/\(provider.id)/models")
             summaries.append(PeerProviderSummary(
@@ -79,7 +93,7 @@ actor PeerAPIClient {
                 modelIds: modelsResponse.models.map(\.id)
             ))
         }
-        
+
         return summaries
     }
     

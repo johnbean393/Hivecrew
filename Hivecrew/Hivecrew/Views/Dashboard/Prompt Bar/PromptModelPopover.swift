@@ -9,15 +9,17 @@ import AppKit
 import SQLite3
 import SwiftUI
 import SwiftData
+import HivecrewAPI
 import HivecrewLLM
 
 /// Popover with searchable model list
 struct PromptModelPopover: View {
     private static let codexRateLimitSnapshotMaxAge: TimeInterval = 300
 
-    @Environment(\.modelContext) private var modelContext
+    @SwiftUI.Environment(\.modelContext) private var modelContext
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var executionTarget: TaskExecutionTarget
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
     @Binding var serviceTier: LLMServiceTier?
@@ -26,6 +28,7 @@ struct PromptModelPopover: View {
     @Binding var multiModelSelections: [PromptModelSelection]
     let providers: [LLMProviderRecord]
     @Binding var isPresented: Bool
+    @ObservedObject private var clusterStatus = ClusterStatus.shared
     
     @State private var searchText: String = ""
     @State private var availableModels: [LLMProviderModel] = []
@@ -38,6 +41,7 @@ struct PromptModelPopover: View {
     @State private var modelListViewportHeight: CGFloat = 0
     @State private var codexRateLimitSnapshot: CodexRateLimitSnapshot?
     @State private var codexRateLimitRefreshTask: Task<Void, Never>?
+    @State private var modelLoadGeneration: Int = 0
     @StateObject private var hoverPanelController = ModelHoverInfoPanelController()
     
     private let hoverPanelOpenDelay: TimeInterval = 0.14
@@ -49,8 +53,22 @@ struct PromptModelPopover: View {
         return formatter
     }()
     
+    private var executionTargetPeer: PeerNode? {
+        guard executionTarget.kind == .peer,
+              let peerId = executionTarget.targetPeerId else { return nil }
+        return clusterStatus.peers.first(where: { $0.id == peerId })
+    }
+
+    private var visibleProviders: [LLMProviderRecord] {
+        guard let peer = executionTargetPeer, !peer.providers.isEmpty else {
+            return providers
+        }
+        let providerNames = Set(peer.providers.map { $0.providerName.lowercased() })
+        return providers.filter { providerNames.contains($0.displayName.lowercased()) }
+    }
+
     var selectedProvider: LLMProviderRecord? {
-        providers.first(where: { $0.id == selectedProviderId })
+        visibleProviders.first(where: { $0.id == selectedProviderId })
     }
     
     var isOpenRouterProvider: Bool {
@@ -89,7 +107,14 @@ struct PromptModelPopover: View {
     }
     
     var providerScopedModels: [LLMProviderModel] {
-        return availableModels
+        guard let peer = executionTargetPeer,
+              let provider = selectedProvider,
+              let providerSummary = peer.providers.first(where: { $0.providerName.caseInsensitiveCompare(provider.displayName) == .orderedSame }),
+              !providerSummary.modelIds.isEmpty else {
+            return availableModels
+        }
+        let supportedModelIds = Set(providerSummary.modelIds)
+        return availableModels.filter { supportedModelIds.contains($0.id) }
     }
     
     var orderedProviderScopedModels: [LLMProviderModel] {
@@ -117,7 +142,7 @@ struct PromptModelPopover: View {
     var body: some View {
         VStack(spacing: 0) {
             // Provider selector
-            if providers.count > 1 {
+            if visibleProviders.count > 1 {
                 providerSection
                 Divider()
             }
@@ -141,6 +166,7 @@ struct PromptModelPopover: View {
         }
         .frame(width: popoverWidth, height: 480)
         .onAppear {
+            synchronizeProviderSelectionWithExecutionTarget()
             loadModels()
             refreshCodexRateLimitSnapshot()
             refreshCodexRateLimitSnapshotFromAPI()
@@ -155,6 +181,15 @@ struct PromptModelPopover: View {
             loadModels()
             refreshCodexRateLimitSnapshot()
             refreshCodexRateLimitSnapshotFromAPI()
+        }
+        .onChange(of: executionTarget) { _, _ in
+            resetHoverPanelState()
+            synchronizeProviderSelectionWithExecutionTarget()
+            loadModels()
+        }
+        .onReceive(clusterStatus.$peers) { _ in
+            synchronizeProviderSelectionWithExecutionTarget()
+            synchronizeSelectionWithVisibleModels()
         }
         .onChange(of: searchText) { _, _ in
             resetHoverPanelState()
@@ -190,7 +225,7 @@ struct PromptModelPopover: View {
     private var providerSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(providers, id: \.id) { provider in
+                ForEach(visibleProviders, id: \.id) { provider in
                     providerChip(provider)
                 }
             }
@@ -948,8 +983,13 @@ struct PromptModelPopover: View {
     // MARK: - Load Models
     
     private func loadModels() {
+        modelLoadGeneration += 1
+        let generation = modelLoadGeneration
+
         guard let provider = selectedProvider else {
             availableModels = []
+            isLoading = false
+            errorMessage = nil
             selectedModelId = ""
             resetHoverPanelState()
             return
@@ -960,6 +1000,7 @@ struct PromptModelPopover: View {
             guard let stored = provider.retrieveAPIKey() else {
                 errorMessage = "No API key configured"
                 availableModels = []
+                isLoading = false
                 resetHoverPanelState()
                 return
             }
@@ -970,6 +1011,8 @@ struct PromptModelPopover: View {
         
         isLoading = true
         errorMessage = nil
+        availableModels = []
+        synchronizeSelectionWithVisibleModels()
         
         Task {
             do {
@@ -982,13 +1025,16 @@ struct PromptModelPopover: View {
                 let models = try await client.listModelsDetailed()
                 
                 await MainActor.run {
+                    guard generation == modelLoadGeneration else { return }
                     self.availableModels = models
                     self.isLoading = false
+                    self.synchronizeProviderSelectionWithExecutionTarget()
                     synchronizeSelectionWithVisibleModels()
                     synchronizeReasoningSelectionsForVisibleModels()
                 }
             } catch {
                 await MainActor.run {
+                    guard generation == modelLoadGeneration else { return }
                     self.errorMessage = error.localizedDescription
                     self.isLoading = false
                     
@@ -1015,6 +1061,14 @@ struct PromptModelPopover: View {
             UserDefaults.standard.setPersistedModelId(firstVisibleModel.id, for: selectedProviderId)
         }
         synchronizeReasoningSelectionForCurrentModel()
+    }
+
+    private func synchronizeProviderSelectionWithExecutionTarget() {
+        guard !visibleProviders.isEmpty else { return }
+        if selectedProvider == nil, let firstProvider = visibleProviders.first {
+            selectedProviderId = firstProvider.id
+            selectedModelId = UserDefaults.standard.persistedModelId(for: firstProvider.id) ?? ""
+        }
     }
     
     private func primaryRowTitle(_ model: LLMProviderModel) -> String {

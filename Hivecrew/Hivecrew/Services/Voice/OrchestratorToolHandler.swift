@@ -333,6 +333,7 @@ enum OrchestratorToolHandler {
                 description: description,
                 providerId: providerId,
                 modelId: modelId,
+                executionTarget: .automatic,
                 reasoningEnabled: nil,
                 reasoningEffort: nil,
                 serviceTier: nil,
@@ -367,6 +368,7 @@ enum OrchestratorToolHandler {
                     description: description,
                     providerId: providerId,
                     modelId: modelId,
+                    executionTarget: .automatic,
                     attachedFilePaths: filePaths
                 )
             }

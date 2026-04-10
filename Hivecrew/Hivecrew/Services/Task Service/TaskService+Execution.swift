@@ -174,6 +174,15 @@ extension TaskService {
             }
             return
         }
+
+        guard !task.isPinnedToPeerExecution else {
+            if task.status != .queued {
+                task.status = .queued
+                try? context.save()
+                objectWillChange.send()
+            }
+            return
+        }
         
         if !skipCapacityReservation, !reserveExecutionSlot(for: task, context: context) {
             return

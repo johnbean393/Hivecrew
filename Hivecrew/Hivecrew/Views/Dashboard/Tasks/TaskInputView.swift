@@ -17,6 +17,7 @@ struct TaskInputView: View {
     @EnvironmentObject var taskService: TaskService
     @Environment(\.modelContext) private var modelContext
     @Query var providers: [LLMProviderRecord]
+    @ObservedObject var clusterStatus = ClusterStatus.shared
     
     @State private var taskDescription: String = ""
     @State var attachments: [PromptAttachment] = []
@@ -26,6 +27,7 @@ struct TaskInputView: View {
     @State private var continuationSourceTaskId: String?
     @State var copyCount: TaskCopyCount = .one
     @State var multiModelSelections: [PromptModelSelection] = []
+    @State var executionTarget: TaskExecutionTarget = .automatic
     @State var reasoningEnabled: Bool?
     @State var reasoningEffort: String?
     @State var serviceTier: LLMServiceTier?
@@ -61,6 +63,7 @@ struct TaskInputView: View {
                 },
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
+                executionTarget: $executionTarget,
                 reasoningEnabled: $reasoningEnabled,
                 reasoningEffort: $reasoningEffort,
                 serviceTier: $serviceTier,
@@ -100,6 +103,7 @@ struct TaskInputView: View {
             loadPromptModelSelections()
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
+            synchronizePromptConfigurationForExecutionTarget()
         }
         .onChange(of: providers) { _, newValue in
             // Update if no provider selected or stored provider was deleted.
@@ -111,6 +115,7 @@ struct TaskInputView: View {
             restorePersistedModelForSelectedProvider()
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
+            synchronizePromptConfigurationForExecutionTarget()
         }
         .onChange(of: taskDescription) { _, newValue in
             contextProvider.updateDraft(newValue)
@@ -126,14 +131,28 @@ struct TaskInputView: View {
         }
         .onChange(of: multiModelSelections) { _, _ in
             persistPromptModelSelections()
+            synchronizePromptConfigurationForExecutionTarget()
         }
         .onChange(of: selectedProviderId) { _, _ in
             restorePersistedModelForSelectedProvider()
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
+            synchronizePromptConfigurationForExecutionTarget()
+        }
+        .onChange(of: selectedModelId) { _, _ in
+            synchronizePromptConfigurationForExecutionTarget()
+        }
+        .onChange(of: useMultiplePromptModels) { _, _ in
+            synchronizePromptConfigurationForExecutionTarget()
+        }
+        .onChange(of: executionTarget) { _, _ in
+            synchronizePromptConfigurationForExecutionTarget()
         }
         .onChange(of: serviceTier) { _, newValue in
             persistServiceTier(newValue, for: selectedProviderId)
+        }
+        .onReceive(clusterStatus.$peers) { _ in
+            synchronizePromptConfigurationForExecutionTarget()
         }
         .onReceive(NotificationCenter.default.publisher(for: .continueFromTask)) { notification in
             guard let taskId = notification.userInfo?["taskId"] as? String,
@@ -217,6 +236,7 @@ struct TaskInputView: View {
                         description: trimmedDescription,
                         providerId: target.providerId,
                         modelId: target.modelId,
+                        executionTarget: executionTarget,
                         reasoningEnabled: target.reasoningEnabled,
                         reasoningEffort: target.reasoningEffort,
                         serviceTier: target.serviceTier,
@@ -358,6 +378,7 @@ struct TaskInputView: View {
         reasoningEnabled = task.reasoningEnabled
         reasoningEffort = task.reasoningEffort
         serviceTier = task.serviceTier
+        executionTarget = normalizedExecutionTarget(task.executionTarget)
         planFirstEnabled = task.planFirstEnabled
         mentionedSkillNames = task.mentionedSkillNames ?? []
         referencedTaskIds = task.referencedTaskIds ?? []

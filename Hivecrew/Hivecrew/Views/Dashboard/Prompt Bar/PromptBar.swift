@@ -88,6 +88,7 @@ struct PromptBar: View {
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var taskService: TaskService
     @Query private var providers: [LLMProviderRecord]
+    @ObservedObject private var clusterStatus = ClusterStatus.shared
     
     // Text state
     @Binding var text: String
@@ -102,6 +103,7 @@ struct PromptBar: View {
     // Model selection state
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
+    @Binding var executionTarget: TaskExecutionTarget
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
     @Binding var serviceTier: LLMServiceTier?
@@ -188,6 +190,16 @@ struct PromptBar: View {
         }
         return !selectedProviderId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    private var availableExecutionPeers: [PeerNode] {
+        clusterStatus.peers
+            .filter { $0.status == .online }
+            .sorted {
+                let lhs = $0.name ?? $0.subdomain
+                let rhs = $1.name ?? $1.subdomain
+                return lhs.localizedStandardCompare(rhs) == .orderedAscending
+            }
+    }
     
     private var showMentionSuggestions: Bool {
         // Only show when there's a query with at least one character after @
@@ -239,6 +251,7 @@ struct PromptBar: View {
             // Initialize mention provider with current attachments
             mentionProvider.updateAttachments(attachments)
             mentionProvider.updateTasks(taskService.inactiveTasksForContinuationSuggestions())
+            mentionProvider.updateExecutionTarget(executionTarget)
         }
         .onDisappear {
             removeKeyEventMonitor()
@@ -279,6 +292,9 @@ struct PromptBar: View {
         }
         .onChange(of: taskService.tasks) { _, _ in
             mentionProvider.updateTasks(taskService.inactiveTasksForContinuationSuggestions())
+        }
+        .onChange(of: executionTarget) { _, newTarget in
+            mentionProvider.updateExecutionTarget(newTarget)
         }
     }
     
@@ -330,6 +346,7 @@ struct PromptBar: View {
                     PromptModelButton(
                         selectedProviderId: $selectedProviderId,
                         selectedModelId: $selectedModelId,
+                        executionTarget: $executionTarget,
                         reasoningEnabled: $reasoningEnabled,
                         reasoningEffort: $reasoningEffort,
                         serviceTier: $serviceTier,
@@ -357,6 +374,19 @@ struct PromptBar: View {
                         )
                         .padding(.leading, isReasoningControlVisible ? 0 : -8)
                         .popoverTip(batchExecutionTip, arrowEdge: .bottom)
+                    }
+
+                    if !availableExecutionPeers.isEmpty {
+                        PromptExecutionTargetButton(
+                            executionTarget: $executionTarget,
+                            selectedProviderId: $selectedProviderId,
+                            selectedModelId: $selectedModelId,
+                            useMultipleModels: $useMultipleModels,
+                            multiModelSelections: $multiModelSelections,
+                            peers: availableExecutionPeers,
+                            providers: Array(providers),
+                            isFocused: isFocused
+                        )
                     }
                     
                     // Plan First toggle (rightmost)
@@ -664,6 +694,7 @@ struct PromptReasoningButton: View {
 
     @State private var availableModels: [LLMProviderModel] = []
     @State private var anchorView: NSView?
+    @State private var modelLoadGeneration: Int = 0
 
     private var selectedProvider: LLMProviderRecord? {
         providers.first(where: { $0.id == selectedProviderId })
@@ -839,17 +870,19 @@ struct PromptReasoningButton: View {
     }
 
     private func loadModels() {
+        modelLoadGeneration += 1
+        let generation = modelLoadGeneration
+
+        availableModels = []
+        synchronizeSelection()
+
         guard let provider = selectedProvider else {
-            availableModels = []
-            synchronizeSelection()
             return
         }
 
         let apiKey: String
         if provider.authMode == .apiKey {
             guard let stored = provider.retrieveAPIKey() else {
-                availableModels = []
-                synchronizeSelection()
                 return
             }
             apiKey = stored
@@ -866,11 +899,13 @@ struct PromptReasoningButton: View {
                 let client = LLMService.shared.createClient(from: config)
                 let models = try await client.listModelsDetailed()
                 await MainActor.run {
+                    guard generation == modelLoadGeneration else { return }
                     availableModels = models
                     synchronizeSelection()
                 }
             } catch {
                 await MainActor.run {
+                    guard generation == modelLoadGeneration else { return }
                     availableModels = []
                     synchronizeSelection()
                 }
@@ -890,6 +925,144 @@ struct PromptReasoningButton: View {
     }
 }
 
+struct PromptExecutionTargetMenuOption: Equatable {
+    let target: TaskExecutionTarget
+    let title: String
+    let isEnabled: Bool
+}
+
+struct PromptExecutionTargetButton: View {
+    @Binding var executionTarget: TaskExecutionTarget
+    @Binding var selectedProviderId: String
+    @Binding var selectedModelId: String
+    @Binding var useMultipleModels: Bool
+    @Binding var multiModelSelections: [PromptModelSelection]
+    let peers: [PeerNode]
+    let providers: [LLMProviderRecord]
+    var isFocused: Bool = false
+
+    @State private var anchorView: NSView?
+
+    private var selectedTextColor: Color {
+        if isFocused {
+            return .accentColor
+        }
+        return .primary.opacity(0.5)
+    }
+
+    private var selectedBackgroundColor: Color {
+        if isFocused {
+            return Color.accentColor.opacity(0.3)
+        }
+        return .white.opacity(0.0001)
+    }
+
+    private var unselectedBorderColor: Color {
+        .primary.opacity(0.3)
+    }
+
+    private var menuLabelColor: NSColor {
+        isFocused ? .controlAccentColor : NSColor(Color.primary.opacity(0.5))
+    }
+
+    private var selectedLabel: String {
+        executionTarget.displayName
+    }
+
+    private var requestedDescriptors: [(providerName: String, modelId: String)] {
+        let providerNames = Dictionary(uniqueKeysWithValues: providers.map { ($0.id, $0.displayName) })
+
+        if useMultipleModels {
+            return multiModelSelections.compactMap { selection in
+                let providerId = selection.providerId.trimmingCharacters(in: .whitespacesAndNewlines)
+                let modelId = selection.modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !providerId.isEmpty,
+                      !modelId.isEmpty,
+                      let providerName = providerNames[providerId] else {
+                    return nil
+                }
+                return (providerName: providerName, modelId: modelId)
+            }
+        }
+
+        let providerId = selectedProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelId = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !providerId.isEmpty,
+              !modelId.isEmpty,
+              let providerName = providerNames[providerId] else {
+            return []
+        }
+        return [(providerName: providerName, modelId: modelId)]
+    }
+
+    private var menuOptions: [PromptExecutionTargetMenuOption] {
+        let peerOptions = peers.map { peer in
+            let isSupported = requestedDescriptors.allSatisfy { descriptor in
+                peer.capabilityMatch(
+                    providerName: descriptor.providerName,
+                    modelId: descriptor.modelId
+                ) != .unsupported
+            }
+            return PromptExecutionTargetMenuOption(
+                target: .peer(id: peer.id, name: peer.name ?? peer.subdomain),
+                title: peer.name ?? peer.subdomain,
+                isEnabled: isSupported
+            )
+        }
+
+        return [
+            PromptExecutionTargetMenuOption(target: .automatic, title: "Auto", isEnabled: true),
+            PromptExecutionTargetMenuOption(target: .local, title: "This Device", isEnabled: true)
+        ] + peerOptions
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            CopyCountAnchorRepresentable(view: $anchorView)
+                .frame(width: 0.1, height: 0.1)
+
+            HStack(spacing: 4) {
+                Image(systemName: "desktopcomputer")
+                    .font(.caption)
+                Text(selectedLabel)
+                    .font(.caption)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(selectedTextColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+
+            Rectangle()
+                .fill(isFocused ? selectedBackgroundColor : unselectedBorderColor)
+                .frame(width: 0.5, height: 18)
+
+            CopyCountMenuIcon(
+                iconName: "chevron.down",
+                color: menuLabelColor,
+                menu: NSMenu.fromExecutionTargetOptions(options: menuOptions) { target in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        executionTarget = target
+                    }
+                },
+                anchorViewProvider: {
+                    anchorView
+                }
+            )
+            .frame(width: 18, height: 18)
+            .padding(.trailing, 2)
+        }
+        .background {
+            ZStack {
+                Capsule()
+                    .fill(selectedBackgroundColor)
+                Capsule()
+                    .stroke(style: StrokeStyle(lineWidth: 0.3))
+                    .fill(isFocused ? selectedBackgroundColor : unselectedBorderColor)
+            }
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -898,6 +1071,7 @@ struct PromptReasoningButton: View {
         @State var attachments: [PromptAttachment] = []
         @State var providerId = ""
         @State var modelId = ""
+        @State var executionTarget: TaskExecutionTarget = .automatic
         @State var serviceTier: LLMServiceTier?
         @State var copyCount: TaskCopyCount = .one
         @State var useMultipleModels = false
@@ -918,6 +1092,7 @@ struct PromptReasoningButton: View {
                     ghostSuggestions: [],
                     selectedProviderId: $providerId,
                     selectedModelId: $modelId,
+                    executionTarget: $executionTarget,
                     reasoningEnabled: .constant(nil),
                     reasoningEffort: .constant(nil),
                     serviceTier: $serviceTier,

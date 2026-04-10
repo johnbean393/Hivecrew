@@ -141,6 +141,15 @@ actor RemoteAccessManager {
     /// Start cloudflared and connect the tunnel
     private func startCloudflared(tunnelToken: String, subdomain: String) async {
         await updateStatus(state: .connecting)
+
+        if await cloudflaredManager.isRunning {
+            let url = "https://\(subdomain).hivecrew.org"
+            let snapshot = await loadReconnectSnapshot()
+            await updateStatus(state: .connected, url: url, subdomain: subdomain, email: snapshot.email)
+            startHeartbeat()
+            print("RemoteAccessManager: Tunnel already running at \(url)")
+            return
+        }
         
         // Set up crash handler
         await cloudflaredManager.setOnUnexpectedTermination { [weak self] code in

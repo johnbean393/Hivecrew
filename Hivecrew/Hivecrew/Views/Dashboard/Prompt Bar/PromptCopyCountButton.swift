@@ -195,6 +195,8 @@ struct CopyCountMenuIcon: NSViewRepresentable {
             accessibilityDescription: nil
         )
         nsView.contentTintColor = color
+        context.coordinator.menu = menu
+        context.coordinator.anchorViewProvider = anchorViewProvider
     }
     
     func makeCoordinator() -> Coordinator {
@@ -206,8 +208,8 @@ struct CopyCountMenuIcon: NSViewRepresentable {
     
     class Coordinator: NSObject {
         
-        let menu: NSMenu
-        let anchorViewProvider: () -> NSView?
+        var menu: NSMenu
+        var anchorViewProvider: () -> NSView?
         
         init(
             menu: NSMenu,
@@ -300,6 +302,28 @@ extension NSMenu {
         }
         return menu
     }
+
+    static func fromExecutionTargetOptions(
+        options: [PromptExecutionTargetMenuOption],
+        selectionHandler: @escaping (TaskExecutionTarget) -> Void
+    ) -> NSMenu {
+        let menu = NSMenu()
+        for option in options {
+            let item = NSMenuItem(
+                title: option.title,
+                action: #selector(ExecutionTargetMenuHandler.handleMenu(_:)),
+                keyEquivalent: ""
+            )
+            item.target = ExecutionTargetMenuHandler.shared
+            item.isEnabled = option.isEnabled
+            item.representedObject = ExecutionTargetMenuHandler.OptionWrapper(
+                option: option.target,
+                handler: selectionHandler
+            )
+            menu.addItem(item)
+        }
+        return menu
+    }
 }
 
 // MARK: - CopyCountMenuHandler
@@ -328,6 +352,22 @@ fileprivate class ReasoningEffortMenuHandler: NSObject {
     struct OptionWrapper {
         let option: String
         let handler: (String) -> Void
+    }
+
+    @objc func handleMenu(_ sender: NSMenuItem) {
+        if let wrapper = sender.representedObject as? OptionWrapper {
+            wrapper.handler(wrapper.option)
+        }
+    }
+}
+
+fileprivate class ExecutionTargetMenuHandler: NSObject {
+
+    static let shared = ExecutionTargetMenuHandler()
+
+    struct OptionWrapper {
+        let option: TaskExecutionTarget
+        let handler: (TaskExecutionTarget) -> Void
     }
 
     @objc func handleMenu(_ sender: NSMenuItem) {

@@ -10,6 +10,7 @@ import Combine
 import Foundation
 import TipKit
 import UniformTypeIdentifiers
+import HivecrewAPI
 import HivecrewShared
 
 /// A suggestion item for @mention autocomplete
@@ -67,6 +68,17 @@ struct MentionSuggestion: Identifiable, Equatable {
         self.type = .skill
         self.icon = nil
         self.skillName = skill.name
+        self.taskId = nil
+    }
+
+    init(skillName: String, description: String) {
+        self.id = "skill:\(skillName)"
+        self.displayName = skillName
+        self.detail = String(description.prefix(60)) + (description.count > 60 ? "..." : "")
+        self.url = nil
+        self.type = .skill
+        self.icon = nil
+        self.skillName = skillName
         self.taskId = nil
     }
 
@@ -150,6 +162,9 @@ final class MentionSuggestionsProvider: ObservableObject {
     
     /// Skill manager for loading skills
     private let skillManager = SkillManager()
+    private var skillLoadTask: Task<Void, Never>?
+    private var currentExecutionTarget: TaskExecutionTarget = .automatic
+    private var remoteSkillSuggestionsByPeerId: [String: [MentionSuggestion]] = [:]
     
     /// Combined suggestions for filtering (deduplicated)
     private var allSuggestions: [MentionSuggestion] {
@@ -269,10 +284,12 @@ final class MentionSuggestionsProvider: ObservableObject {
     
     /// Load available skills
     func loadSkills() {
+        skillLoadTask?.cancel()
         Task {
             do {
                 let skills = try await skillManager.loadAllSkills()
                 await MainActor.run {
+                    guard self.currentExecutionTarget.kind != .peer else { return }
                     self.skillSuggestions = skills
                         .filter { $0.isEnabled }
                         .map { MentionSuggestion(skill: $0) }
@@ -280,6 +297,63 @@ final class MentionSuggestionsProvider: ObservableObject {
                 }
             } catch {
                 print("MentionSuggestionsProvider: Failed to load skills: \(error)")
+            }
+        }
+    }
+
+    func updateExecutionTarget(_ target: TaskExecutionTarget) {
+        currentExecutionTarget = target
+        switch target.kind {
+        case .automatic, .local:
+            loadSkills()
+        case .peer:
+            guard let peerId = target.targetPeerId else {
+                skillSuggestions = []
+                updateSuggestions()
+                return
+            }
+            if let cached = remoteSkillSuggestionsByPeerId[peerId] {
+                skillSuggestions = cached
+                updateSuggestions()
+                return
+            }
+            loadRemoteSkills(peerId: peerId)
+        }
+    }
+
+    private func loadRemoteSkills(peerId: String) {
+        skillLoadTask?.cancel()
+        skillLoadTask = Task {
+            guard let peer = await ClusterManager.shared.peer(id: peerId),
+                  let clusterToken = RemoteAccessKeychain.retrieveClusterToken(),
+                  !clusterToken.isEmpty else {
+                await MainActor.run {
+                    guard self.currentExecutionTarget.targetPeerId == peerId else { return }
+                    self.skillSuggestions = []
+                    self.updateSuggestions()
+                }
+                return
+            }
+
+            let client = PeerAPIClient(baseURL: peer.tunnelUrl, clusterToken: clusterToken)
+            do {
+                let skills = try await client.getSkills()
+                let suggestions = skills
+                    .filter(\.isEnabled)
+                    .map { MentionSuggestion(skillName: $0.name, description: $0.description) }
+                await MainActor.run {
+                    self.remoteSkillSuggestionsByPeerId[peerId] = suggestions
+                    guard self.currentExecutionTarget.targetPeerId == peerId else { return }
+                    self.skillSuggestions = suggestions
+                    self.updateSuggestions()
+                }
+            } catch {
+                await MainActor.run {
+                    guard self.currentExecutionTarget.targetPeerId == peerId else { return }
+                    self.skillSuggestions = []
+                    self.updateSuggestions()
+                }
+                print("MentionSuggestionsProvider: Failed to load remote skills for \(peerId): \(error)")
             }
         }
     }

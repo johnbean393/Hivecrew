@@ -117,6 +117,16 @@ struct SessionTraceView: View {
             remotePollTask?.cancel()
             remotePollTask = nil
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if shouldShowRemoteLiveTrace {
+                startRemotePolling()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            if shouldShowRemoteLiveTrace {
+                startRemotePolling()
+            }
+        }
         .quickLookPreview($quickLookURL)
         .sheet(isPresented: $showingSkillExtraction) {
             SkillExtractionSheet(task: task, taskService: taskService)

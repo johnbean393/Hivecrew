@@ -17,6 +17,7 @@ struct TaskCreationRequest {
     let description: String
     let providerId: String
     let modelId: String
+    let executionTarget: TaskExecutionTarget
     let reasoningEnabled: Bool?
     let reasoningEffort: String?
     let serviceTier: LLMServiceTier?
@@ -121,6 +122,7 @@ class TaskService: ObservableObject {
         description: String,
         providerId: String,
         modelId: String,
+        executionTarget: TaskExecutionTarget = .automatic,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
         serviceTier: LLMServiceTier? = nil,
@@ -147,6 +149,7 @@ class TaskService: ObservableObject {
             description: description,
             providerId: providerId,
             modelId: modelId,
+            executionTarget: executionTarget,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             serviceTier: serviceTier,
@@ -218,6 +221,7 @@ class TaskService: ObservableObject {
                 sortOrder: index,
                 providerId: request.providerId,
                 modelId: request.modelId,
+                executionTarget: request.executionTarget,
                 reasoningEnabled: request.reasoningEnabled,
                 reasoningEffort: request.reasoningEffort,
                 serviceTier: request.serviceTier,
@@ -383,6 +387,7 @@ class TaskService: ObservableObject {
             description: originalTask.taskDescription,
             providerId: providerId,
             modelId: modelId,
+            executionTarget: originalTask.executionTarget,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             serviceTier: serviceTier,
@@ -479,6 +484,7 @@ class TaskService: ObservableObject {
     /// Recover tasks that were left in an active state from a previous session
     /// - Queued/WaitingForVM tasks: leave them queued for the startup sheet
     /// - Running tasks: mark as queued (so they can be restarted from startup sheet)
+    /// - Remotely executing owner tasks: leave them running so owner-side reconciliation can reconnect
     /// - Paused tasks with missing VMs: requeue them (VM was lost)
     /// - Paused tasks with existing VMs: keep them paused (can be resumed)
     private func recoverOrphanedTasks() {
@@ -489,6 +495,12 @@ class TaskService: ObservableObject {
         var pausedRequeued = 0
         
         for task in tasks where task.status.isActive {
+            // Owner-side remote executions do not have a local running agent after relaunch.
+            // Keep them active so remote reconciliation and live polling can reconnect.
+            if task.isExecutingRemotely || task.clusterExecutionState == .recoveringRemote {
+                continue
+            }
+
             // If the task is in an active state but we don't have a running agent for it,
             // it means the app was killed while the task was running
             if runningAgents[task.id] == nil {

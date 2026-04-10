@@ -190,6 +190,15 @@ final class TaskRecord {
     /// Owning node tunnel ID for executor-side cluster execution records.
     /// Nil for locally-owned tasks.
     var clusterOwnerNodeId: String?
+
+    /// User-selected execution target for the canonical owner-side task.
+    private var executionTargetKindRaw: Int = TaskExecutionTargetKind.automatic.rawValue
+
+    /// Target peer tunnel ID when the task is pinned to a specific peer.
+    var executionTargetPeerId: String?
+
+    /// Cached peer display name when the task is pinned to a specific peer.
+    var executionTargetPeerName: String?
     
     /// Remote executor task ID currently leased by the owner.
     var clusterWorkerTaskId: String?
@@ -208,6 +217,21 @@ final class TaskRecord {
     var clusterExecutionState: ClusterExecutionState {
         get { ClusterExecutionState(rawValue: clusterExecutionStateRaw) ?? .none }
         set { clusterExecutionStateRaw = newValue.rawValue }
+    }
+
+    var executionTarget: TaskExecutionTarget {
+        get {
+            TaskExecutionTarget(
+                kind: TaskExecutionTargetKind(rawValue: executionTargetKindRaw) ?? .automatic,
+                peerId: executionTargetPeerId,
+                peerName: executionTargetPeerName
+            )
+        }
+        set {
+            executionTargetKindRaw = newValue.kind.rawValue
+            executionTargetPeerId = newValue.peerId
+            executionTargetPeerName = newValue.peerName
+        }
     }
     
     // MARK: - Plan Mode Properties
@@ -354,6 +378,7 @@ final class TaskRecord {
         sessionId: String? = nil,
         providerId: String,
         modelId: String,
+        executionTarget: TaskExecutionTarget = .automatic,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
         serviceTier: LLMServiceTier? = nil,
@@ -418,6 +443,9 @@ final class TaskRecord {
         self.localAccessGrantsData = try? JSONEncoder().encode(localAccessGrants)
         self.pendingWritebackOperationsData = try? JSONEncoder().encode(pendingWritebackOperations)
         self.appliedWritebackPaths = appliedWritebackPaths
+        self.executionTargetKindRaw = executionTarget.kind.rawValue
+        self.executionTargetPeerId = executionTarget.peerId
+        self.executionTargetPeerName = executionTarget.peerName
         self.clusterCoordinatorTaskId = clusterOwnerTaskId
         self.clusterOwnerNodeId = clusterOwnerNodeId
         self.clusterWorkerTaskId = clusterWorkerTaskId
@@ -472,6 +500,14 @@ final class TaskRecord {
     
     var isExecutingRemotely: Bool {
         clusterExecutionState == .runningRemote || clusterExecutionState == .dispatchingRemote
+    }
+
+    var isPinnedToLocalExecution: Bool {
+        executionTarget.kind == .local
+    }
+
+    var isPinnedToPeerExecution: Bool {
+        executionTarget.kind == .peer && !isInternalClusterExecution
     }
 
     /// Internal executor-side record created for a remotely-owned task.

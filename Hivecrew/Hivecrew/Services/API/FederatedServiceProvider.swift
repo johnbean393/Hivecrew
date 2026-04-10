@@ -14,6 +14,7 @@ import HivecrewShared
 
 @MainActor
 final class FederatedServiceProvider: APIServiceProvider, Sendable {
+    private static let maxReportedAggregateCount = 1_000_000
     
     private let localProvider: APIServiceProviderBridge
     private let clusterManager: ClusterManager
@@ -110,12 +111,12 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         guard !entries.isEmpty else { return }
 
         for entry in entries {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == entry.peerId }) else { continue }
+            guard let peer = await clusterManager.peer(id: entry.peerId) else { continue }
 
             do {
                 let client = await getOrCreateClient(for: peer)
                 let remoteTask = try await client.getTask(id: entry.workerTaskId)
+                await clusterManager.markPeerOnline(tunnelId: peer.id)
                 let tagged = tagWithNode(remoteTask, peer: peer, canonicalTaskId: entry.canonicalTaskId)
                 await remoteTaskIndex.update(canonicalTaskId: entry.canonicalTaskId, task: tagged)
                 await applyRemoteExecutionSnapshot(
@@ -142,7 +143,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     }
     
     // MARK: - Task Operations (federated)
-    
+
     func createTask(
         description: String,
         providerName: String,
@@ -161,12 +162,60 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         contextInlineBlocks: [String],
         contextAttachmentPaths: [String]
     ) async throws -> APITask {
+        try await createTask(
+            description: description,
+            providerName: providerName,
+            modelId: modelId,
+            executionTarget: .automatic,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort,
+            attachedFilePaths: attachedFilePaths,
+            outputDirectory: outputDirectory,
+            planFirst: planFirst,
+            mentionedSkillNames: mentionedSkillNames,
+            referencedTaskIds: referencedTaskIds,
+            continuationSourceTaskId: continuationSourceTaskId,
+            contextPackId: contextPackId,
+            contextSuggestionIds: contextSuggestionIds,
+            contextModeOverrides: contextModeOverrides,
+            contextInlineBlocks: contextInlineBlocks,
+            contextAttachmentPaths: contextAttachmentPaths
+        )
+    }
+
+    func createTask(
+        description: String,
+        providerName: String,
+        modelId: String,
+        executionTarget: TaskExecutionTarget,
+        reasoningEnabled: Bool?,
+        reasoningEffort: String?,
+        attachedFilePaths: [String],
+        outputDirectory: String?,
+        planFirst: Bool,
+        mentionedSkillNames: [String],
+        referencedTaskIds: [String],
+        continuationSourceTaskId: String?,
+        contextPackId: String?,
+        contextSuggestionIds: [String],
+        contextModeOverrides: [String: String],
+        contextInlineBlocks: [String],
+        contextAttachmentPaths: [String]
+    ) async throws -> APITask {
         let localHasProvider = (try? await localProvider.getProviderByName(name: providerName)) != nil
+        let shouldAutoStartLocally: Bool
+        switch executionTarget.kind {
+        case .automatic, .local:
+            shouldAutoStartLocally = localHasProvider || planFirst
+        case .peer:
+            shouldAutoStartLocally = planFirst
+        }
         
         let canonicalTask = try await localProvider.createCanonicalClusterTask(
             description: description,
             providerName: providerName,
             modelId: modelId,
+            executionTarget: executionTarget,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             attachedFilePaths: attachedFilePaths,
@@ -180,7 +229,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             contextModeOverrides: contextModeOverrides,
             contextInlineBlocks: contextInlineBlocks,
             contextAttachmentPaths: contextAttachmentPaths,
-            autoStart: localHasProvider || planFirst
+            autoStart: shouldAutoStartLocally
         )
         
         if canonicalTask.status == .queued && canonicalTask.clusterExecutionState == .none {
@@ -206,6 +255,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 description: description,
                 providerName: provider.displayName,
                 modelId: target.modelId,
+                executionTarget: .automatic,
                 reasoningEnabled: target.reasoningEnabled,
                 reasoningEffort: target.reasoningEffort,
                 attachedFilePaths: attachedFilePaths,
@@ -239,8 +289,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     func getTask(id: String) async throws -> APITask {
         if let peerId = await remoteTaskIndex.peerId(for: id),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 // Peer is offline, return cached version
                 if let cached = await remoteTaskIndex.cachedTask(for: id) {
                     return cached
@@ -251,6 +300,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             do {
                 let client = await getOrCreateClient(for: peer)
                 let task = try await client.getTask(id: workerTaskId)
+                await clusterManager.markPeerOnline(tunnelId: peer.id)
                 let tagged = tagWithNode(task, peer: peer, canonicalTaskId: id)
                 await remoteTaskIndex.update(canonicalTaskId: id, task: tagged)
                 await applyRemoteExecutionSnapshot(
@@ -277,18 +327,26 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     func performTaskAction(id: String, action: APITaskAction, instructions: String?) async throws -> APITask {
         if let peerId = await remoteTaskIndex.peerId(for: id),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 throw APIError.notFound("Task not found (peer offline)")
             }
             let client = await getOrCreateClient(for: peer)
             let task = try await client.performAction(taskId: workerTaskId, action: action.rawValue, instructions: instructions)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
             let tagged = tagWithNode(task, peer: peer, canonicalTaskId: id)
             await remoteTaskIndex.update(canonicalTaskId: id, task: tagged)
             await applyRemoteExecutionSnapshot(canonicalTaskId: id, peer: peer, workerTaskId: workerTaskId, remoteTask: task)
             return tagged
         }
-        return try await localProvider.performTaskAction(id: id, action: action, instructions: instructions)
+        let task = try await localProvider.performTaskAction(id: id, action: action, instructions: instructions)
+        if action == .approvePlan || action == .editPlan,
+           let localTask = localTaskRecord(taskId: id),
+           localTask.status == .queued,
+           localTask.clusterExecutionState == .none {
+            _ = await dispatchQueuedCanonicalTaskToPeer(localTask)
+            return try await getTask(id: id)
+        }
+        return task
     }
     
     func deleteTask(id: String) async throws {
@@ -305,11 +363,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
 
         if let peerId = await remoteTaskIndex.peerId(for: id),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 return try await localProvider.getTaskFiles(id: id)
             }
             let client = await getOrCreateClient(for: peer)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
             return try await client.getTaskFiles(taskId: workerTaskId, canonicalTaskId: id)
         }
         return try await localProvider.getTaskFiles(id: id)
@@ -322,11 +380,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
 
         if let peerId = await remoteTaskIndex.peerId(for: taskId),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
             return try await client.downloadTaskFile(taskId: workerTaskId, filename: filename, isInput: isInput)
         }
         return try await localProvider.getTaskFileData(taskId: taskId, filename: filename, isInput: isInput)
@@ -339,11 +397,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
 
         if let peerId = await remoteTaskIndex.peerId(for: id),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 return try await localProvider.getTaskTraceBundle(id: id)
             }
             let client = await getOrCreateClient(for: peer)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
             return try await client.getTraceBundle(taskId: workerTaskId, canonicalTaskId: id)
         }
         return try await localProvider.getTaskTraceBundle(id: id)
@@ -356,11 +414,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
 
         if let peerId = await remoteTaskIndex.peerId(for: taskId),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
             return try await client.downloadTraceFile(taskId: workerTaskId, relativePath: relativePath)
         }
         return try await localProvider.getTaskTraceFileData(taskId: taskId, relativePath: relativePath)
@@ -369,10 +427,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     func getTaskScreenshot(id: String) async throws -> (data: Data, mimeType: String)? {
         if let peerId = await remoteTaskIndex.peerId(for: id),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else { return nil }
+            guard let peer = await clusterManager.peer(id: peerId) else { return nil }
             let client = await getOrCreateClient(for: peer)
-            return try await client.getScreenshot(taskId: workerTaskId)
+            let screenshot = try await client.getScreenshot(taskId: workerTaskId)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
+            return screenshot
         }
         return try await localProvider.getTaskScreenshot(id: id)
     }
@@ -387,12 +446,12 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     func answerQuestion(taskId: String, questionId: String, answer: String) async throws {
         if let peerId = await remoteTaskIndex.peerId(for: taskId),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
             try await client.answerQuestion(taskId: workerTaskId, questionId: questionId, answer: answer)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
             return
         }
         try await localProvider.answerQuestion(taskId: taskId, questionId: questionId, answer: answer)
@@ -408,12 +467,12 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     func respondToPermission(taskId: String, permissionId: String, approved: Bool) async throws {
         if let peerId = await remoteTaskIndex.peerId(for: taskId),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
             try await client.respondToPermission(taskId: workerTaskId, permissionId: permissionId, approved: approved)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
             return
         }
         try await localProvider.respondToPermission(taskId: taskId, permissionId: permissionId, approved: approved)
@@ -568,9 +627,30 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         var totalMaxConcurrent = localStatus.agents.maxConcurrent
         
         for peer in onlinePeers {
-            totalRunning += peer.runningTasks
-            totalQueued += peer.queuedTasks
-            totalMaxConcurrent += (peer.availableSlots + peer.runningTasks)
+            totalRunning = Self.safeAddCount(
+                totalRunning,
+                peer.runningTasks,
+                label: "running",
+                peerId: peer.id
+            )
+            totalQueued = Self.safeAddCount(
+                totalQueued,
+                peer.queuedTasks,
+                label: "queued",
+                peerId: peer.id
+            )
+            let peerMaxConcurrent = Self.safeAddCount(
+                peer.availableSlots,
+                peer.runningTasks,
+                label: "peer maxConcurrent",
+                peerId: peer.id
+            )
+            totalMaxConcurrent = Self.safeAddCount(
+                totalMaxConcurrent,
+                peerMaxConcurrent,
+                label: "maxConcurrent",
+                peerId: peer.id
+            )
         }
         
         return APISystemStatus(
@@ -586,6 +666,21 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             vms: localStatus.vms,
             resources: localStatus.resources
         )
+    }
+
+    private static func safeAddCount(_ lhs: Int, _ rhs: Int, label: String, peerId: String) -> Int {
+        let boundedLhs = min(max(lhs, 0), maxReportedAggregateCount)
+        let boundedRhs = min(max(rhs, 0), maxReportedAggregateCount)
+        let result = boundedLhs.addingReportingOverflow(boundedRhs)
+        if result.overflow {
+            print("FederatedServiceProvider: Overflow aggregating \(label) from peer \(peerId); clamping")
+            return maxReportedAggregateCount
+        }
+        if result.partialValue > maxReportedAggregateCount {
+            print("FederatedServiceProvider: Suspiciously large \(label) aggregate from peer \(peerId); clamping to \(maxReportedAggregateCount)")
+            return maxReportedAggregateCount
+        }
+        return result.partialValue
     }
     
     func getSystemConfig() async throws -> APISystemConfig {
@@ -605,12 +700,13 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     func getTaskActivity(id: String, since: Int) async throws -> APIActivityResponse {
         if let peerId = await remoteTaskIndex.peerId(for: id),
            let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            let peers = await clusterManager.allOnlinePeers()
-            guard let peer = peers.first(where: { $0.id == peerId }) else {
+            guard let peer = await clusterManager.peer(id: peerId) else {
                 return APIActivityResponse(events: [], total: 0)
             }
             let client = await getOrCreateClient(for: peer)
-            return try await client.getActivity(taskId: workerTaskId, since: since)
+            let activity = try await client.getActivity(taskId: workerTaskId, since: since)
+            await clusterManager.markPeerOnline(tunnelId: peer.id)
+            return activity
         }
         return try await localProvider.getTaskActivity(id: id, since: since)
     }
@@ -666,12 +762,14 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     
     private func dispatchQueuedCanonicalTaskToPeer(_ task: TaskRecord) async -> Bool {
         guard task.status == .queued, task.clusterExecutionState == .none else { return false }
+        guard !task.isPinnedToLocalExecution else { return false }
         
         let localAvailableSlots = (try? await localProvider.getSystemStatus())?.vms.available
-        if !Self.shouldDispatchRemotely(
-            requiresRemoteClusterExecution: task.requiresRemoteClusterExecution,
-            localAvailableSlots: localAvailableSlots
-        ) {
+        if task.executionTarget.kind == .automatic,
+           !Self.shouldDispatchRemotely(
+                requiresRemoteClusterExecution: task.requiresRemoteClusterExecution,
+                localAvailableSlots: localAvailableSlots
+           ) {
             return false
         }
         
@@ -683,12 +781,31 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         
         var executionAttempt: Int?
         var triedPeerIds: Set<String> = []
-        
-        while let peer = await clusterManager.reserveBestAvailablePeer(
-            providerName: providerName,
-            modelId: task.modelId,
-            excluding: triedPeerIds
-        ) {
+
+        func nextPeer() async -> PeerNode? {
+            switch task.executionTarget.kind {
+            case .automatic:
+                return await clusterManager.reserveBestAvailablePeer(
+                    providerName: providerName,
+                    modelId: task.modelId,
+                    excluding: triedPeerIds
+                )
+            case .local:
+                return nil
+            case .peer:
+                guard let peerId = task.executionTarget.targetPeerId,
+                      !triedPeerIds.contains(peerId) else {
+                    return nil
+                }
+                return await clusterManager.reserveSpecificPeer(
+                    peerId: peerId,
+                    providerName: providerName,
+                    modelId: task.modelId
+                )
+            }
+        }
+
+        while let peer = await nextPeer() {
             triedPeerIds.insert(peer.id)
             
             if executionAttempt == nil {

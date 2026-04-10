@@ -50,6 +50,8 @@ struct HivecrewApp: App {
     @State private var startupQueuedTasks: [TaskRecord] = []
     /// Whether the startup check has already been performed (prevents re-showing when window re-opens)
     @State private var hasPerformedStartupCheck = false
+    /// Whether app-wide services have already been bootstrapped for this launch.
+    @State private var hasBootstrappedServices = false
     
     /// Whether to show the onboarding wizard
     @State private var showOnboarding = false
@@ -169,6 +171,9 @@ struct HivecrewApp: App {
     /// Function to run on startup
     @MainActor
     private func onStartup() {
+        if !hasBootstrappedServices {
+            hasBootstrappedServices = true
+
         // Wire up the model context to services
         taskService.setModelContext(sharedModelContainer.mainContext)
         synchronizePersistedCodexProviderNames()
@@ -238,6 +243,7 @@ struct HivecrewApp: App {
             Task {
                 await checkForTemplateUpdates(allowPrompt: hasCompletedOnboarding)
             }
+        }
         }
         
         // Check if onboarding is needed
