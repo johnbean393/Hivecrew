@@ -5,7 +5,7 @@
 <h1 align="center">Hivecrew</h1>
 
 <p align="center">
-A macOS app that runs parallel AI computer use agents in local VMs
+A macOS app for running safe, parallel AI computer-use workers in isolated environments
 </p>
 
 <p align="center">
@@ -14,42 +14,37 @@ A macOS app that runs parallel AI computer use agents in local VMs
   </a>
 </p>
 
-Hivecrew is a native macOS app that runs AI computer use agents in dedicated virtual machines. It's like having N white collar employees, each with a computer.
+Hivecrew is a native macOS app for delegating real desktop work to AI workers running inside dedicated macOS virtual machines.
 
-Dispatch tasks from a central dashboard, watch agents work autonomously, and step in to guide them whenever needed—all while keeping your host system completely isolated and safe.
+You can hand off work from a central dashboard, watch workers operate live, step in when needed, and review exactly what happened afterward. The goal is not just "agent demos." The goal is to make AI workers practical for real, recurring work on your Mac.
 
-**Our Mission**: Make AI agents practical for real work by ensuring they are:
-- **Parallel**: Run multiple agents simultaneously
-- **Auditable**: Track every action agents take
-- **Safe**: Isolate agents from your host system
-- **Transparent**: Monitor agent behavior in real time
+Hivecrew is built around five core ideas:
+
+- **Safe**: workers stay isolated from your host, sensitive actions can require approval, and local file changes can be reviewed before they are applied
+- **Capable**: workers can use files, web tools, skills, retrieval-backed context, voice coordination, and external tools to complete real workflows
+- **Intuitive**: you describe the work in plain language, review plans visually, and manage everything from one dashboard
+- **Parallel**: multiple workers can run at once, the same task can be compared across models, and recurring work can be scheduled to run automatically
+- **Transparent**: live screenshots, activity feeds, session traces, and review flows make agent behavior visible instead of opaque
 
 <p align="center">
   <a href="https://youtu.be/l4D6Jj5ukHA">
-    <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/dashboard-screenshot.png" alt="Watch the demo" width="700">
+    <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/dashboard-screenshot.png" alt="Hivecrew dashboard" width="720">
   </a>
   <br>
-  <em>Click to watch the demo video</em>
+  <em>Central dashboard for dispatching work, reviewing runs, and supervising active agents</em>
 </p>
 
 ## Table of Contents
 
-- [Features](#features)
-  - [Task Management](#task-management)
-  - [Personal Context](#personal-context)
-  - [Subagent System](#subagent-system)
-  - [LLM Providers](#llm-providers)
-  - [Safety Controls](#safety-controls)
-  - [Agent Supervision](#agent-supervision)
-  - [Human-in-the-Loop](#human-in-the-loop)
-  - [Plan Mode](#plan-mode)
-  - [Scheduling](#scheduling)
-  - [Skills System](#skills-system)
-  - [MCP Servers](#mcp-servers)
-  - [Image Generation](#image-generation)
-  - [Credentials & Security](#credentials--security)
-  - [Web Interface](#web-interface)
-  - [API & Automation](#api--automation)
+- [What Hivecrew Is Good At](#what-hivecrew-is-good-at)
+- [Featured Experiences](#featured-experiences)
+- [Core Values](#core-values)
+  - [Safe](#safe)
+  - [Capable](#capable)
+  - [Intuitive](#intuitive)
+  - [Parallel](#parallel)
+  - [Transparent](#transparent)
+- [A Typical Workflow](#a-typical-workflow)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Build from Source](#build-from-source)
@@ -58,162 +53,173 @@ Dispatch tasks from a central dashboard, watch agents work autonomously, and ste
 - [Contributing](#contributing)
 - [License](#license)
 
-## Features
+## What Hivecrew Is Good At
 
-### Task Management
+Hivecrew is best for high-leverage work where you want a capable worker to turn intent into a polished outcome while you stay in the loop.
 
-![Agent Environment View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png)
+- Voice or video-guided creation, like "Create a 3D model of this bottle of champagne"
+- Turning rough briefs into polished deliverables, like decks, reports, and strategy docs
+- High-context research and analysis that combines browsing, local files, and synthesis
+- Parallel creative or operational work across multiple workers, models, or devices
 
-- **Natural Language Tasks**: Describe what you want done in plain language; agents handle the rest
-- **File Attachments**: Attach input files using @ mentions or drag-and-drop, and specify output directories for deliverables
-- **Multi-Model Runs**: Launch the same prompt across multiple provider/model combinations in parallel, with per-model copy counts
-- **Batch Execution**: Run multiple copies of the same task (1x, 2x, 4x, 8x) across parallel agents
-- **Task Queue**: Queue tasks for later and monitor status (queued, running, completed, failed)
+## Featured Experiences
 
-### Personal Context
+### Voice-First Coordination
 
-- **Retrieval-Backed Suggestions**: Hivecrew can suggest relevant files and snippets from your computer as you draft a task
-- **Context Packs**: Attach suggested files, inline excerpts, or structured summaries to give agents higher-quality context up front
-- **Indexed Folder Control**: Choose which folders are included in the personal context index and monitor indexing progress from the app
+Hivecrew has a dedicated Call tab for live voice coordination.
 
-### Subagent System
+- To get work done, just talk, no need to type out verbose instructions
+- Talk exclusively with a coordinator, not directly to workers
+- See transcript, status, and active workers together
+- Answer worker questions without dropping back into a text-only flow
 
-- **Parallel Research and Execution**: Spawn focused subagents for research, data gathering, and verification while the main agent continues the task
-- **Specialized Workflows**: Delegate subtasks like competitor scans, documentation lookups, or multi-source comparisons to targeted subagents
-- **Inter-Agent Messaging**: Agents can send messages to each other (point-to-point or broadcast) that are automatically delivered into the recipient's context
-- **Faster Convergence**: Combine results from multiple subagents to reduce back-and-forth and reach decisions sooner
-- **Agent Swarms**: Spawn multiple agents to complete tasks faster in parallel
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/voice-mode.png" alt="Voice mode in Hivecrew" width="720">
+  <br>
+  <em>Use the Call tab to coordinate active workers conversationally while seeing transcript, status, and task context together</em>
+</p>
 
-### LLM Providers
+### Browser QA And Live Supervision
 
-![Provider Settings](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/provider-settings.png)
+Use Hivecrew when you want to watch work unfold live, whether that is testing a web app, building a deliverable, or supervising a longer task.
 
-- **Multi-Provider**: Works with OpenRouter, OpenAI, Anthropic, Google AI Studio, Moonshot AI, xAI, LM Studio, Ollama, and other OpenAI-compatible APIs
-- **Backend Modes**: Per provider, choose `chat_completions`, `responses`, or `codex_oauth`
-- **Per-Task Selection**: Choose which provider and model to use for each task
-- **Local LLMs**: Connect to local LLM servers with custom base URLs
-- **Responses API Support**: Use OpenAI Responses-compatible providers with standard API key auth
-- **ChatGPT OAuth Support**: Direct OAuth (PKCE) login with ChatGPT for Codex-compatible usage
-- **Recommended Provider**: We suggest using [OpenRouter](https://openrouter.ai) for easy switching between different models with a single API key
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png" alt="Live agent environment view" width="720">
+  <br>
+  <em>Watch active workers live while they operate inside isolated environments</em>
+</p>
 
-### Safety Controls
+### Recurring Operational Work
 
-- **Full Isolation**: Each agent runs in its own macOS VM—your host system stays protected
-- **Network Control**: Configure per-VM network access (internet, offline, or host-only)
-- **VM Provisioning**: Preconfigure environment variables, startup commands, and injected files for every new VM
-- **Timeouts & Limits**: Set task timeouts and iteration limits
-- **Emergency Stop**: Instantly halt any agent at any time
+Hivecrew also fits recurring work like weekly reports, scheduled audits, and routine checks.
 
-### Agent Supervision
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/scheduling.png" alt="Scheduling view" width="720">
+  <br>
+  <em>Turn repeatable workflows into scheduled or recurring runs</em>
+</p>
 
-![Session Trace View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/session-trace.png)
+### Model Comparison And Workflow Tuning
 
-- **Live Monitoring**: Watch agents work in real time with live screenshots and activity streams
-- **Reasoning Traces**: View streamed reasoning tokens from models with extended thinking capabilities
-- **Session Traces**: Review detailed step-by-step traces with synchronized screenshots after completion
-- **Video Export**: Export session traces as video for documentation or review
+For ambiguous or high-value work, Hivecrew lets you compare providers and models instead of trusting a single run.
 
-### Human-in-the-Loop
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/provider-settings.png" alt="Provider settings" width="720">
+  <br>
+  <em>Configure multiple providers and compare outcomes across different models</em>
+</p>
 
-![Human-in-the-Loop](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/human-in-the-loop.png)
+## Core Values
 
-- **Take Control**: Pause any agent, use your mouse and keyboard directly, then resume
-- **Answer Questions**: Respond to agent questions via text or multiple choice when they need guidance
-- **Add Instructions**: Inject clarifying instructions mid-task without restarting
-- **Approve Actions**: Review and approve/deny tool permission requests
+### Safe
 
-### Plan Mode
+- Isolated macOS VMs keep agent activity off your host.
+- Approvals, intervention, and direct takeover keep humans in control.
+- Local file changes can be reviewed before they are applied.
 
-- **Plan Before Executing**: Toggle Plan mode to have agents create a detailed execution plan before starting work
-- **Visual Plan Review**: Review plans with interactive Mermaid diagrams and structured checklists
-- **Edit & Approve**: Modify the plan, add steps, or reject and regenerate before the agent begins execution
-- **Streamed Planning**: Watch the plan generate in real time with live reasoning updates
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/human-in-the-loop.png" alt="Human in the loop controls" width="720">
+  <br>
+  <em>Pause, intervene, answer questions, approve actions, and keep a human in the loop</em>
+</p>
 
-### Scheduling
+### Capable
 
-![Scheduling View](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/scheduling.png)
+- Voice mode is a first-class way to coordinate workers.
+- Workers can use files, retrieval-backed context, skills, web tools, and image generation.
+- Browser access, API access, and a Python SDK extend Hivecrew beyond the desktop app.
 
-- **One-Time & Recurring**: Schedule tasks for a specific time or set up daily, weekly, or monthly recurrence
-- **Automatic Notifications**: Get notified when scheduled tasks start running
-- **Manual Trigger**: Instantly run any scheduled task on demand
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/skills-browser.png" alt="Skills browser" width="720">
+  <br>
+  <em>Reusable skills help workers take on more specialized tasks without rewriting instructions every time</em>
+</p>
 
-### Skills System
+### Intuitive
 
-![Skills Browser](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/skills-browser.png)
+- The dashboard is the command center for creating, tracking, and reviewing work.
+- Plan-first mode makes the agent's approach visible before execution.
+- Voice and web access make supervision easier away from the main prompt bar.
 
-- **Pre-Built Skills**: Browse and apply skills for common tasks (web research, document processing, webapp testing)
-- **Skill Discovery**: Skills are automatically matched to tasks based on your description
-- **Import Skills**: Add skills from GitHub repositories or local directories
-- **Extract Skills**: Create new skills from successful task completions
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/web-ui-mobile.png" alt="Hivecrew web UI on mobile" width="420">
+  <br>
+  <em>Remote browser access makes it practical to monitor and manage work away from your desk</em>
+</p>
 
-### MCP Servers
+### Parallel
 
-- **Model Context Protocol**: Connect agents to external tools and services via the MCP standard
-- **Multiple Transports**: Configure servers using Standard I/O (local processes) or HTTP (remote servers)
-- **Custom Configuration**: Set commands, arguments, working directories, and environment variables per server
-- **Enable/Disable**: Toggle individual MCP servers on or off without removing their configuration
+- Run multiple workers at once.
+- Compare the same task across models or repeated attempts.
+- Use scheduling and remote machines to extend ongoing execution capacity.
 
-### Image Generation
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/agent-environment.png" alt="Live agent environment view" width="720">
+  <br>
+  <em>Active environments make it easy to watch several workers operate at once</em>
+</p>
 
-- **Built-in Tool**: Agents can generate images on demand during task execution
-- **Multiple Providers**: Supports OpenRouter and Gemini image generation APIs
-- **Reference Images**: Generate variations or edits using reference images as input
+### Transparent
 
-### Credentials & Security
+- Live screenshots and activity streams show what workers are doing.
+- Session traces show what happened after the run.
+- Review flows make approvals, questions, and file changes explicit.
 
-- **Secure Storage**: Store login credentials safely in Keychain
-- **On-Demand Access**: Credentials are passed to agents only when needed via secure tokens
-- **CSV Import**: Bulk import credentials from CSV files
+<p align="center">
+  <img src="https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/session-trace.png" alt="Session trace view" width="720">
+  <br>
+  <em>Session traces provide a readable audit trail instead of a black box</em>
+</p>
 
-### Web Interface
+## A Typical Workflow
 
-![Web UI on Mobile](https://raw.githubusercontent.com/johnbean393/Hivecrew/main/.github/images/web-ui-mobile.png)
-
-- **Remote Access**: Built-in web UI lets you manage agents from any browser locally, or through Hivecrew's Remote Access flow backed by a secure Cloudflare Tunnel and one-time device pairing
-- **Full Task Management**: Create, plan, monitor, pause, resume, cancel, rerun, and delete tasks directly from the browser
-
-### API & Automation
-
-- **REST API**: Control Hivecrew programmatically—create tasks, manage schedules, upload files, and download results
-- **Python SDK**: Use the `hivecrew` package, or call the REST API directly from your own tooling
+1. Describe the task in plain English from the dashboard.
+2. Attach files, accept suggested context from your own indexed materials, or reference previous work.
+3. Choose whether to execute directly or review a plan first.
+4. Let one worker or several workers run in parallel.
+5. Watch progress live, answer questions, or step in if the worker needs help.
+6. Review the result, inspect the trace, apply file changes if needed, and rerun or continue from the task if you want another pass.
 
 ## Requirements
 
 - macOS Sequoia (15.0) or later
 - Apple Silicon Mac (M1 or newer)
 - At least 16GB RAM recommended for running concurrent agents
-- ~64GB free disk space per VM
+- Roughly 64GB free disk space per VM (total 192GB free disk space)
 
 ## Installation
 
 1. Download the latest release from the [releases](https://github.com/johnbean393/Hivecrew/releases) page
-2. Double-click the downloaded `Hivecrew.dmg` file to mount the disk image
-3. Drag the `Hivecrew` app icon to your `Applications` folder
-4. Run the `Hivecrew` app
+2. Double-click the downloaded `Hivecrew.dmg` file
+3. Drag the `Hivecrew` app into `Applications`
+4. Open Hivecrew and complete onboarding
 
 ## Build from Source
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/johnbean393/Hivecrew.git
 cd Hivecrew
 ```
 
 2. Open the workspace in Xcode:
+
 ```bash
 open Hivecrew.xcworkspace
 ```
 
-3. Build from Xcode or the command line (requires signing with the necessary entitlements for Virtualization):
+3. Build from Xcode or from the command line:
+
 ```bash
 xcodebuild -workspace Hivecrew.xcworkspace -scheme Hivecrew -configuration Debug -destination 'platform=macOS' build
 ```
 
-Note: The Virtualization framework requires specific entitlements that must be granted via provisioning profiles or notarization. The `cloudflared` binary is already bundled in the repository at `Hivecrew/Hivecrew/Resources/cloudflared/cloudflared`; if you need to replace or update it, see `Hivecrew/Hivecrew/Resources/cloudflared/README.md`.
+Note: Building requires the Virtualization entitlements needed for macOS VMs. The bundled `cloudflared` binary lives at `Hivecrew/Hivecrew/Resources/cloudflared/cloudflared`; if you need to replace it, see `Hivecrew/Hivecrew/Resources/cloudflared/README.md`.
 
 ## API
 
-Hivecrew includes a REST API for programmatic task control. Enable it in **Settings → API** and generate an API key.
+Hivecrew includes a REST API for programmatic task control and remote workflows. Enable it in **Settings → Connect**, then generate an API key.
 
 For endpoint-by-endpoint examples, including schedules, provider management, web UI auth, and event streaming, see [guides/api-use.md](guides/api-use.md).
 
@@ -229,8 +235,6 @@ pip install hivecrew
 from hivecrew import HivecrewClient
 
 client = HivecrewClient()  # Uses HIVECREW_API_KEY env var
-
-# Replace with any model ID exposed by your configured provider.
 
 result = client.tasks.run(
     description="""
@@ -259,7 +263,6 @@ from hivecrew import HivecrewClient
 
 client = HivecrewClient()
 
-# Schedule a weekly report task with input files attached
 schedule = client.schedules.create(
     title="Weekly Sales Report",
     description="""
@@ -288,12 +291,12 @@ See the [hivecrew-python](https://github.com/johnbean393/hivecrew-python) reposi
 
 ## Contributing
 
-Contributions are welcome! Areas where help would be particularly valuable:
+Contributions are welcome. Areas where help would be especially valuable:
 
-- Additional automation tools and capabilities
-- UI/UX improvements
-- Testing and reliability
-- Documentation
+- Additional tools and integrations
+- Reliability and testing improvements
+- UX improvements around supervision, review, and scheduling
+- Documentation and examples
 
 ## License
 
