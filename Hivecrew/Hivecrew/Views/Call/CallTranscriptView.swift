@@ -14,6 +14,8 @@ struct CallTranscriptView: View {
     @Binding var entries: [TranscriptEntry]
     var assistantName: String = "Hivecrew"
 
+    @State private var isNearBottom = true
+
     var body: some View {
         GeometryReader { geo in
             ScrollViewReader { proxy in
@@ -29,6 +31,13 @@ struct CallTranscriptView: View {
                     .frame(width: geo.size.width, alignment: .leading)
                     .frame(minHeight: geo.size.height)
                 }
+                .scrollIndicators(.never)
+                .onScrollGeometryChange(for: Bool.self) { geo in
+                    let maxOffset = geo.contentSize.height - geo.containerSize.height
+                    return maxOffset <= 0 || (maxOffset - geo.contentOffset.y) < 80
+                } action: { _, newValue in
+                    isNearBottom = newValue
+                }
                 .mask(
                     LinearGradient(
                         stops: [
@@ -41,8 +50,8 @@ struct CallTranscriptView: View {
                         endPoint: .bottom
                     )
                 )
-                .onChange(of: entries.count) {
-                    if let last = entries.last {
+                .onChange(of: entries) {
+                    if isNearBottom, let last = entries.last {
                         withAnimation {
                             proxy.scrollTo(last.id, anchor: .bottom)
                         }
