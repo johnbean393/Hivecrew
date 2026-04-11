@@ -32,6 +32,7 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     var onInterrupted: (@Sendable () -> Void)?
     var onTurnComplete: (@Sendable () -> Void)?
     var onError: (@Sendable (Error) -> Void)?
+    var onDisconnected: (@Sendable (VoiceDisconnectEvent) -> Void)?
     var onUsageUpdate: (@Sendable (Int) -> Void)?
     var onReconnecting: (@Sendable () -> Void)?
     var onReconnected: (@Sendable () -> Void)?
@@ -42,6 +43,7 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     var urlSession: URLSession!
     var apiKey: String = ""
     var isReceiving = false
+    var lastTrafficAt = Date.distantPast
 
     static let availableModels = ["gpt-realtime-1.5", "gpt-realtime-mini"]
     static let defaultModel = "gpt-realtime-1.5"
@@ -90,25 +92,30 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     // MARK: - Protocol: Send Methods
 
     func sendAudio(_ pcmData: Data) async throws {
-        guard connectionState == .connected, !pcmData.isEmpty else { return }
+        guard !pcmData.isEmpty else { return }
+        guard connectionState == .connected else {
+            throw OpenAIRealtimeError.notConnected
+        }
 
         let event = InputAudioBufferAppendEvent(audio: pcmData.base64EncodedString())
-        do {
-            try await sendJSON(event)
-            hasBufferedInputAudio = true
-        } catch {
-            print("Audio send failed: \(error.localizedDescription)")
-        }
+        try await sendJSON(event)
+        hasBufferedInputAudio = true
     }
 
     func sendAudioStreamEnd() async throws {
-        guard connectionState == .connected, hasBufferedInputAudio else { return }
+        guard hasBufferedInputAudio else { return }
+        guard connectionState == .connected else {
+            throw OpenAIRealtimeError.notConnected
+        }
         try await sendJSON(InputAudioBufferCommitEvent())
         hasBufferedInputAudio = false
     }
 
     func sendVideoFrame(_ jpegData: Data) async throws {
-        guard connectionState == .connected, !jpegData.isEmpty else { return }
+        guard !jpegData.isEmpty else { return }
+        guard connectionState == .connected else {
+            throw OpenAIRealtimeError.notConnected
+        }
 
         let event = ConversationItemCreateEvent(
             item: .init(
@@ -129,7 +136,9 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     }
 
     func sendText(_ text: String) async throws {
-        guard connectionState == .connected else { return }
+        guard connectionState == .connected else {
+            throw OpenAIRealtimeError.notConnected
+        }
 
         let itemEvent = ConversationItemCreateEvent(
             item: .init(
@@ -145,7 +154,9 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     }
 
     func sendToolResponse(callId: String, name: String, result: String) async throws {
-        guard connectionState == .connected else { return }
+        guard connectionState == .connected else {
+            throw OpenAIRealtimeError.notConnected
+        }
 
         let itemEvent = ConversationItemCreateEvent(
             item: .init(
@@ -175,5 +186,22 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
         }
 
         try await ws.send(.string(jsonString))
+        lastTrafficAt = Date()
+    }
+
+    func validateConnection() async throws {
+        guard connectionState == .connected, let webSocket else {
+            throw OpenAIRealtimeError.notConnected
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            webSocket.sendPing { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        lastTrafficAt = Date()
     }
 }

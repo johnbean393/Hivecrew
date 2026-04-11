@@ -60,6 +60,7 @@ extension OpenAIRealtimeProvider {
             let event = try JSONDecoder().decode(OpenAIServerEvent.self, from: data)
 
             await MainActor.run {
+                self.lastTrafficAt = Date()
                 switch event.type {
 
                 case "session.created":

@@ -32,6 +32,7 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     var onInterrupted: (@Sendable () -> Void)?
     var onTurnComplete: (@Sendable () -> Void)?
     var onError: (@Sendable (Error) -> Void)?
+    var onDisconnected: (@Sendable (VoiceDisconnectEvent) -> Void)?
     var onUsageUpdate: (@Sendable (Int) -> Void)?
     var onReconnecting: (@Sendable () -> Void)?
     var onReconnected: (@Sendable () -> Void)?
@@ -42,10 +43,13 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     var urlSession: URLSession!
     var apiKey: String = ""
     var isReceiving = false
+    var heartbeatTask: Task<Void, Never>?
+    var lastTrafficAt = Date.distantPast
 
     static let availableModels = ["gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-preview-12-2025"]
     static let defaultModel = "gemini-3.1-flash-live-preview"
-    static let quotaFallbackModel = "gemini-2.5-flash-native-audio-preview-12-2025"
+    static let maxReconnectAttempts = 2
+    static let heartbeatInterval: Duration = .seconds(15)
     var model: String = "gemini-3.1-flash-live-preview"
     var activeModel: String? { model }
     let apiVersion: String = "v1beta"
@@ -55,6 +59,7 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     var shouldResumeSession = false
     var isManualDisconnect = false
     var reconnectTask: Task<Void, Never>?
+    var reconnectAttempts = 0
 
     var connectionContinuation: CheckedContinuation<Void, Error>?
     var setupContinuation: CheckedContinuation<Void, Error>?
@@ -83,7 +88,10 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     // MARK: - Protocol: Send Methods
 
     func sendAudio(_ pcmData: Data) async throws {
-        guard connectionState == .connected, !pcmData.isEmpty else { return }
+        guard !pcmData.isEmpty else { return }
+        guard connectionState == .connected else {
+            throw GeminiError.notConnected
+        }
 
         let message = RealtimeInputMessage(
             realtimeInput: .init(
@@ -93,16 +101,15 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
                 audioStreamEnd: nil
             )
         )
-        do {
-            try await sendJSON(message)
-            hasActiveInputAudioStream = true
-        } catch {
-            print("Audio send failed: \(error.localizedDescription)")
-        }
+        try await sendJSON(message)
+        hasActiveInputAudioStream = true
     }
 
     func sendAudioStreamEnd() async throws {
-        guard connectionState == .connected, hasActiveInputAudioStream else { return }
+        guard hasActiveInputAudioStream else { return }
+        guard connectionState == .connected else {
+            throw GeminiError.notConnected
+        }
 
         let message = RealtimeInputMessage(
             realtimeInput: .init(
@@ -117,7 +124,10 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     }
 
     func sendVideoFrame(_ jpegData: Data) async throws {
-        guard connectionState == .connected, !jpegData.isEmpty else { return }
+        guard !jpegData.isEmpty else { return }
+        guard connectionState == .connected else {
+            throw GeminiError.notConnected
+        }
 
         let message = RealtimeInputMessage(
             realtimeInput: .init(
@@ -131,7 +141,9 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     }
 
     func sendText(_ text: String) async throws {
-        guard connectionState == .connected else { return }
+        guard connectionState == .connected else {
+            throw GeminiError.notConnected
+        }
 
         let message = RealtimeInputMessage(
             realtimeInput: .init(
@@ -145,7 +157,9 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     }
 
     func sendToolResponse(callId: String, name: String, result: String) async throws {
-        guard connectionState == .connected else { return }
+        guard connectionState == .connected else {
+            throw GeminiError.notConnected
+        }
 
         let message = ToolResponseMessage(
             toolResponse: .init(
@@ -172,7 +186,21 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
             throw GeminiError.notConnected
         }
 
-        try await ws.send(.string(jsonString))
+        do {
+            try await ws.send(.string(jsonString))
+            markTraffic()
+        } catch {
+            let message = Self.describeSendError(error)
+            await processTransportFailure(message: message)
+            throw GeminiError.connectionFailed(message)
+        }
+    }
+
+    func validateConnection() async throws {
+        guard connectionState == .connected else {
+            throw GeminiError.notConnected
+        }
+        try await sendPing()
     }
 
     func audioFingerprint(_ data: Data) -> Int {
@@ -186,5 +214,26 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     func isCurrentWebSocketTask(_ task: URLSessionTask) -> Bool {
         guard let webSocket else { return false }
         return webSocket === task
+    }
+
+    func markTraffic() {
+        lastTrafficAt = Date()
+    }
+
+    private nonisolated static func describeSendError(_ error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorNetworkConnectionLost:
+                return "Network connection lost"
+            case NSURLErrorTimedOut:
+                return "Connection timed out"
+            case NSURLErrorNotConnectedToInternet:
+                return "No internet connection"
+            default:
+                break
+            }
+        }
+        return error.localizedDescription
     }
 }

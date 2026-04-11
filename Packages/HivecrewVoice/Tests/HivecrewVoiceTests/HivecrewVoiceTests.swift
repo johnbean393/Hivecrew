@@ -65,6 +65,36 @@ import Foundation
 }
 
 @MainActor
+@Test func geminiSessionConfigDoesNotIncludeProviderSideGoogleSearch() async throws {
+    let provider = GeminiLiveProvider()
+    provider.configure(apiKey: "test")
+
+    let config = VoiceSessionConfig(
+        voiceName: "Leda",
+        tools: [
+            .init(
+                name: "search_files",
+                description: "Search indexed files",
+                parameters: .init(
+                    type: "object",
+                    properties: [
+                        "query": .init(type: "string", description: "Search query")
+                    ],
+                    required: ["query"]
+                )
+            )
+        ],
+        webSearchEnabled: true
+    )
+
+    let sessionConfig = provider.buildSessionConfig(config: config, resumeHandle: nil)
+
+    #expect(sessionConfig.tools?.count == 1)
+    #expect(sessionConfig.tools?.first?.googleSearch == nil)
+    #expect(sessionConfig.tools?.first?.functionDeclarations?.count == 1)
+}
+
+@MainActor
 @Test func staleGeminiCloseCallbackDoesNotInterruptReconnect() async throws {
     let provider = GeminiLiveProvider()
     provider.configure(apiKey: "test")
@@ -123,6 +153,42 @@ import Foundation
 
     provider.urlSession(provider.urlSession, webSocketTask: newSocket, didOpenWithProtocol: nil)
     try await connectTask.value
+}
+
+@MainActor
+@Test func geminiUsageMetadataReplacesSessionTotal() async throws {
+    let provider = GeminiLiveProvider()
+    provider.configure(apiKey: "test")
+
+    await provider.parseServerMessage("""
+    {"usageMetadata":{"totalTokenCount":120}}
+    """)
+    #expect(provider.totalTokenCount == 120)
+
+    await provider.parseServerMessage("""
+    {"usageMetadata":{"totalTokenCount":180}}
+    """)
+    #expect(provider.totalTokenCount == 180)
+}
+
+@MainActor
+@Test func geminiMissingResumeHandleReportsTerminalDisconnect() async throws {
+    let provider = GeminiLiveProvider()
+    provider.configure(apiKey: "test")
+    provider.shouldResumeSession = true
+    provider.currentSessionConfig = VoiceSessionConfig()
+
+    let sink = DisconnectSink()
+    provider.onDisconnected = { event in
+        Task { await sink.record(event) }
+    }
+
+    provider.resumeSessionIfNeeded()
+    try? await Task.sleep(for: .milliseconds(20))
+    let event = await sink.lastEvent()
+
+    #expect(event?.message == "Connection to Gemini was lost")
+    #expect(event?.recoverable == false)
 }
 
 @Test func audioPolicyConvenienceBuildersPreserveAutomaticProviderVAD() async throws {
@@ -304,6 +370,18 @@ private enum TestURLSessionError: LocalizedError {
         case .connectionLost:
             return "Connection lost"
         }
+    }
+}
+
+actor DisconnectSink {
+    private var event: VoiceDisconnectEvent?
+
+    func record(_ event: VoiceDisconnectEvent) {
+        self.event = event
+    }
+
+    func lastEvent() -> VoiceDisconnectEvent? {
+        event
     }
 }
 

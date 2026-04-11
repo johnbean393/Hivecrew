@@ -184,6 +184,7 @@ struct HivecrewApp: App {
         
         // Configure termination manager
         terminationManager.configure(taskService: taskService)
+        AppSleepWakeMonitor.shared.configure(voiceOrchestrator: voiceOrchestrator)
         AppSleepWakeMonitor.shared.start()
         
         // Configure voice orchestrator
@@ -322,8 +323,13 @@ private final class AppSleepWakeMonitor {
     
     private var willSleepObserver: NSObjectProtocol?
     private var didWakeObserver: NSObjectProtocol?
+    private weak var voiceOrchestrator: VoiceOrchestrator?
     
     private init() {}
+
+    func configure(voiceOrchestrator: VoiceOrchestrator) {
+        self.voiceOrchestrator = voiceOrchestrator
+    }
     
     func start() {
         guard willSleepObserver == nil, didWakeObserver == nil else { return }
@@ -335,6 +341,7 @@ private final class AppSleepWakeMonitor {
             queue: .main
         ) { _ in
             Task {
+                await self.voiceOrchestrator?.handleSystemWillSleep()
                 await ClusterManager.shared.handleSystemWillSleep()
                 await RemoteAccessManager.shared.handleSystemWillSleep()
             }
@@ -347,6 +354,7 @@ private final class AppSleepWakeMonitor {
         ) { _ in
             Task {
                 await RemoteAccessManager.shared.handleSystemDidWake()
+                await self.voiceOrchestrator?.handleSystemDidWake()
             }
         }
     }

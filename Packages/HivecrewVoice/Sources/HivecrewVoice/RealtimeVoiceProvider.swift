@@ -24,6 +24,16 @@ public struct VoiceInputActivityEvent: Sendable {
     }
 }
 
+public struct VoiceDisconnectEvent: Sendable {
+    public let message: String
+    public let recoverable: Bool
+
+    public init(message: String, recoverable: Bool) {
+        self.message = message
+        self.recoverable = recoverable
+    }
+}
+
 @MainActor
 public protocol RealtimeVoiceProvider: ObservableObject {
 
@@ -32,6 +42,7 @@ public protocol RealtimeVoiceProvider: ObservableObject {
     var connectionState: VoiceConnectionState { get }
     func connect(config: VoiceSessionConfig) async throws
     func disconnect()
+    func validateConnection() async throws
 
     // MARK: - Audio Streaming
 
@@ -65,6 +76,7 @@ public protocol RealtimeVoiceProvider: ObservableObject {
     var onInterrupted: (@Sendable () -> Void)? { get set }
     var onTurnComplete: (@Sendable () -> Void)? { get set }
     var onError: (@Sendable (Error) -> Void)? { get set }
+    var onDisconnected: (@Sendable (VoiceDisconnectEvent) -> Void)? { get set }
 
     /// Fired when the server reports updated token usage for the session.
     var onUsageUpdate: (@Sendable (Int) -> Void)? { get set }

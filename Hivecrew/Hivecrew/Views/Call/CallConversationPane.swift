@@ -14,16 +14,17 @@ struct CallConversationPane: View {
     @EnvironmentObject var orchestrator: VoiceOrchestrator
 
     private var statusText: String {
-        if orchestrator.callState == .suspended {
-            return "Paused"
-        }
         switch orchestrator.connectionState {
-        case .disconnected: return "Disconnected"
+        case .error(let msg): return "Error: \(msg)"
         case .connecting: return "Connecting..."
         case .reconnecting: return "Reconnecting..."
         case .connected:
+            if orchestrator.callState == .suspended {
+                return "Paused"
+            }
             return orchestrator.isModelSpeaking ? "Speaking" : "Listening"
-        case .error(let msg): return "Error: \(msg)"
+        case .disconnected:
+            return orchestrator.callState == .suspended ? "Paused" : "Disconnected"
         }
     }
 

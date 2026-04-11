@@ -60,10 +60,13 @@ extension GeminiLiveProvider {
             let serverMessage = try JSONDecoder().decode(ServerMessage.self, from: data)
 
             await MainActor.run {
+                self.markTraffic()
                 // Setup complete
                 if serverMessage.setupComplete != nil {
                     self.connectionState = .connected
                     self.shouldResumeSession = true
+                    self.reconnectAttempts = 0
+                    self.startHeartbeat()
                     if let cont = self.setupContinuation {
                         self.setupContinuation = nil
                         cont.resume()
@@ -90,7 +93,7 @@ extension GeminiLiveProvider {
                 // Usage
                 if let usage = serverMessage.usageMetadata,
                    let total = usage.totalTokenCount {
-                    self.totalTokenCount += total
+                    self.totalTokenCount = total
                     self.onUsageUpdate?(self.totalTokenCount)
                 }
 

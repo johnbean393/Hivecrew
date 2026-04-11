@@ -13,6 +13,7 @@ extension OpenAIRealtimeProvider: URLSessionWebSocketDelegate {
         didOpenWithProtocol protocol: String?
     ) {
         Task { @MainActor in
+            self.lastTrafficAt = Date()
             if let cont = self.connectionContinuation {
                 self.connectionContinuation = nil
                 cont.resume()
@@ -38,6 +39,11 @@ extension OpenAIRealtimeProvider: URLSessionWebSocketDelegate {
             if let cont = self.setupContinuation {
                 self.setupContinuation = nil
                 cont.resume(throwing: OpenAIRealtimeError.connectionFailed)
+            }
+            if !self.isManualDisconnect {
+                self.onDisconnected?(
+                    VoiceDisconnectEvent(message: OpenAIRealtimeError.connectionFailed.localizedDescription, recoverable: false)
+                )
             }
         }
     }
@@ -66,6 +72,7 @@ extension OpenAIRealtimeProvider: URLSessionWebSocketDelegate {
             } else {
                 self.connectionState = .error(error.localizedDescription)
                 self.onError?(error)
+                self.onDisconnected?(VoiceDisconnectEvent(message: error.localizedDescription, recoverable: false))
             }
         }
     }

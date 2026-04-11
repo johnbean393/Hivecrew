@@ -14,6 +14,7 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
     ) {
         Task { @MainActor in
             guard self.isCurrentWebSocketTask(webSocketTask) else { return }
+            self.markTraffic()
             if let cont = self.connectionContinuation {
                 self.connectionContinuation = nil
                 cont.resume()
@@ -33,6 +34,8 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
             guard self.isCurrentWebSocketTask(webSocketTask) else { return }
             self.connectionState = .disconnected
             self.isReceiving = false
+            self.heartbeatTask?.cancel()
+            self.heartbeatTask = nil
             self.webSocket = nil
 
             if let cont = self.connectionContinuation {
@@ -45,6 +48,9 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
             }
 
             self.resumeSessionIfNeeded()
+            if self.connectionState == .disconnected, self.reconnectTask == nil {
+                self.finishRuntimeDisconnect(message: error.localizedDescription, recoverable: false)
+            }
         }
     }
 
@@ -59,6 +65,8 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
         Task { @MainActor in
             guard self.isCurrentWebSocketTask(task) else { return }
             self.isReceiving = false
+            self.heartbeatTask?.cancel()
+            self.heartbeatTask = nil
             self.webSocket = nil
 
             if let cont = self.connectionContinuation {
@@ -74,6 +82,9 @@ extension GeminiLiveProvider: URLSessionWebSocketDelegate {
                 self.connectionState = .disconnected
             } else {
                 self.resumeSessionIfNeeded()
+                if self.connectionState != .reconnecting, self.reconnectTask == nil {
+                    self.finishRuntimeDisconnect(message: surfaced.localizedDescription, recoverable: false)
+                }
             }
         }
     }

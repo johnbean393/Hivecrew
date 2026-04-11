@@ -18,19 +18,13 @@ extension GeminiLiveProvider {
         latestSessionHandle = nil
         shouldResumeSession = true
         isManualDisconnect = false
+        reconnectAttempts = 0
         reconnectTask?.cancel()
         reconnectTask = nil
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
 
-        do {
-            try await establishConnection(config: config, resumeHandle: nil, resetUsage: true)
-        } catch {
-            let isQuotaError = error.localizedDescription.contains("exceeded your current quota")
-            let canFallback = model != GeminiLiveProvider.quotaFallbackModel
-            guard isQuotaError, canFallback else { throw error }
-
-            model = GeminiLiveProvider.quotaFallbackModel
-            try await establishConnection(config: config, resumeHandle: nil, resetUsage: true)
-        }
+        try await establishConnection(config: config, resumeHandle: nil, resetUsage: true)
     }
 
     func disconnect() {
@@ -39,6 +33,8 @@ extension GeminiLiveProvider {
         latestSessionHandle = nil
         reconnectTask?.cancel()
         reconnectTask = nil
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
         isReceiving = false
         hasActiveInputAudioStream = false
         webSocket?.cancel(with: .normalClosure, reason: nil)
@@ -58,27 +54,45 @@ extension GeminiLiveProvider {
         guard shouldResumeSession,
               !isManualDisconnect,
               reconnectTask == nil,
-              latestSessionHandle != nil,
               let config = currentSessionConfig else { return }
+
+        guard let latestSessionHandle else {
+            finishRuntimeDisconnect(message: "Connection to Gemini was lost", recoverable: false)
+            return
+        }
+
+        guard reconnectAttempts < Self.maxReconnectAttempts else {
+            finishRuntimeDisconnect(message: "Gemini session could not be resumed", recoverable: false)
+            return
+        }
 
         reconnectTask = Task { [weak self] in
             guard let self else { return }
             defer { self.reconnectTask = nil }
 
+            self.reconnectAttempts += 1
             self.connectionState = .reconnecting
             self.onReconnecting?()
 
             do {
                 try await self.establishConnection(
                     config: config,
-                    resumeHandle: self.latestSessionHandle,
+                    resumeHandle: latestSessionHandle,
                     resetUsage: false
                 )
                 self.onReconnected?()
             } catch {
-                if !self.isManualDisconnect {
-                    self.connectionState = .error(error.localizedDescription)
-                    self.onError?(error)
+                if self.isManualDisconnect {
+                    return
+                }
+
+                if self.reconnectAttempts >= Self.maxReconnectAttempts {
+                    self.finishRuntimeDisconnect(
+                        message: error.localizedDescription,
+                        recoverable: false
+                    )
+                } else {
+                    self.resumeSessionIfNeeded()
                 }
             }
         }
@@ -92,6 +106,8 @@ extension GeminiLiveProvider {
               latestSessionHandle != nil else { return }
 
         isReceiving = false
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
         webSocket?.cancel(with: .normalClosure, reason: nil)
         webSocket = nil
         isModelSpeaking = false
@@ -111,6 +127,8 @@ extension GeminiLiveProvider {
         connectionState = .connecting
         isManualDisconnect = false
         isReceiving = false
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
 
         if resetUsage {
             totalTokenCount = 0
@@ -128,6 +146,7 @@ extension GeminiLiveProvider {
 
         webSocket = urlSession.webSocketTask(with: request)
         webSocket?.resume()
+        markTraffic()
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             self.connectionContinuation = continuation
@@ -172,6 +191,63 @@ extension GeminiLiveProvider {
         }
     }
 
+    func processTransportFailure(message: String) async {
+        guard !isManualDisconnect else { return }
+        isReceiving = false
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        webSocket = nil
+        resumeSessionIfNeeded()
+        if connectionState != .reconnecting, reconnectTask == nil {
+            finishRuntimeDisconnect(message: message, recoverable: false)
+        }
+    }
+
+    func sendPing() async throws {
+        guard let webSocket else {
+            throw GeminiError.notConnected
+        }
+        let currentSocket = webSocket
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            currentSocket.sendPing { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        markTraffic()
+    }
+
+    func startHeartbeat() {
+        heartbeatTask?.cancel()
+        heartbeatTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.heartbeatInterval)
+                guard !Task.isCancelled else { break }
+                guard self.connectionState == .connected,
+                      !self.isManualDisconnect else { continue }
+                do {
+                    try await self.sendPing()
+                } catch {
+                    await self.processTransportFailure(message: "Gemini heartbeat failed")
+                    break
+                }
+            }
+        }
+    }
+
+    func finishRuntimeDisconnect(message: String, recoverable: Bool) {
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        connectionState = .error(message)
+        onDisconnected?(VoiceDisconnectEvent(message: message, recoverable: recoverable))
+    }
+
     func buildSessionConfig(
         config: VoiceSessionConfig,
         resumeHandle: String?
@@ -198,12 +274,9 @@ extension GeminiLiveProvider {
                 )
             }
 
-        let googleSearch: GeminiSessionConfig.Tool.GoogleSearch? = config.webSearchEnabled
-            ? GeminiSessionConfig.Tool.GoogleSearch() : nil
-
         let tools: [GeminiSessionConfig.Tool]? = {
-            if functionDecls == nil && googleSearch == nil { return nil }
-            return [GeminiSessionConfig.Tool(googleSearch: googleSearch, functionDeclarations: functionDecls)]
+            guard let functionDecls else { return nil }
+            return [GeminiSessionConfig.Tool(googleSearch: nil, functionDeclarations: functionDecls)]
         }()
 
         let mediaRes: String? = {

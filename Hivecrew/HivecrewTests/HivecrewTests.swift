@@ -616,6 +616,74 @@ struct HivecrewTests {
 
         #expect(selected?.id == "peer-d")
     }
+
+    @Test
+    func voiceRecoveryPolicyDefersFreshRestartWhileSuspended() {
+        let decision = VoiceRecoveryPolicy.decideNextStep(
+            callState: .suspended,
+            hasUsedFreshRestartInCurrentFailureEpisode: false
+        )
+
+        #expect(decision == .deferUntilResume)
+    }
+
+    @Test
+    func voiceRecoveryPolicyFailsAfterFreshRestartWasAlreadyUsed() {
+        let decision = VoiceRecoveryPolicy.decideNextStep(
+            callState: .active,
+            hasUsedFreshRestartInCurrentFailureEpisode: true
+        )
+
+        #expect(decision == .terminalFailure)
+    }
+
+    @Test
+    func transcriptReplaySerializerPreservesVisibleConversationOrder() {
+        let entries: [TranscriptEntry] = [
+            .speech(role: .user, text: "First request"),
+            .speech(role: .model, text: "First response"),
+            .toolUse(
+                ToolUseRecord(
+                    toolName: "search_files",
+                    summary: "Found the project files",
+                    detail: "Returned two matching folders",
+                    fileResults: [
+                        VoiceFileSearchResult(
+                            id: "result-1",
+                            title: "project",
+                            path: "/tmp/project",
+                            sourceType: "file",
+                            relevanceScore: 0.99
+                        )
+                    ],
+                    previewFilePath: nil
+                )
+            ),
+            .speech(role: .user, text: "Second request")
+        ]
+
+        let chunks = VoiceTranscriptReplaySerializer.serialize(entries: entries)
+        let flattened = chunks.joined(separator: "\n")
+
+        #expect(flattened.contains("User: First request"))
+        #expect(flattened.contains("Assistant: First response"))
+        #expect(flattened.contains("Tool search_files: Found the project files"))
+        #expect(flattened.contains("Selected files:\n/tmp/project"))
+        #expect(flattened.contains("User: Second request"))
+    }
+
+    @Test
+    func transcriptReplaySerializerSplitsLargeTranscriptDeterministically() {
+        let longText = String(repeating: "A", count: 2_600)
+        let entries: [TranscriptEntry] = [
+            .speech(role: .user, text: longText)
+        ]
+
+        let chunks = VoiceTranscriptReplaySerializer.serialize(entries: entries)
+
+        #expect(chunks.count > 1)
+        #expect(chunks.joined() == "User: " + longText)
+    }
 }
 
 private extension HivecrewTests {

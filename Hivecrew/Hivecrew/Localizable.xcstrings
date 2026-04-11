@@ -19467,6 +19467,7 @@
       }
     },
     "Listening" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27459,6 +27460,7 @@
       }
     },
     "Reconnecting…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -34486,6 +34488,7 @@
       }
     },
     "Speaking" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

@@ -25,6 +25,155 @@ enum CallState: Equatable {
     case compactShare
 }
 
+enum VoiceRecoveryPhase: Equatable {
+    case idle
+    case reconnecting(reason: String)
+    case staleWhileSuspended(reason: String)
+    case restarting(reason: String)
+    case terminalFailure(reason: String)
+}
+
+enum VoiceRecoveryDecision: Equatable {
+    case reconnecting
+    case deferUntilResume
+    case startFreshRestart
+    case terminalFailure
+}
+
+struct VoiceRecoveryPolicy {
+    static func decideNextStep(
+        callState: CallState,
+        hasUsedFreshRestartInCurrentFailureEpisode: Bool
+    ) -> VoiceRecoveryDecision {
+        if hasUsedFreshRestartInCurrentFailureEpisode {
+            return .terminalFailure
+        }
+        if callState == .suspended {
+            return .deferUntilResume
+        }
+        return .startFreshRestart
+    }
+}
+
+struct VoiceTranscriptReplaySerializer {
+    private static let maxChunkLength = 2_000
+
+    static func serialize(entries: [TranscriptEntry]) -> [String] {
+        let renderedEntries = entries.compactMap(renderEntry(_:))
+        guard !renderedEntries.isEmpty else { return [] }
+
+        var chunks: [String] = []
+        var current = ""
+
+        for entry in renderedEntries {
+            let candidate = current.isEmpty ? entry : "\(current)\n\n\(entry)"
+            if candidate.count <= maxChunkLength {
+                current = candidate
+                continue
+            }
+
+            if !current.isEmpty {
+                chunks.append(current)
+                current = ""
+            }
+
+            if entry.count <= maxChunkLength {
+                current = entry
+                continue
+            }
+
+            for fragment in splitLongEntry(entry) {
+                chunks.append(fragment)
+            }
+        }
+
+        if !current.isEmpty {
+            chunks.append(current)
+        }
+
+        return chunks
+    }
+
+    static func finalRecoveryInstruction(activeWorkerQuestions: [AgentQuestion]) -> String {
+        var sections: [String] = [
+            """
+            Transport recovery complete. Continue this same conversation naturally.
+            Do not mention that the voice call was restarted, reconnected, or recovered unless the user explicitly asks.
+            Treat the replayed transcript as authoritative prior conversation context.
+            """
+        ]
+
+        if !activeWorkerQuestions.isEmpty {
+            let pendingQuestions = activeWorkerQuestions.map {
+                "- \($0.taskId): \($0.question)"
+            }.joined(separator: "\n")
+            sections.append(
+                """
+                The following worker questions are still unresolved:
+                \(pendingQuestions)
+                """
+            )
+        }
+
+        return sections.joined(separator: "\n\n")
+    }
+
+    private static func renderEntry(_ entry: TranscriptEntry) -> String? {
+        switch entry.content {
+        case .text(let text):
+            let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { return nil }
+            return "\(entry.role.replayLabel): \(normalized)"
+        case .toolUse(let record):
+            var lines = [
+                "Tool \(record.toolName): \(record.summary)"
+            ]
+            let normalizedDetail = record.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !normalizedDetail.isEmpty, normalizedDetail != record.summary {
+                lines.append(normalizedDetail)
+            }
+            let selectedFiles = record.fileResults.filter(\.isSelected).map(\.path)
+            if !selectedFiles.isEmpty {
+                lines.append("Selected files:\n" + selectedFiles.joined(separator: "\n"))
+            }
+            if let previewFilePath = record.previewFilePath, !previewFilePath.isEmpty {
+                lines.append("Preview file: \(previewFilePath)")
+            }
+            return lines.joined(separator: "\n")
+        }
+    }
+
+    private static func splitLongEntry(_ entry: String) -> [String] {
+        var fragments: [String] = []
+        var remaining = entry[...]
+
+        while remaining.count > maxChunkLength {
+            let splitIndex = remaining.index(remaining.startIndex, offsetBy: maxChunkLength)
+            fragments.append(String(remaining[..<splitIndex]))
+            remaining = remaining[splitIndex...]
+        }
+
+        if !remaining.isEmpty {
+            fragments.append(String(remaining))
+        }
+
+        return fragments
+    }
+}
+
+private extension TranscriptEntry.Role {
+    var replayLabel: String {
+        switch self {
+        case .user:
+            return "User"
+        case .model:
+            return "Assistant"
+        case .tool:
+            return "Tool"
+        }
+    }
+}
+
 @MainActor
 final class VoiceOrchestrator: ObservableObject {
 
@@ -127,6 +276,20 @@ final class VoiceOrchestrator: ObservableObject {
     private var captureWriter: VoiceSessionCaptureWriter?
     private var activeIsolationProfile: SpeakerIsolationProfile?
     private var activeVoiceSessionID: String?
+    private var recoveryPhase: VoiceRecoveryPhase = .idle
+    private var hasUsedFreshRestartInCurrentFailureEpisode = false
+    private var isReplayingRecoveryTranscript = false
+    private var lastSystemSleepDate: Date?
+
+    private struct PreparedVoiceSession {
+        let provider: any RealtimeVoiceProvider
+        let config: VoiceSessionConfig
+        let audioPolicy: VoiceSessionConfig.AudioPolicy
+        let startedAt: Date
+        let captureInputSampleRate: Double
+        let isolationProfile: SpeakerIsolationProfile?
+        let sessionID: String
+    }
 
     private struct VoiceSessionMetrics {
         var startedAt = Date()
@@ -263,6 +426,37 @@ final class VoiceOrchestrator: ObservableObject {
         }
     }
 
+    private func recordProviderSendFailure(_ error: Error, operation: String) {
+        recordCaptureEvent(category: .error, message: "provider_send_failed", metadata: [
+            "operation": operation,
+            "error": error.localizedDescription
+        ])
+    }
+
+    private func sendProviderText(_ text: String) async {
+        do {
+            try await provider?.sendText(text)
+        } catch {
+            recordProviderSendFailure(error, operation: "text")
+        }
+    }
+
+    private func sendProviderVideoFrame(_ data: Data) async {
+        do {
+            try await provider?.sendVideoFrame(data)
+        } catch {
+            recordProviderSendFailure(error, operation: "video_frame")
+        }
+    }
+
+    private func sendProviderToolResponse(callId: String, name: String, result: String) async {
+        do {
+            try await provider?.sendToolResponse(callId: callId, name: name, result: result)
+        } catch {
+            recordProviderSendFailure(error, operation: "tool_response")
+        }
+    }
+
     private func recordInputActivity(_ activity: VoiceInputActivityEvent) {
         switch activity.kind {
         case .speechStarted:
@@ -391,108 +585,117 @@ final class VoiceOrchestrator: ObservableObject {
 
     // MARK: - Connection Lifecycle
 
-    func startCall() async {
-        guard callState == .idle || callState == .suspended else { return }
-
-        clearSession()
-
-        guard let modelContext else {
-            connectionState = .error("Voice not initialized")
-            return
-        }
-
-        VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
-
-        guard let credentials = VoiceAvailability.getCredentials(modelContext: modelContext) else {
-            connectionState = .error("No voice provider configured. Add a provider in Settings → Providers.")
-            return
-        }
-
-        let startedAt = Date()
-
-        let prov = RealtimeVoiceService.shared.createProvider(
-            backend: backend,
-            apiKey: credentials.apiKey,
-            model: selectedModel
-        )
-        self.provider = prov
-
-        wireProviderCallbacks(prov)
-
-        let thinkingLevel = VoiceSessionConfig.ThinkingLevel(rawValue: thinkingLevelRaw) ?? .low
-        let mediaRes = VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium
-        let audioPolicy = makeAudioPolicy()
-
-        guard !audioPolicy.localSpeakerIsolation.enabled || VoiceIsolationProfileStore.loadProfile() != nil else {
-            connectionState = .error("Voice isolation setup is required. Complete Settings → Voice before starting a call.")
-            provider = nil
-            return
-        }
-
-        let captureInputSampleRate = audioPolicy.localSpeakerIsolation.enabled
-            ? audioPolicy.localSpeakerIsolation.internalSampleRate
-            : prov.inputSampleRate
-
-        audioManager.configure(
-            inputSampleRate: captureInputSampleRate,
-            outputSampleRate: prov.outputSampleRate
-        )
-        audioManager.setPreferredInputDevice(inputDeviceIDRaw)
-
-        // Import active tasks from previous sessions so the voice model can manage them.
+    private func makeSystemPrompt() -> String {
         let existingTasksSummary = importActiveTasks()
-
         var systemPrompt = OrchestratorSystemPrompt.build(
             voiceName: voiceName.capitalized
         )
         if !existingTasksSummary.isEmpty {
             systemPrompt += "\n\n" + existingTasksSummary
         }
+        return systemPrompt
+    }
 
-        let tools = OrchestratorToolHandler.toolDeclarations
+    private func prepareVoiceSession() throws -> PreparedVoiceSession {
+        guard let modelContext else {
+            connectionState = .error("Voice not initialized")
+            throw NSError(domain: "VoiceOrchestrator", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Voice not initialized"
+            ])
+        }
+
+        VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+
+        guard let credentials = VoiceAvailability.getCredentials(modelContext: modelContext) else {
+            connectionState = .error("No voice provider configured. Add a provider in Settings → Providers.")
+            throw NSError(domain: "VoiceOrchestrator", code: 2, userInfo: [
+                NSLocalizedDescriptionKey: "No voice provider configured. Add a provider in Settings → Providers."
+            ])
+        }
+
+        let startedAt = Date()
+        let provider = RealtimeVoiceService.shared.createProvider(
+            backend: backend,
+            apiKey: credentials.apiKey,
+            model: selectedModel
+        )
+
+        let audioPolicy = makeAudioPolicy()
+        let isolationProfile = VoiceIsolationProfileStore.loadProfile()
+        guard !audioPolicy.localSpeakerIsolation.enabled || isolationProfile != nil else {
+            connectionState = .error("Voice isolation setup is required. Complete Settings → Voice before starting a call.")
+            throw NSError(domain: "VoiceOrchestrator", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "Voice isolation setup is required. Complete Settings → Voice before starting a call."
+            ])
+        }
+
+        let captureInputSampleRate = audioPolicy.localSpeakerIsolation.enabled
+            ? audioPolicy.localSpeakerIsolation.internalSampleRate
+            : provider.inputSampleRate
 
         let config = VoiceSessionConfig(
-            systemPrompt: systemPrompt,
+            systemPrompt: makeSystemPrompt(),
             voiceName: voiceName,
-            tools: tools,
-            mediaResolution: mediaRes,
-            thinkingLevel: thinkingLevel,
+            tools: OrchestratorToolHandler.toolDeclarations,
+            mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
+            thinkingLevel: VoiceSessionConfig.ThinkingLevel(rawValue: thinkingLevelRaw) ?? .low,
             includeThoughts: includeThoughts,
             webSearchEnabled: webSearchEnabled,
             audioPolicy: audioPolicy
         )
-        currentAudioPolicy = audioPolicy
-        activeIsolationProfile = VoiceIsolationProfileStore.loadProfile()
-        activeVoiceSessionID = UUID().uuidString.lowercased()
-        metrics = VoiceSessionMetrics(
+
+        return PreparedVoiceSession(
+            provider: provider,
+            config: config,
+            audioPolicy: audioPolicy,
             startedAt: startedAt,
-            preset: audioPolicy.preset.rawValue,
+            captureInputSampleRate: captureInputSampleRate,
+            isolationProfile: isolationProfile,
+            sessionID: UUID().uuidString.lowercased()
+        )
+    }
+
+    private func installPreparedSession(_ prepared: PreparedVoiceSession) {
+        let provider = prepared.provider
+        self.provider = provider
+        wireProviderCallbacks(provider)
+
+        currentAudioPolicy = prepared.audioPolicy
+        activeIsolationProfile = prepared.isolationProfile
+        activeVoiceSessionID = prepared.sessionID
+        metrics = VoiceSessionMetrics(
+            startedAt: prepared.startedAt,
+            preset: prepared.audioPolicy.preset.rawValue,
             inputDeviceName: audioManager.inputDevice(matching: inputDeviceIDRaw)?.name ?? audioManager.activeInputDeviceName,
             activeMicrophoneModeName: audioManager.activeMicrophoneModeName
         )
 
-        captureWriter = activeVoiceSessionID.map {
-            makeCaptureWriter(
-                providerInputSampleRate: prov.inputSampleRate,
-                providerOutputSampleRate: prov.outputSampleRate,
-                audioPolicy: audioPolicy,
-                startedAt: startedAt,
-                sessionID: $0
-            )
-        } ?? nil
+        audioManager.configure(
+            inputSampleRate: prepared.captureInputSampleRate,
+            outputSampleRate: provider.outputSampleRate
+        )
+        audioManager.setPreferredInputDevice(inputDeviceIDRaw)
 
-        if audioPolicy.localSpeakerIsolation.enabled, let activeIsolationProfile {
+        captureWriter = makeCaptureWriter(
+            providerInputSampleRate: provider.inputSampleRate,
+            providerOutputSampleRate: provider.outputSampleRate,
+            audioPolicy: prepared.audioPolicy,
+            startedAt: prepared.startedAt,
+            sessionID: prepared.sessionID
+        )
+
+        if prepared.audioPolicy.localSpeakerIsolation.enabled, let isolationProfile = prepared.isolationProfile {
             let speechEnhancer: (any SpeechEnhancer)? =
-                audioPolicy.localSpeakerIsolation.speechEnhancerKind == .hush
+                prepared.audioPolicy.localSpeakerIsolation.speechEnhancerKind == .hush
                 ? HushSpeechEnhancer()
                 : nil
 
             uplinkPipeline = UplinkAudioPipeline(
                 configuration: .init(
-                    providerInputSampleRate: prov.inputSampleRate,
-                    captureSampleRate: captureInputSampleRate,
-                    targetProfile: activeIsolationProfile,
-                    policy: audioPolicy.localSpeakerIsolation
+                    providerInputSampleRate: provider.inputSampleRate,
+                    captureSampleRate: prepared.captureInputSampleRate,
+                    targetProfile: isolationProfile,
+                    policy: prepared.audioPolicy.localSpeakerIsolation
                 ),
                 engine: SpeakerIsolationEngine(extractor: PassthroughTargetSpeakerExtractor()),
                 speechEnhancer: speechEnhancer,
@@ -503,68 +706,52 @@ final class VoiceOrchestrator: ObservableObject {
                 outputHandler: { [weak self] data, _ in
                     guard let self else { return }
                     self.logFirstOverlapUplinkChunk(data)
-                    try? await self.provider?.sendAudio(data)
+                    do {
+                        try await self.provider?.sendAudio(data)
+                    } catch {
+                        self.recordCaptureEvent(category: .error, message: "provider_uplink_failed", metadata: [
+                            "error": error.localizedDescription
+                        ])
+                    }
                 }
             )
         } else {
             uplinkPipeline = nil
         }
+
         refreshAudioCaptureCallback()
-
-        connectionState = .connecting
-        callState = .active
-
-        do {
-            if let uplinkPipeline {
-                try await uplinkPipeline.prepare()
-            }
-            recordCaptureEvent(category: .lifecycle, message: "session_prepared", metadata: [
-                "provider": backend.rawValue,
-                "model": selectedModel,
-                "session_id": activeVoiceSessionID ?? "n/a"
-            ])
-            try await prov.connect(config: config)
-            if let actualModel = prov.activeModel, actualModel != selectedModel {
-                selectedModel = actualModel
-            }
-            try await audioManager.startCapture(voiceProcessingEnabled: true)
-            metrics.inputDeviceName = audioManager.activeInputDeviceName
-            metrics.activeMicrophoneModeName = audioManager.activeMicrophoneModeName
-            logAudioSessionStart()
-            recordCaptureEvent(category: .lifecycle, message: "session_started", metadata: [
-                "device": metrics.inputDeviceName,
-                "mic_mode": metrics.activeMicrophoneModeName
-            ])
-            connectionState = .connected
-            startIdleTimer()
-            subscribeToInputLevel()
-            subscribeToTaskEvents()
-        } catch {
-            recordCaptureEvent(category: .error, message: "session_start_failed", metadata: [
-                "error": error.localizedDescription
-            ])
-            disconnectProvider(flushStreamFirst: false)
-            let pipeline = uplinkPipeline
-            let writer = captureWriter
-            uplinkPipeline = nil
-            captureWriter = nil
-            activeIsolationProfile = nil
-            activeVoiceSessionID = nil
-            refreshAudioCaptureCallback()
-            Task {
-                if let pipeline {
-                    _ = await pipeline.finish(flushPendingAudio: false)
-                }
-                await writer?.finish()
-            }
-            connectionState = .error(error.localizedDescription)
-            callState = .idle
-        }
     }
 
-    func endCall() {
-        recordCaptureEvent(category: .lifecycle, message: "session_ending")
-        logVoiceMetricsSummary()
+    private func finishPreparedSessionStartup(_ prepared: PreparedVoiceSession) async throws {
+        if let uplinkPipeline {
+            try await uplinkPipeline.prepare()
+        }
+        recordCaptureEvent(category: .lifecycle, message: "session_prepared", metadata: [
+            "provider": backend.rawValue,
+            "model": selectedModel,
+            "session_id": activeVoiceSessionID ?? "n/a"
+        ])
+        try await prepared.provider.connect(config: prepared.config)
+        if let actualModel = prepared.provider.activeModel, actualModel != selectedModel {
+            selectedModel = actualModel
+        }
+        try await audioManager.startCapture(voiceProcessingEnabled: true)
+        metrics.inputDeviceName = audioManager.activeInputDeviceName
+        metrics.activeMicrophoneModeName = audioManager.activeMicrophoneModeName
+        logAudioSessionStart()
+        recordCaptureEvent(category: .lifecycle, message: "session_started", metadata: [
+            "device": metrics.inputDeviceName,
+            "mic_mode": metrics.activeMicrophoneModeName
+        ])
+        connectionState = .connected
+        recoveryPhase = .idle
+        hasUsedFreshRestartInCurrentFailureEpisode = false
+        startIdleTimer()
+        subscribeToInputLevel()
+        subscribeToTaskEvents()
+    }
+
+    private func tearDownActiveSession(flushStreamFirst: Bool, resetQuestions: Bool) {
         pendingEndCall = false
         resetOverlapMetrics()
         cancelTimers()
@@ -578,21 +765,171 @@ final class VoiceOrchestrator: ObservableObject {
         activeIsolationProfile = nil
         activeVoiceSessionID = nil
         refreshAudioCaptureCallback()
-        disconnectProvider(flushStreamFirst: currentAudioPolicy.streamEndBehavior.sendOnCallEnd)
-        Task { await videoSourceManager.deactivate() }
+        disconnectProvider(flushStreamFirst: flushStreamFirst)
         Task {
             if let pipeline {
                 _ = await pipeline.finish(flushPendingAudio: false)
             }
             await writer?.finish()
         }
+        if resetQuestions {
+            restoreQuestionWindowsAndCleanup()
+        }
+    }
+
+    private func replayTranscriptIfNeeded(using provider: any RealtimeVoiceProvider) async throws {
+        let replayChunks = VoiceTranscriptReplaySerializer.serialize(entries: transcript)
+        guard !replayChunks.isEmpty else { return }
+
+        isReplayingRecoveryTranscript = true
+        defer { isReplayingRecoveryTranscript = false }
+
+        for (index, chunk) in replayChunks.enumerated() {
+            try await provider.sendText(
+                """
+                [RECOVERY_TRANSCRIPT_CHUNK \(index + 1)/\(replayChunks.count)]
+                Historical conversation context. Do not acknowledge this chunk.
+
+                \(chunk)
+                """
+            )
+        }
+
+        try await provider.sendText(
+            VoiceTranscriptReplaySerializer.finalRecoveryInstruction(
+                activeWorkerQuestions: activeWorkerQuestions
+            )
+        )
+    }
+
+    private func performFreshCallRestart(reason: String) async {
+        guard VoiceRecoveryPolicy.decideNextStep(
+            callState: callState,
+            hasUsedFreshRestartInCurrentFailureEpisode: hasUsedFreshRestartInCurrentFailureEpisode
+        ) != .terminalFailure else {
+            failCallRecovery(reason: reason)
+            return
+        }
+
+        hasUsedFreshRestartInCurrentFailureEpisode = true
+        recoveryPhase = .restarting(reason: reason)
+        connectionState = .connecting
+        recordCaptureEvent(category: .lifecycle, message: "provider_fresh_restart", metadata: [
+            "reason": reason
+        ])
+
+        let priorCallState = callState
+        tearDownActiveSession(flushStreamFirst: false, resetQuestions: false)
+        callState = priorCallState == .suspended ? .suspended : .active
+        isModelSpeaking = false
+
+        do {
+            let prepared = try prepareVoiceSession()
+            installPreparedSession(prepared)
+            try await prepared.provider.connect(config: prepared.config)
+            if let actualModel = prepared.provider.activeModel, actualModel != selectedModel {
+                selectedModel = actualModel
+            }
+            try await replayTranscriptIfNeeded(using: prepared.provider)
+            if priorCallState != .suspended {
+                try await audioManager.startCapture(voiceProcessingEnabled: true)
+                startIdleTimer()
+                subscribeToInputLevel()
+                callState = .active
+            } else {
+                callState = .suspended
+            }
+            metrics.inputDeviceName = audioManager.activeInputDeviceName
+            metrics.activeMicrophoneModeName = audioManager.activeMicrophoneModeName
+            connectionState = .connected
+            recoveryPhase = .idle
+        } catch {
+            failCallRecovery(reason: error.localizedDescription)
+        }
+    }
+
+    private func failCallRecovery(reason: String) {
+        recoveryPhase = .terminalFailure(reason: reason)
+        isReplayingRecoveryTranscript = false
+        tearDownActiveSession(flushStreamFirst: false, resetQuestions: true)
+        connectionState = .error(reason)
+        callState = .idle
+    }
+
+    private func handleProviderDisconnect(_ event: VoiceDisconnectEvent) {
+        guard backend == .geminiLive, callState != .idle else {
+            connectionState = .error(event.message)
+            return
+        }
+
+        switch VoiceRecoveryPolicy.decideNextStep(
+            callState: callState,
+            hasUsedFreshRestartInCurrentFailureEpisode: hasUsedFreshRestartInCurrentFailureEpisode
+        ) {
+        case .deferUntilResume:
+            recoveryPhase = .staleWhileSuspended(reason: event.message)
+            connectionState = .error(event.message)
+            recordCaptureEvent(category: .lifecycle, message: "provider_stale_while_suspended", metadata: [
+                "reason": event.message
+            ])
+        case .startFreshRestart:
+            Task { @MainActor [weak self] in
+                await self?.performFreshCallRestart(reason: event.message)
+            }
+        case .terminalFailure:
+            failCallRecovery(reason: event.message)
+        case .reconnecting:
+            break
+        }
+    }
+
+    func startCall() async {
+        guard callState == .idle || callState == .suspended else { return }
+
+        clearSession()
+        recoveryPhase = .idle
+        hasUsedFreshRestartInCurrentFailureEpisode = false
+
+        let prepared: PreparedVoiceSession
+        do {
+            prepared = try prepareVoiceSession()
+        } catch {
+            return
+        }
+
+        installPreparedSession(prepared)
+
+        connectionState = .connecting
+        callState = .active
+
+        do {
+            try await finishPreparedSessionStartup(prepared)
+        } catch {
+            recordCaptureEvent(category: .error, message: "session_start_failed", metadata: [
+                "error": error.localizedDescription
+            ])
+            tearDownActiveSession(flushStreamFirst: false, resetQuestions: false)
+            connectionState = .error(error.localizedDescription)
+            callState = .idle
+        }
+    }
+
+    func endCall() {
+        recordCaptureEvent(category: .lifecycle, message: "session_ending")
+        logVoiceMetricsSummary()
+        tearDownActiveSession(
+            flushStreamFirst: currentAudioPolicy.streamEndBehavior.sendOnCallEnd,
+            resetQuestions: true
+        )
+        Task { await videoSourceManager.deactivate() }
         connectionState = .disconnected
         callState = .idle
         isModelSpeaking = false
         totalTokenCount = 0
         tokenCountBase = 0
         currentAudioPolicy = .init()
-        restoreQuestionWindowsAndCleanup()
+        recoveryPhase = .idle
+        hasUsedFreshRestartInCurrentFailureEpisode = false
     }
 
     /// Schedule the call to end once the model finishes its current turn.
@@ -611,6 +948,7 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onAudioReceived = { [weak self] data in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                guard !self.isReplayingRecoveryTranscript else { return }
                 Task {
                     await self.captureWriter?.appendDownlinkPCM(data)
                 }
@@ -625,6 +963,9 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onTranscription = { [weak self] transcription in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                if self.isReplayingRecoveryTranscript, transcription.source == .output {
+                    return
+                }
                 self.recordCaptureEvent(category: .transcript, message: "transcription", metadata: [
                     "source": transcription.source == .input ? "input" : "output",
                     "length": "\(transcription.text.count)",
@@ -659,6 +1000,7 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onInterrupted = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                guard !self.isReplayingRecoveryTranscript else { return }
                 self.metrics.interruptionCount += 1
                 self.resetIdleTimer()
                 self.logServerInterrupted()
@@ -672,6 +1014,7 @@ final class VoiceOrchestrator: ObservableObject {
         prov.onTurnComplete = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                guard !self.isReplayingRecoveryTranscript else { return }
                 if let startedAt = self.pendingOverlapStartedAt {
                     let elapsedMs = Int((Date().timeIntervalSinceReferenceDate - startedAt) * 1000)
                     print("[VoiceInterruption] Turn completed without server interruption after \(elapsedMs) ms")
@@ -695,7 +1038,20 @@ final class VoiceOrchestrator: ObservableObject {
                 self.recordCaptureEvent(category: .error, message: "provider_error", metadata: [
                     "error": error.localizedDescription
                 ])
-                self.connectionState = .error(error.localizedDescription)
+                if self.recoveryPhase == .idle {
+                    self.connectionState = .error(error.localizedDescription)
+                }
+            }
+        }
+
+        prov.onDisconnected = { [weak self] event in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.recordCaptureEvent(category: .error, message: "provider_disconnected", metadata: [
+                    "message": event.message,
+                    "recoverable": event.recoverable ? "true" : "false"
+                ])
+                self.handleProviderDisconnect(event)
             }
         }
 
@@ -710,6 +1066,7 @@ final class VoiceOrchestrator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.recordCaptureEvent(category: .lifecycle, message: "provider_reconnecting")
+                self.recoveryPhase = .reconnecting(reason: "Attempting to resume Gemini session")
                 self.connectionState = .reconnecting
             }
         }
@@ -718,6 +1075,8 @@ final class VoiceOrchestrator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.recordCaptureEvent(category: .lifecycle, message: "provider_reconnected")
+                self.recoveryPhase = .idle
+                self.hasUsedFreshRestartInCurrentFailureEpisode = false
                 self.connectionState = .connected
             }
         }
@@ -753,7 +1112,13 @@ final class VoiceOrchestrator: ObservableObject {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     self.logFirstOverlapUplinkChunk(data)
-                    try? await self.provider?.sendAudio(data)
+                    do {
+                        try await self.provider?.sendAudio(data)
+                    } catch {
+                        self.recordCaptureEvent(category: .error, message: "provider_uplink_failed", metadata: [
+                            "error": error.localizedDescription
+                        ])
+                    }
                 }
             }
         }
@@ -808,7 +1173,7 @@ final class VoiceOrchestrator: ObservableObject {
         videoSourceManager.onFrameCaptured = { [weak self] data in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                try? await self.provider?.sendVideoFrame(data)
+                await self.sendProviderVideoFrame(data)
             }
         }
     }
@@ -874,10 +1239,10 @@ final class VoiceOrchestrator: ObservableObject {
         // stream BEFORE the tool response so the model has the image in
         // context when it processes the result and starts generating.
         if let imageData = result.imageData {
-            try? await provider?.sendVideoFrame(imageData)
+            await sendProviderVideoFrame(imageData)
         }
 
-        try? await provider?.sendToolResponse(
+        await sendProviderToolResponse(
             callId: toolCall.id,
             name: toolCall.name,
             result: result.text
@@ -958,7 +1323,7 @@ final class VoiceOrchestrator: ObservableObject {
             }
             Task {
                 await resumeIfSuspended()
-                try? await provider?.sendText(message)
+                await sendProviderText(message)
             }
 
         case .failed:
@@ -970,7 +1335,7 @@ final class VoiceOrchestrator: ObservableObject {
             }
             Task {
                 await resumeIfSuspended()
-                try? await provider?.sendText(message)
+                await sendProviderText(message)
             }
 
         case .cancelled:
@@ -981,7 +1346,7 @@ final class VoiceOrchestrator: ObservableObject {
             }
             Task {
                 await resumeIfSuspended()
-                try? await provider?.sendText(message)
+                await sendProviderText(message)
             }
 
         default:
@@ -1016,7 +1381,7 @@ final class VoiceOrchestrator: ObservableObject {
 
         Task {
             await resumeIfSuspended()
-            try? await provider?.sendText(message)
+            await sendProviderText(message)
         }
     }
 
@@ -1031,7 +1396,7 @@ final class VoiceOrchestrator: ObservableObject {
 
         let workerName = workerRegistry.resolve(query: question.taskId)?.displayName ?? "Worker"
         let notification = "[CALLBACK] User answered \(workerName)'s question via UI: \"\(answer)\""
-        Task { try? await provider?.sendText(notification) }
+        Task { await sendProviderText(notification) }
     }
 
     // MARK: - Transcript File Search
@@ -1099,11 +1464,38 @@ final class VoiceOrchestrator: ObservableObject {
     /// Awaitable so callers can ensure audio is ready before sending messages.
     func resumeCall() async {
         guard callState == .suspended else { return }
+        if case .staleWhileSuspended(let reason) = recoveryPhase {
+            await performFreshCallRestart(reason: reason)
+            if case .terminalFailure = recoveryPhase {
+                return
+            }
+        } else if let provider {
+            do {
+                try await provider.validateConnection()
+            } catch {
+                handleProviderDisconnect(
+                    VoiceDisconnectEvent(message: error.localizedDescription, recoverable: false)
+                )
+                if case .staleWhileSuspended = recoveryPhase {
+                    await performFreshCallRestart(reason: error.localizedDescription)
+                    if case .terminalFailure = recoveryPhase {
+                        return
+                    }
+                }
+            }
+        }
+
         callState = .active
         audioManager.setPreferredInputDevice(inputDeviceIDRaw)
-        try? await audioManager.startCapture(voiceProcessingEnabled: true)
+        do {
+            try await audioManager.startCapture(voiceProcessingEnabled: true)
+        } catch {
+            failCallRecovery(reason: error.localizedDescription)
+            return
+        }
         metrics.inputDeviceName = audioManager.activeInputDeviceName
         metrics.activeMicrophoneModeName = audioManager.activeMicrophoneModeName
+        recoveryPhase = .idle
         recordCaptureEvent(category: .lifecycle, message: "session_resumed")
         startIdleTimer()
         subscribeToInputLevel()
@@ -1115,6 +1507,27 @@ final class VoiceOrchestrator: ObservableObject {
     private func resumeIfSuspended() async {
         guard callState == .suspended else { return }
         await resumeCall()
+    }
+
+    func handleSystemWillSleep() async {
+        lastSystemSleepDate = Date()
+        if callState == .active || callState == .idleTimeout {
+            suspendCall()
+        }
+    }
+
+    func handleSystemDidWake() async {
+        guard provider != nil, callState == .suspended else { return }
+        recordCaptureEvent(category: .lifecycle, message: "system_woke", metadata: [
+            "slept": lastSystemSleepDate.map { String(Int(Date().timeIntervalSince($0))) } ?? "unknown"
+        ])
+        do {
+            try await provider?.validateConnection()
+        } catch {
+            handleProviderDisconnect(
+                VoiceDisconnectEvent(message: error.localizedDescription, recoverable: false)
+            )
+        }
     }
 
     // MARK: - Idle / Suspend Timers
@@ -1194,6 +1607,9 @@ final class VoiceOrchestrator: ObservableObject {
     func clearSession() {
         pendingEndCall = false
         resetOverlapMetrics()
+        isReplayingRecoveryTranscript = false
+        recoveryPhase = .idle
+        hasUsedFreshRestartInCurrentFailureEpisode = false
         restoreQuestionWindowsAndCleanup()
         transcript.removeAll()
         relevantTaskIds.removeAll()

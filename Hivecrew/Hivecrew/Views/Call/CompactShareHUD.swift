@@ -56,8 +56,7 @@ struct CompactShareHUDContent: View {
             )
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(orchestrator.connectionState == .reconnecting ? "Reconnecting…" :
-                     orchestrator.isModelSpeaking ? "Speaking" : "Listening")
+                Text(statusText)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white)
                 Text("\(orchestrator.workerRegistry.workers.count) workers")
@@ -94,5 +93,23 @@ struct CompactShareHUDContent: View {
         .background(.ultraThinMaterial.opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
         .background(Color.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 16))
         .frame(width: 320, height: 80)
+    }
+
+    private var statusText: String {
+        switch orchestrator.connectionState {
+        case .error:
+            return "Needs attention"
+        case .connecting:
+            return "Connecting…"
+        case .reconnecting:
+            return "Reconnecting…"
+        case .connected:
+            if orchestrator.callState == .suspended {
+                return "Paused"
+            }
+            return orchestrator.isModelSpeaking ? "Speaking" : "Listening"
+        case .disconnected:
+            return orchestrator.callState == .suspended ? "Paused" : "Disconnected"
+        }
     }
 }
