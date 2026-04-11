@@ -251,6 +251,7 @@ FILE LOCATIONS:
 
 TIPS:
 - Save any final deliverables to ~/Desktop/outbox/ so the user can access them.
+- If the user did not explicitly or implicitly specify an output file type and the deliverable is best as a polished, read-only document (for example, research briefs or reports), default to PDF; otherwise use the explicitly requested or clearly implied format such as `docx`, `xlsx`, or `pptx`.
 \(webTipsSection)
 - Wait briefly after actions that cause animations or page loads.
 \(keyboardTipsLine)
