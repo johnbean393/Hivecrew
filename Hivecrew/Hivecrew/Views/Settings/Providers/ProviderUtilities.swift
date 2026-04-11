@@ -124,6 +124,20 @@ enum ConnectionTestResult: Equatable {
     }
 }
 
+enum ProviderPersistenceError: LocalizedError {
+    case apiKeyStoreFailed
+    case apiKeyDeleteFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .apiKeyStoreFailed:
+            return "Hivecrew couldn't save the API key to the Keychain."
+        case .apiKeyDeleteFailed:
+            return "Hivecrew couldn't remove the existing API key from the Keychain."
+        }
+    }
+}
+
 // MARK: - Connection Test Result View
 
 /// Displays the result of a connection test

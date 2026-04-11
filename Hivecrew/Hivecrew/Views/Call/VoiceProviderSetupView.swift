@@ -27,6 +27,7 @@ struct VoiceProviderSetupView: View {
     @State private var isTesting = false
     @State private var testResult: ConnectionTestResult?
     @State private var hasSaved = false
+    @State private var saveErrorMessage: String?
 
     private var hasConfiguredVoiceProvider: Bool {
         VoiceAvailability.isConfigured(modelContext: modelContext)
@@ -67,6 +68,21 @@ struct VoiceProviderSetupView: View {
             if configured {
                 VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
             }
+        }
+        .alert(
+            "Couldn't Save Provider",
+            isPresented: Binding(
+                get: { saveErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        saveErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveErrorMessage ?? "An unknown error occurred.")
         }
     }
 
@@ -259,8 +275,11 @@ struct VoiceProviderSetupView: View {
     }
 
     private func saveProvider() {
+        let normalizedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
         let provider = LLMProviderRecord(
-            displayName: displayName,
+            displayName: normalizedDisplayName,
             baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
             organizationId: nil,
             backendMode: .chatCompletions,
@@ -268,19 +287,29 @@ struct VoiceProviderSetupView: View {
             isDefault: providers.isEmpty,
             timeoutInterval: 120
         )
-        provider.storeAPIKey(apiKey)
-        modelContext.insert(provider)
 
-        hasSaved = true
-        isConfigured = true
+        do {
+            guard provider.storeAPIKey(normalizedAPIKey) else {
+                throw ProviderPersistenceError.apiKeyStoreFailed
+            }
 
-        VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+            modelContext.insert(provider)
+            try modelContext.save()
 
-        displayName = ""
-        apiKey = ""
-        testResult = nil
+            hasSaved = true
+            isConfigured = true
 
-        onConfigured?()
+            VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+
+            displayName = ""
+            apiKey = ""
+            testResult = nil
+
+            onConfigured?()
+        } catch {
+            provider.deleteAPIKey()
+            saveErrorMessage = error.localizedDescription
+        }
     }
 }
 

@@ -43,6 +43,7 @@ struct ProviderEditSheet: View {
 
     @State private var isTesting = false
     @State private var testResult: ConnectionTestResult?
+    @State private var saveErrorMessage: String?
 
     @State var isAuthenticatingOAuth = false
 
@@ -213,6 +214,21 @@ struct ProviderEditSheet: View {
             guard shouldAutoRefreshOAuthAuth else { return }
             refreshOAuthStatus()
         }
+        .alert(
+            "Couldn't Save Provider",
+            isPresented: Binding(
+                get: { saveErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        saveErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveErrorMessage ?? "An unknown error occurred.")
+        }
     }
 
     private var isValid: Bool {
@@ -264,63 +280,71 @@ struct ProviderEditSheet: View {
         let normalizedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedBaseURL = normalizedLLMProviderBaseURLString(normalizedOptional(baseURL))
         let normalizedOrg = normalizedOptional(organizationId)
+        let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if let existingProvider = provider {
-            existingProvider.displayName = normalizedDisplayName
-            existingProvider.backendMode = backendMode
-            existingProvider.authMode = backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey
-            existingProvider.baseURL = backendMode == .codexOAuth ? nil : normalizedBaseURL
-            existingProvider.organizationId = backendMode == .codexOAuth ? nil : normalizedOrg
-            existingProvider.timeoutInterval = timeoutInterval
+        do {
+            if let existingProvider = provider {
+                existingProvider.displayName = normalizedDisplayName
+                existingProvider.backendMode = backendMode
+                existingProvider.authMode = backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey
+                existingProvider.baseURL = backendMode == .codexOAuth ? nil : normalizedBaseURL
+                existingProvider.organizationId = backendMode == .codexOAuth ? nil : normalizedOrg
+                existingProvider.timeoutInterval = timeoutInterval
 
-            existingProvider.oauthAuthState = oauthAuthState
-            existingProvider.oauthLoginId = oauthLoginId
-            existingProvider.oauthLastAuthURL = oauthLastAuthURL
-            existingProvider.oauthAuthMessage = oauthAuthMessage
-            existingProvider.oauthAuthUpdatedAt = Date()
+                existingProvider.oauthAuthState = oauthAuthState
+                existingProvider.oauthLoginId = oauthLoginId
+                existingProvider.oauthLastAuthURL = oauthLastAuthURL
+                existingProvider.oauthAuthMessage = oauthAuthMessage
+                existingProvider.oauthAuthUpdatedAt = Date()
 
-            if backendMode != .codexOAuth {
-                if !apiKey.isEmpty {
-                    existingProvider.storeAPIKey(apiKey)
+                if backendMode != .codexOAuth {
+                    if !normalizedAPIKey.isEmpty && !existingProvider.storeAPIKey(normalizedAPIKey) {
+                        throw ProviderPersistenceError.apiKeyStoreFailed
+                    }
+                } else if existingProvider.hasAPIKey, !existingProvider.deleteAPIKey() {
+                    throw ProviderPersistenceError.apiKeyDeleteFailed
+                }
+
+                if isDefault {
+                    setAsDefault(existingProvider)
+                } else {
+                    existingProvider.isDefault = false
                 }
             } else {
-                existingProvider.deleteAPIKey()
+                let newProvider = LLMProviderRecord(
+                    id: activeProviderId,
+                    displayName: normalizedDisplayName,
+                    baseURL: backendMode == .codexOAuth ? nil : normalizedBaseURL,
+                    organizationId: backendMode == .codexOAuth ? nil : normalizedOrg,
+                    backendMode: backendMode,
+                    authMode: backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey,
+                    oauthAuthState: oauthAuthState,
+                    oauthLoginId: oauthLoginId,
+                    oauthLastAuthURL: oauthLastAuthURL,
+                    oauthAuthUpdatedAt: Date(),
+                    oauthAuthMessage: oauthAuthMessage,
+                    isDefault: isDefault,
+                    timeoutInterval: timeoutInterval
+                )
+
+                if backendMode != .codexOAuth,
+                   !normalizedAPIKey.isEmpty,
+                   !newProvider.storeAPIKey(normalizedAPIKey) {
+                    throw ProviderPersistenceError.apiKeyStoreFailed
+                }
+
+                if isDefault {
+                    setAsDefault(newProvider)
+                }
+
+                modelContext.insert(newProvider)
             }
 
-            if isDefault {
-                setAsDefault(existingProvider)
-            } else {
-                existingProvider.isDefault = false
-            }
-        } else {
-            let newProvider = LLMProviderRecord(
-                id: activeProviderId,
-                displayName: normalizedDisplayName,
-                baseURL: backendMode == .codexOAuth ? nil : normalizedBaseURL,
-                organizationId: backendMode == .codexOAuth ? nil : normalizedOrg,
-                backendMode: backendMode,
-                authMode: backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey,
-                oauthAuthState: oauthAuthState,
-                oauthLoginId: oauthLoginId,
-                oauthLastAuthURL: oauthLastAuthURL,
-                oauthAuthUpdatedAt: Date(),
-                oauthAuthMessage: oauthAuthMessage,
-                isDefault: isDefault,
-                timeoutInterval: timeoutInterval
-            )
-
-            if backendMode != .codexOAuth, !apiKey.isEmpty {
-                newProvider.storeAPIKey(apiKey)
-            }
-
-            if isDefault {
-                setAsDefault(newProvider)
-            }
-
-            modelContext.insert(newProvider)
+            try modelContext.save()
+            dismiss()
+        } catch {
+            saveErrorMessage = error.localizedDescription
         }
-
-        dismiss()
     }
 
     private func setAsDefault(_ provider: LLMProviderRecord) {

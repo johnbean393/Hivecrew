@@ -37,6 +37,7 @@ struct OnboardingProviderStep: View {
     @State private var isAuthenticatingOAuth = false
     @State private var shouldAutoSaveOAuthProvider = false
     @State private var shouldAutoAdvanceAfterOAuth = false
+    @State private var saveErrorMessage: String?
 
     private let chatGPTSignInSubscriptionTip = ChatGPTSignInSubscriptionTip()
 
@@ -253,6 +254,21 @@ struct OnboardingProviderStep: View {
         .onAppear {
             isConfigured = !providers.isEmpty
         }
+        .alert(
+            "Couldn't Save Provider",
+            isPresented: Binding(
+                get: { saveErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        saveErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveErrorMessage ?? "An unknown error occurred.")
+        }
     }
 
     @ViewBuilder
@@ -347,10 +363,12 @@ struct OnboardingProviderStep: View {
 
     private func saveProvider() {
         let shouldAdvance = shouldAutoAdvanceAfterOAuth
+        let normalizedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let provider = LLMProviderRecord(
             id: draftProviderId,
-            displayName: displayName,
+            displayName: normalizedDisplayName,
             baseURL: isCodexMode ? nil : normalizedLLMProviderBaseURLString(normalizedOptional(baseURL)),
             organizationId: nil,
             backendMode: backendMode,
@@ -363,31 +381,43 @@ struct OnboardingProviderStep: View {
             isDefault: providers.isEmpty, // First provider is default
             timeoutInterval: 120
         )
-        if !isCodexMode {
-            provider.storeAPIKey(apiKey)
-        }
-        modelContext.insert(provider)
-        
-        hasSaved = true
-        isConfigured = true
-        
-        // Clear form for potential additional providers
-        displayName = ""
-        backendMode = .responses
-        authMode = .apiKey
-        apiKey = ""
-        baseURL = ""
-        testResult = nil
-        draftProviderId = UUID().uuidString
-        oauthAuthState = .unauthenticated
-        oauthLoginId = nil
-        oauthLastAuthURL = nil
-        oauthAuthMessage = nil
-        shouldAutoSaveOAuthProvider = false
-        shouldAutoAdvanceAfterOAuth = false
 
-        if shouldAdvance {
-            onProviderConnected()
+        do {
+            if !isCodexMode,
+               !normalizedAPIKey.isEmpty,
+               !provider.storeAPIKey(normalizedAPIKey) {
+                throw ProviderPersistenceError.apiKeyStoreFailed
+            }
+
+            modelContext.insert(provider)
+            try modelContext.save()
+
+            hasSaved = true
+            isConfigured = true
+
+            // Clear form for potential additional providers
+            displayName = ""
+            backendMode = .responses
+            authMode = .apiKey
+            apiKey = ""
+            baseURL = ""
+            testResult = nil
+            draftProviderId = UUID().uuidString
+            oauthAuthState = .unauthenticated
+            oauthLoginId = nil
+            oauthLastAuthURL = nil
+            oauthAuthMessage = nil
+            shouldAutoSaveOAuthProvider = false
+            shouldAutoAdvanceAfterOAuth = false
+
+            if shouldAdvance {
+                onProviderConnected()
+            }
+        } catch {
+            if !isCodexMode {
+                provider.deleteAPIKey()
+            }
+            saveErrorMessage = error.localizedDescription
         }
     }
 
