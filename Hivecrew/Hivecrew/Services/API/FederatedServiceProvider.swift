@@ -400,15 +400,6 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         contextAttachmentPaths: [String]
     ) async throws -> APITask {
         let localHasProvider = (try? await localProvider.getProviderByName(name: providerName)) != nil
-        let shouldAutoStartLocally: Bool
-        switch executionTarget.kind {
-        case .automatic, .local:
-            shouldAutoStartLocally = localHasProvider || planFirst
-        case .remoteFirst:
-            shouldAutoStartLocally = planFirst
-        case .peer:
-            shouldAutoStartLocally = planFirst
-        }
         
         let canonicalTask = try await localProvider.createCanonicalClusterTask(
             description: description,
@@ -428,16 +419,31 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             contextModeOverrides: contextModeOverrides,
             contextInlineBlocks: contextInlineBlocks,
             contextAttachmentPaths: contextAttachmentPaths,
-            autoStart: shouldAutoStartLocally
+            autoStart: planFirst
         )
         
-        if canonicalTask.status == .queued && canonicalTask.clusterExecutionState == .none {
-            let dispatched = await dispatchQueuedCanonicalTaskToPeer(canonicalTask)
-            if !dispatched,
-               executionTarget.kind == .remoteFirst,
-               localHasProvider,
-               !planFirst {
-                _ = await localProvider.taskService.startTaskImmediatelyIfPossible(canonicalTask)
+        if !planFirst, canonicalTask.status == .queued, canonicalTask.clusterExecutionState == .none {
+            switch executionTarget.kind {
+            case .local:
+                if localHasProvider {
+                    _ = await localProvider.taskService.startTaskImmediatelyIfPossible(canonicalTask)
+                }
+            case .automatic:
+                if localHasProvider {
+                    let startedLocally = await localProvider.taskService.startTaskImmediatelyIfPossible(canonicalTask)
+                    if !startedLocally {
+                        _ = await dispatchQueuedCanonicalTaskToPeer(canonicalTask)
+                    }
+                } else {
+                    _ = await dispatchQueuedCanonicalTaskToPeer(canonicalTask)
+                }
+            case .remoteFirst:
+                let dispatched = await dispatchQueuedCanonicalTaskToPeer(canonicalTask)
+                if !dispatched, localHasProvider {
+                    _ = await localProvider.taskService.startTaskImmediatelyIfPossible(canonicalTask)
+                }
+            case .peer:
+                _ = await dispatchQueuedCanonicalTaskToPeer(canonicalTask)
             }
         }
         

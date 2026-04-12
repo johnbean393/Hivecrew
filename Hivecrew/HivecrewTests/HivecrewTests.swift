@@ -9,6 +9,7 @@ import Foundation
 import HivecrewAPI
 import HivecrewLLM
 import HivecrewShared
+import SwiftData
 import Testing
 @testable import Hivecrew
 
@@ -153,6 +154,79 @@ struct HivecrewTests {
         let suggestedIDs = service.inactiveTasksForContinuationSuggestions().map(\.id)
 
         #expect(suggestedIDs == ["recent-failed", "older-completed"])
+    }
+
+    @Test
+    @MainActor
+    func federatedLocalTargetStartsImmediatelyInsteadOfRemainingQueued() async throws {
+        UserDefaults.standard.set("worker-provider", forKey: "workerModelProviderId")
+        UserDefaults.standard.set("worker-model", forKey: "workerModelId")
+        UserDefaults.standard.set("dummy-template", forKey: "defaultTemplateId")
+        defer {
+            UserDefaults.standard.removeObject(forKey: "workerModelProviderId")
+            UserDefaults.standard.removeObject(forKey: "workerModelId")
+            UserDefaults.standard.removeObject(forKey: "defaultTemplateId")
+        }
+
+        let schema = Schema([
+            VMRecord.self,
+            LLMProviderRecord.self,
+            TaskRecord.self,
+            AgentSessionRecord.self,
+            ScheduledTask.self,
+            MCPServerRecord.self,
+        ])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = container.mainContext
+
+        let localProviderRecord = LLMProviderRecord(
+            id: "provider-local",
+            displayName: "Local Provider",
+            isDefault: true
+        )
+        context.insert(localProviderRecord)
+        try context.save()
+
+        let taskService = TaskService()
+        taskService.setModelContext(context)
+
+        let localProvider = APIServiceProviderBridge(
+            taskService: taskService,
+            schedulerService: SchedulerService.shared,
+            vmServiceClient: VMServiceClient.shared,
+            modelContext: context,
+            fileStorage: TaskFileStorage()
+        )
+        let federatedProvider = FederatedServiceProvider(
+            localProvider: localProvider,
+            clusterManager: ClusterManager.shared,
+            remoteTaskIndex: RemoteTaskIndex()
+        )
+
+        let createdTask = try await federatedProvider.createTask(
+            description: "Run this locally",
+            providerName: localProviderRecord.displayName,
+            modelId: "test-model",
+            executionTarget: .local,
+            reasoningEnabled: nil,
+            reasoningEffort: nil,
+            attachedFilePaths: [],
+            outputDirectory: nil,
+            planFirst: false,
+            mentionedSkillNames: [],
+            referencedTaskIds: [],
+            continuationSourceTaskId: nil,
+            contextPackId: nil,
+            contextSuggestionIds: [],
+            contextModeOverrides: [:],
+            contextInlineBlocks: [],
+            contextAttachmentPaths: []
+        )
+
+        #expect(createdTask.status != .queued)
+        let persistedTask = try #require(taskService.tasks.first(where: { $0.id == createdTask.id }))
+        #expect(persistedTask.status != .queued)
     }
 
     @Test
