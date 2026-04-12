@@ -82,12 +82,7 @@ public actor StdioTransport: MCPTransport {
         }
         
         // Set up environment
-        var env = ProcessInfo.processInfo.environment
-        if let customEnv = environment {
-            for (key, value) in customEnv {
-                env[key] = value
-            }
-        }
+        let env = await LoginShellEnvironmentLoader.shared.environment(merging: environment)
         proc.environment = env
         logger.info("StdioTransport.start: Environment set")
         

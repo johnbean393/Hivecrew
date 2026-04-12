@@ -518,7 +518,6 @@
 		3001A0072F15000000000007 /* TaskService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskService.swift; sourceTree = "<group>"; };
 		3001A0082F15000000000008 /* TaskTitleGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskTitleGenerator.swift; sourceTree = "<group>"; };
 		3001A0092F15000000000009 /* AgentStatePublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatePublisher.swift; sourceTree = "<group>"; };
-		30C0A0212F92000100A1B2C3 /* TaskExecutionTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskExecutionTarget.swift; sourceTree = "<group>"; };
 		3001A00A2F1500000000000A /* TaskInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskInputView.swift; sourceTree = "<group>"; };
 		3001A00B2F1500000000000B /* TaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListView.swift; sourceTree = "<group>"; };
 		3001A00C2F1500000000000C /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
@@ -540,6 +539,7 @@
 		30C0A0062F91000300A1B2C3 /* TaskService+Writeback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TaskService+Writeback.swift"; sourceTree = "<group>"; };
 		30C0A0082F91000400A1B2C3 /* Writeback/WritebackStagingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Writeback/WritebackStagingService.swift; sourceTree = "<group>"; };
 		30C0A00C2F91000600A1B2C3 /* WritebackReviewWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritebackReviewWindow.swift; sourceTree = "<group>"; };
+		30C0A0212F92000100A1B2C3 /* TaskExecutionTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskExecutionTarget.swift; sourceTree = "<group>"; };
 		31D5A0012FB4A00100BADA55 /* SwiftDataStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStoreManager.swift; sourceTree = "<group>"; };
 		40A1F00100000001 /* VoiceOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrchestrator.swift; sourceTree = "<group>"; };
 		40A1F00200000001 /* WorkerRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerRegistry.swift; sourceTree = "<group>"; };
@@ -1919,7 +1919,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 26;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1938,7 +1938,7 @@
 					"$(PROJECT_DIR)/Vendor/Hush",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.20;
+				MARKETING_VERSION = 1.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1960,7 +1960,7 @@
 				CODE_SIGN_ENTITLEMENTS = "$(SRCROOT)/Hivecrew/Hivecrew.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 26;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1979,7 +1979,7 @@
 					"$(PROJECT_DIR)/Vendor/Hush",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.20;
+				MARKETING_VERSION = 1.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivecrew;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

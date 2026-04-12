@@ -164,3 +164,49 @@ struct MCPToolPrefixTests {
         #expect(extracted == "create_issue")
     }
 }
+
+@Suite("Login Shell Environment Tests")
+struct LoginShellEnvironmentTests {
+
+    @Test("Shell environment output is parsed between markers")
+    func testParseShellEnvironmentOutput() throws {
+        let output = """
+        preface noise
+        \(LoginShellEnvironmentSnapshot.startMarker)
+        {"PATH":"/opt/homebrew/bin:/usr/bin","OPENAI_API_KEY":"test-key"}
+        \(LoginShellEnvironmentSnapshot.endMarker)
+        trailing noise
+        """
+
+        let environment = try LoginShellEnvironmentSnapshot.parse(output: output)
+
+        #expect(environment["PATH"] == "/opt/homebrew/bin:/usr/bin")
+        #expect(environment["OPENAI_API_KEY"] == "test-key")
+    }
+
+    @Test("Explicit overrides win over shell and base environments")
+    func testEnvironmentMergePrecedence() {
+        let merged = LoginShellEnvironmentSnapshot.merge(
+            base: [
+                "PATH": "/usr/bin",
+                "FROM_BASE": "1",
+                "SHARED": "base"
+            ],
+            shell: [
+                "PATH": "/opt/homebrew/bin:/usr/bin",
+                "FROM_SHELL": "1",
+                "SHARED": "shell"
+            ],
+            overrides: [
+                "FROM_OVERRIDE": "1",
+                "SHARED": "override"
+            ]
+        )
+
+        #expect(merged["PATH"] == "/opt/homebrew/bin:/usr/bin")
+        #expect(merged["FROM_BASE"] == "1")
+        #expect(merged["FROM_SHELL"] == "1")
+        #expect(merged["FROM_OVERRIDE"] == "1")
+        #expect(merged["SHARED"] == "override")
+    }
+}
