@@ -90,12 +90,17 @@ class AppTerminationManager: ObservableObject {
             return ActiveWorkDetails()
         }
         
-        // Count running agents
+        // Count running local agents and owner-side remote work separately.
         let runningAgentCount = taskService.runningAgents.count
-        let runningTasks = taskService.tasks.filter { $0.status == .running }
+        let runningTasks = taskService.tasks.filter { $0.status == .running && !$0.isExecutingRemotely }
+        let remoteTasks = taskService.tasks.filter { task in
+            !task.isInternalClusterExecution && task.isExecutingRemotely
+        }
         
         // Count queued tasks
-        let queuedTasks = taskService.tasks.filter { $0.status == .queued || $0.status == .waitingForVM }
+        let queuedTasks = taskService.tasks.filter {
+            ($0.status == .queued || $0.status == .waitingForVM) && !$0.isExecutingRemotely
+        }
         let queuedTaskCount = queuedTasks.count
         
         // Count VMs that are running (only those tied to active tasks or developer VMs)
@@ -111,9 +116,11 @@ class AppTerminationManager: ObservableObject {
         
         return ActiveWorkDetails(
             runningAgentCount: runningAgentCount,
+            remoteTaskCount: remoteTasks.count,
             queuedTaskCount: queuedTaskCount,
             totalRunningVMCount: totalRunningVMCount,
             runningTaskTitles: runningTasks.map { $0.title },
+            remoteTaskTitles: remoteTasks.map { $0.title },
             queuedTaskTitles: queuedTasks.map { $0.title }
         )
     }
@@ -186,13 +193,14 @@ class AppTerminationManager: ObservableObject {
 /// Details about active work in the app
 struct ActiveWorkDetails {
     var runningAgentCount: Int = 0
+    var remoteTaskCount: Int = 0
     var queuedTaskCount: Int = 0
     var totalRunningVMCount: Int = 0
     var runningTaskTitles: [String] = []
+    var remoteTaskTitles: [String] = []
     var queuedTaskTitles: [String] = []
     
     var hasActiveWork: Bool {
         runningAgentCount > 0 || queuedTaskCount > 0 || totalRunningVMCount > 0
     }
 }
-

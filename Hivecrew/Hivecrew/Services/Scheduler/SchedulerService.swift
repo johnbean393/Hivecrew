@@ -133,6 +133,7 @@ class SchedulerService: ObservableObject {
         
         do {
             let request = TaskCreationRequest(
+                taskId: nil,
                 description: schedule.taskDescription,
                 providerId: schedule.providerId,
                 modelId: schedule.modelId,
@@ -156,7 +157,8 @@ class SchedulerService: ObservableObject {
                 planSelectedSkillNames: nil,
                 localAccessGrants: [],
                 clusterOwnerTaskId: nil,
-                clusterExecutionAttempt: 0
+                clusterExecutionAttempt: 0,
+                clusterLeaseId: nil
             )
             
             if APIServerManager.shared.federatedProvider != nil {

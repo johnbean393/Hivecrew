@@ -11,6 +11,7 @@ enum TaskExecutionTargetKind: Int, Codable, Sendable {
     case automatic = 0
     case local = 1
     case peer = 2
+    case remoteFirst = 3
 }
 
 struct TaskExecutionTarget: Codable, Equatable, Sendable {
@@ -26,6 +27,10 @@ struct TaskExecutionTarget: Codable, Equatable, Sendable {
         TaskExecutionTarget(kind: .local, peerId: nil, peerName: nil)
     }
 
+    nonisolated static var remoteFirst: TaskExecutionTarget {
+        TaskExecutionTarget(kind: .remoteFirst, peerId: nil, peerName: nil)
+    }
+
     nonisolated static func peer(id: String, name: String?) -> TaskExecutionTarget {
         TaskExecutionTarget(kind: .peer, peerId: id, peerName: name)
     }
@@ -39,6 +44,8 @@ struct TaskExecutionTarget: Codable, Equatable, Sendable {
         switch kind {
         case .automatic:
             return "Auto"
+        case .remoteFirst:
+            return "Remote First"
         case .local:
             return "This Device"
         case .peer:

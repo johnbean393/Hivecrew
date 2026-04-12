@@ -60,7 +60,8 @@ struct AgentPreviewStripView: View {
     
     private func sortedItems() -> [AgentPreviewItem] {
         let activeTasks = taskService.tasks.filter {
-            taskService.isTaskEffectivelyActive($0)
+            taskService.isTaskEffectivelyActive($0) ||
+                ($0.isInternalClusterExecution && $0.status.isActive)
         }
         let items = activeTasks.map { task in
             let publisher = taskService.statePublishers[task.id]
@@ -89,6 +90,10 @@ struct AgentPreviewStripView: View {
             return (0, interventionTimestamp)
         }
         
+        if item.task.isInternalClusterExecution {
+            return (1, item.task.startedAt ?? item.task.createdAt)
+        }
+
         let effectiveStatus = taskService.effectiveStatus(for: item.task)
         if effectiveStatus == .planReview || effectiveStatus == .writebackReview {
             return (0, item.task.createdAt)

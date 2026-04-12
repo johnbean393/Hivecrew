@@ -15,6 +15,9 @@ import HivecrewShared
 @MainActor
 final class FederatedServiceProvider: APIServiceProvider, Sendable {
     private static let maxReportedAggregateCount = 1_000_000
+    private static let peerOfflineRecoveryGrace: TimeInterval = 30
+    private static let remoteLeaseFailureThreshold = 3
+    private static let dispatchGrace: TimeInterval = 15
     
     private let localProvider: APIServiceProviderBridge
     private let clusterManager: ClusterManager
@@ -29,6 +32,10 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     
     /// Begin listening for peer-available notifications to drain local queues.
     func startDrainObserver() {
+        Task { @MainActor [weak self] in
+            await self?.bootstrapRemoteReconciliation()
+        }
+
         remoteSyncTask?.cancel()
         remoteSyncTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -45,6 +52,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
+                await self.reconcileRemoteTasks()
                 await self.drainQueuedTasksToPeers()
             }
         }
@@ -63,6 +71,12 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
 
     deinit {
         remoteSyncTask?.cancel()
+        if let drainObserver {
+            NotificationCenter.default.removeObserver(drainObserver)
+        }
+        if let peerUnavailableObserver {
+            NotificationCenter.default.removeObserver(peerUnavailableObserver)
+        }
     }
     
     /// Move locally queued tasks to peers that just became available.
@@ -89,29 +103,45 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         guard !affectedTasks.isEmpty else { return }
         
         for task in affectedTasks {
-            task.clusterExecutionAttempt += 1
-            task.clusterExecutionState = .none
-            task.clusterWorkerTaskId = nil
-            task.clusterPeerId = nil
-            task.clusterPeerName = nil
-            task.status = .queued
-            task.completedAt = nil
-            task.resultSummary = nil
-            task.errorMessage = "Worker went offline. Task re-queued for recovery."
-            await remoteTaskIndex.remove(canonicalTaskId: task.id)
+            noteLeaseFailure(for: task, state: .suspect, reason: "Worker became unreachable. Awaiting recovery window.")
         }
         
         try? localProvider.modelContext.save()
         localProvider.taskService.objectWillChange.send()
-        await drainQueuedTasksToPeers()
     }
 
     private func reconcileRemoteTasks() async {
         let entries = await remoteTaskIndex.allEntries()
-        guard !entries.isEmpty else { return }
+
+        for task in localProvider.taskService.tasks where task.hasRemoteLease {
+            guard let lease = persistedRemoteLease(for: task) else { continue }
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
+                noteLeaseFailure(for: task, state: .suspect, reason: "Remote worker node is missing from the cluster directory.")
+                if leaseFailureDuration(for: task) >= Self.peerOfflineRecoveryGrace {
+                    await recoverLostLease(for: task, reason: "Remote lease owner could not find worker node. Task re-queued.")
+                }
+                continue
+            }
+
+            if peer.status != .online {
+                noteLeaseFailure(for: task, state: .suspect, reason: "Worker is offline. Waiting briefly before recovering task.")
+                if leaseFailureDuration(for: task) >= Self.peerOfflineRecoveryGrace {
+                    await recoverLostLease(for: task, reason: "Worker remained offline. Task re-queued for recovery.")
+                }
+            }
+        }
+
+        guard !entries.isEmpty else {
+            try? localProvider.modelContext.save()
+            localProvider.taskService.objectWillChange.send()
+            return
+        }
 
         for entry in entries {
-            guard let peer = await clusterManager.peer(id: entry.peerId) else { continue }
+            guard let peer = await clusterManager.peer(id: entry.peerId), peer.status == .online else { continue }
+            guard let task = localTaskRecord(taskId: entry.canonicalTaskId) else {
+                continue
+            }
 
             do {
                 let client = await getOrCreateClient(for: peer)
@@ -125,11 +155,42 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                     workerTaskId: entry.workerTaskId,
                     remoteTask: remoteTask
                 )
+            } catch let error as PeerAPIError {
+                let missingTask: Bool
+                if case .httpError(let statusCode) = error {
+                    missingTask = statusCode == 404
+                } else {
+                    missingTask = false
+                }
+                noteLeaseFailure(
+                    for: task,
+                    state: missingTask ? .recovering : .suspect,
+                    reason: missingTask
+                        ? "Remote worker task disappeared. Attempting lease recovery."
+                        : "Remote worker check failed. Awaiting additional evidence before recovery."
+                )
+                if shouldRecoverLease(for: task, missingTask: missingTask) {
+                    await recoverLostLease(
+                        for: task,
+                        reason: missingTask
+                            ? "Remote worker task was lost. Task re-queued for recovery."
+                            : "Remote worker could not be reached consistently. Task re-queued for recovery."
+                    )
+                }
             } catch {
-                // Health checks and explicit offline recovery handle peer loss;
-                // this loop is best-effort state convergence.
+                noteLeaseFailure(
+                    for: task,
+                    state: .suspect,
+                    reason: "Remote worker check failed. Awaiting additional evidence before recovery."
+                )
+                if shouldRecoverLease(for: task) {
+                    await recoverLostLease(for: task, reason: "Remote worker could not be reached consistently. Task re-queued for recovery.")
+                }
             }
         }
+
+        try? localProvider.modelContext.save()
+        localProvider.taskService.objectWillChange.send()
     }
     
     init(
@@ -140,6 +201,142 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         self.localProvider = localProvider
         self.clusterManager = clusterManager
         self.remoteTaskIndex = remoteTaskIndex
+    }
+
+    private struct RemoteLease: Sendable {
+        let leaseId: String
+        let peerId: String
+        let workerTaskId: String
+    }
+
+    private func bootstrapRemoteReconciliation() async {
+        await restorePersistedRemoteTasks()
+        await reconcileRemoteTasks()
+    }
+
+    func restorePersistedRemoteTasks() async {
+        let tasks = localProvider.taskService.tasks.filter {
+            !$0.isInternalClusterExecution && $0.hasRemoteLease
+        }
+
+        guard !tasks.isEmpty else { return }
+
+        for task in tasks {
+            guard let lease = persistedRemoteLease(for: task) else { continue }
+            if task.clusterLeaseId == nil || task.clusterLeaseId?.isEmpty == true {
+                task.clusterLeaseId = lease.leaseId
+            }
+            let cachedTask = localProvider.convertToAPITask(task)
+            await remoteTaskIndex.register(
+                canonicalTaskId: task.id,
+                peerId: lease.peerId,
+                workerTaskId: lease.workerTaskId,
+                task: cachedTask
+            )
+        }
+    }
+
+    private func persistedRemoteLease(for task: TaskRecord) -> RemoteLease? {
+        guard let peerId = task.clusterPeerId, !peerId.isEmpty,
+              let workerTaskId = task.clusterWorkerTaskId, !workerTaskId.isEmpty else {
+            return nil
+        }
+        let leaseId = (task.clusterLeaseId?.isEmpty == false ? task.clusterLeaseId : workerTaskId) ?? workerTaskId
+        return RemoteLease(leaseId: leaseId, peerId: peerId, workerTaskId: workerTaskId)
+    }
+
+    private func resolveRemoteLease(canonicalTaskId: String) async -> RemoteLease? {
+        if let peerId = await remoteTaskIndex.peerId(for: canonicalTaskId),
+           let workerTaskId = await remoteTaskIndex.workerTaskId(for: canonicalTaskId),
+           let task = localTaskRecord(taskId: canonicalTaskId) {
+            let leaseId = (task.clusterLeaseId?.isEmpty == false ? task.clusterLeaseId : workerTaskId) ?? workerTaskId
+            return RemoteLease(leaseId: leaseId, peerId: peerId, workerTaskId: workerTaskId)
+        }
+
+        guard let task = localTaskRecord(taskId: canonicalTaskId),
+              let lease = persistedRemoteLease(for: task) else {
+            return nil
+        }
+
+        await remoteTaskIndex.register(
+            canonicalTaskId: canonicalTaskId,
+            peerId: lease.peerId,
+            workerTaskId: lease.workerTaskId,
+            task: localProvider.convertToAPITask(task)
+        )
+        return lease
+    }
+
+    private func makeLeaseId(canonicalTaskId: String, executionAttempt: Int, ownerTunnelId: String) -> String {
+        "\(canonicalTaskId)::\(executionAttempt)::\(ownerTunnelId)"
+    }
+
+    private func resetLeaseHealth(for task: TaskRecord, state: RemoteLeaseState) {
+        task.remoteLeaseState = state
+        task.clusterLeaseFailureCount = 0
+        task.clusterLeaseFirstFailureAt = nil
+        task.clusterLastRemoteContactAt = Date()
+        if state != .completedAwaitingImport {
+            task.errorMessage = nil
+        }
+    }
+
+    private func noteLeaseFailure(for task: TaskRecord, state: RemoteLeaseState, reason: String) {
+        task.clusterLeaseFailureCount += 1
+        if task.clusterLeaseFirstFailureAt == nil {
+            task.clusterLeaseFirstFailureAt = Date()
+        }
+        task.remoteLeaseState = state
+        task.clusterExecutionState = .recoveringRemote
+        task.errorMessage = reason
+    }
+
+    private func leaseFailureDuration(for task: TaskRecord, now: Date = Date()) -> TimeInterval {
+        guard let firstFailure = task.clusterLeaseFirstFailureAt else { return 0 }
+        return now.timeIntervalSince(firstFailure)
+    }
+
+    private func shouldRecoverLease(for task: TaskRecord, missingTask: Bool = false) -> Bool {
+        if missingTask {
+            return task.clusterLeaseFailureCount >= 2 || leaseFailureDuration(for: task) >= 5
+        }
+        if task.remoteLeaseState == .dispatching {
+            return leaseFailureDuration(for: task) >= Self.dispatchGrace
+        }
+        return task.clusterLeaseFailureCount >= Self.remoteLeaseFailureThreshold ||
+            leaseFailureDuration(for: task) >= Self.peerOfflineRecoveryGrace
+    }
+
+    private func clearRemoteLease(for task: TaskRecord, preservePeerName: Bool = false) {
+        task.clusterLeaseId = nil
+        task.clusterWorkerTaskId = nil
+        task.clusterPeerId = nil
+        task.clusterExecutionState = .none
+        if !preservePeerName {
+            task.clusterPeerName = nil
+        }
+        task.clusterLastRemoteContactAt = nil
+        task.clusterLeaseFirstFailureAt = nil
+        task.clusterLeaseFailureCount = 0
+        task.remoteLeaseState = .none
+    }
+
+    private func recoverLostLease(for task: TaskRecord, reason: String) async {
+        task.clusterExecutionAttempt += 1
+        task.clusterExecutionState = .none
+        task.status = .queued
+        task.completedAt = nil
+        task.resultSummary = nil
+        task.errorMessage = reason
+        clearRemoteLease(for: task)
+        await remoteTaskIndex.remove(canonicalTaskId: task.id)
+    }
+
+    private func currentClusterToken() async -> String {
+        if let token = await clusterManager.clusterToken, !token.isEmpty {
+            return token
+        }
+        return RemoteAccessKeychain.retrieveClusterToken() ?? ""
     }
     
     // MARK: - Task Operations (federated)
@@ -207,6 +404,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         switch executionTarget.kind {
         case .automatic, .local:
             shouldAutoStartLocally = localHasProvider || planFirst
+        case .remoteFirst:
+            shouldAutoStartLocally = planFirst
         case .peer:
             shouldAutoStartLocally = planFirst
         }
@@ -233,7 +432,13 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         )
         
         if canonicalTask.status == .queued && canonicalTask.clusterExecutionState == .none {
-            _ = await dispatchQueuedCanonicalTaskToPeer(canonicalTask)
+            let dispatched = await dispatchQueuedCanonicalTaskToPeer(canonicalTask)
+            if !dispatched,
+               executionTarget.kind == .remoteFirst,
+               localHasProvider,
+               !planFirst {
+                _ = await localProvider.taskService.startTaskImmediatelyIfPossible(canonicalTask)
+            }
         }
         
         return try await getTask(id: canonicalTask.id)
@@ -287,9 +492,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     }
     
     func getTask(id: String) async throws -> APITask {
-        if let peerId = await remoteTaskIndex.peerId(for: id),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: id) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 // Peer is offline, return cached version
                 if let cached = await remoteTaskIndex.cachedTask(for: id) {
                     return cached
@@ -299,14 +503,14 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             
             do {
                 let client = await getOrCreateClient(for: peer)
-                let task = try await client.getTask(id: workerTaskId)
+                let task = try await client.getTask(id: lease.workerTaskId)
                 await clusterManager.markPeerOnline(tunnelId: peer.id)
                 let tagged = tagWithNode(task, peer: peer, canonicalTaskId: id)
                 await remoteTaskIndex.update(canonicalTaskId: id, task: tagged)
                 await applyRemoteExecutionSnapshot(
                     canonicalTaskId: id,
                     peer: peer,
-                    workerTaskId: workerTaskId,
+                    workerTaskId: lease.workerTaskId,
                     remoteTask: task
                 )
                 if task.status.isTerminal,
@@ -325,17 +529,16 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     }
     
     func performTaskAction(id: String, action: APITaskAction, instructions: String?) async throws -> APITask {
-        if let peerId = await remoteTaskIndex.peerId(for: id),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: id) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 throw APIError.notFound("Task not found (peer offline)")
             }
             let client = await getOrCreateClient(for: peer)
-            let task = try await client.performAction(taskId: workerTaskId, action: action.rawValue, instructions: instructions)
+            let task = try await client.performAction(taskId: lease.workerTaskId, action: action.rawValue, instructions: instructions)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
             let tagged = tagWithNode(task, peer: peer, canonicalTaskId: id)
             await remoteTaskIndex.update(canonicalTaskId: id, task: tagged)
-            await applyRemoteExecutionSnapshot(canonicalTaskId: id, peer: peer, workerTaskId: workerTaskId, remoteTask: task)
+            await applyRemoteExecutionSnapshot(canonicalTaskId: id, peer: peer, workerTaskId: lease.workerTaskId, remoteTask: task)
             return tagged
         }
         let task = try await localProvider.performTaskAction(id: id, action: action, instructions: instructions)
@@ -350,7 +553,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     }
     
     func deleteTask(id: String) async throws {
-        if await remoteTaskIndex.peerId(for: id) != nil {
+        if await resolveRemoteLease(canonicalTaskId: id) != nil {
             await remoteTaskIndex.remove(canonicalTaskId: id)
         }
         try await localProvider.deleteTask(id: id)
@@ -361,14 +564,13 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             return try await localProvider.getTaskFiles(id: id)
         }
 
-        if let peerId = await remoteTaskIndex.peerId(for: id),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: id) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 return try await localProvider.getTaskFiles(id: id)
             }
             let client = await getOrCreateClient(for: peer)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
-            return try await client.getTaskFiles(taskId: workerTaskId, canonicalTaskId: id)
+            return try await client.getTaskFiles(taskId: lease.workerTaskId, canonicalTaskId: id)
         }
         return try await localProvider.getTaskFiles(id: id)
     }
@@ -378,14 +580,13 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             return try await localProvider.getTaskFileData(taskId: taskId, filename: filename, isInput: isInput)
         }
 
-        if let peerId = await remoteTaskIndex.peerId(for: taskId),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: taskId) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
-            return try await client.downloadTaskFile(taskId: workerTaskId, filename: filename, isInput: isInput)
+            return try await client.downloadTaskFile(taskId: lease.workerTaskId, filename: filename, isInput: isInput)
         }
         return try await localProvider.getTaskFileData(taskId: taskId, filename: filename, isInput: isInput)
     }
@@ -395,14 +596,13 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             return try await localProvider.getTaskTraceBundle(id: id)
         }
 
-        if let peerId = await remoteTaskIndex.peerId(for: id),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: id) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 return try await localProvider.getTaskTraceBundle(id: id)
             }
             let client = await getOrCreateClient(for: peer)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
-            return try await client.getTraceBundle(taskId: workerTaskId, canonicalTaskId: id)
+            return try await client.getTraceBundle(taskId: lease.workerTaskId, canonicalTaskId: id)
         }
         return try await localProvider.getTaskTraceBundle(id: id)
     }
@@ -412,24 +612,22 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             return try await localProvider.getTaskTraceFileData(taskId: taskId, relativePath: relativePath)
         }
 
-        if let peerId = await remoteTaskIndex.peerId(for: taskId),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: taskId) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
-            return try await client.downloadTraceFile(taskId: workerTaskId, relativePath: relativePath)
+            return try await client.downloadTraceFile(taskId: lease.workerTaskId, relativePath: relativePath)
         }
         return try await localProvider.getTaskTraceFileData(taskId: taskId, relativePath: relativePath)
     }
     
     func getTaskScreenshot(id: String) async throws -> (data: Data, mimeType: String)? {
-        if let peerId = await remoteTaskIndex.peerId(for: id),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            guard let peer = await clusterManager.peer(id: peerId) else { return nil }
+        if let lease = await resolveRemoteLease(canonicalTaskId: id) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else { return nil }
             let client = await getOrCreateClient(for: peer)
-            let screenshot = try await client.getScreenshot(taskId: workerTaskId)
+            let screenshot = try await client.getScreenshot(taskId: lease.workerTaskId)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
             return screenshot
         }
@@ -437,20 +635,25 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     }
     
     func getPendingQuestion(taskId: String) async throws -> APIAgentQuestion? {
-        if await remoteTaskIndex.peerId(for: taskId) != nil {
-            return await remoteTaskIndex.cachedTask(for: taskId)?.pendingQuestion
+        if await resolveRemoteLease(canonicalTaskId: taskId) != nil {
+            if let cachedTask = await remoteTaskIndex.cachedTask(for: taskId),
+               let cached = cachedTask.pendingQuestion {
+                return cached
+            }
+            _ = try? await getTask(id: taskId)
+            let refreshedTask = await remoteTaskIndex.cachedTask(for: taskId)
+            return refreshedTask?.pendingQuestion
         }
         return try await localProvider.getPendingQuestion(taskId: taskId)
     }
     
     func answerQuestion(taskId: String, questionId: String, answer: String) async throws {
-        if let peerId = await remoteTaskIndex.peerId(for: taskId),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: taskId) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
-            try await client.answerQuestion(taskId: workerTaskId, questionId: questionId, answer: answer)
+            try await client.answerQuestion(taskId: lease.workerTaskId, questionId: questionId, answer: answer)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
             return
         }
@@ -458,20 +661,25 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     }
     
     func getPendingPermission(taskId: String) async throws -> APIPermissionRequest? {
-        if await remoteTaskIndex.peerId(for: taskId) != nil {
-            return await remoteTaskIndex.cachedTask(for: taskId)?.pendingPermission
+        if await resolveRemoteLease(canonicalTaskId: taskId) != nil {
+            if let cachedTask = await remoteTaskIndex.cachedTask(for: taskId),
+               let cached = cachedTask.pendingPermission {
+                return cached
+            }
+            _ = try? await getTask(id: taskId)
+            let refreshedTask = await remoteTaskIndex.cachedTask(for: taskId)
+            return refreshedTask?.pendingPermission
         }
         return try await localProvider.getPendingPermission(taskId: taskId)
     }
     
     func respondToPermission(taskId: String, permissionId: String, approved: Bool) async throws {
-        if let peerId = await remoteTaskIndex.peerId(for: taskId),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: taskId) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: taskId) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 throw APIError.notFound("Peer offline")
             }
             let client = await getOrCreateClient(for: peer)
-            try await client.respondToPermission(taskId: workerTaskId, permissionId: permissionId, approved: approved)
+            try await client.respondToPermission(taskId: lease.workerTaskId, permissionId: permissionId, approved: approved)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
             return
         }
@@ -480,7 +688,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     
     func getTaskWritebackReview(id: String) async throws -> APIWritebackReview? {
         // Writeback is local-only
-        if await remoteTaskIndex.peerId(for: id) != nil { return nil }
+        if await resolveRemoteLease(canonicalTaskId: id) != nil { return nil }
         return try await localProvider.getTaskWritebackReview(id: id)
     }
     
@@ -690,7 +898,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     // MARK: - Event Streaming (proxied for remote)
     
     func subscribeToTaskEvents(id: String) async throws -> AsyncStream<APITaskEvent> {
-        if await remoteTaskIndex.peerId(for: id) != nil {
+        if await resolveRemoteLease(canonicalTaskId: id) != nil {
             // For remote tasks, return an empty stream (web UI uses activity polling instead)
             return AsyncStream { $0.finish() }
         }
@@ -698,13 +906,12 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     }
     
     func getTaskActivity(id: String, since: Int) async throws -> APIActivityResponse {
-        if let peerId = await remoteTaskIndex.peerId(for: id),
-           let workerTaskId = await remoteTaskIndex.workerTaskId(for: id) {
-            guard let peer = await clusterManager.peer(id: peerId) else {
+        if let lease = await resolveRemoteLease(canonicalTaskId: id) {
+            guard let peer = await clusterManager.peer(id: lease.peerId) else {
                 return APIActivityResponse(events: [], total: 0)
             }
             let client = await getOrCreateClient(for: peer)
-            let activity = try await client.getActivity(taskId: workerTaskId, since: since)
+            let activity = try await client.getActivity(taskId: lease.workerTaskId, since: since)
             await clusterManager.markPeerOnline(tunnelId: peer.id)
             return activity
         }
@@ -715,7 +922,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     
     private func getOrCreateClient(for peer: PeerNode) async -> PeerAPIClient {
         if let existing = peerClients[peer.id] { return existing }
-        let token = await clusterManager.clusterToken ?? ""
+        let token = await currentClusterToken()
         let client = PeerAPIClient(baseURL: peer.tunnelUrl, clusterToken: token)
         peerClients[peer.id] = client
         return client
@@ -784,7 +991,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
 
         func nextPeer() async -> PeerNode? {
             switch task.executionTarget.kind {
-            case .automatic:
+            case .automatic, .remoteFirst:
                 return await clusterManager.reserveBestAvailablePeer(
                     providerName: providerName,
                     modelId: task.modelId,
@@ -811,6 +1018,19 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             if executionAttempt == nil {
                 task.clusterExecutionState = .dispatchingRemote
                 task.clusterExecutionAttempt += 1
+                let leaseId = makeLeaseId(
+                    canonicalTaskId: task.id,
+                    executionAttempt: task.clusterExecutionAttempt,
+                    ownerTunnelId: ownerTunnelId
+                )
+                task.clusterLeaseId = leaseId
+                task.clusterWorkerTaskId = leaseId
+                task.clusterPeerId = peer.id
+                task.clusterPeerName = peer.name ?? peer.subdomain
+                task.remoteLeaseState = .dispatching
+                task.clusterLeaseFailureCount = 0
+                task.clusterLeaseFirstFailureAt = nil
+                task.clusterLastRemoteContactAt = nil
                 try? localProvider.modelContext.save()
                 localProvider.taskService.objectWillChange.send()
                 executionAttempt = task.clusterExecutionAttempt
@@ -822,6 +1042,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 let response = try await client.executeNow(ClusterExecuteNowRequest(
                     canonicalTaskId: task.id,
                     ownerTunnelId: ownerTunnelId,
+                    ownerLeaseId: task.clusterLeaseId ?? makeLeaseId(
+                        canonicalTaskId: task.id,
+                        executionAttempt: executionAttempt ?? task.clusterExecutionAttempt,
+                        ownerTunnelId: ownerTunnelId
+                    ),
                     executionAttempt: executionAttempt ?? task.clusterExecutionAttempt,
                     description: task.taskDescription,
                     providerName: providerName,
@@ -862,15 +1087,31 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 await clusterManager.releaseSlot(peerId: peer.id)
                 if case PeerAPIError.httpError(let statusCode) = error, statusCode == 409 {
                     print("FederatedServiceProvider: Peer \(peer.id) had no free slot at execution time")
+                    task.clusterPeerId = nil
+                    task.clusterPeerName = nil
                 } else {
-                    print("FederatedServiceProvider: Failed to dispatch to peer \(peer.id): \(error), trying next peer")
-                    await clusterManager.markPeerOffline(tunnelId: peer.id)
+                    print("FederatedServiceProvider: Dispatch to peer \(peer.id) was ambiguous: \(error). Preserving lease for reconciliation.")
+                    noteLeaseFailure(
+                        for: task,
+                        state: .suspect,
+                        reason: "Remote dispatch response was interrupted. Reconciling remote lease before retry."
+                    )
+                    await remoteTaskIndex.register(
+                        canonicalTaskId: task.id,
+                        peerId: peer.id,
+                        workerTaskId: task.clusterWorkerTaskId ?? task.clusterLeaseId ?? peer.id,
+                        task: localProvider.convertToAPITask(task)
+                    )
+                    try? localProvider.modelContext.save()
+                    localProvider.taskService.objectWillChange.send()
+                    return true
                 }
             }
         }
         
         if executionAttempt != nil {
             task.clusterExecutionState = .none
+            clearRemoteLease(for: task)
             try? localProvider.modelContext.save()
             localProvider.taskService.objectWillChange.send()
         }
@@ -885,6 +1126,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     ) async {
         guard let task = localProvider.taskService.tasks.first(where: { $0.id == canonicalTaskId }) else { return }
         
+        task.clusterLeaseId = task.clusterLeaseId ?? workerTaskId
         task.clusterWorkerTaskId = workerTaskId
         task.clusterPeerId = peer.id
         task.clusterPeerName = peer.name ?? peer.subdomain
@@ -894,6 +1136,10 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         task.errorMessage = remoteTask.errorMessage
         task.wasSuccessful = remoteTask.wasSuccessful
         task.status = localProvider.convertFromAPIStatus(remoteTask.status)
+        resetLeaseHealth(
+            for: task,
+            state: remoteTask.status.isTerminal ? .completedAwaitingImport : .running
+        )
         
         switch remoteTask.status {
         case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed, .writebackReview:
@@ -905,7 +1151,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             )
             task.clusterExecutionState = .none
             if imported {
-                task.clusterWorkerTaskId = nil
+                clearRemoteLease(for: task, preservePeerName: true)
                 await remoteTaskIndex.remove(canonicalTaskId: canonicalTaskId)
             }
         default:

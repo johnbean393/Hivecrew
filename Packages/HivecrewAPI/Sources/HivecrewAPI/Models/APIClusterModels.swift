@@ -59,6 +59,7 @@ public struct PeerAnnouncement: Codable, Sendable {
 public struct PeerTaskUpdate: Codable, Sendable {
     public let tunnelId: String
     public let canonicalTaskId: String
+    public let ownerLeaseId: String?
     public let workerTaskId: String
     public let executionAttempt: Int
     public let task: APITask
@@ -66,12 +67,14 @@ public struct PeerTaskUpdate: Codable, Sendable {
     public init(
         tunnelId: String,
         canonicalTaskId: String,
+        ownerLeaseId: String? = nil,
         workerTaskId: String,
         executionAttempt: Int,
         task: APITask
     ) {
         self.tunnelId = tunnelId
         self.canonicalTaskId = canonicalTaskId
+        self.ownerLeaseId = ownerLeaseId
         self.workerTaskId = workerTaskId
         self.executionAttempt = executionAttempt
         self.task = task
@@ -81,6 +84,7 @@ public struct PeerTaskUpdate: Codable, Sendable {
 public struct ClusterExecuteNowRequest: Codable, Sendable {
     public let canonicalTaskId: String
     public let ownerTunnelId: String
+    public let ownerLeaseId: String
     public let executionAttempt: Int
     public let description: String
     public let providerName: String
@@ -103,6 +107,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
     public init(
         canonicalTaskId: String,
         ownerTunnelId: String,
+        ownerLeaseId: String,
         executionAttempt: Int,
         description: String,
         providerName: String,
@@ -124,6 +129,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
     ) {
         self.canonicalTaskId = canonicalTaskId
         self.ownerTunnelId = ownerTunnelId
+        self.ownerLeaseId = ownerLeaseId
         self.executionAttempt = executionAttempt
         self.description = description
         self.providerName = providerName

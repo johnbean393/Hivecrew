@@ -42,7 +42,19 @@ struct ActiveTaskRow: View {
 
     private var statusText: String {
         if task.isExecutingRemotely, let nodeName = task.remoteNodeDisplayName {
-            return "Running on \(nodeName)"
+            switch task.remoteLeaseState {
+            case .suspect:
+                return "Checking \(nodeName)"
+            case .recovering:
+                return "Recovering from \(nodeName)"
+            case .completedAwaitingImport:
+                return "Importing from \(nodeName)"
+            default:
+                break
+            }
+            return task.clusterExecutionState == .recoveringRemote
+                ? "Reconnecting to \(nodeName)"
+                : "Running on \(nodeName)"
         }
         if task.isInternalClusterExecution {
             return "Serving cluster task"
@@ -52,8 +64,10 @@ struct ActiveTaskRow: View {
 
     private var ownerLabel: String? {
         guard task.isInternalClusterExecution else { return nil }
-        guard let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId) else { return nil }
-        return ownerName
+        let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
+            ?? task.clusterOwnerNodeId.map { $0.count <= 8 ? $0 : String($0.prefix(8)) }
+        guard let ownerName else { return "Leased Task" }
+        return "From \(ownerName)"
     }
     
     @ViewBuilder

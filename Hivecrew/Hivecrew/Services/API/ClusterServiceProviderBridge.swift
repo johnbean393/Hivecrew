@@ -31,15 +31,44 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
     }
     
     func handleTaskUpdate(_ update: PeerTaskUpdate) async throws {
-        guard let canonicalTaskId = await remoteTaskIndex.canonicalTaskId(
+        let canonicalTaskId = await remoteTaskIndex.canonicalTaskId(
             peerId: update.tunnelId,
             workerTaskId: update.workerTaskId
-        ) else {
-            return
-        }
-        
+        ) ?? update.canonicalTaskId
+
+        guard !canonicalTaskId.isEmpty else { return }
         let peers = await clusterManager.peers
         let peer = peers[update.tunnelId]
+
+        let shouldApply = await MainActor.run {
+            guard let taskService = APIServerManager.shared.taskServiceRef,
+                  let task = taskService.tasks.first(where: { $0.id == canonicalTaskId }) else {
+                return false
+            }
+            return task.clusterExecutionAttempt == update.executionAttempt
+        }
+        guard shouldApply else {
+            let isTerminal: Bool
+            switch update.task.status {
+            case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed, .writebackReview:
+                isTerminal = true
+            case .queued, .waitingForVM, .running, .paused, .planning, .planReview:
+                isTerminal = false
+            }
+            if isTerminal, let peer {
+                Task {
+                    await self.importSupersededArtifacts(
+                        canonicalTaskId: canonicalTaskId,
+                        executionAttempt: update.executionAttempt,
+                        remoteTask: update.task,
+                        workerTaskId: update.workerTaskId,
+                        peer: peer
+                    )
+                }
+            }
+            return
+        }
+
         let taggedTask = APITask(
             id: canonicalTaskId,
             title: update.task.title,
@@ -77,15 +106,24 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             nodeName: peer?.name ?? peer?.subdomain
         )
         
-        await remoteTaskIndex.update(canonicalTaskId: canonicalTaskId, task: taggedTask)
+        if await remoteTaskIndex.peerId(for: canonicalTaskId) == nil {
+            await remoteTaskIndex.register(
+                canonicalTaskId: canonicalTaskId,
+                peerId: update.tunnelId,
+                workerTaskId: update.workerTaskId,
+                task: taggedTask
+            )
+        } else {
+            await remoteTaskIndex.update(canonicalTaskId: canonicalTaskId, task: taggedTask)
+        }
         await MainActor.run {
             guard let taskService = APIServerManager.shared.taskServiceRef,
-                  let task = taskService.tasks.first(where: { $0.id == canonicalTaskId }),
-                  task.clusterExecutionAttempt == update.executionAttempt else {
+                  let task = taskService.tasks.first(where: { $0.id == canonicalTaskId }) else {
                 return
             }
             
             task.clusterWorkerTaskId = update.workerTaskId
+            task.clusterLeaseId = update.ownerLeaseId ?? task.clusterLeaseId ?? update.workerTaskId
             task.clusterPeerId = update.tunnelId
             task.clusterPeerName = peer?.name ?? peer?.subdomain
             task.startedAt = update.task.startedAt ?? task.startedAt
@@ -93,19 +131,24 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             task.resultSummary = update.task.resultSummary
             task.errorMessage = update.task.errorMessage
             task.wasSuccessful = update.task.wasSuccessful
+            task.clusterLastRemoteContactAt = Date()
+            task.clusterLeaseFirstFailureAt = nil
+            task.clusterLeaseFailureCount = 0
             
             switch update.task.status {
             case .running, .paused, .waitingForVM, .planning, .planReview:
                 task.status = localProvider.convertFromAPIStatus(update.task.status)
                 task.clusterExecutionState = .runningRemote
+                task.remoteLeaseState = .running
             case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed, .writebackReview:
                 task.status = localProvider.convertFromAPIStatus(update.task.status)
                 task.clusterExecutionState = .none
+                task.remoteLeaseState = .completedAwaitingImport
                 Task {
                     guard let peer else { return }
                     let client = PeerAPIClient(
                         baseURL: peer.tunnelUrl,
-                        clusterToken: await self.clusterManager.clusterToken ?? ""
+                        clusterToken: await self.currentClusterToken()
                     )
                     let imported = await RemoteExecutionArtifactImporter.importArtifacts(
                         task: task,
@@ -118,12 +161,19 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
                     )
                     if imported {
                         task.clusterWorkerTaskId = nil
+                        task.clusterLeaseId = nil
+                        task.clusterPeerId = nil
+                        task.clusterLastRemoteContactAt = nil
+                        task.clusterLeaseFirstFailureAt = nil
+                        task.clusterLeaseFailureCount = 0
+                        task.remoteLeaseState = .none
                         await self.remoteTaskIndex.remove(canonicalTaskId: canonicalTaskId)
                     }
                 }
             case .queued:
                 task.status = .queued
                 task.clusterExecutionState = .recoveringRemote
+                task.remoteLeaseState = .recovering
             }
             
             try? taskService.modelContext?.save()
@@ -139,6 +189,7 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
         let task = try await localProvider.createClusterExecutionTask(
             canonicalTaskId: request.canonicalTaskId,
             ownerTunnelId: request.ownerTunnelId,
+            ownerLeaseId: request.ownerLeaseId,
             executionAttempt: request.executionAttempt,
             description: request.description,
             providerName: request.providerName,
@@ -223,6 +274,82 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
                 runningTasks: node.runningTasks,
                 lastSeen: node.lastSeen
             )
+        }
+    }
+
+    private func currentClusterToken() async -> String {
+        if let token = await clusterManager.clusterToken, !token.isEmpty {
+            return token
+        }
+        return RemoteAccessKeychain.retrieveClusterToken() ?? ""
+    }
+
+    private func importSupersededArtifacts(
+        canonicalTaskId: String,
+        executionAttempt: Int,
+        remoteTask: APITask,
+        workerTaskId: String,
+        peer: PeerNode
+    ) async {
+        let destination = AppPaths.supersededClusterAttemptDirectory(
+            canonicalTaskId: canonicalTaskId,
+            executionAttempt: executionAttempt
+        )
+        try? FileManager.default.removeItem(at: destination)
+        try? FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+
+        let client = PeerAPIClient(
+            baseURL: peer.tunnelUrl,
+            clusterToken: await currentClusterToken()
+        )
+
+        var importedPaths: [String] = []
+
+        do {
+            let outputDirectory = destination.appendingPathComponent("outputs", isDirectory: true)
+            try? FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+            for file in remoteTask.outputFiles {
+                let blob = try await client.downloadTaskFile(taskId: workerTaskId, filename: file.name, isInput: false)
+                let outputURL = outputDirectory.appendingPathComponent(file.name)
+                try blob.data.write(to: outputURL)
+                importedPaths.append(outputURL.path)
+            }
+        } catch {
+            print("ClusterServiceProviderBridge: Failed importing superseded outputs for \(canonicalTaskId) attempt \(executionAttempt): \(error)")
+        }
+
+        do {
+            let traceDirectory = destination.appendingPathComponent("trace", isDirectory: true)
+            let bundle = try await client.getTraceBundle(taskId: workerTaskId, canonicalTaskId: canonicalTaskId)
+            try? FileManager.default.createDirectory(at: traceDirectory, withIntermediateDirectories: true)
+            for file in bundle.files {
+                let blob = try await client.downloadTraceFile(taskId: workerTaskId, relativePath: file.path)
+                let destinationURL = traceDirectory.appendingPathComponent(file.path)
+                try FileManager.default.createDirectory(at: destinationURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try blob.data.write(to: destinationURL)
+            }
+            importedPaths.append(traceDirectory.path)
+        } catch {
+            print("ClusterServiceProviderBridge: Failed importing superseded trace for \(canonicalTaskId) attempt \(executionAttempt): \(error)")
+        }
+
+        guard !importedPaths.isEmpty else { return }
+
+        await MainActor.run {
+            guard let taskService = APIServerManager.shared.taskServiceRef,
+                  let task = taskService.tasks.first(where: { $0.id == canonicalTaskId }) else {
+                return
+            }
+            var existing = task.clusterSupersededArtifactDirectories ?? []
+            if !existing.contains(destination.path) {
+                existing.append(destination.path)
+                task.clusterSupersededArtifactDirectories = existing
+                if task.errorMessage?.contains("superseded") != true {
+                    task.errorMessage = "A superseded remote attempt produced quarantined artifacts."
+                }
+                try? taskService.modelContext?.save()
+                taskService.objectWillChange.send()
+            }
         }
     }
 

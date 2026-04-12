@@ -309,6 +309,9 @@ extension NSMenu {
     ) -> NSMenu {
         let menu = NSMenu()
         for option in options {
+            if option.startsNewSection, !menu.items.isEmpty {
+                menu.addItem(.separator())
+            }
             let item = NSMenuItem(
                 title: option.title,
                 action: #selector(ExecutionTargetMenuHandler.handleMenu(_:)),

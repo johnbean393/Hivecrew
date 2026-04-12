@@ -60,8 +60,10 @@ actor ClusterManager {
     private let apiClient = RemoteAccessAPIClient()
     private var capacityObserver: Any?
     private var healthCheckTask: Task<Void, Never>?
+    private var peerProbeFailureCounts: [String: Int] = [:]
     
     private static let healthCheckInterval: TimeInterval = 10
+    private static let peerOfflineThreshold = 3
     private static let dispatchOrderKey = "clusterDispatchOrder"
     private static let maxReportedPeerCount = 1_000_000
     
@@ -307,6 +309,7 @@ actor ClusterManager {
     }
     
     func removePeer(tunnelId: String) async {
+        peerProbeFailureCounts.removeValue(forKey: tunnelId)
         peers.removeValue(forKey: tunnelId)
         await publishPeerUpdate()
         print("ClusterManager: Removed peer \(tunnelId)")
@@ -343,6 +346,7 @@ actor ClusterManager {
     
     func markPeerOffline(tunnelId: String) async {
         guard var node = peers[tunnelId] else { return }
+        peerProbeFailureCounts[tunnelId] = Self.peerOfflineThreshold
         node.status = .offline
         peers[tunnelId] = node
         await publishPeerUpdate()
@@ -455,6 +459,7 @@ actor ClusterManager {
     func markPeerOnline(tunnelId: String) async {
         guard var node = peers[tunnelId] else { return }
         guard node.status != .online else { return }
+        peerProbeFailureCounts[tunnelId] = 0
         let wasUnavailable = node.availableSlots > 0
         node.status = .online
         node.lastSeen = Date()
@@ -495,12 +500,13 @@ actor ClusterManager {
         task: APITask
     ) {
         Task {
-            guard let ownerNodeId = await self.currentOwnerNodeId(forWorkerTaskId: workerTaskId) else { return }
+            guard let leaseContext = await self.currentLeaseContext(forWorkerTaskId: workerTaskId) else { return }
             await pushTaskUpdate(
-                ownerNodeId: ownerNodeId,
+                ownerNodeId: leaseContext.ownerNodeId,
                 update: PeerTaskUpdate(
                     tunnelId: RemoteAccessKeychain.retrieveTunnelId() ?? "",
                     canonicalTaskId: canonicalTaskId,
+                    ownerLeaseId: leaseContext.leaseId,
                     workerTaskId: workerTaskId,
                     executionAttempt: executionAttempt,
                     task: task
@@ -573,6 +579,7 @@ actor ClusterManager {
         for (id, reachable) in results {
             guard var peer = peers[id] else { continue }
             if reachable && peer.status != .online {
+                peerProbeFailureCounts[id] = 0
                 let wasOffline = peer.status == .offline
                 peer.status = .online
                 peer.lastSeen = Date()
@@ -582,13 +589,23 @@ actor ClusterManager {
                 if wasOffline {
                     peersToRefreshCapabilities.append((id: id, url: peer.tunnelUrl))
                 }
-            } else if !reachable && peer.status == .online {
-                peer.status = .offline
-                peers[id] = peer
-                stateChanged = true
-                print("ClusterManager: Health probe failed for \(peer.name ?? id), marking offline")
-                await MainActor.run {
-                    NotificationCenter.default.post(name: .clusterPeerBecameUnavailable, object: id)
+            } else if !reachable {
+                let failureCount = (peerProbeFailureCounts[id] ?? 0) + 1
+                peerProbeFailureCounts[id] = failureCount
+
+                if failureCount >= Self.peerOfflineThreshold, peer.status != .offline {
+                    peer.status = .offline
+                    peers[id] = peer
+                    stateChanged = true
+                    print("ClusterManager: Health probe failed for \(peer.name ?? id) \(failureCount)x, marking offline")
+                    await MainActor.run {
+                        NotificationCenter.default.post(name: .clusterPeerBecameUnavailable, object: id)
+                    }
+                } else if failureCount < Self.peerOfflineThreshold, peer.status == .online {
+                    peer.status = .unreachable
+                    peers[id] = peer
+                    stateChanged = true
+                    print("ClusterManager: Health probe failed for \(peer.name ?? id) \(failureCount)x, marking unreachable")
                 }
             }
         }
@@ -735,8 +752,12 @@ actor ClusterManager {
     }
 
     @MainActor
-    private func currentOwnerNodeId(forWorkerTaskId workerTaskId: String) -> String? {
-        APIServerManager.shared.taskServiceRef?.tasks.first(where: { $0.id == workerTaskId })?.clusterOwnerNodeId
+    private func currentLeaseContext(forWorkerTaskId workerTaskId: String) -> (ownerNodeId: String, leaseId: String?)? {
+        guard let task = APIServerManager.shared.taskServiceRef?.tasks.first(where: { $0.id == workerTaskId }),
+              let ownerNodeId = task.clusterOwnerNodeId else {
+            return nil
+        }
+        return (ownerNodeId: ownerNodeId, leaseId: task.clusterLeaseId)
     }
 
     private func broadcastCapacityUpdate() async {

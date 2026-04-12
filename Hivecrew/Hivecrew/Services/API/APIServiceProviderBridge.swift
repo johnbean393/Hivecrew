@@ -87,6 +87,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     func createClusterExecutionTask(
         canonicalTaskId: String,
         ownerTunnelId: String,
+        ownerLeaseId: String,
         executionAttempt: Int,
         description: String,
         providerName: String,
@@ -116,6 +117,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             .appendingPathComponent("attempt-\(executionAttempt)", isDirectory: true)
         try? FileManager.default.createDirectory(at: clusterOutputDirectory, withIntermediateDirectories: true)
         let task = try await taskService.createTask(
+            taskId: ownerLeaseId,
             description: description,
             providerId: providerId,
             modelId: modelId,
@@ -135,9 +137,11 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             planMarkdown: planMarkdown,
             clusterOwnerTaskId: canonicalTaskId,
             clusterExecutionAttempt: executionAttempt,
+            clusterLeaseId: ownerLeaseId,
             autoStart: false
         )
         task.clusterOwnerNodeId = ownerTunnelId
+        task.remoteLeaseState = .running
         try? modelContext.save()
         
         guard await taskService.startTaskImmediatelyIfPossible(task) else {
@@ -147,7 +151,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         
         return convertToAPITask(task)
     }
-    
+
     func createCanonicalClusterTask(
         description: String,
         providerName: String,
@@ -222,6 +226,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         let requests = targets.flatMap { target in
             Array(
                 repeating: TaskCreationRequest(
+                    taskId: nil,
                     description: trimmedDescription,
                     providerId: target.providerId,
                     modelId: target.modelId,
@@ -245,7 +250,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                     planSelectedSkillNames: nil,
                     localAccessGrants: [],
                     clusterOwnerTaskId: nil,
-                    clusterExecutionAttempt: 0
+                    clusterExecutionAttempt: 0,
+                    clusterLeaseId: nil
                 ),
                 count: max(target.copyCount, 1)
             )

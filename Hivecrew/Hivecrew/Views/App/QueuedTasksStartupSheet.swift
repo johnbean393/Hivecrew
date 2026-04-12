@@ -24,6 +24,11 @@ struct QueuedTasksStartupSheet: View {
         // Default all tasks to selected
         self._selectedTaskIds = State(initialValue: Set(queuedTasks.map { $0.id }))
     }
+
+    private var liveQueuedTasks: [TaskRecord] {
+        let ids = Set(queuedTasks.map(\.id))
+        return taskService.queuedTasks.filter { ids.contains($0.id) }
+    }
     
     var body: some View {
         VStack(spacing: 16) {
@@ -47,27 +52,27 @@ struct QueuedTasksStartupSheet: View {
             // Task list
             ScrollView {
                 VStack(spacing: 0) {
-                    ForEach(queuedTasks) { task in
+                    ForEach(liveQueuedTasks) { task in
                         QueuedTaskRow(
                             task: task,
                             isSelected: selectedTaskIds.contains(task.id),
                             onToggle: { toggleSelection(task.id) }
                         )
                         
-                        if task.id != queuedTasks.last?.id {
+                        if task.id != liveQueuedTasks.last?.id {
                             Divider()
                                 .padding(.horizontal, 12)
                         }
                     }
                 }
             }
-            .frame(minHeight: CGFloat(min(queuedTasks.count, 1)) * 60, maxHeight: 300)
+            .frame(minHeight: CGFloat(min(max(liveQueuedTasks.count, 1), 1)) * 60, maxHeight: 300)
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(8)
             
             // Selection info
             HStack {
-                Text("\(selectedTaskIds.count) of \(queuedTasks.count) tasks selected")
+                Text("\(selectedTaskIds.intersection(Set(liveQueuedTasks.map(\.id))).count) of \(liveQueuedTasks.count) tasks selected")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
@@ -77,7 +82,7 @@ struct QueuedTasksStartupSheet: View {
                     selectAll()
                 }
                 .buttonStyle(.link)
-                .disabled(selectedTaskIds.count == queuedTasks.count)
+                .disabled(liveQueuedTasks.isEmpty || selectedTaskIds.isSuperset(of: Set(liveQueuedTasks.map(\.id))))
                 
                 Button("Deselect All") {
                     deselectAll()
@@ -109,6 +114,12 @@ struct QueuedTasksStartupSheet: View {
         }
         .padding(24)
         .frame(width: 480)
+        .onAppear {
+            dismissIfNoLongerQueued()
+        }
+        .onChange(of: taskService.tasks) { _, _ in
+            dismissIfNoLongerQueued()
+        }
     }
     
     // MARK: - Actions
@@ -122,7 +133,7 @@ struct QueuedTasksStartupSheet: View {
     }
     
     private func selectAll() {
-        selectedTaskIds = Set(queuedTasks.map { $0.id })
+        selectedTaskIds.formUnion(liveQueuedTasks.map(\.id))
     }
     
     private func deselectAll() {
@@ -131,7 +142,7 @@ struct QueuedTasksStartupSheet: View {
     
     private func runSelectedTasks() {
         // Cancel tasks that are not selected
-        let unselectedTasks = queuedTasks.filter { !selectedTaskIds.contains($0.id) }
+        let unselectedTasks = liveQueuedTasks.filter { !selectedTaskIds.contains($0.id) }
         for task in unselectedTasks {
             Task {
                 await taskService.removeFromQueue(task)
@@ -139,7 +150,7 @@ struct QueuedTasksStartupSheet: View {
         }
         
         // Start selected tasks
-        let selectedTasks = queuedTasks.filter { selectedTaskIds.contains($0.id) }
+        let selectedTasks = liveQueuedTasks.filter { selectedTaskIds.contains($0.id) }
         for task in selectedTasks {
             Task {
                 await taskService.startTask(task)
@@ -151,7 +162,7 @@ struct QueuedTasksStartupSheet: View {
     
     private func runAllTasks() {
         // Start all tasks
-        for task in queuedTasks {
+        for task in liveQueuedTasks {
             Task {
                 await taskService.startTask(task)
             }
@@ -162,13 +173,21 @@ struct QueuedTasksStartupSheet: View {
     
     private func cancelAllTasks() {
         // Remove all queued tasks
-        for task in queuedTasks {
+        for task in liveQueuedTasks {
             Task {
                 await taskService.removeFromQueue(task)
             }
         }
         
         isPresented = false
+    }
+
+    private func dismissIfNoLongerQueued() {
+        let liveIds = Set(liveQueuedTasks.map(\.id))
+        selectedTaskIds = selectedTaskIds.intersection(liveIds)
+        if liveQueuedTasks.isEmpty {
+            isPresented = false
+        }
     }
 }
 

@@ -28,7 +28,7 @@ enum TaskStatus: Int, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .queued: return String(localized: "Queued")
-        case .waitingForVM: return String(localized: "Waiting for VM")
+        case .waitingForVM: return String(localized: "Awaiting VM")
         case .running: return String(localized: "In Progress")
         case .completed: return String(localized: "Completed")
         case .failed: return String(localized: "Failed")
@@ -71,6 +71,16 @@ enum ClusterExecutionState: Int, Codable, CaseIterable {
     case dispatchingRemote = 1
     case runningRemote = 2
     case recoveringRemote = 3
+}
+
+enum RemoteLeaseState: Int, Codable, CaseIterable {
+    case none = 0
+    case dispatching = 1
+    case running = 2
+    case suspect = 3
+    case recovering = 4
+    case completedAwaitingImport = 5
+    case superseded = 6
 }
 
 /// SwiftData model for persisting task records
@@ -211,6 +221,28 @@ final class TaskRecord {
     
     /// Monotonic attempt/generation number for owner-managed remote execution.
     var clusterExecutionAttempt: Int = 0
+
+    /// Owner-generated stable lease identifier for the current remote attempt.
+    var clusterLeaseId: String?
+
+    /// Time the owner last heard from the remote worker for this lease.
+    var clusterLastRemoteContactAt: Date?
+
+    /// Time the current lease first started failing owner reconciliation.
+    var clusterLeaseFirstFailureAt: Date?
+
+    /// Consecutive reconciliation failures for the current lease.
+    var clusterLeaseFailureCount: Int = 0
+
+    /// Directories containing quarantined artifacts for superseded remote attempts.
+    var clusterSupersededArtifactDirectories: [String]?
+
+    private var remoteLeaseStateRaw: Int = RemoteLeaseState.none.rawValue
+
+    var remoteLeaseState: RemoteLeaseState {
+        get { RemoteLeaseState(rawValue: remoteLeaseStateRaw) ?? .none }
+        set { remoteLeaseStateRaw = newValue.rawValue }
+    }
     
     private var clusterExecutionStateRaw: Int = ClusterExecutionState.none.rawValue
     
@@ -408,7 +440,13 @@ final class TaskRecord {
         clusterPeerId: String? = nil,
         clusterPeerName: String? = nil,
         clusterExecutionAttempt: Int = 0,
-        clusterExecutionState: ClusterExecutionState = .none
+        clusterExecutionState: ClusterExecutionState = .none,
+        clusterLeaseId: String? = nil,
+        clusterLastRemoteContactAt: Date? = nil,
+        clusterLeaseFirstFailureAt: Date? = nil,
+        clusterLeaseFailureCount: Int = 0,
+        clusterSupersededArtifactDirectories: [String]? = nil,
+        remoteLeaseState: RemoteLeaseState = .none
     ) {
         self.id = id
         self.title = title
@@ -453,6 +491,12 @@ final class TaskRecord {
         self.clusterPeerName = clusterPeerName
         self.clusterExecutionAttempt = clusterExecutionAttempt
         self.clusterExecutionStateRaw = clusterExecutionState.rawValue
+        self.clusterLeaseId = clusterLeaseId
+        self.clusterLastRemoteContactAt = clusterLastRemoteContactAt
+        self.clusterLeaseFirstFailureAt = clusterLeaseFirstFailureAt
+        self.clusterLeaseFailureCount = clusterLeaseFailureCount
+        self.clusterSupersededArtifactDirectories = clusterSupersededArtifactDirectories
+        self.remoteLeaseStateRaw = remoteLeaseState.rawValue
         
         // Use new attachment infos if provided, otherwise fall back to legacy paths
         if let infos = attachmentInfos {
@@ -497,9 +541,29 @@ final class TaskRecord {
     var requiresRemoteClusterExecution: Bool {
         providerId.hasPrefix(Self.remoteOnlyProviderPrefix)
     }
+
+    var hasRemoteLease: Bool {
+        guard let clusterPeerId, !clusterPeerId.isEmpty,
+              let clusterWorkerTaskId, !clusterWorkerTaskId.isEmpty else {
+            return false
+        }
+        return true
+    }
     
     var isExecutingRemotely: Bool {
-        clusterExecutionState == .runningRemote || clusterExecutionState == .dispatchingRemote
+        guard hasRemoteLease else { return false }
+        switch remoteLeaseState {
+        case .dispatching, .running, .suspect, .recovering, .completedAwaitingImport:
+            return true
+        case .none, .superseded:
+            break
+        }
+        switch clusterExecutionState {
+        case .runningRemote, .dispatchingRemote, .recoveringRemote:
+            return true
+        case .none:
+            return false
+        }
     }
 
     var isPinnedToLocalExecution: Bool {
@@ -518,7 +582,7 @@ final class TaskRecord {
     
     /// True if this task was (or is being) executed on a remote cluster node.
     var wasExecutedRemotely: Bool {
-        clusterPeerName != nil
+        clusterPeerName != nil || clusterPeerId != nil
     }
     
     var remoteNodeDisplayName: String? {

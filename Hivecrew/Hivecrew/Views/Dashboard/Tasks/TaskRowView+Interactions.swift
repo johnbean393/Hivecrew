@@ -72,7 +72,7 @@ extension TaskRowView {
                             .font(.caption)
                             .foregroundStyle(.blue)
                     } else if task.isExecutingRemotely {
-                        Text(task.clusterExecutionState == .dispatchingRemote ? "Starting" : "Running Remotely")
+                        Text(remoteTaskCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -395,5 +395,24 @@ extension TaskRowView {
             object: nil,
             userInfo: ["taskId": task.id]
         )
+    }
+
+    private var remoteTaskCaption: String {
+        switch task.remoteLeaseState {
+        case .suspect:
+            return "Checking Remote Lease"
+        case .recovering:
+            return "Recovering"
+        case .completedAwaitingImport:
+            return "Importing Results"
+        default:
+            if task.clusterExecutionState == .dispatchingRemote {
+                return "Starting"
+            }
+            if task.clusterExecutionState == .recoveringRemote {
+                return "Reconnecting"
+            }
+            return "Running Remotely"
+        }
     }
 }

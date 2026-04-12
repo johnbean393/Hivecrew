@@ -53,6 +53,9 @@ struct AgentPreviewCardContent: View {
         if let permission = statePublisher?.pendingPermissionRequest {
             return "Permission required: \(permission.toolName)"
         }
+        if let ownerLabel {
+            return ownerLabel
+        }
         if task.status == .planReview {
             return "Plan ready for review"
         }
@@ -70,15 +73,29 @@ struct AgentPreviewCardContent: View {
 
     private var ownerLabel: String? {
         guard task.isInternalClusterExecution else { return nil }
-        guard let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId) else { return nil }
-        return ownerName
+        let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
+            ?? task.clusterOwnerNodeId.map(shortOwnerLabel(for:))
+        guard let ownerName, !ownerName.isEmpty else { return "Leased Task" }
+        return "From \(ownerName)"
     }
     
     private var statusDescription: String {
         if let nodeName = task.remoteNodeDisplayName {
+            switch task.remoteLeaseState {
+            case .suspect:
+                return "Checking \(nodeName)"
+            case .recovering:
+                return "Recovering from \(nodeName)"
+            case .completedAwaitingImport:
+                return "Importing from \(nodeName)"
+            default:
+                break
+            }
             switch task.clusterExecutionState {
             case .dispatchingRemote:
                 return "Starting on \(nodeName)"
+            case .recoveringRemote:
+                return "Reconnecting to \(nodeName)"
             case .runningRemote:
                 return "Running on \(nodeName)"
             default:
@@ -89,7 +106,7 @@ struct AgentPreviewCardContent: View {
         case .queued:
             return "Queued"
         case .waitingForVM:
-            return "Waiting for VM"
+            return "Awaiting VM"
         case .planning:
             return "Generating plan"
         case .planReview:
@@ -460,5 +477,12 @@ struct AgentPreviewCardContent: View {
             return summary
         }
         return nil
+    }
+
+    private func shortOwnerLabel(for ownerNodeId: String) -> String {
+        if ownerNodeId.count <= 8 {
+            return ownerNodeId
+        }
+        return String(ownerNodeId.prefix(8))
     }
 }

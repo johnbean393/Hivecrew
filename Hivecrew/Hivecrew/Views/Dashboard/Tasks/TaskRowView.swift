@@ -40,8 +40,10 @@ struct TaskRowView: View {
 
     var ownerLabel: String? {
         guard task.isInternalClusterExecution else { return nil }
-        guard let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId) else { return nil }
-        return ownerName
+        let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
+            ?? task.clusterOwnerNodeId.map { $0.count <= 8 ? $0 : String($0.prefix(8)) }
+        guard let ownerName else { return "Leased Task" }
+        return "From \(ownerName)"
     }
     
     var statusColor: Color {

@@ -20,7 +20,7 @@ extension TaskInputView {
         guard !onlinePeers.isEmpty else { return .automatic }
 
         switch target.kind {
-        case .automatic, .local:
+        case .automatic, .local, .remoteFirst:
             return target
         case .peer:
             guard let peerId = target.targetPeerId,

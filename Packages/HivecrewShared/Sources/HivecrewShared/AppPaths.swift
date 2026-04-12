@@ -181,6 +181,18 @@ public enum AppPaths {
     public static func sessionWritebackArtifactsDirectory(id: String) -> URL {
         sessionWritebackDirectory(id: id).appendingPathComponent("artifacts", isDirectory: true)
     }
+
+    public static let supersededClusterAttemptsDirectory: URL = {
+        let url = appSupportDirectory.appendingPathComponent("SupersededClusterAttempts", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }()
+
+    public static func supersededClusterAttemptDirectory(canonicalTaskId: String, executionAttempt: Int) -> URL {
+        supersededClusterAttemptsDirectory
+            .appendingPathComponent(canonicalTaskId, isDirectory: true)
+            .appendingPathComponent("attempt-\(executionAttempt)", isDirectory: true)
+    }
     
     // MARK: - Templates Storage
     

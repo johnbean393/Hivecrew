@@ -330,6 +330,7 @@ enum OrchestratorToolHandler {
 
         do {
             let request = TaskCreationRequest(
+                taskId: nil,
                 description: description,
                 providerId: providerId,
                 modelId: modelId,
@@ -353,7 +354,8 @@ enum OrchestratorToolHandler {
                 planSelectedSkillNames: nil,
                 localAccessGrants: [],
                 clusterOwnerTaskId: nil,
-                clusterExecutionAttempt: 0
+                clusterExecutionAttempt: 0,
+                clusterLeaseId: nil
             )
             
             let task: TaskRecord

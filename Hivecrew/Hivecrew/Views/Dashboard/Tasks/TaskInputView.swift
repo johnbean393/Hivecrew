@@ -233,6 +233,7 @@ struct TaskInputView: View {
             let taskRequests = executionTargets.flatMap { target in
                 Array(
                     repeating: TaskCreationRequest(
+                        taskId: nil,
                         description: trimmedDescription,
                         providerId: target.providerId,
                         modelId: target.modelId,
@@ -256,7 +257,8 @@ struct TaskInputView: View {
                         planSelectedSkillNames: nil,
                         localAccessGrants: localAccessGrants,
                         clusterOwnerTaskId: nil,
-                        clusterExecutionAttempt: 0
+                        clusterExecutionAttempt: 0,
+                        clusterLeaseId: nil
                     ),
                     count: target.copyCount
                 )

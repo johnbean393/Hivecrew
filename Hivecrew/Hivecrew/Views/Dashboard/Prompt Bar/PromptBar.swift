@@ -929,6 +929,7 @@ struct PromptExecutionTargetMenuOption: Equatable {
     let target: TaskExecutionTarget
     let title: String
     let isEnabled: Bool
+    let startsNewSection: Bool
 }
 
 struct PromptExecutionTargetButton: View {
@@ -1006,13 +1007,15 @@ struct PromptExecutionTargetButton: View {
             return PromptExecutionTargetMenuOption(
                 target: .peer(id: peer.id, name: peer.name ?? peer.subdomain),
                 title: peer.name ?? peer.subdomain,
-                isEnabled: isSupported
+                isEnabled: isSupported,
+                startsNewSection: false
             )
         }
 
         return [
-            PromptExecutionTargetMenuOption(target: .automatic, title: "Auto", isEnabled: true),
-            PromptExecutionTargetMenuOption(target: .local, title: "This Device", isEnabled: true)
+            PromptExecutionTargetMenuOption(target: .automatic, title: "Auto", isEnabled: true, startsNewSection: false),
+            PromptExecutionTargetMenuOption(target: .remoteFirst, title: "Remote First", isEnabled: !peers.isEmpty, startsNewSection: false),
+            PromptExecutionTargetMenuOption(target: .local, title: "This Device", isEnabled: true, startsNewSection: true)
         ] + peerOptions
     }
 

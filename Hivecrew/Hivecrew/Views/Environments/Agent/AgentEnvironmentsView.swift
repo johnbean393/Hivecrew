@@ -779,7 +779,7 @@ private extension APITaskStatus {
         case .queued:
             return "Queued"
         case .waitingForVM:
-            return "Waiting for VM"
+            return "Awaiting VM"
         case .running:
             return "Running"
         case .paused:

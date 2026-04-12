@@ -35,9 +35,19 @@ struct TerminationConfirmationSheet: View {
                         ActiveWorkRow(
                             icon: "play.circle.fill",
                             iconColor: .green,
-                            title: "Running Tasks",
+                            title: "Running Local Tasks",
                             count: terminationManager.activeWorkDetails.runningAgentCount,
                             items: terminationManager.activeWorkDetails.runningTaskTitles
+                        )
+                    }
+
+                    if terminationManager.activeWorkDetails.remoteTaskCount > 0 {
+                        ActiveWorkRow(
+                            icon: "network",
+                            iconColor: .blue,
+                            title: "Running Remote Tasks",
+                            count: terminationManager.activeWorkDetails.remoteTaskCount,
+                            items: terminationManager.activeWorkDetails.remoteTaskTitles
                         )
                     }
                     
@@ -74,7 +84,8 @@ struct TerminationConfirmationSheet: View {
                     .fontWeight(.medium)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    BulletPoint("Running tasks will be stopped and re-added to the queue")
+                    BulletPoint("Running local tasks will be stopped and re-added to the queue")
+                    BulletPoint("Running remote tasks will keep running on their assigned nodes")
                     BulletPoint("Queued tasks will remain in the queue")
                     BulletPoint("Running VMs will be stopped")
                 }

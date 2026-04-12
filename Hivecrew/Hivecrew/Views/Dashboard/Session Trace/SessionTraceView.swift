@@ -188,9 +188,26 @@ struct SessionTraceView: View {
             return success ? String(localized: "Verified Complete") : String(localized: "Incomplete")
         }
         if task.isExecutingRemotely, let nodeName = task.remoteNodeDisplayName {
-            return task.clusterExecutionState == .dispatchingRemote
-                ? "Starting on \(nodeName)"
-                : "Running on \(nodeName)"
+            switch task.remoteLeaseState {
+            case .suspect:
+                return "Checking \(nodeName)"
+            case .recovering:
+                return "Recovering from \(nodeName)"
+            case .completedAwaitingImport:
+                return "Importing from \(nodeName)"
+            default:
+                break
+            }
+            switch task.clusterExecutionState {
+            case .dispatchingRemote:
+                return "Starting on \(nodeName)"
+            case .recoveringRemote:
+                return "Reconnecting to \(nodeName)"
+            case .runningRemote:
+                return "Running on \(nodeName)"
+            case .none:
+                break
+            }
         }
         return task.status.displayName
     }

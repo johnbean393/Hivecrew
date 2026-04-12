@@ -304,7 +304,7 @@ final class MentionSuggestionsProvider: ObservableObject {
     func updateExecutionTarget(_ target: TaskExecutionTarget) {
         currentExecutionTarget = target
         switch target.kind {
-        case .automatic, .local:
+        case .automatic, .local, .remoteFirst:
             loadSkills()
         case .peer:
             guard let peerId = target.targetPeerId else {

@@ -14,6 +14,7 @@ import HivecrewShared
 import UserNotifications
 
 struct TaskCreationRequest {
+    let taskId: String?
     let description: String
     let providerId: String
     let modelId: String
@@ -38,6 +39,7 @@ struct TaskCreationRequest {
     let localAccessGrants: [LocalAccessGrant]
     let clusterOwnerTaskId: String?
     let clusterExecutionAttempt: Int
+    let clusterLeaseId: String?
 }
 
 /// Service for managing tasks and agent execution
@@ -119,6 +121,7 @@ class TaskService: ObservableObject {
     ///   - attachedFilePaths: File paths to attach (metadata stored now, files copied when session starts)
     ///   - attachmentInfos: Pre-processed attachment infos (for reruns)
     func createTask(
+        taskId: String? = nil,
         description: String,
         providerId: String,
         modelId: String,
@@ -143,9 +146,11 @@ class TaskService: ObservableObject {
         localAccessGrants: [LocalAccessGrant] = [],
         clusterOwnerTaskId: String? = nil,
         clusterExecutionAttempt: Int = 0,
+        clusterLeaseId: String? = nil,
         autoStart: Bool = true
     ) async throws -> TaskRecord {
         let request = TaskCreationRequest(
+            taskId: taskId,
             description: description,
             providerId: providerId,
             modelId: modelId,
@@ -169,7 +174,8 @@ class TaskService: ObservableObject {
             planSelectedSkillNames: planSelectedSkillNames,
             localAccessGrants: localAccessGrants,
             clusterOwnerTaskId: clusterOwnerTaskId,
-            clusterExecutionAttempt: clusterExecutionAttempt
+            clusterExecutionAttempt: clusterExecutionAttempt,
+            clusterLeaseId: clusterLeaseId
         )
 
         guard let task = try await createTasks([request], autoStart: autoStart).first else {
@@ -215,6 +221,7 @@ class TaskService: ObservableObject {
             }
 
             let task = TaskRecord(
+                id: request.taskId ?? UUID().uuidString,
                 title: quickTitle,
                 taskDescription: request.description,
                 status: .queued,
@@ -238,7 +245,8 @@ class TaskService: ObservableObject {
                 planFirstEnabled: request.planFirstEnabled,
                 localAccessGrants: request.localAccessGrants,
                 clusterOwnerTaskId: request.clusterOwnerTaskId,
-                clusterExecutionAttempt: request.clusterExecutionAttempt
+                clusterExecutionAttempt: request.clusterExecutionAttempt,
+                clusterLeaseId: request.clusterLeaseId
             )
 
             if let planMarkdown = request.planMarkdown {
@@ -491,13 +499,27 @@ class TaskService: ObservableObject {
         guard let context = modelContext else { return }
         
         var recovered = 0
+        var remoteRecovered = 0
         var pausedKept = 0
         var pausedRequeued = 0
         
         for task in tasks where task.status.isActive {
             // Owner-side remote executions do not have a local running agent after relaunch.
             // Keep them active so remote reconciliation and live polling can reconnect.
-            if task.isExecutingRemotely || task.clusterExecutionState == .recoveringRemote {
+            if task.clusterExecutionState != .none {
+                if task.hasRemoteLease {
+                    continue
+                }
+
+                task.clusterExecutionState = .none
+                task.clusterWorkerTaskId = nil
+                task.clusterPeerId = nil
+                task.clusterPeerName = nil
+                task.status = .queued
+                task.startedAt = nil
+                task.completedAt = nil
+                task.errorMessage = "Remote task lease was lost - requeued"
+                remoteRecovered += 1
                 continue
             }
 
@@ -531,9 +553,9 @@ class TaskService: ObservableObject {
             }
         }
         
-        if recovered > 0 || pausedRequeued > 0 {
+        if recovered > 0 || remoteRecovered > 0 || pausedRequeued > 0 {
             try? context.save()
-            print("TaskService: Recovered \(recovered) running task(s), kept \(pausedKept) paused task(s), requeued \(pausedRequeued) paused task(s) with missing VMs")
+            print("TaskService: Recovered \(recovered) running task(s), requeued \(remoteRecovered) remote task(s) with lost leases, kept \(pausedKept) paused task(s), requeued \(pausedRequeued) paused task(s) with missing VMs")
             objectWillChange.send()
         }
     }
@@ -552,7 +574,11 @@ class TaskService: ObservableObject {
     
     /// Get queued tasks (for startup sheet)
     var queuedTasks: [TaskRecord] {
-        tasks.filter { $0.status == .queued || $0.status == .waitingForVM }
+        tasks.filter {
+            !$0.isInternalClusterExecution &&
+                !$0.isExecutingRemotely &&
+                ($0.status == .queued || $0.status == .waitingForVM)
+        }
     }
 
     /// Derive an effective status that accounts for live agent state.
