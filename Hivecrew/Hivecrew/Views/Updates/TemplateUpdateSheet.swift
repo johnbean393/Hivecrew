@@ -10,7 +10,7 @@ import HivecrewShared
 
 /// Sheet displayed when a template update is available
 struct TemplateUpdateSheet: View {
-    @Binding var isPresented: Bool
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var downloadService = TemplateDownloadService.shared
     @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
     
@@ -73,7 +73,7 @@ struct TemplateUpdateSheet: View {
                 
                 Button("Cancel") {
                     downloadService.cancelAndDeleteDownload()
-                    isPresented = false
+                    dismiss()
                 }
                 .foregroundStyle(.red)
             }
@@ -126,14 +126,14 @@ struct TemplateUpdateSheet: View {
                 HStack(spacing: 16) {
                     Button("Ask Later") {
                         downloadService.askLater(for: update.version)
-                        isPresented = false
+                        dismiss()
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     
                     Button("Skip This Version") {
                         downloadService.skipVersion(update.version)
-                        isPresented = false
+                        dismiss()
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
@@ -199,7 +199,7 @@ struct TemplateUpdateSheet: View {
                     
                     Button("Cancel") {
                         downloadService.cancelDownload()
-                        isPresented = false
+                        dismiss()
                     }
                     .foregroundStyle(.red)
                 }
@@ -241,7 +241,7 @@ struct TemplateUpdateSheet: View {
                 .foregroundStyle(.secondary)
             
             Button("Done") {
-                isPresented = false
+                dismiss()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -297,7 +297,6 @@ struct TemplateUpdateSheet: View {
 
 #Preview {
     TemplateUpdateSheet(
-        isPresented: .constant(true),
         update: KnownTemplates.default,
         currentTemplateId: "golden-v0.0.5"
     )

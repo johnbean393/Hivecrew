@@ -58,8 +58,8 @@ struct HivecrewApp: App {
     /// Whether onboarding has been completed
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
-    /// Whether to show the template update sheet
-    @State private var showTemplateUpdate = false
+    /// The template currently presented in the update sheet.
+    @State private var presentedTemplateUpdate: RemoteTemplate?
     /// The current default template ID (for removal after update)
     @AppStorage("defaultTemplateId") private var defaultTemplateId = ""
     
@@ -104,16 +104,11 @@ struct HivecrewApp: App {
                     .environmentObject(taskService)
                 }
                 // Template update sheet
-                .sheet(
-                    isPresented: $showTemplateUpdate
-                ) {
-                    if let update = downloadService.availableUpdate {
-                        TemplateUpdateSheet(
-                            isPresented: $showTemplateUpdate,
-                            update: update,
-                            currentTemplateId: defaultTemplateId.isEmpty ? nil : defaultTemplateId
-                        )
-                    }
+                .sheet(item: $presentedTemplateUpdate) { update in
+                    TemplateUpdateSheet(
+                        update: update,
+                        currentTemplateId: defaultTemplateId.isEmpty ? nil : defaultTemplateId
+                    )
                 }
                 // Listen for debug menu onboarding trigger
                 .onReceive(
@@ -135,7 +130,7 @@ struct HivecrewApp: App {
                 .onChange(of: showOnboarding) { _, isPresented in
                     guard !isPresented, hasCompletedOnboarding else { return }
                     if downloadService.shouldPromptForUpdate() {
-                        showTemplateUpdate = true
+                        presentTemplateUpdateSheetIfNeeded()
                     }
                 }
         }
@@ -290,7 +285,7 @@ struct HivecrewApp: App {
         // Show prompt if update available and not skipped
         if allowPrompt, downloadService.shouldPromptForUpdate() {
             await MainActor.run {
-                showTemplateUpdate = true
+                presentTemplateUpdateSheetIfNeeded()
             }
         }
     }
@@ -301,7 +296,7 @@ struct HivecrewApp: App {
         
         if downloadService.updateAvailable, downloadService.availableUpdate != nil {
             await MainActor.run {
-                showTemplateUpdate = true
+                presentTemplateUpdateSheetIfNeeded()
             }
             return
         }
@@ -314,6 +309,12 @@ struct HivecrewApp: App {
             alert.addButton(withTitle: "OK")
             alert.runModal()
         }
+    }
+
+    @MainActor
+    private func presentTemplateUpdateSheetIfNeeded() {
+        guard let update = downloadService.availableUpdate else { return }
+        presentedTemplateUpdate = update
     }
     
 }
