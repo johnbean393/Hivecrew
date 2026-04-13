@@ -73,7 +73,7 @@ extension TemplateDownloadService {
             if let error = decompressionError {
                 if tarProcess.terminationStatus != 0,
                    tarErrorMessage.localizedCaseInsensitiveContains("No space left on device") {
-                    throw TemplateDownloadError.insufficientStorage
+                    throw TemplateDownloadError.insufficientStorage(requiredBytes: nil, availableBytes: nil)
                 }
                 
                 throw error
@@ -81,7 +81,7 @@ extension TemplateDownloadService {
             
             if tarProcess.terminationStatus != 0 {
                 if tarErrorMessage.localizedCaseInsensitiveContains("No space left on device") {
-                    throw TemplateDownloadError.insufficientStorage
+                    throw TemplateDownloadError.insufficientStorage(requiredBytes: nil, availableBytes: nil)
                 }
                 
                 let errorMessage = tarErrorMessage.isEmpty ? "Unknown error" : tarErrorMessage

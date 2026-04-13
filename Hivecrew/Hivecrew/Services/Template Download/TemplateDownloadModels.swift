@@ -16,6 +16,7 @@ public struct RemoteTemplate: Identifiable, Sendable {
     public let version: String
     public let url: URL
     public let sizeBytes: Int64?  // Optional - will be fetched from server if not provided
+    public let installedSizeBytes: Int64?
     public let sha256: String?
     
     public init(
@@ -25,6 +26,7 @@ public struct RemoteTemplate: Identifiable, Sendable {
         version: String,
         url: URL,
         sizeBytes: Int64? = nil,
+        installedSizeBytes: Int64? = nil,
         sha256: String? = nil
     ) {
         self.id = id
@@ -33,6 +35,7 @@ public struct RemoteTemplate: Identifiable, Sendable {
         self.version = version
         self.url = url
         self.sizeBytes = sizeBytes
+        self.installedSizeBytes = installedSizeBytes
         self.sha256 = sha256
     }
     
@@ -85,6 +88,8 @@ public struct TemplateManifest: Codable, Sendable {
         public let name: String
         public let version: String
         public let url: String
+        public let sizeBytes: Int64?
+        public let installedSizeBytes: Int64?
         public let minimumAppVersion: String?
         public let maximumAppVersion: String?
         
@@ -96,7 +101,9 @@ public struct TemplateManifest: Codable, Sendable {
                 name: name,
                 description: "",
                 version: version,
-                url: url
+                url: url,
+                sizeBytes: sizeBytes,
+                installedSizeBytes: installedSizeBytes
             )
         }
     }
@@ -152,7 +159,7 @@ public enum TemplateDownloadError: LocalizedError {
     case extractionFailed(String)
     case configurationFailed(String)
     case cancelled
-    case insufficientStorage
+    case insufficientStorage(requiredBytes: Int64?, availableBytes: Int64?)
     case invalidTemplate(String)
     case fileSystemError(String)
     
@@ -168,7 +175,17 @@ public enum TemplateDownloadError: LocalizedError {
             return String(localized: "Configuration failed: \(message)")
         case .cancelled:
             return String(localized: "Download was cancelled")
-        case .insufficientStorage:
+        case .insufficientStorage(let requiredBytes, let availableBytes):
+            if let requiredBytes, let availableBytes, requiredBytes > 0, availableBytes >= 0 {
+                let formatter = ByteCountFormatter()
+                formatter.allowedUnits = [.useGB, .useMB]
+                formatter.countStyle = .file
+                formatter.includesUnit = true
+
+                let requiredString = formatter.string(fromByteCount: requiredBytes)
+                let availableString = formatter.string(fromByteCount: availableBytes)
+                return "Not enough free disk space to complete the template update. Hivecrew needs about \(requiredString) free on this volume, but macOS is currently reporting only \(availableString) immediately writable."
+            }
             return String(localized: "Not enough free disk space to complete the template update")
         case .invalidTemplate(let message):
             return String(localized: "Invalid template: \(message)")
@@ -215,7 +232,7 @@ func isTemplateDownloadOutOfSpaceError(_ error: Error) -> Bool {
 
 func normalizeTemplateDownloadError(_ error: Error) -> Error {
     if isTemplateDownloadOutOfSpaceError(error) {
-        return TemplateDownloadError.insufficientStorage
+        return TemplateDownloadError.insufficientStorage(requiredBytes: nil, availableBytes: nil)
     }
     
     return error

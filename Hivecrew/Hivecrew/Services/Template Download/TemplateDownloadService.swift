@@ -31,6 +31,8 @@ public class TemplateDownloadService: ObservableObject {
     private var activeSession: URLSession?
     private var downloadTask: Task<String, Error>?
     private let fileManager = FileManager.default
+    private let defaultInstalledTemplateSizeBytes: Int64 = 64 * 1024 * 1024 * 1024
+    private let templateUpdateSafetyMarginBytes: Int64 = 8 * 1024 * 1024 * 1024
     
     private var downloadsDirectory: URL {
         let url = AppPaths.appSupportDirectory.appendingPathComponent("Downloads", isDirectory: true)
@@ -125,7 +127,7 @@ public class TemplateDownloadService: ObservableObject {
     }
     
     public func updateTemplate(_ template: RemoteTemplate, removingOld oldTemplateId: String?) async throws -> String {
-        let newTemplateId = try await downloadTemplate(template)
+        let newTemplateId = try await downloadTemplate(template, replacingTemplateId: oldTemplateId)
         if let oldId = oldTemplateId, oldId != newTemplateId {
             let oldTemplatePath = AppPaths.templatesDirectory.appendingPathComponent(oldId)
             try? fileManager.removeItem(at: oldTemplatePath)
@@ -191,10 +193,20 @@ public class TemplateDownloadService: ObservableObject {
     
     // MARK: - Download Methods
     
-    public func downloadTemplate(_ template: RemoteTemplate, resume: Bool = true) async throws -> String {
+    public func downloadTemplate(
+        _ template: RemoteTemplate,
+        resume: Bool = true,
+        replacingTemplateId: String? = nil
+    ) async throws -> String {
         guard !isDownloading else {
             throw TemplateDownloadError.downloadFailed("A download is already in progress")
         }
+
+        try await ensureSufficientWritableSpace(
+            for: template,
+            resume: resume,
+            replacingTemplateId: replacingTemplateId
+        )
         
         isDownloading = true
         isPaused = false
@@ -405,7 +417,7 @@ public class TemplateDownloadService: ObservableObject {
         } catch {
             if isTemplateDownloadOutOfSpaceError(error) {
                 discardFailedDownload(partialPath: partialPath, finalPath: finalPath)
-                throw TemplateDownloadError.insufficientStorage
+                throw TemplateDownloadError.insufficientStorage(requiredBytes: nil, availableBytes: nil)
             }
             
             saveStateOnError(partialPath: partialPath, templateId: templateId, url: url, actualTotalSize: actualTotalSize, initialState: initialState)
@@ -419,5 +431,142 @@ public class TemplateDownloadService: ObservableObject {
             let state = DownloadState(templateId: templateId, url: url.absoluteString, expectedSize: actualTotalSize, partialFilePath: partialPath.path, bytesDownloaded: size, startedAt: initialState.startedAt)
             saveDownloadState(state)
         }
+    }
+
+    private func ensureSufficientWritableSpace(
+        for template: RemoteTemplate,
+        resume: Bool,
+        replacingTemplateId: String?
+    ) async throws {
+        guard let availableBytes = availableWritableCapacity(at: AppPaths.templatesDirectory) else {
+            return
+        }
+
+        let remainingArchiveBytes = await estimatedArchiveBytesRemaining(for: template, resume: resume) ?? 0
+        let installedBytes = estimatedInstalledTemplateBytes(for: template, replacingTemplateId: replacingTemplateId)
+        let requiredBytes = remainingArchiveBytes + installedBytes + templateUpdateSafetyMarginBytes
+
+        guard availableBytes >= requiredBytes else {
+            throw TemplateDownloadError.insufficientStorage(
+                requiredBytes: requiredBytes,
+                availableBytes: availableBytes
+            )
+        }
+    }
+
+    private func availableWritableCapacity(at url: URL) -> Int64? {
+        if let attrs = try? fileManager.attributesOfFileSystem(forPath: url.path) {
+            if let freeSpace = (attrs[.systemFreeSize] as? NSNumber)?.int64Value {
+                return freeSpace
+            }
+            if let freeSpace = attrs[.systemFreeSize] as? Int64 {
+                return freeSpace
+            }
+            if let freeSpace = attrs[.systemFreeSize] as? UInt64 {
+                return Int64(clamping: freeSpace)
+            }
+        }
+
+        if let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityKey]),
+           let freeSpace = values.volumeAvailableCapacity {
+            return Int64(freeSpace)
+        }
+
+        return nil
+    }
+
+    private func estimatedArchiveBytesRemaining(for template: RemoteTemplate, resume: Bool) async -> Int64? {
+        if cachedArchiveInfo(for: template) != nil {
+            return 0
+        }
+
+        let totalArchiveBytes = template.sizeBytes ?? await fetchRemoteArchiveSize(for: template)
+        guard let totalArchiveBytes, totalArchiveBytes > 0 else {
+            return nil
+        }
+
+        guard resume else {
+            return totalArchiveBytes
+        }
+
+        let partialPath = partialDownloadPath(for: template.id)
+        let attrs = try? fileManager.attributesOfItem(atPath: partialPath.path)
+        let partialBytes = (attrs?[.size] as? NSNumber)?.int64Value
+            ?? (attrs?[.size] as? Int64)
+            ?? 0
+        return max(0, totalArchiveBytes - partialBytes)
+    }
+
+    private func fetchRemoteArchiveSize(for template: RemoteTemplate) async -> Int64? {
+        var request = URLRequest(url: template.url)
+        request.httpMethod = "HEAD"
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200..<400).contains(httpResponse.statusCode),
+                  let contentLength = httpResponse.value(forHTTPHeaderField: "Content-Length"),
+                  let size = Int64(contentLength),
+                  size > 0 else {
+                return nil
+            }
+            return size
+        } catch {
+            return nil
+        }
+    }
+
+    private func estimatedInstalledTemplateBytes(
+        for template: RemoteTemplate,
+        replacingTemplateId: String?
+    ) -> Int64 {
+        let replacementIds = [replacingTemplateId, template.id].compactMap { $0 }
+        var candidates = [template.installedSizeBytes, template.sizeBytes]
+
+        for templateId in replacementIds {
+            candidates.append(allocatedTemplateBytes(for: templateId))
+            candidates.append(logicalTemplateBytes(for: templateId))
+        }
+
+        let bestKnownSize = candidates.compactMap { $0 }.filter { $0 > 0 }.max() ?? 0
+        return max(bestKnownSize, defaultInstalledTemplateSizeBytes)
+    }
+
+    private func allocatedTemplateBytes(for templateId: String) -> Int64? {
+        let diskPath = AppPaths.templateDiskPath(id: templateId)
+        guard fileManager.fileExists(atPath: diskPath.path) else {
+            return nil
+        }
+
+        let keys: Set<URLResourceKey> = [
+            .fileAllocatedSizeKey,
+            .totalFileAllocatedSizeKey
+        ]
+        guard let values = try? diskPath.resourceValues(forKeys: keys) else {
+            return nil
+        }
+
+        if let allocated = values.totalFileAllocatedSize {
+            return Int64(allocated)
+        }
+        if let allocated = values.fileAllocatedSize {
+            return Int64(allocated)
+        }
+        return nil
+    }
+
+    private func logicalTemplateBytes(for templateId: String) -> Int64? {
+        let diskPath = AppPaths.templateDiskPath(id: templateId)
+        let attrs = try? fileManager.attributesOfItem(atPath: diskPath.path)
+        if let size = (attrs?[.size] as? NSNumber)?.int64Value {
+            return size
+        }
+        if let size = attrs?[.size] as? Int64 {
+            return size
+        }
+        if let size = attrs?[.size] as? UInt64 {
+            return Int64(clamping: size)
+        }
+        return nil
     }
 }
