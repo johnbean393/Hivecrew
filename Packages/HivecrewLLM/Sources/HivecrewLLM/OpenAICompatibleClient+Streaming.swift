@@ -20,9 +20,9 @@ extension OpenAICompatibleClient {
             let endpoint = buildChatURL()
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
-            request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+            try await applyAuthorizationHeaders(to: &request, forceRefresh: false)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            if let orgId = configuration.organizationId {
+            if let orgId = configuration.organizationId, !usesKimiOAuth {
                 request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
             }
             request.timeoutInterval = configuration.timeoutInterval
@@ -105,8 +105,8 @@ extension OpenAICompatibleClient {
                         continue
                     }
 
-                    if line.hasPrefix("data: ") {
-                        let jsonString = String(line.dropFirst(6))
+                    if line.hasPrefix("data:") {
+                        let jsonString = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
 
                         if jsonString == "[DONE]" {
                             break
@@ -177,7 +177,8 @@ extension OpenAICompatibleClient {
                                             onContentUpdate?(accumulatedContent)
                                         }
 
-                                        if let reasoningDelta = delta["reasoning"] as? String {
+                                        if let reasoningDelta = (delta["reasoning"] as? String)
+                                            ?? (delta["reasoning_content"] as? String) {
                                             accumulatedReasoning += reasoningDelta
                                             onReasoningUpdate?(accumulatedReasoning)
                                         }

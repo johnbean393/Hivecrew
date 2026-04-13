@@ -31,10 +31,10 @@ final class LLMProviderRecord {
     /// Optional organization ID for OpenAI
     var organizationId: String?
 
-    /// Backend mode for this provider (`chat_completions`, `responses`, `codex_oauth`)
+    /// Backend mode for this provider (`chat_completions`, `responses`, `codex_oauth`, `kimi_oauth`)
     var backendModeRaw: String?
 
-    /// Authentication mode (`api_key`, `chatgpt_oauth`)
+    /// Authentication mode (`api_key`, `chatgpt_oauth`, `kimi_oauth`)
     var authModeRaw: String?
 
     /// OAuth auth state for this provider
@@ -138,12 +138,27 @@ final class LLMProviderRecord {
         set { backendModeRaw = newValue.rawValue }
     }
 
+    var oauthProviderKind: LLMOAuthProviderKind? {
+        backendMode.oauthProviderKind ?? authMode.oauthProviderKind
+    }
+
+    var isOAuthProvider: Bool {
+        oauthProviderKind != nil
+    }
+
     var authMode: LLMAuthMode {
         get {
             if let stored = LLMAuthMode(rawValue: authModeRaw ?? "") {
                 return stored
             }
-            return backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey
+            switch backendMode.oauthProviderKind {
+            case .chatgpt:
+                return .chatGPTOAuth
+            case .kimi:
+                return .kimiOAuth
+            case .none:
+                return .apiKey
+            }
         }
         set { authModeRaw = newValue.rawValue }
     }
@@ -162,6 +177,17 @@ final class LLMProviderRecord {
         oauthAuthState == .authenticated
     }
 
+    var hasStoredOAuthTokens: Bool {
+        switch oauthProviderKind {
+        case .chatgpt:
+            return CodexOAuthTokenStore.retrieve(providerId: id) != nil
+        case .kimi:
+            return KimiOAuthTokenStore.retrieve(providerId: id) != nil
+        case .none:
+            return false
+        }
+    }
+
     var oauthAuthURL: URL? {
         guard let oauthLastAuthURL else { return nil }
         return URL(string: oauthLastAuthURL)
@@ -171,6 +197,9 @@ final class LLMProviderRecord {
     var effectiveBaseURL: URL {
         if backendMode == .codexOAuth {
             return codexOAuthBaseURL
+        }
+        if backendMode == .kimiOAuth {
+            return kimiOAuthBaseURL
         }
         return parsedBaseURL ?? defaultLLMProviderBaseURL
     }
@@ -186,7 +215,7 @@ final class LLMProviderRecord {
         LLMConfiguration(
             id: id,
             displayName: displayName,
-            baseURL: backendMode == .codexOAuth ? nil : parsedBaseURL,
+            baseURL: isOAuthProvider ? nil : parsedBaseURL,
             apiKey: apiKey,
             model: model,
             organizationId: organizationId,
@@ -236,7 +265,14 @@ extension LLMProviderRecord {
 
     @discardableResult
     func deleteOAuthTokens() -> Bool {
-        CodexOAuthTokenStore.delete(providerId: id)
+        switch oauthProviderKind {
+        case .chatgpt:
+            return CodexOAuthTokenStore.delete(providerId: id)
+        case .kimi:
+            return KimiOAuthTokenStore.delete(providerId: id)
+        case .none:
+            return true
+        }
     }
 }
 

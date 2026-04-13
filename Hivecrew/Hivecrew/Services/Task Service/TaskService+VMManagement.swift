@@ -186,8 +186,7 @@ extension TaskService {
             throw TaskServiceError.providerNotFound(providerId)
         }
 
-        // Codex providers require a completed ChatGPT login before run.
-        if provider.backendMode == .codexOAuth && !provider.isOAuthAuthenticated {
+        if provider.isOAuthProvider && !provider.isOAuthAuthenticated {
             throw TaskServiceError.oauthAuthRequired(provider.displayName)
         }
 
@@ -204,7 +203,7 @@ extension TaskService {
         let config = LLMConfiguration(
             id: provider.id,
             displayName: provider.displayName,
-            baseURL: provider.backendMode == .codexOAuth ? nil : provider.parsedBaseURL,
+            baseURL: provider.isOAuthProvider ? nil : provider.parsedBaseURL,
             apiKey: apiKey,
             model: modelId,
             organizationId: provider.organizationId,
@@ -242,7 +241,7 @@ extension TaskService {
             throw TaskServiceError.providerNotFound(workerProviderId)
         }
 
-        if provider.backendMode == .codexOAuth && !provider.isOAuthAuthenticated {
+        if provider.isOAuthProvider && !provider.isOAuthAuthenticated {
             throw TaskServiceError.oauthAuthRequired(provider.displayName)
         }
 
@@ -265,7 +264,7 @@ extension TaskService {
         let config = LLMConfiguration(
             id: provider.id,
             displayName: provider.displayName,
-            baseURL: provider.backendMode == .codexOAuth ? nil : provider.parsedBaseURL,
+            baseURL: provider.isOAuthProvider ? nil : provider.parsedBaseURL,
             apiKey: apiKey,
             model: workerModelId,
             organizationId: provider.organizationId,

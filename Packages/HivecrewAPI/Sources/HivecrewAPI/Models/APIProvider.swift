@@ -36,11 +36,13 @@ public enum APIProviderBackendMode: String, Codable, Sendable, CaseIterable {
     case chatCompletions = "chat_completions"
     case responses = "responses"
     case codexOAuth = "codex_oauth"
+    case kimiOAuth = "kimi_oauth"
 }
 
 public enum APIProviderAuthMode: String, Codable, Sendable, CaseIterable {
     case apiKey = "api_key"
     case chatGPTOAuth = "chatgpt_oauth"
+    case kimiOAuth = "kimi_oauth"
 }
 
 public enum APIProviderAuthState: String, Codable, Sendable, CaseIterable {

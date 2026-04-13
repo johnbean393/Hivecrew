@@ -44,13 +44,8 @@ extension ProviderEditSheet {
                                 .scaleEffect(0.7)
                                 .frame(width: 14, height: 14)
                         }
-                        Image("OpenAILogo")
-                            .renderingMode(.template)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
-                            .foregroundStyle(.primary)
-                        Text("Sign in with ChatGPT")
+                        oauthProviderImage
+                        Text("Sign in with \(oauthProviderDisplayName)")
                     }
                 }
                 .disabled(isAuthenticatingOAuth)
@@ -70,9 +65,9 @@ extension ProviderEditSheet {
         case .unauthenticated:
             return "Not connected"
         case .pending:
-            return "Waiting for ChatGPT sign-in"
+            return "Waiting for \(oauthProviderDisplayName) sign-in"
         case .authenticated:
-            return "Connected to ChatGPT"
+            return "Connected to \(oauthProviderDisplayName)"
         case .failed:
             return "Connection failed"
         }
@@ -91,13 +86,43 @@ extension ProviderEditSheet {
         }
     }
 
+    var oauthProviderDisplayName: String {
+        activeOAuthProviderKind?.displayName ?? "Provider"
+    }
+
+    @ViewBuilder
+    var oauthProviderImage: some View {
+        if activeOAuthProviderKind == .chatgpt {
+            Image("OpenAILogo")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 16, height: 16)
+                .foregroundStyle(.primary)
+        } else {
+            Image("KimiLogo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 16, height: 16)
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        }
+    }
+
     func startOAuthAuth() {
         isAuthenticatingOAuth = true
         oauthAuthMessage = nil
 
         Task { @MainActor in
             do {
-                let startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
+                let startResult: CodexOAuthStartResult
+                switch activeOAuthProviderKind {
+                case .chatgpt:
+                    startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
+                case .kimi:
+                    startResult = try await KimiOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
+                case .none:
+                    throw LLMError.invalidConfiguration(message: "OAuth is not available for this provider")
+                }
 
                 persistOAuthStateIfNeeded(
                     authState: .pending,
@@ -133,7 +158,21 @@ extension ProviderEditSheet {
         isAuthenticatingOAuth = true
 
         Task { @MainActor in
-            let snapshot = CodexOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
+            let snapshot: CodexOAuthStatusSnapshot
+            switch activeOAuthProviderKind {
+            case .chatgpt:
+                snapshot = CodexOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
+            case .kimi:
+                snapshot = await KimiOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
+            case .none:
+                snapshot = CodexOAuthStatusSnapshot(
+                    status: .unauthenticated,
+                    loginId: nil,
+                    authURL: nil,
+                    message: nil,
+                    updatedAt: nil
+                )
+            }
 
             persistOAuthStateIfNeeded(
                 authState: snapshot.status,
@@ -154,7 +193,14 @@ extension ProviderEditSheet {
         isAuthenticatingOAuth = true
 
         Task { @MainActor in
-            CodexOAuthCoordinator.shared.logout(providerId: activeProviderId)
+            switch activeOAuthProviderKind {
+            case .chatgpt:
+                CodexOAuthCoordinator.shared.logout(providerId: activeProviderId)
+            case .kimi:
+                KimiOAuthCoordinator.shared.logout(providerId: activeProviderId)
+            case .none:
+                break
+            }
 
             persistOAuthStateIfNeeded(
                 authState: .unauthenticated,

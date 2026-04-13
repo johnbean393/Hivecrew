@@ -34,7 +34,7 @@ public final class LLMService: Sendable {
     /// - Returns: An LLM client instance
     public func createClient(from configuration: LLMConfiguration) -> any LLMClientProtocol {
         switch configuration.backendMode {
-        case .chatCompletions:
+        case .chatCompletions, .kimiOAuth:
             OpenAICompatibleClient(configuration: configuration)
         case .responses, .codexOAuth:
             ResponsesAPIClient(configuration: configuration)

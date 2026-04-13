@@ -298,6 +298,8 @@ Contributions are welcome. Areas where help would be especially valuable:
 - UX improvements around supervision, review, and scheduling
 - Documentation and examples
 
+For internal release operations, the golden template publishing workflow and the current fastest verified R2 upload command are documented in [guides/new-template.md](guides/new-template.md).
+
 ## License
 
 MIT License

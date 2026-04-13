@@ -43,7 +43,7 @@ struct ProviderRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                } else if provider.backendMode == .codexOAuth {
+                } else if provider.isOAuthProvider {
                     Text(provider.isOAuthAuthenticated ? "\(provider.displayLabel) • Connected" : "\(provider.displayLabel) • Not connected")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -82,7 +82,7 @@ struct ProviderRow: View {
     }
     
     private var providerIcon: String {
-        if provider.backendMode == .codexOAuth {
+        if provider.isOAuthProvider {
             return provider.isOAuthAuthenticated ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.exclamationmark"
         }
         if provider.backendMode == .responses {

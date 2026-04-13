@@ -16,6 +16,7 @@ public let defaultLLMProviderBaseURL = URL(string: "https://openrouter.ai/api/v1
 public let defaultLLMProviderBaseURLString = "https://openrouter.ai/api/v1"
 
 public let codexOAuthBaseURL = URL(string: "https://chatgpt.com/backend-api/codex")!
+public let kimiOAuthBaseURL = URL(string: "https://api.kimi.com/coding/v1")!
 public let googleAIGenerativeLanguageHost = "generativelanguage.googleapis.com"
 let codexOAuthClientVersionQueryName = "client_version"
 private let codexOAuthFallbackClientVersion = "0.107.0"
@@ -150,12 +151,40 @@ public enum LLMBackendMode: String, Sendable, Codable, CaseIterable {
     case chatCompletions = "chat_completions"
     case responses = "responses"
     case codexOAuth = "codex_oauth"
+    case kimiOAuth = "kimi_oauth"
 }
 
 /// Authentication mode for a provider connection.
 public enum LLMAuthMode: String, Sendable, Codable, CaseIterable {
     case apiKey = "api_key"
     case chatGPTOAuth = "chatgpt_oauth"
+    case kimiOAuth = "kimi_oauth"
+}
+
+public extension LLMBackendMode {
+    var oauthProviderKind: LLMOAuthProviderKind? {
+        switch self {
+        case .codexOAuth:
+            return .chatgpt
+        case .kimiOAuth:
+            return .kimi
+        case .chatCompletions, .responses:
+            return nil
+        }
+    }
+}
+
+public extension LLMAuthMode {
+    var oauthProviderKind: LLMOAuthProviderKind? {
+        switch self {
+        case .chatGPTOAuth:
+            return .chatgpt
+        case .kimiOAuth:
+            return .kimi
+        case .apiKey:
+            return nil
+        }
+    }
 }
 
 public enum LLMServiceTier: String, Sendable, Codable, CaseIterable {
@@ -293,6 +322,7 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
 
     /// Whether this configuration points to OpenRouter API (true by default when no baseURL is set)
     public var isOpenRouter: Bool {
+        guard !usesOAuthSignIn else { return false }
         guard let host = baseURL?.host?.lowercased() else { return true }
         return host.contains("openrouter.ai")
     }
@@ -302,8 +332,34 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
         backendMode == .responses
     }
 
+    public var oauthProviderKind: LLMOAuthProviderKind? {
+        backendMode.oauthProviderKind ?? authMode.oauthProviderKind
+    }
+
+    public var usesOAuthSignIn: Bool {
+        oauthProviderKind != nil
+    }
+
     /// Convenience flag for ChatGPT OAuth backend.
     public var usesCodexOAuth: Bool {
-        backendMode == .codexOAuth
+        oauthProviderKind == .chatgpt
+    }
+
+    /// Convenience flag for Kimi OAuth backend.
+    public var usesKimiOAuth: Bool {
+        oauthProviderKind == .kimi
+    }
+}
+public enum LLMOAuthProviderKind: String, Sendable, Codable, CaseIterable {
+    case chatgpt
+    case kimi
+
+    public var displayName: String {
+        switch self {
+        case .chatgpt:
+            return "ChatGPT"
+        case .kimi:
+            return "Kimi"
+        }
     }
 }

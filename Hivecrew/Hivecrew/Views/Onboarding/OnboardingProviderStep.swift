@@ -40,9 +40,18 @@ struct OnboardingProviderStep: View {
     @State private var saveErrorMessage: String?
 
     private let chatGPTSignInSubscriptionTip = ChatGPTSignInSubscriptionTip()
+    private let kimiSignInSubscriptionTip = KimiSignInSubscriptionTip()
+
+    private var activeOAuthProviderKind: LLMOAuthProviderKind? {
+        resolveOAuthProviderKind(backendMode: backendMode, authMode: authMode)
+    }
+
+    private var isOAuthMode: Bool {
+        activeOAuthProviderKind != nil
+    }
 
     private var isCodexMode: Bool {
-        backendMode == .codexOAuth
+        activeOAuthProviderKind == .chatgpt
     }
 
     private var activeProviderId: String {
@@ -54,14 +63,15 @@ struct OnboardingProviderStep: View {
     }
 
     private var shouldAutoRefreshOAuthAuth: Bool {
-        isCodexMode && oauthAuthState == .pending && !isAuthenticatingOAuth
+        isOAuthMode && oauthAuthState == .pending && !isAuthenticatingOAuth
     }
 
     private var canSaveProvider: Bool {
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return false }
-        if isCodexMode {
-            return oauthAuthState == .authenticated || CodexOAuthTokenStore.retrieve(providerId: activeProviderId) != nil
+        if isOAuthMode {
+            return oauthAuthState == .authenticated
+                || hasStoredOAuthTokens(providerId: activeProviderId, providerKind: activeOAuthProviderKind)
         }
         return !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -80,7 +90,7 @@ struct OnboardingProviderStep: View {
                             .font(.title2)
                             .fontWeight(.semibold)
                         
-                        Text("Connect an API-key provider or ChatGPT OAuth to power your agents")
+                        Text("Connect an API-key provider, ChatGPT OAuth, or Kimi OAuth to power your agents")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -105,20 +115,33 @@ struct OnboardingProviderStep: View {
                                 Text("Chat Completions").tag(LLMBackendMode.chatCompletions)
                                 Text("Responses API").tag(LLMBackendMode.responses)
                                 Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
+                                Text("Kimi OAuth").tag(LLMBackendMode.kimiOAuth)
                             }
                             .pickerStyle(.menu)
                             .onChange(of: backendMode) { _, newValue in
-                                authMode = newValue == .codexOAuth ? .chatGPTOAuth : .apiKey
-                                if newValue == .codexOAuth,
-                                   displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || displayName == "OpenRouter" {
-                                    displayName = "ChatGPT OAuth"
+                                switch newValue.oauthProviderKind {
+                                case .chatgpt:
+                                    authMode = .chatGPTOAuth
+                                case .kimi:
+                                    authMode = .kimiOAuth
+                                case .none:
+                                    authMode = .apiKey
+                                }
+                                if let oauthKind = newValue.oauthProviderKind {
+                                    let currentName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if currentName.isEmpty
+                                        || currentName == "OpenRouter"
+                                        || currentName == "ChatGPT OAuth"
+                                        || currentName == "Kimi Code OAuth" {
+                                        displayName = oauthKind == .chatgpt ? "ChatGPT OAuth" : "Kimi Code OAuth"
+                                    }
                                 }
                             }
                         }
 
-                        if isCodexMode {
+                        if isOAuthMode {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("ChatGPT OAuth")
+                                Text("\(activeOAuthProviderKind?.displayName ?? "OAuth") Sign-In")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 oauthAuthContent
@@ -165,7 +188,7 @@ struct OnboardingProviderStep: View {
                                 Text("Test Connection")
                             }
                         }
-                        .disabled((!isCodexMode && apiKey.isEmpty) || (isCodexMode && !canSaveProvider) || isTesting)
+                        .disabled((!isOAuthMode && apiKey.isEmpty) || (isOAuthMode && !canSaveProvider) || isTesting)
                         
                         if let result = testResult {
                             ConnectionTestResultView(result: result, style: .compact)
@@ -209,6 +232,25 @@ struct OnboardingProviderStep: View {
                         .controlSize(.large)
                         .disabled(isAuthenticatingOAuth)
                         .popoverTip(chatGPTSignInSubscriptionTip, arrowEdge: .top)
+
+                        Button {
+                            signInWithKimi()
+                        } label: {
+                            Label {
+                                Text("Sign in with Kimi")
+                            } icon: {
+                                Image("KimiLogo")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 18, height: 18)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .disabled(isAuthenticatingOAuth)
+                        .popoverTip(kimiSignInSubscriptionTip, arrowEdge: .top)
                     }
                     .padding(.horizontal, 60)
                     .padding(.bottom, 20)
@@ -282,7 +324,7 @@ struct OnboardingProviderStep: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 } else {
-                    Text("Connect your ChatGPT account before saving this provider.")
+                    Text("Connect your \(activeOAuthProviderKind?.displayName ?? "provider") account before saving this provider.")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -308,7 +350,7 @@ struct OnboardingProviderStep: View {
                             .scaleEffect(0.7)
                             .frame(width: 14, height: 14)
                     }
-                    Text(oauthAuthState == .authenticated ? "Reconnect ChatGPT" : "Connect ChatGPT")
+                    Text(oauthAuthState == .authenticated ? "Reconnect \(activeOAuthProviderKind?.displayName ?? "Provider")" : "Connect \(activeOAuthProviderKind?.displayName ?? "Provider")")
                 }
             }
             .disabled(isAuthenticatingOAuth)
@@ -321,9 +363,9 @@ struct OnboardingProviderStep: View {
         case .unauthenticated:
             return "Not connected"
         case .pending:
-            return "Waiting for ChatGPT sign-in"
+            return "Waiting for \(activeOAuthProviderKind?.displayName ?? "provider") sign-in"
         case .authenticated:
-            return "Connected to ChatGPT"
+            return "Connected to \(activeOAuthProviderKind?.displayName ?? "provider")"
         case .failed:
             return "Connection failed"
         }
@@ -352,7 +394,7 @@ struct OnboardingProviderStep: View {
                 apiKey: apiKey,
                 backendMode: backendMode,
                 authMode: authMode,
-                oauthProviderId: isCodexMode ? activeProviderId : nil
+                oauthProviderId: isOAuthMode ? activeProviderId : nil
             )
             await MainActor.run {
                 testResult = result
@@ -365,25 +407,30 @@ struct OnboardingProviderStep: View {
         let shouldAdvance = shouldAutoAdvanceAfterOAuth
         let normalizedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedAuthMode: LLMAuthMode = switch activeOAuthProviderKind {
+        case .chatgpt: .chatGPTOAuth
+        case .kimi: .kimiOAuth
+        case .none: .apiKey
+        }
 
         let provider = LLMProviderRecord(
             id: draftProviderId,
             displayName: normalizedDisplayName,
-            baseURL: isCodexMode ? nil : normalizedLLMProviderBaseURLString(normalizedOptional(baseURL)),
+            baseURL: isOAuthMode ? nil : normalizedLLMProviderBaseURLString(normalizedOptional(baseURL)),
             organizationId: nil,
             backendMode: backendMode,
-            authMode: isCodexMode ? .chatGPTOAuth : .apiKey,
+            authMode: resolvedAuthMode,
             oauthAuthState: oauthAuthState,
             oauthLoginId: oauthLoginId,
             oauthLastAuthURL: oauthLastAuthURL,
-            oauthAuthUpdatedAt: isCodexMode ? Date() : nil,
+            oauthAuthUpdatedAt: isOAuthMode ? Date() : nil,
             oauthAuthMessage: oauthAuthMessage,
             isDefault: providers.isEmpty, // First provider is default
             timeoutInterval: 120
         )
 
         do {
-            if !isCodexMode,
+            if !isOAuthMode,
                !normalizedAPIKey.isEmpty,
                !provider.storeAPIKey(normalizedAPIKey) {
                 throw ProviderPersistenceError.apiKeyStoreFailed
@@ -427,7 +474,15 @@ struct OnboardingProviderStep: View {
 
         Task {
             do {
-                let startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
+                let startResult: CodexOAuthStartResult
+                switch activeOAuthProviderKind {
+                case .chatgpt:
+                    startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
+                case .kimi:
+                    startResult = try await KimiOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
+                case .none:
+                    throw LLMError.invalidConfiguration(message: "OAuth is not available for this provider")
+                }
 
                 await MainActor.run {
                     NSWorkspace.shared.open(startResult.authURL)
@@ -450,18 +505,37 @@ struct OnboardingProviderStep: View {
     }
 
     private func refreshOAuthStatus() {
-        let snapshot = CodexOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
-        oauthAuthState = snapshot.status
-        oauthLoginId = snapshot.loginId
-        oauthLastAuthURL = snapshot.authURL?.absoluteString ?? oauthLastAuthURL
-        oauthAuthMessage = snapshot.message
+        Task {
+            let snapshot: CodexOAuthStatusSnapshot
+            switch activeOAuthProviderKind {
+            case .chatgpt:
+                snapshot = CodexOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
+            case .kimi:
+                snapshot = await KimiOAuthCoordinator.shared.status(providerId: activeProviderId, loginId: activeOAuthLoginId)
+            case .none:
+                snapshot = CodexOAuthStatusSnapshot(
+                    status: .unauthenticated,
+                    loginId: nil,
+                    authURL: nil,
+                    message: nil,
+                    updatedAt: nil
+                )
+            }
 
-        if snapshot.status == .authenticated,
-           shouldAutoSaveOAuthProvider,
-           !providers.contains(where: { $0.id == activeProviderId }) {
-            saveProvider()
-        } else if snapshot.status == .failed {
-            shouldAutoSaveOAuthProvider = false
+            await MainActor.run {
+                oauthAuthState = snapshot.status
+                oauthLoginId = snapshot.loginId
+                oauthLastAuthURL = snapshot.authURL?.absoluteString ?? oauthLastAuthURL
+                oauthAuthMessage = snapshot.message
+
+                if snapshot.status == .authenticated,
+                   shouldAutoSaveOAuthProvider,
+                   !providers.contains(where: { $0.id == activeProviderId }) {
+                    saveProvider()
+                } else if snapshot.status == .failed {
+                    shouldAutoSaveOAuthProvider = false
+                }
+            }
         }
     }
 
@@ -475,7 +549,27 @@ struct OnboardingProviderStep: View {
         shouldAutoSaveOAuthProvider = true
         shouldAutoAdvanceAfterOAuth = true
 
-        if oauthAuthState == .authenticated || CodexOAuthTokenStore.retrieve(providerId: activeProviderId) != nil {
+        if oauthAuthState == .authenticated
+            || hasStoredOAuthTokens(providerId: activeProviderId, providerKind: .chatgpt) {
+            saveProvider()
+            return
+        }
+
+        startOAuthAuth()
+    }
+
+    private func signInWithKimi() {
+        backendMode = .kimiOAuth
+        authMode = .kimiOAuth
+        displayName = "Kimi Code OAuth"
+        baseURL = ""
+        apiKey = ""
+        testResult = nil
+        shouldAutoSaveOAuthProvider = true
+        shouldAutoAdvanceAfterOAuth = true
+
+        if oauthAuthState == .authenticated
+            || hasStoredOAuthTokens(providerId: activeProviderId, providerKind: .kimi) {
             saveProvider()
             return
         }

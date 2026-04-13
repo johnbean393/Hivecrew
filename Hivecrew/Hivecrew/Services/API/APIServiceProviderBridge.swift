@@ -706,12 +706,18 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         }
 
         let backendMode = request.backendMode.map(convertBackendModeFromAPI) ?? .responses
-        let authMode = backendMode == .codexOAuth
-            ? .chatGPTOAuth
-            : (request.authMode.map(convertAuthModeFromAPI) ?? .apiKey)
+        let authMode: LLMAuthMode
+        switch backendMode.oauthProviderKind {
+        case .chatgpt:
+            authMode = .chatGPTOAuth
+        case .kimi:
+            authMode = .kimiOAuth
+        case .none:
+            authMode = request.authMode.map(convertAuthModeFromAPI) ?? .apiKey
+        }
 
-        let normalizedBaseURL = backendMode == .codexOAuth ? nil : normalizedOptional(request.baseURL)
-        let normalizedOrganizationId = backendMode == .codexOAuth ? nil : normalizedOptional(request.organizationId)
+        let normalizedBaseURL = backendMode.oauthProviderKind != nil ? nil : normalizedOptional(request.baseURL)
+        let normalizedOrganizationId = backendMode.oauthProviderKind != nil ? nil : normalizedOptional(request.organizationId)
 
         let provider = LLMProviderRecord(
             displayName: displayName,
@@ -724,7 +730,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             timeoutInterval: request.timeoutInterval ?? 120
         )
 
-        if backendMode != .codexOAuth, let apiKey = normalizedOptional(request.apiKey) {
+        if backendMode.oauthProviderKind == nil, let apiKey = normalizedOptional(request.apiKey) {
             provider.storeAPIKey(apiKey)
         }
 
@@ -752,8 +758,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         if let backendMode = request.backendMode {
             let converted = convertBackendModeFromAPI(backendMode)
             provider.backendMode = converted
-            if provider.backendMode == .codexOAuth {
-                provider.authMode = .chatGPTOAuth
+            if let oauthKind = provider.backendMode.oauthProviderKind {
+                provider.authMode = oauthKind == .chatgpt ? .chatGPTOAuth : .kimiOAuth
                 provider.baseURL = nil
                 provider.organizationId = nil
                 provider.oauthAuthState = .unauthenticated
@@ -772,11 +778,11 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             }
         }
 
-        if provider.backendMode != .codexOAuth, let authMode = request.authMode {
+        if provider.backendMode.oauthProviderKind == nil, let authMode = request.authMode {
             provider.authMode = convertAuthModeFromAPI(authMode)
         }
 
-        if provider.backendMode != .codexOAuth {
+        if provider.backendMode.oauthProviderKind == nil {
             if request.clearBaseURL == true {
                 provider.baseURL = nil
             } else if let baseURL = request.baseURL {
@@ -794,7 +800,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             provider.timeoutInterval = timeoutInterval
         }
 
-        if provider.backendMode != .codexOAuth, let apiKey = request.apiKey {
+        if provider.backendMode.oauthProviderKind == nil, let apiKey = request.apiKey {
             if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 provider.deleteAPIKey()
             } else {
@@ -827,19 +833,19 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
 
         provider.deleteAPIKey()
         provider.deleteOAuthTokens()
-        CodexOAuthCoordinator.shared.clearSessions(providerId: provider.id)
+        clearOAuthSessions(for: provider)
         modelContext.delete(provider)
         try modelContext.save()
     }
 
     func startProviderAuth(id: String) async throws -> APIProviderAuthStartResponse {
         let provider = try fetchProviderRecord(id: id)
-        guard provider.backendMode == .codexOAuth else {
-            throw APIError.badRequest("Provider '\(provider.displayName)' does not support ChatGPT OAuth")
+        guard let oauthKind = provider.oauthProviderKind else {
+            throw APIError.badRequest("Provider '\(provider.displayName)' does not support OAuth sign-in")
         }
 
         do {
-            let start = try CodexOAuthCoordinator.shared.startLogin(providerId: provider.id)
+            let start = try await startOAuthLogin(for: provider, kind: oauthKind)
             provider.oauthLoginId = start.loginId
             provider.oauthLastAuthURL = start.authURL.absoluteString
             provider.oauthAuthState = .pending
@@ -866,14 +872,11 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
 
     func getProviderAuthStatus(id: String) async throws -> APIProviderAuthStatusResponse {
         let provider = try fetchProviderRecord(id: id)
-        guard provider.backendMode == .codexOAuth else {
-            throw APIError.badRequest("Provider '\(provider.displayName)' does not support ChatGPT OAuth")
+        guard provider.oauthProviderKind != nil else {
+            throw APIError.badRequest("Provider '\(provider.displayName)' does not support OAuth sign-in")
         }
 
-        let snapshot = CodexOAuthCoordinator.shared.status(
-            providerId: provider.id,
-            loginId: provider.oauthLoginId
-        )
+        let snapshot = await oauthStatus(for: provider)
         provider.oauthAuthState = snapshot.status
         provider.oauthLoginId = snapshot.loginId
         provider.oauthLastAuthURL = snapshot.status == .unauthenticated
@@ -895,11 +898,11 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
 
     func logoutProviderAuth(id: String) async throws -> APIProviderAuthStatusResponse {
         let provider = try fetchProviderRecord(id: id)
-        guard provider.backendMode == .codexOAuth else {
-            throw APIError.badRequest("Provider '\(provider.displayName)' does not support ChatGPT OAuth")
+        guard provider.oauthProviderKind != nil else {
+            throw APIError.badRequest("Provider '\(provider.displayName)' does not support OAuth sign-in")
         }
 
-        CodexOAuthCoordinator.shared.logout(providerId: provider.id)
+        logoutOAuth(for: provider)
 
         provider.oauthAuthState = .unauthenticated
         provider.oauthLoginId = nil
@@ -1302,6 +1305,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             return .responses
         case .codexOAuth:
             return .codexOAuth
+        case .kimiOAuth:
+            return .kimiOAuth
         }
     }
 
@@ -1311,6 +1316,65 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             return .apiKey
         case .chatGPTOAuth:
             return .chatGPTOAuth
+        case .kimiOAuth:
+            return .kimiOAuth
+        }
+    }
+
+    private func clearOAuthSessions(for provider: LLMProviderRecord) {
+        switch provider.oauthProviderKind {
+        case .chatgpt:
+            CodexOAuthCoordinator.shared.clearSessions(providerId: provider.id)
+        case .kimi:
+            KimiOAuthCoordinator.shared.clearSessions(providerId: provider.id)
+        case .none:
+            break
+        }
+    }
+
+    private func startOAuthLogin(
+        for provider: LLMProviderRecord,
+        kind: LLMOAuthProviderKind
+    ) async throws -> CodexOAuthStartResult {
+        switch kind {
+        case .chatgpt:
+            return try CodexOAuthCoordinator.shared.startLogin(providerId: provider.id)
+        case .kimi:
+            return try await KimiOAuthCoordinator.shared.startLogin(providerId: provider.id)
+        }
+    }
+
+    private func oauthStatus(for provider: LLMProviderRecord) async -> CodexOAuthStatusSnapshot {
+        switch provider.oauthProviderKind {
+        case .chatgpt:
+            return CodexOAuthCoordinator.shared.status(
+                providerId: provider.id,
+                loginId: provider.oauthLoginId
+            )
+        case .kimi:
+            return await KimiOAuthCoordinator.shared.status(
+                providerId: provider.id,
+                loginId: provider.oauthLoginId
+            )
+        case .none:
+            return CodexOAuthStatusSnapshot(
+                status: .unauthenticated,
+                loginId: nil,
+                authURL: nil,
+                message: nil,
+                updatedAt: nil
+            )
+        }
+    }
+
+    private func logoutOAuth(for provider: LLMProviderRecord) {
+        switch provider.oauthProviderKind {
+        case .chatgpt:
+            CodexOAuthCoordinator.shared.logout(providerId: provider.id)
+        case .kimi:
+            KimiOAuthCoordinator.shared.logout(providerId: provider.id)
+        case .none:
+            break
         }
     }
     

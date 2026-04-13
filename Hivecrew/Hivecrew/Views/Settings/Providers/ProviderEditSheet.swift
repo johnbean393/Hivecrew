@@ -55,8 +55,16 @@ struct ProviderEditSheet: View {
         provider?.id ?? draftProviderId
     }
 
+    var activeOAuthProviderKind: LLMOAuthProviderKind? {
+        resolveOAuthProviderKind(backendMode: backendMode, authMode: authMode)
+    }
+
+    var isOAuthMode: Bool {
+        activeOAuthProviderKind != nil
+    }
+
     var isCodexMode: Bool {
-        backendMode == .codexOAuth
+        activeOAuthProviderKind == .chatgpt
     }
 
     var activeOAuthLoginId: String? {
@@ -64,7 +72,7 @@ struct ProviderEditSheet: View {
     }
 
     var shouldAutoRefreshOAuthAuth: Bool {
-        isCodexMode && oauthAuthState == .pending && !isAuthenticatingOAuth
+        isOAuthMode && oauthAuthState == .pending && !isAuthenticatingOAuth
     }
 
     init(provider: LLMProviderRecord?, initialBackendMode: LLMBackendMode = .responses) {
@@ -106,18 +114,30 @@ struct ProviderEditSheet: View {
                         Text("Chat Completions").tag(LLMBackendMode.chatCompletions)
                         Text("Responses API").tag(LLMBackendMode.responses)
                         Text("ChatGPT OAuth (Codex)").tag(LLMBackendMode.codexOAuth)
+                        Text("Kimi OAuth").tag(LLMBackendMode.kimiOAuth)
                     }
                     .pickerStyle(.menu)
                     .onChange(of: backendMode) { _, newValue in
-                        authMode = (newValue == .codexOAuth) ? .chatGPTOAuth : .apiKey
-                        if newValue == .codexOAuth {
-                            if displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || displayName == "OpenRouter" {
-                                displayName = "ChatGPT OAuth"
+                        switch newValue.oauthProviderKind {
+                        case .chatgpt:
+                            authMode = .chatGPTOAuth
+                        case .kimi:
+                            authMode = .kimiOAuth
+                        case .none:
+                            authMode = .apiKey
+                        }
+                        if let oauthKind = newValue.oauthProviderKind {
+                            let currentName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if currentName.isEmpty
+                                || currentName == "OpenRouter"
+                                || currentName == "ChatGPT OAuth"
+                                || currentName == "Kimi Code OAuth" {
+                                displayName = oauthKind == .chatgpt ? "ChatGPT OAuth" : "Kimi Code OAuth"
                             }
                         }
                     }
 
-                    if !isCodexMode {
+                    if !isOAuthMode {
                         HStack {
                             TextField("Base URL (optional)", text: $baseURL)
                                 .textFieldStyle(.roundedBorder)
@@ -132,7 +152,7 @@ struct ProviderEditSheet: View {
                 }
 
                 Section("Authentication") {
-                    if isCodexMode {
+                    if isOAuthMode {
                         oauthAuthContent
                     } else {
                         SecureField("API Key", text: $apiKey)
@@ -236,8 +256,9 @@ struct ProviderEditSheet: View {
     }
 
     private var canRunConnectionTest: Bool {
-        if isCodexMode {
-            return oauthAuthState == .authenticated || CodexOAuthTokenStore.retrieve(providerId: activeProviderId) != nil
+        if isOAuthMode {
+            return oauthAuthState == .authenticated
+                || hasStoredOAuthTokens(providerId: activeProviderId, providerKind: activeOAuthProviderKind)
         }
         return !currentAPIKey.isEmpty
     }
@@ -252,9 +273,13 @@ struct ProviderEditSheet: View {
     private func loadProvider() {
         guard let provider else {
             backendMode = initialBackendMode
-            authMode = initialBackendMode == .codexOAuth ? .chatGPTOAuth : .apiKey
+            authMode = switch initialBackendMode.oauthProviderKind {
+            case .chatgpt: .chatGPTOAuth
+            case .kimi: .kimiOAuth
+            case .none: .apiKey
+            }
             if displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                displayName = initialBackendMode == .codexOAuth ? "ChatGPT OAuth" : "OpenRouter"
+                displayName = defaultProviderDisplayName(for: initialBackendMode)
             }
             return
         }
@@ -281,14 +306,20 @@ struct ProviderEditSheet: View {
         let normalizedBaseURL = normalizedLLMProviderBaseURLString(normalizedOptional(baseURL))
         let normalizedOrg = normalizedOptional(organizationId)
         let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedAuthMode: LLMAuthMode = switch activeOAuthProviderKind {
+        case .chatgpt: .chatGPTOAuth
+        case .kimi: .kimiOAuth
+        case .none: .apiKey
+        }
 
         do {
             if let existingProvider = provider {
+                let previousOAuthKind = existingProvider.oauthProviderKind
                 existingProvider.displayName = normalizedDisplayName
                 existingProvider.backendMode = backendMode
-                existingProvider.authMode = backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey
-                existingProvider.baseURL = backendMode == .codexOAuth ? nil : normalizedBaseURL
-                existingProvider.organizationId = backendMode == .codexOAuth ? nil : normalizedOrg
+                existingProvider.authMode = resolvedAuthMode
+                existingProvider.baseURL = isOAuthMode ? nil : normalizedBaseURL
+                existingProvider.organizationId = isOAuthMode ? nil : normalizedOrg
                 existingProvider.timeoutInterval = timeoutInterval
 
                 existingProvider.oauthAuthState = oauthAuthState
@@ -297,7 +328,13 @@ struct ProviderEditSheet: View {
                 existingProvider.oauthAuthMessage = oauthAuthMessage
                 existingProvider.oauthAuthUpdatedAt = Date()
 
-                if backendMode != .codexOAuth {
+                if previousOAuthKind != activeOAuthProviderKind {
+                    existingProvider.deleteOAuthTokens()
+                    CodexOAuthCoordinator.shared.clearSessions(providerId: existingProvider.id)
+                    KimiOAuthCoordinator.shared.clearSessions(providerId: existingProvider.id)
+                }
+
+                if !isOAuthMode {
                     if !normalizedAPIKey.isEmpty && !existingProvider.storeAPIKey(normalizedAPIKey) {
                         throw ProviderPersistenceError.apiKeyStoreFailed
                     }
@@ -314,10 +351,10 @@ struct ProviderEditSheet: View {
                 let newProvider = LLMProviderRecord(
                     id: activeProviderId,
                     displayName: normalizedDisplayName,
-                    baseURL: backendMode == .codexOAuth ? nil : normalizedBaseURL,
-                    organizationId: backendMode == .codexOAuth ? nil : normalizedOrg,
+                    baseURL: isOAuthMode ? nil : normalizedBaseURL,
+                    organizationId: isOAuthMode ? nil : normalizedOrg,
                     backendMode: backendMode,
-                    authMode: backendMode == .codexOAuth ? .chatGPTOAuth : .apiKey,
+                    authMode: resolvedAuthMode,
                     oauthAuthState: oauthAuthState,
                     oauthLoginId: oauthLoginId,
                     oauthLastAuthURL: oauthLastAuthURL,
@@ -327,7 +364,7 @@ struct ProviderEditSheet: View {
                     timeoutInterval: timeoutInterval
                 )
 
-                if backendMode != .codexOAuth,
+                if !isOAuthMode,
                    !normalizedAPIKey.isEmpty,
                    !newProvider.storeAPIKey(normalizedAPIKey) {
                     throw ProviderPersistenceError.apiKeyStoreFailed

@@ -46,6 +46,14 @@ public struct RemoteTemplate: Identifiable, Sendable {
 /// Known remote templates available for download
 public enum KnownTemplates {
 
+    public static let goldenV0019 = RemoteTemplate(
+        id: "golden-v0.0.19",
+        name: "Hivecrew Golden Image",
+        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
+        version: "0.0.19",
+        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.19.tar.zst")!
+    )
+    
     public static let goldenV0018 = RemoteTemplate(
         id: "golden-v0.0.18",
         name: "Hivecrew Golden Image",
@@ -54,40 +62,14 @@ public enum KnownTemplates {
         url: URL(string: "https://templates.hivecrew.org/golden-v0.0.18.tar.zst")!
     )
     
-    public static let goldenV0017 = RemoteTemplate(
-        id: "golden-v0.0.17",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.17",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.17.tar.zst")!
-    )
-    
-    public static let goldenV0016 = RemoteTemplate(
-        id: "golden-v0.0.16",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.16",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.16.tar.zst")!
-    )
-    
-    public static let goldenV0015 = RemoteTemplate(
-        id: "golden-v0.0.15",
-        name: "Hivecrew Golden Image",
-        description: "Pre-configured macOS 26.2 VM with HivecrewGuestAgent installed",
-        version: "0.0.15",
-        url: URL(string: "https://templates.hivecrew.org/golden-v0.0.15.tar.zst")!
-    )
-    
     /// All available templates for download
     public static let all: [RemoteTemplate] = [
-        goldenV0018,
-        goldenV0017,
-        goldenV0016,
-        goldenV0015
+        goldenV0019,
+        goldenV0018
     ]
 
     /// The default/recommended template
-    public static let `default`: RemoteTemplate = goldenV0018
+    public static let `default`: RemoteTemplate = goldenV0019
     
 }
 

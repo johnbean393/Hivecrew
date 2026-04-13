@@ -284,6 +284,8 @@ extension APIServiceProviderBridge {
             return .responses
         case .codexOAuth:
             return .codexOAuth
+        case .kimiOAuth:
+            return .kimiOAuth
         }
     }
 
@@ -293,6 +295,8 @@ extension APIServiceProviderBridge {
             return .apiKey
         case .chatGPTOAuth:
             return .chatGPTOAuth
+        case .kimiOAuth:
+            return .kimiOAuth
         }
     }
 
@@ -316,7 +320,7 @@ extension APIServiceProviderBridge {
             baseURL: provider.effectiveBaseURL.absoluteString,
             backendMode: convertBackendMode(provider.backendMode),
             authMode: convertAuthMode(provider.authMode),
-            authState: provider.backendMode == .codexOAuth ? convertAuthState(provider.oauthAuthState) : nil,
+            authState: provider.isOAuthProvider ? convertAuthState(provider.oauthAuthState) : nil,
             isDefault: provider.isDefault,
             hasAPIKey: provider.hasAPIKey,
             createdAt: provider.createdAt,
@@ -331,7 +335,7 @@ extension APIServiceProviderBridge {
             baseURL: provider.effectiveBaseURL.absoluteString,
             backendMode: convertBackendMode(provider.backendMode),
             authMode: convertAuthMode(provider.authMode),
-            authState: provider.backendMode == .codexOAuth ? convertAuthState(provider.oauthAuthState) : nil,
+            authState: provider.isOAuthProvider ? convertAuthState(provider.oauthAuthState) : nil,
             isDefault: provider.isDefault,
             hasAPIKey: provider.hasAPIKey,
             organizationId: provider.organizationId,

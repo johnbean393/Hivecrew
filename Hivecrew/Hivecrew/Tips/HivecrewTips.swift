@@ -151,6 +151,24 @@ struct ChatGPTSignInSubscriptionTip: Tip {
     }
 }
 
+/// Tip: Explain Kimi OAuth subscription requirements during onboarding.
+struct KimiSignInSubscriptionTip: Tip {
+
+    var id: String { "kimiSignInSubscription" }
+
+    var title: Text {
+        Text("Sign in with Kimi")
+    }
+
+    var message: Text? {
+        Text("This works through Kimi Code OAuth. A compatible Kimi Code subscription is required.")
+    }
+
+    var image: Image? {
+        Image("KimiLogo")
+    }
+}
+
 /// Tip 5: Configure LLM providers
 struct ConfigureProvidersTip: Tip {
     

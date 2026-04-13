@@ -695,6 +695,9 @@
         }
       }
     },
+    "%@ Sign-In" : {
+
+    },
     "%@ tokens" : {
       "localizations" : {
         "de" : {
@@ -7111,6 +7114,7 @@
       }
     },
     "ChatGPT OAuth" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9371,7 +9375,11 @@
         }
       }
     },
+    "Connect %@" : {
+
+    },
     "Connect an API-key provider or ChatGPT OAuth to power your agents" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9417,7 +9425,11 @@
         }
       }
     },
+    "Connect an API-key provider, ChatGPT OAuth, or Kimi OAuth to power your agents" : {
+
+    },
     "Connect ChatGPT" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9510,7 +9522,11 @@
         }
       }
     },
+    "Connect your %@ account before saving this provider." : {
+
+    },
     "Connect your ChatGPT account before saving this provider." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19792,6 +19808,9 @@
         }
       }
     },
+    "Kimi OAuth" : {
+
+    },
     "Last 7 days" : {
       "localizations" : {
         "de" : {
@@ -28319,7 +28338,11 @@
         }
       }
     },
+    "Reconnect %@" : {
+
+    },
     "Reconnect ChatGPT" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -34956,6 +34979,9 @@
         }
       }
     },
+    "Sign in with %@" : {
+
+    },
     "Sign in with ChatGPT" : {
       "localizations" : {
         "de" : {
@@ -35001,6 +35027,9 @@
           }
         }
       }
+    },
+    "Sign in with Kimi" : {
+
     },
     "sk-..." : {
       "localizations" : {
@@ -39102,6 +39131,9 @@
           }
         }
       }
+    },
+    "This works through Kimi Code OAuth. A compatible Kimi Code subscription is required." : {
+
     },
     "Thought Summaries" : {
       "localizations" : {

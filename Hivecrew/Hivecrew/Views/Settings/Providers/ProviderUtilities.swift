@@ -71,6 +71,38 @@ extension UserDefaults {
     }
 }
 
+func resolveOAuthProviderKind(
+    backendMode: LLMBackendMode,
+    authMode: LLMAuthMode
+) -> LLMOAuthProviderKind? {
+    backendMode.oauthProviderKind ?? authMode.oauthProviderKind
+}
+
+func defaultProviderDisplayName(for backendMode: LLMBackendMode) -> String {
+    switch backendMode.oauthProviderKind {
+    case .chatgpt:
+        return "ChatGPT OAuth"
+    case .kimi:
+        return "Kimi Code OAuth"
+    case .none:
+        return "OpenRouter"
+    }
+}
+
+func hasStoredOAuthTokens(
+    providerId: String,
+    providerKind: LLMOAuthProviderKind?
+) -> Bool {
+    switch providerKind {
+    case .chatgpt:
+        return CodexOAuthTokenStore.retrieve(providerId: providerId) != nil
+    case .kimi:
+        return KimiOAuthTokenStore.retrieve(providerId: providerId) != nil
+    case .none:
+        return false
+    }
+}
+
 // MARK: - Provider Presets
 
 /// Preset LLM provider configurations
@@ -195,20 +227,20 @@ enum ProviderConnectionTester {
         oauthProviderId: String? = nil,
         timeout: TimeInterval = 15
     ) async -> ConnectionTestResult {
-        if backendMode == .codexOAuth {
+        if let oauthKind = backendMode.oauthProviderKind {
             guard let oauthProviderId,
-                  CodexOAuthTokenStore.retrieve(providerId: oauthProviderId) != nil else {
-                return .failure("Connect ChatGPT first, then test again.")
+                  hasStoredOAuthTokens(providerId: oauthProviderId, providerKind: oauthKind) else {
+                return .failure("Connect \(oauthKind.displayName) first, then test again.")
             }
 
             let config = LLMConfiguration(
                 id: oauthProviderId,
-                displayName: "ChatGPT OAuth",
+                displayName: defaultProviderDisplayName(for: backendMode),
                 baseURL: nil,
                 apiKey: "",
-                model: "gpt-5-codex",
+                model: backendMode == .codexOAuth ? "gpt-5-codex" : "model-listing-placeholder",
                 organizationId: nil,
-                backendMode: .codexOAuth,
+                backendMode: backendMode,
                 authMode: authMode,
                 timeoutInterval: timeout
             )

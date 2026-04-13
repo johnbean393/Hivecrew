@@ -20,9 +20,9 @@ extension OpenAICompatibleClient {
             let endpoint = buildChatURL()
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
-            request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+            try await applyAuthorizationHeaders(to: &request, forceRefresh: false)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            if let orgId = configuration.organizationId {
+            if let orgId = configuration.organizationId, !usesKimiOAuth {
                 request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
             }
             request.timeoutInterval = configuration.timeoutInterval
@@ -79,11 +79,7 @@ extension OpenAICompatibleClient {
     }
     
     func buildChatURL() -> URL {
-        if let baseURL = configuration.baseURL {
-            return baseURL.appendingPathComponent("chat/completions")
-        } else {
-            return defaultLLMProviderBaseURL.appendingPathComponent("chat/completions")
-        }
+        resolvedProviderBaseURL().appendingPathComponent("chat/completions")
     }
 
     func classifyHTTPError(statusCode: Int, body: String) -> LLMError {
@@ -222,8 +218,9 @@ extension OpenAICompatibleClient {
                 
                 let content = messageDict["content"] as? String ?? ""
                 
-                // Parse reasoning tokens (OpenRouter returns these in the "reasoning" field)
-                let reasoning = messageDict["reasoning"] as? String
+                // Providers vary here: OpenRouter uses "reasoning", Kimi uses "reasoning_content".
+                let reasoning = (messageDict["reasoning"] as? String)
+                    ?? (messageDict["reasoning_content"] as? String)
                 
                 // Parse tool calls
                 var toolCalls: [LLMToolCall]? = nil

@@ -21,6 +21,10 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     
     private let openAI: OpenAI
     let urlSession: URLSession
+
+    var usesKimiOAuth: Bool {
+        configuration.usesKimiOAuth
+    }
     
     public init(configuration: LLMConfiguration) {
         self.configuration = configuration
@@ -61,7 +65,7 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         tools: [LLMToolDefinition]?
     ) async throws -> LLMResponse {
         // Use raw HTTP for OpenRouter to enable reasoning tokens and handle provider quirks
-        if configuration.isOpenRouter {
+        if configuration.isOpenRouter || usesKimiOAuth {
             return try await chatRaw(messages: messages, tools: tools)
         }
         
@@ -168,6 +172,11 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     }
     
     public func testConnection() async throws -> Bool {
+        if usesKimiOAuth {
+            _ = try await listModelsDetailed()
+            return true
+        }
+
         // Send a simple message to test the connection
         let testMessages: [LLMMessage] = [
             .user("Hello")
@@ -183,6 +192,10 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     }
     
     public func listModelsDetailed() async throws -> [LLMProviderModel] {
+        if usesKimiOAuth {
+            return try await fetchKimiModels()
+        }
+
         let modelsResponse = try await fetchModelsResponse()
         
         return LLMProviderModel.sortByVersionDescending(
@@ -208,9 +221,9 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         
         var request = URLRequest(url: modelsURL)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+        try await applyAuthorizationHeaders(to: &request, forceRefresh: false)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let orgId = configuration.organizationId {
+        if let orgId = configuration.organizationId, !usesKimiOAuth {
             request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
         }
         request.timeoutInterval = configuration.timeoutInterval
@@ -245,11 +258,71 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     
     /// Build the models endpoint URL
     private func buildModelsURL() -> URL {
-        if let baseURL = configuration.baseURL {
-            return baseURL.appendingPathComponent("models")
-        } else {
-            return defaultLLMProviderBaseURL.appendingPathComponent("models")
+        resolvedProviderBaseURL().appendingPathComponent("models")
+    }
+
+    func resolvedProviderBaseURL() -> URL {
+        if usesKimiOAuth {
+            return kimiOAuthBaseURL
         }
+        return configuration.baseURL ?? defaultLLMProviderBaseURL
+    }
+
+    func resolveKimiOAuthTokens(forceRefresh: Bool) async throws -> KimiOAuthTokens {
+        guard var tokens = KimiOAuthTokenStore.retrieve(providerId: configuration.id) else {
+            throw LLMError.authenticationError(message: "Kimi OAuth is not connected for this provider")
+        }
+
+        if forceRefresh || tokens.shouldRefresh() {
+            tokens = try await refreshKimiOAuthTokens(
+                tokens,
+                timeoutInterval: configuration.timeoutInterval,
+                urlSession: urlSession
+            )
+            guard KimiOAuthTokenStore.store(providerId: configuration.id, tokens: tokens) else {
+                throw LLMError.authenticationError(message: "Failed to persist refreshed Kimi OAuth tokens")
+            }
+        }
+
+        return tokens
+    }
+
+    func applyAuthorizationHeaders(to request: inout URLRequest, forceRefresh: Bool) async throws {
+        if usesKimiOAuth {
+            let tokens = try await resolveKimiOAuthTokens(forceRefresh: forceRefresh)
+            request.setValue("Bearer \(tokens.accessToken)", forHTTPHeaderField: "Authorization")
+            for (header, value) in makeKimiOAuthRequestHeaders(deviceId: tokens.deviceId) {
+                request.setValue(value, forHTTPHeaderField: header)
+            }
+            return
+        }
+
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+    }
+
+    private func fetchKimiModels() async throws -> [LLMProviderModel] {
+        let modelsURL = buildModelsURL()
+        var request = URLRequest(url: modelsURL)
+        request.httpMethod = "GET"
+        try await applyAuthorizationHeaders(to: &request, forceRefresh: false)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = configuration.timeoutInterval
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw LLMError.unknown(message: "Invalid response type")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? "No response body"
+            throw classifyHTTPError(statusCode: httpResponse.statusCode, body: body)
+        }
+
+        if let models = try? decodeOpenAICompatibleModelsForTests(from: data) {
+            return LLMProviderModel.sortByVersionDescending(models)
+        }
+
+        return LLMProviderModel.sortByVersionDescending(try parseModelsResponse(data))
     }
 }
 

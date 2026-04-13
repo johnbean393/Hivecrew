@@ -35,6 +35,7 @@ struct ProvidersSettingsView: View {
         case chatCompletions
         case responses
         case chatGPTOAuth
+        case kimiOAuth
 
         var id: String { rawValue }
 
@@ -46,6 +47,8 @@ struct ProvidersSettingsView: View {
                 return .responses
             case .chatGPTOAuth:
                 return .codexOAuth
+            case .kimiOAuth:
+                return .kimiOAuth
             }
         }
     }
@@ -164,6 +167,16 @@ struct ProvidersSettingsView: View {
                     openAILogoMenuImage
                 }
             }
+
+            Button {
+                addProviderPreset = .kimiOAuth
+            } label: {
+                Label {
+                    Text("Sign in with Kimi")
+                } icon: {
+                    kimiLogoMenuImage
+                }
+            }
         } label: {
             HStack {
                 Image(systemName: "plus.circle")
@@ -182,6 +195,17 @@ struct ProvidersSettingsView: View {
 
         resizedImage.size = NSSize(width: 14, height: 14)
         resizedImage.isTemplate = true
+        return Image(nsImage: resizedImage)
+    }
+
+    private var kimiLogoMenuImage: Image {
+        guard let sourceImage = NSImage(named: "KimiLogo"),
+              let resizedImage = sourceImage.copy() as? NSImage else {
+            return Image("KimiLogo")
+        }
+
+        resizedImage.size = NSSize(width: 14, height: 14)
+        resizedImage.isTemplate = false
         return Image(nsImage: resizedImage)
     }
     
