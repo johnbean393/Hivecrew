@@ -718,6 +718,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
 
         let normalizedBaseURL = backendMode.oauthProviderKind != nil ? nil : normalizedOptional(request.baseURL)
         let normalizedOrganizationId = backendMode.oauthProviderKind != nil ? nil : normalizedOptional(request.organizationId)
+        let existingProviders = try modelContext.fetch(FetchDescriptor<LLMProviderRecord>())
 
         let provider = LLMProviderRecord(
             displayName: displayName,
@@ -727,6 +728,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             authMode: authMode,
             oauthAuthState: .unauthenticated,
             isDefault: request.isDefault ?? false,
+            sortOrder: nextProviderSortOrder(in: existingProviders),
             timeoutInterval: request.timeoutInterval ?? 120
         )
 

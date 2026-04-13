@@ -70,6 +70,33 @@ struct HivecrewTests {
         #expect(task.continuationSourceTaskId == nil)
         #expect(task.retrievalInlineContextBlocks.isEmpty)
     }
+
+    @Test
+    func providerOrderingPrefersSortOrderThenName() {
+        let later = LLMProviderRecord(
+            id: "later",
+            displayName: "Zed",
+            sortOrder: 2,
+            createdAt: .distantPast
+        )
+        let first = LLMProviderRecord(
+            id: "first",
+            displayName: "Beta",
+            sortOrder: 0,
+            createdAt: .distantPast
+        )
+        let tieBreaker = LLMProviderRecord(
+            id: "tie-breaker",
+            displayName: "Alpha",
+            sortOrder: 0,
+            createdAt: .distantFuture
+        )
+
+        let orderedIDs = orderedProviderRecords([later, first, tieBreaker]).map(\.id)
+
+        #expect(orderedIDs == ["tie-breaker", "first", "later"])
+        #expect(nextProviderSortOrder(in: [later, first, tieBreaker]) == 3)
+    }
     
     @Test
     func taskRecordRecognizesRemoteOnlyProviderPrefix() {

@@ -77,6 +77,10 @@ struct ProvidersSettingsView: View {
         guard !normalized.isEmpty else { return nil }
         return availableWorkerModels.first(where: { $0.id == normalized })
     }
+
+    private var orderedProviders: [LLMProviderRecord] {
+        orderedProviderRecords(providers)
+    }
     
     var body: some View {
         Form {
@@ -129,9 +133,10 @@ struct ProvidersSettingsView: View {
                 }
                 .frame(height: 150)
             } else {
-                ForEach(providers) { provider in
+                ForEach(orderedProviders) { provider in
                     ProviderRow(
                         provider: provider,
+                        showsDragHandle: orderedProviders.count > 1,
                         onEdit: { editingProvider = provider },
                         onDelete: {
                             providerToDelete = provider
@@ -139,6 +144,16 @@ struct ProvidersSettingsView: View {
                         },
                         onSetDefault: { setAsDefault(provider) }
                     )
+                    .draggable(provider.id) {
+                        Text(provider.displayLabel)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .dropDestination(for: String.self) { droppedIds, _ in
+                        handleProviderDrop(droppedIds: droppedIds, onto: provider)
+                    }
                 }
                 
                 addProviderMenuLabel
@@ -235,7 +250,7 @@ struct ProvidersSettingsView: View {
                 )
             ) {
                 Text("Select Provider").tag("")
-                ForEach(providers) { provider in
+                ForEach(orderedProviders) { provider in
                     Text(provider.displayLabel).tag(provider.id)
                 }
             }
@@ -252,6 +267,32 @@ struct ProvidersSettingsView: View {
             Text("Worker Model")
         } footer: {
             Text("Worker model is required. It powers fast background tasks like title generation, retrieval guidance, and webpage extraction.")
+        }
+    }
+
+    private func handleProviderDrop(
+        droppedIds: [String],
+        onto targetProvider: LLMProviderRecord
+    ) -> Bool {
+        guard let draggedId = droppedIds.first,
+              let fromIndex = orderedProviders.firstIndex(where: { $0.id == draggedId }),
+              let toIndex = orderedProviders.firstIndex(where: { $0.id == targetProvider.id }),
+              fromIndex != toIndex else {
+            return false
+        }
+
+        var reorderedProviders = orderedProviders
+        reorderedProviders.move(
+            fromOffsets: IndexSet(integer: fromIndex),
+            toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex
+        )
+
+        do {
+            try persistProviderOrder(reorderedProviders, modelContext: modelContext)
+            return true
+        } catch {
+            assertionFailure("Failed to persist provider order: \(error)")
+            return false
         }
     }
 

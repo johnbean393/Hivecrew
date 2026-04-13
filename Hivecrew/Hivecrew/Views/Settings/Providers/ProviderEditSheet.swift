@@ -361,6 +361,7 @@ struct ProviderEditSheet: View {
                     oauthAuthUpdatedAt: Date(),
                     oauthAuthMessage: oauthAuthMessage,
                     isDefault: isDefault,
+                    sortOrder: nextProviderSortOrder(in: allProviders),
                     timeoutInterval: timeoutInterval
                 )
 

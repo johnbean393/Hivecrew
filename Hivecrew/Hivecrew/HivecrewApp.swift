@@ -176,6 +176,7 @@ struct HivecrewApp: App {
 
         // Wire up the model context to services
         taskService.setModelContext(sharedModelContainer.mainContext)
+        normalizeProviderSortOrdersIfNeeded(modelContext: sharedModelContainer.mainContext)
         synchronizePersistedCodexProviderNames()
         
         // Configure and start scheduler service

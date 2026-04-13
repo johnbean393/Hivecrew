@@ -285,6 +285,7 @@ struct VoiceProviderSetupView: View {
             backendMode: .chatCompletions,
             authMode: .apiKey,
             isDefault: providers.isEmpty,
+            sortOrder: nextProviderSortOrder(in: providers),
             timeoutInterval: 120
         )
 

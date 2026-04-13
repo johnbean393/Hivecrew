@@ -426,6 +426,7 @@ struct OnboardingProviderStep: View {
             oauthAuthUpdatedAt: isOAuthMode ? Date() : nil,
             oauthAuthMessage: oauthAuthMessage,
             isDefault: providers.isEmpty, // First provider is default
+            sortOrder: nextProviderSortOrder(in: providers),
             timeoutInterval: 120
         )
 

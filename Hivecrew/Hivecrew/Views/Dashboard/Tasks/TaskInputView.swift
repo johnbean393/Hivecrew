@@ -43,6 +43,10 @@ struct TaskInputView: View {
     @AppStorage("promptServiceTierSelections") var promptServiceTierSelectionsData: String = ""
     @AppStorage("workerModelProviderId") var workerModelProviderId: String?
     @AppStorage("workerModelId") var workerModelId: String?
+
+    private var orderedProviders: [LLMProviderRecord] {
+        orderedProviderRecords(Array(providers))
+    }
     
     // Non-persisted - always defaults to Direct mode on launch
     @State private var planFirstEnabled: Bool = false
@@ -94,7 +98,7 @@ struct TaskInputView: View {
             // or if the stored provider no longer exists.
             let storedProviderExists = providers.contains { $0.id == selectedProviderId }
             if selectedProviderId.isEmpty || !storedProviderExists,
-               let defaultProvider = providers.first(where: { $0.isDefault }) ?? providers.first {
+               let defaultProvider = orderedProviders.first(where: { $0.isDefault }) ?? orderedProviders.first {
                 selectedProviderId = defaultProvider.id
             }
             restorePersistedModelForSelectedProvider()
@@ -109,7 +113,7 @@ struct TaskInputView: View {
             // Update if no provider selected or stored provider was deleted.
             let storedProviderExists = newValue.contains { $0.id == selectedProviderId }
             if selectedProviderId.isEmpty || !storedProviderExists,
-               let first = newValue.first(where: { $0.isDefault }) ?? newValue.first {
+               let first = orderedProviders.first(where: { $0.isDefault }) ?? orderedProviders.first {
                 selectedProviderId = first.id
             }
             restorePersistedModelForSelectedProvider()

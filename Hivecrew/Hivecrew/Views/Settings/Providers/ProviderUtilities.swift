@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import SwiftData
 import HivecrewLLM
 
 private enum ModelSelectionDefaultsKeys {
@@ -101,6 +102,59 @@ func hasStoredOAuthTokens(
     case .none:
         return false
     }
+}
+
+func orderedProviderRecords(_ providers: [LLMProviderRecord]) -> [LLMProviderRecord] {
+    providers.sorted { lhs, rhs in
+        if let lhsOrder = lhs.sortOrder, let rhsOrder = rhs.sortOrder,
+           lhsOrder != rhsOrder {
+            return lhsOrder < rhsOrder
+        }
+
+        if (lhs.sortOrder != nil) != (rhs.sortOrder != nil) {
+            return lhs.sortOrder == nil
+        }
+
+        let nameComparison = lhs.displayName.localizedStandardCompare(rhs.displayName)
+        if nameComparison != .orderedSame {
+            return nameComparison == .orderedAscending
+        }
+
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt < rhs.createdAt
+        }
+
+        return lhs.id < rhs.id
+    }
+}
+
+func nextProviderSortOrder(in providers: [LLMProviderRecord]) -> Int {
+    max(
+        providers.compactMap(\.sortOrder).max() ?? -1,
+        providers.count - 1
+    ) + 1
+}
+
+func persistProviderOrder(
+    _ providers: [LLMProviderRecord],
+    modelContext: ModelContext
+) throws {
+    for (index, provider) in providers.enumerated() {
+        provider.sortOrder = index
+    }
+
+    try modelContext.save()
+}
+
+func normalizeProviderSortOrdersIfNeeded(modelContext: ModelContext) {
+    let descriptor = FetchDescriptor<LLMProviderRecord>()
+    guard let providers = try? modelContext.fetch(descriptor),
+          providers.contains(where: { $0.sortOrder == nil }) else {
+        return
+    }
+
+    let orderedProviders = orderedProviderRecords(providers)
+    try? persistProviderOrder(orderedProviders, modelContext: modelContext)
 }
 
 // MARK: - Provider Presets

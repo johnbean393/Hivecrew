@@ -200,6 +200,10 @@ struct PromptBar: View {
                 return lhs.localizedStandardCompare(rhs) == .orderedAscending
             }
     }
+
+    private var orderedProviders: [LLMProviderRecord] {
+        orderedProviderRecords(Array(providers))
+    }
     
     private var showMentionSuggestions: Bool {
         // Only show when there's a query with at least one character after @
@@ -353,7 +357,7 @@ struct PromptBar: View {
                         copyCount: $copyCount,
                         useMultipleModels: $useMultipleModels,
                         multiModelSelections: $multiModelSelections,
-                        providers: Array(providers),
+                        providers: orderedProviders,
                         isFocused: isFocused
                     )
                     
@@ -364,7 +368,7 @@ struct PromptBar: View {
                             reasoningEnabled: $reasoningEnabled,
                             reasoningEffort: $reasoningEffort,
                             isVisible: $isReasoningControlVisible,
-                            providers: Array(providers),
+                            providers: orderedProviders,
                             isFocused: isFocused
                         )
 
@@ -384,7 +388,7 @@ struct PromptBar: View {
                             useMultipleModels: $useMultipleModels,
                             multiModelSelections: $multiModelSelections,
                             peers: availableExecutionPeers,
-                            providers: Array(providers),
+                            providers: orderedProviders,
                             isFocused: isFocused
                         )
                     }

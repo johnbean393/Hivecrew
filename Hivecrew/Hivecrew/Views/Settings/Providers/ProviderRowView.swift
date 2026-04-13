@@ -11,12 +11,20 @@ import SwiftUI
 
 struct ProviderRow: View {
     let provider: LLMProviderRecord
+    var showsDragHandle: Bool = false
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onSetDefault: () -> Void
     
     var body: some View {
         HStack(spacing: 12) {
+            if showsDragHandle {
+                Image(systemName: "line.3.horizontal")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 12)
+            }
+
             Image(systemName: providerIcon)
                 .font(.title2)
                 .foregroundStyle(.secondary)
@@ -79,6 +87,7 @@ struct ProviderRow: View {
             .buttonStyle(.plain)
         }
         .padding(.vertical, 6)
+        .contentShape(Rectangle())
     }
     
     private var providerIcon: String {

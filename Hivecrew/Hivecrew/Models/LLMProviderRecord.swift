@@ -55,6 +55,10 @@ final class LLMProviderRecord {
     /// Whether this is the default provider
     var isDefault: Bool
 
+    /// User-defined display order across provider pickers and settings.
+    /// Optional for migration safety; legacy rows are normalized after load.
+    var sortOrder: Int?
+
     /// When this provider was created
     var createdAt: Date
 
@@ -78,6 +82,7 @@ final class LLMProviderRecord {
         oauthAuthUpdatedAt: Date? = nil,
         oauthAuthMessage: String? = nil,
         isDefault: Bool = false,
+        sortOrder: Int? = nil,
         createdAt: Date = Date(),
         lastUsedAt: Date? = nil,
         timeoutInterval: Double = 120.0
@@ -96,6 +101,7 @@ final class LLMProviderRecord {
         self.oauthAuthMessage = oauthAuthMessage
 
         self.isDefault = isDefault
+        self.sortOrder = sortOrder
         self.createdAt = createdAt
         self.lastUsedAt = lastUsedAt
         self.timeoutInterval = timeoutInterval
