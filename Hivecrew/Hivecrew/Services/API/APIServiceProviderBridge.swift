@@ -826,6 +826,9 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     }
 
     func deleteProvider(id: String) async throws {
+        let remainingProviders = orderedProviderRecords(
+            try modelContext.fetch(FetchDescriptor<LLMProviderRecord>())
+        ).filter { $0.id != id }
         let descriptor = FetchDescriptor<LLMProviderRecord>(
             predicate: #Predicate { $0.id == id }
         )
@@ -837,7 +840,10 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         provider.deleteOAuthTokens()
         clearOAuthSessions(for: provider)
         modelContext.delete(provider)
-        try modelContext.save()
+        if provider.isDefault, let firstRemaining = remainingProviders.first {
+            firstRemaining.isDefault = true
+        }
+        try persistProviderOrder(remainingProviders, modelContext: modelContext)
     }
 
     func startProviderAuth(id: String) async throws -> APIProviderAuthStartResponse {

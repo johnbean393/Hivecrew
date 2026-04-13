@@ -550,6 +550,35 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertTrue(model.hasPickerSupplementaryMetadata)
     }
 
+    func testKimiModelsPayloadReadsSupportsImageInFlag() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "kimi-for-coding",
+                  "created": 1761264000,
+                  "context_length": 262144,
+                  "supports_reasoning": true,
+                  "supports_image_in": true,
+                  "supports_video_in": true
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try decodeOpenAICompatibleModelsForTests(from: data)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.id, "kimi-for-coding")
+        XCTAssertEqual(model.contextLength, 262144)
+        XCTAssertEqual(model.inputModalities ?? [], ["text", "image", "video"])
+        XCTAssertEqual(model.outputModalities ?? [], ["text"])
+        XCTAssertEqual(model.supportsVisionInput, true)
+        XCTAssertTrue(model.isVisionCapable)
+    }
+
     func testXAILanguageModelsPayloadParsesFullMetadata() throws {
         let data = Data(
             """

@@ -375,16 +375,21 @@ struct ProvidersSettingsView: View {
     // MARK: - Actions
     
     private func deleteProvider(_ provider: LLMProviderRecord) {
+        let remainingProviders = orderedProviders.filter { $0.id != provider.id }
+
         // Delete API key from keychain
         provider.deleteAPIKey()
+        provider.deleteOAuthTokens()
         
         // Delete from SwiftData
         modelContext.delete(provider)
         
         // If we deleted the default, set a new one
-        if provider.isDefault, let firstRemaining = providers.first(where: { $0.id != provider.id }) {
+        if provider.isDefault, let firstRemaining = remainingProviders.first {
             firstRemaining.isDefault = true
         }
+
+        try? persistProviderOrder(remainingProviders, modelContext: modelContext)
     }
     
     private func setAsDefault(_ provider: LLMProviderRecord) {
@@ -405,7 +410,7 @@ struct ProvidersSettingsView: View {
             return
         }
 
-        let defaultProviderId = providers.first(where: { $0.isDefault })?.id ?? providers.first?.id ?? ""
+        let defaultProviderId = orderedProviders.first(where: { $0.isDefault })?.id ?? orderedProviders.first?.id ?? ""
         let normalizedWorkerProviderId = workerModelProviderId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         if normalizedWorkerProviderId.isEmpty || !providers.contains(where: { $0.id == normalizedWorkerProviderId }) {

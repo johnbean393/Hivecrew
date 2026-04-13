@@ -175,33 +175,11 @@ public actor ContextBudgetResolver {
         _ modelId: String,
         in models: [LLMProviderModel]
     ) -> LLMProviderModel? {
-        let target = normalizeModelID(modelId)
-        if let exact = models.first(where: { normalizeModelID($0.id) == target }) {
-            return exact
-        }
-
-        let targetSuffix = modelSuffix(target)
-        if let targetSuffix {
-            if let suffixMatch = models.first(where: { modelSuffix(normalizeModelID($0.id)) == targetSuffix }) {
-                return suffixMatch
-            }
-        }
-
-        return nil
+        LLMProviderModel.bestMatch(for: modelId, in: models)
     }
 
     private static func normalizeModelID(_ modelId: String) -> String {
-        modelId
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-    }
-
-    private static func modelSuffix(_ modelId: String) -> String? {
-        guard let slash = modelId.lastIndex(of: "/") else {
-            return nil
-        }
-        let suffix = modelId[modelId.index(after: slash)...]
-        return suffix.isEmpty ? nil : String(suffix)
+        LLMProviderModel.normalizedMatchKey(for: modelId)
     }
 
     private static func normalizedProviderKey(_ providerBaseURL: URL?) -> String {

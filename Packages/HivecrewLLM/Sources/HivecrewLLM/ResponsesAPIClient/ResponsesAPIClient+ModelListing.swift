@@ -242,10 +242,12 @@ private func parseModelPayload(_ payload: [String: Any]) -> LLMProviderModel? {
 
     let supportsVision = firstBool(in: payload, keys: [
         "supports_vision", "supportsVision", "vision", "supports_image_input",
-        "supportsImageInput", "image_input", "imageInput", "supports_image_detail_original"
+        "supportsImageInput", "image_input", "imageInput", "supports_image_in",
+        "supports_video_in", "supports_image_detail_original"
     ]) ?? firstBool(in: capabilities, keys: [
         "supports_vision", "supportsVision", "vision", "supports_image_input",
-        "supportsImageInput", "image_input", "imageInput"
+        "supportsImageInput", "image_input", "imageInput", "supports_image_in",
+        "supports_video_in"
     ]) ?? inputModalities?.contains(where: { $0.caseInsensitiveCompare("image") == .orderedSame })
 
     let reasoningCapability: LLMReasoningCapability

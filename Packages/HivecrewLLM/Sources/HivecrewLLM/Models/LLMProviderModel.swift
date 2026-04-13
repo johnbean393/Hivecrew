@@ -147,6 +147,61 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         models.sorted(by: versionDescendingComparator)
     }
 
+    public static func bestMatch(
+        for requestedModelID: String,
+        in models: [Self]
+    ) -> Self? {
+        let target = normalizedMatchKey(for: requestedModelID)
+        guard !target.isEmpty else { return nil }
+
+        if let exact = models.first(where: { normalizedMatchKey(for: $0.id) == target }) {
+            return exact
+        }
+
+        let targetCanonical = canonicalMatchKey(for: target)
+        if let canonical = models.first(where: { canonicalMatchKey(for: normalizedMatchKey(for: $0.id)) == targetCanonical }) {
+            return canonical
+        }
+
+        if let targetSuffix = suffixMatchKey(for: targetCanonical),
+           let suffixMatch = models.first(where: {
+               suffixMatchKey(for: canonicalMatchKey(for: normalizedMatchKey(for: $0.id))) == targetSuffix
+           }) {
+            return suffixMatch
+        }
+
+        if let byName = models.first(where: { model in
+            guard let name = model.name else { return false }
+            return normalizedMatchKey(for: name) == target
+                || canonicalMatchKey(for: normalizedMatchKey(for: name)) == targetCanonical
+        }) {
+            return byName
+        }
+
+        return nil
+    }
+
+    public static func normalizedMatchKey(for rawValue: String) -> String {
+        rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    public static func canonicalMatchKey(for normalizedValue: String) -> String {
+        guard let atSign = normalizedValue.firstIndex(of: "@") else {
+            return normalizedValue
+        }
+        return String(normalizedValue[..<atSign])
+    }
+
+    public static func suffixMatchKey(for canonicalValue: String) -> String? {
+        guard let slash = canonicalValue.lastIndex(of: "/") else {
+            return nil
+        }
+        let suffix = canonicalValue[canonicalValue.index(after: slash)...]
+        return suffix.isEmpty ? nil : String(suffix)
+    }
+
     private static func isVisionModality(_ rawValue: String) -> Bool {
         let normalized = rawValue
             .trimmingCharacters(in: .whitespacesAndNewlines)

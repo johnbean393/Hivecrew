@@ -70,6 +70,8 @@ struct ModelsResponse: Decodable {
         let supportsVisionFlag: Bool?
         let imageInputFlag: Bool?
         let supportsImageInputFlag: Bool?
+        let supportsImageInFlag: Bool?
+        let supportsVideoInFlag: Bool?
         let supportedParameters: [String]?
 
         enum CodingKeys: String, CodingKey {
@@ -100,6 +102,8 @@ struct ModelsResponse: Decodable {
             case imageInputFlagCamel = "imageInput"
             case supportsImageInputFlag = "supports_image_input"
             case supportsImageInputFlagCamel = "supportsImageInput"
+            case supportsImageInFlag = "supports_image_in"
+            case supportsVideoInFlag = "supports_video_in"
             case supportedParameters = "supported_parameters"
         }
 
@@ -217,6 +221,8 @@ struct ModelsResponse: Decodable {
             let supportsVisionFlag: Bool?
             let imageInputFlag: Bool?
             let supportsImageInputFlag: Bool?
+            let supportsImageInFlag: Bool?
+            let supportsVideoInFlag: Bool?
 
             enum CodingKeys: String, CodingKey {
                 case visionFlag = "vision"
@@ -226,6 +232,8 @@ struct ModelsResponse: Decodable {
                 case imageInputFlagCamel = "imageInput"
                 case supportsImageInputFlag = "supports_image_input"
                 case supportsImageInputFlagCamel = "supportsImageInput"
+                case supportsImageInFlag = "supports_image_in"
+                case supportsVideoInFlag = "supports_video_in"
             }
 
             init(from decoder: Decoder) throws {
@@ -234,6 +242,8 @@ struct ModelsResponse: Decodable {
                 self.supportsVisionFlag = Self.decodeBool(from: container, keys: [.supportsVisionFlag, .supportsVisionFlagCamel])
                 self.imageInputFlag = Self.decodeBool(from: container, keys: [.imageInputFlag, .imageInputFlagCamel])
                 self.supportsImageInputFlag = Self.decodeBool(from: container, keys: [.supportsImageInputFlag, .supportsImageInputFlagCamel])
+                self.supportsImageInFlag = Self.decodeBool(from: container, keys: [.supportsImageInFlag])
+                self.supportsVideoInFlag = Self.decodeBool(from: container, keys: [.supportsVideoInFlag])
             }
 
             private static func decodeBool(
@@ -286,6 +296,8 @@ struct ModelsResponse: Decodable {
             self.supportsVisionFlag = Self.decodeBool(from: container, keys: [.supportsVisionFlag, .supportsVisionFlagCamel])
             self.imageInputFlag = Self.decodeBool(from: container, keys: [.imageInputFlag, .imageInputFlagCamel])
             self.supportsImageInputFlag = Self.decodeBool(from: container, keys: [.supportsImageInputFlag, .supportsImageInputFlagCamel])
+            self.supportsImageInFlag = Self.decodeBool(from: container, keys: [.supportsImageInFlag])
+            self.supportsVideoInFlag = Self.decodeBool(from: container, keys: [.supportsVideoInFlag])
             self.supportedParameters = try? container.decodeIfPresent([String].self, forKey: .supportedParameters)
         }
 
@@ -305,36 +317,45 @@ struct ModelsResponse: Decodable {
             self.supportsVisionFlag = nil
             self.imageInputFlag = nil
             self.supportsImageInputFlag = nil
+            self.supportsImageInFlag = nil
+            self.supportsVideoInFlag = nil
             self.supportedParameters = nil
         }
 
         var normalizedInputModalities: [String]? {
-            Self.mergeModalities(
+            let explicitModalities = Self.mergeModalities(
                 architecture?.inputModalities,
                 topLevelInputModalities,
                 modalities?.input
             )
+            guard explicitModalities == nil else {
+                return explicitModalities
+            }
+
+            let inferredFlags: [String?] = [
+                "text",
+                directSupportsVisionInputFromFlags == true ? "image" : nil,
+                supportsVideoInFlag == true ? "video" : nil
+            ]
+            let inferred = inferredFlags.compactMap { $0 }
+            return inferred.isEmpty ? nil : inferred
         }
 
         var normalizedOutputModalities: [String]? {
-            Self.mergeModalities(
+            let explicitModalities = Self.mergeModalities(
                 architecture?.outputModalities,
                 topLevelOutputModalities,
                 modalities?.output
             )
+            if let explicitModalities {
+                return explicitModalities
+            }
+
+            return ["text"]
         }
 
         var normalizedSupportsVisionInput: Bool? {
-            let directFlags: [Bool?] = [
-                visionFlag,
-                supportsVisionFlag,
-                imageInputFlag,
-                supportsImageInputFlag,
-                capabilities?.visionFlag,
-                capabilities?.supportsVisionFlag,
-                capabilities?.imageInputFlag,
-                capabilities?.supportsImageInputFlag
-            ]
+            let directFlags = allDirectVisionFlags
             if directFlags.contains(true) {
                 return true
             }
@@ -357,6 +378,34 @@ struct ModelsResponse: Decodable {
                 }
             }
             return hasVisionModality ? true : nil
+        }
+
+        private var directSupportsVisionInputFromFlags: Bool? {
+            let directFlags = allDirectVisionFlags
+            if directFlags.contains(true) {
+                return true
+            }
+            if directFlags.contains(false) {
+                return false
+            }
+            return nil
+        }
+
+        private var allDirectVisionFlags: [Bool?] {
+            [
+                visionFlag,
+                supportsVisionFlag,
+                imageInputFlag,
+                supportsImageInputFlag,
+                supportsImageInFlag,
+                supportsVideoInFlag,
+                capabilities?.visionFlag,
+                capabilities?.supportsVisionFlag,
+                capabilities?.imageInputFlag,
+                capabilities?.supportsImageInputFlag,
+                capabilities?.supportsImageInFlag,
+                capabilities?.supportsVideoInFlag
+            ]
         }
 
         var normalizedReasoningCapability: LLMReasoningCapability {

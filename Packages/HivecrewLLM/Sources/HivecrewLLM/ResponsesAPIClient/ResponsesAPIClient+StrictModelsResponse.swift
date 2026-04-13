@@ -196,6 +196,8 @@ struct StrictModelsResponse: Decodable {
             case imageInputCamel = "imageInput"
             case supportsImageInput = "supports_image_input"
             case supportsImageInputCamel = "supportsImageInput"
+            case supportsImageIn = "supports_image_in"
+            case supportsVideoIn = "supports_video_in"
             case supportsImageDetailOriginal = "supports_image_detail_original"
             case supportedReasoningLevels = "supported_reasoning_levels"
             case supportedParameters = "supported_parameters"
@@ -272,6 +274,8 @@ struct StrictModelsResponse: Decodable {
                         .imageInputCamel,
                         .supportsImageInput,
                         .supportsImageInputCamel,
+                        .supportsImageIn,
+                        .supportsVideoIn,
                         .supportsImageDetailOriginal
                     ]
                 ),

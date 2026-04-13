@@ -273,23 +273,6 @@ extension TaskService {
     }
 
     private func matchModel(_ modelId: String, in models: [LLMProviderModel]) -> LLMProviderModel? {
-        if let exact = models.first(where: { $0.id == modelId }) {
-            return exact
-        }
-
-        if let caseInsensitive = models.first(where: { $0.id.caseInsensitiveCompare(modelId) == .orderedSame }) {
-            return caseInsensitive
-        }
-
-        // Some providers return unscoped IDs while OpenRouter-style IDs include provider prefixes.
-        let targetTail = modelId.split(separator: "/").last.map(String.init) ?? modelId
-        if let byTail = models.first(where: { model in
-            let modelTail = model.id.split(separator: "/").last.map(String.init) ?? model.id
-            return modelTail.caseInsensitiveCompare(targetTail) == .orderedSame
-        }) {
-            return byTail
-        }
-
-        return nil
+        LLMProviderModel.bestMatch(for: modelId, in: models)
     }
 }

@@ -84,6 +84,31 @@ final class ContextCompactionPolicyTests: XCTestCase {
         XCTAssertEqual(detailedCallCount, 1)
     }
 
+    func testContextBudgetResolverMatchesVariantModelIDsAgainstProviderMetadata() async {
+        let resolver = ContextBudgetResolver(cacheTTL: 3600, unknownCacheTTL: 3600)
+        let client = MockLLMClient(
+            configuration: LLMConfiguration(
+                displayName: "LM Studio",
+                baseURL: URL(string: "http://localhost:1234/v1"),
+                apiKey: "test",
+                model: "qwen/qwen3.5-35b-a3b@q4_k_m"
+            ),
+            detailedModels: [
+                LLMProviderModel(
+                    id: "qwen/qwen3.5-35b-a3b",
+                    contextLength: 262144,
+                    inputModalities: ["text", "image"],
+                    supportsVisionInput: true
+                )
+            ]
+        )
+
+        let resolved = await resolver.resolve(using: client)
+
+        XCTAssertEqual(resolved.maxInputTokens, 262144)
+        XCTAssertEqual(resolved.source, .models)
+    }
+
     func testContextBudgetResolverLearnsAndKeepsStricterLimit() async {
         let resolver = ContextBudgetResolver(cacheTTL: 3600, unknownCacheTTL: 3600)
         let providerURL = URL(string: "https://example.com/v1")

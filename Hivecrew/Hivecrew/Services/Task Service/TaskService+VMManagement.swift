@@ -309,10 +309,8 @@ extension TaskService {
         let config = provider.makeLLMConfiguration(model: listingModel, apiKey: apiKey)
         let client = LLMService.shared.createClient(from: config)
 
-        guard let matchedModel = try? await client.listModelsDetailed().first(where: {
-            $0.id.trimmingCharacters(in: .whitespacesAndNewlines)
-                .caseInsensitiveCompare(modelId.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
-        }) else {
+        guard let models = try? await client.listModelsDetailed(),
+              let matchedModel = LLMProviderModel.bestMatch(for: modelId, in: models) else {
             return nil
         }
 
