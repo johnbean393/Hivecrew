@@ -110,6 +110,29 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         reasoningCapability.kind != .none
     }
 
+    /// Whether the model includes enough non-trivial metadata to justify a
+    /// richer picker details panel.
+    public var hasPickerSupplementaryMetadata: Bool {
+        if let description,
+           !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        if contextLength != nil || createdAt != nil {
+            return true
+        }
+
+        if let inputModalities, !inputModalities.isEmpty {
+            return true
+        }
+
+        if let outputModalities, !outputModalities.isEmpty {
+            return true
+        }
+
+        return false
+    }
+
     /// Shared sort used by model-picking UIs and provider clients.
     ///
     /// Models are grouped by their textual tokens in ascending order, while any

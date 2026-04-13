@@ -31,4 +31,12 @@ final class GoogleAIStudioBaseURLTests: XCTestCase {
 
         XCTAssertEqual(normalized, baseURL)
     }
+
+    func testLegacyXAIHostIsNormalizedToCurrentHost() {
+        let baseURL = URL(string: "https://api.xai.com/v1")!
+
+        let normalized = normalizedLLMProviderBaseURL(baseURL)
+
+        XCTAssertEqual(normalized?.absoluteString, "https://api.x.ai/v1")
+    }
 }

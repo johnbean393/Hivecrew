@@ -257,7 +257,8 @@ extension ResponsesAPIClient {
         if configuration.backendMode == .codexOAuth {
             return buildCodexOAuthURL(pathComponent: "models")
         }
-        return resolvedBaseURL().appendingPathComponent("models")
+        let pathComponent = configuration.isXAIHostedAPI ? "language-models" : "models"
+        return resolvedBaseURL().appendingPathComponent(pathComponent)
     }
 
     func resolvedBaseURL() -> URL {

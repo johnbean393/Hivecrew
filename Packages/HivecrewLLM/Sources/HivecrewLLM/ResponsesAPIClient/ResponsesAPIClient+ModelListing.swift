@@ -54,11 +54,11 @@ func parseResponsesModelsForTests(
                     reasoningCapability: reasoningCapability
                 )
             }
-            .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+            .map { normalizeProviderModelMetadata($0, configuration: configuration) }
             .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     } catch {
         return try parseModelsResponse(data)
-            .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+            .map { normalizeProviderModelMetadata($0, configuration: configuration) }
             .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     }
 }
@@ -82,6 +82,13 @@ func normalizeProviderModelMetadata(
         supportsVisionInput: true,
         reasoningCapability: model.reasoningCapability
     )
+}
+
+func normalizeProviderModelMetadata(
+    _ model: LLMProviderModel,
+    configuration: LLMConfiguration
+) -> LLMProviderModel {
+    normalizeProviderModelMetadata(model, backendMode: configuration.backendMode)
 }
 
 func parseModelsResponse(_ data: Data) throws -> [LLMProviderModel] {
@@ -213,7 +220,8 @@ private func parseModelPayload(_ payload: [String: Any]) -> LLMProviderModel? {
     let created = firstInt(in: payload, keys: ["created"]).map { Date(timeIntervalSince1970: TimeInterval($0)) }
     let contextLength = firstInt(in: payload, keys: [
         "context_length", "contextLength", "max_context_length", "max_input_tokens",
-        "input_token_limit", "inputTokenLimit", "token_limit", "context_window"
+        "input_token_limit", "inputTokenLimit", "token_limit", "context_window",
+        "max_prompt_length", "maxPromptLength"
     ])
 
     let architecture = payload["architecture"] as? [String: Any]

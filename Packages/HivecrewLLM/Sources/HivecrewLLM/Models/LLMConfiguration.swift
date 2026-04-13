@@ -17,6 +17,9 @@ public let defaultLLMProviderBaseURLString = "https://openrouter.ai/api/v1"
 
 public let codexOAuthBaseURL = URL(string: "https://chatgpt.com/backend-api/codex")!
 public let kimiOAuthBaseURL = URL(string: "https://api.kimi.com/coding/v1")!
+public let openAIHostedAPIHost = "api.openai.com"
+public let xAIHostedAPIHost = "api.x.ai"
+public let legacyXAIHostedAPIHost = "api.xai.com"
 public let googleAIGenerativeLanguageHost = "generativelanguage.googleapis.com"
 let codexOAuthClientVersionQueryName = "client_version"
 private let codexOAuthFallbackClientVersion = "0.107.0"
@@ -24,8 +27,17 @@ private let cachedCodexOAuthClientVersion = resolveCodexOAuthClientVersion()
 
 public func normalizedLLMProviderBaseURL(_ baseURL: URL?) -> URL? {
     guard let baseURL else { return nil }
-    guard let host = baseURL.host?.lowercased(),
-          host.contains(googleAIGenerativeLanguageHost) else {
+    guard let host = baseURL.host?.lowercased() else {
+        return baseURL
+    }
+
+    if host == legacyXAIHostedAPIHost {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.host = xAIHostedAPIHost
+        return components?.url ?? baseURL
+    }
+
+    guard host.contains(googleAIGenerativeLanguageHost) else {
         return baseURL
     }
 
@@ -348,6 +360,18 @@ public struct LLMConfiguration: Sendable, Codable, Equatable {
     /// Convenience flag for Kimi OAuth backend.
     public var usesKimiOAuth: Bool {
         oauthProviderKind == .kimi
+    }
+
+    /// Whether this configuration targets the hosted OpenAI API.
+    public var isOpenAIHostedAPI: Bool {
+        guard let host = baseURL?.host?.lowercased() else { return false }
+        return host == openAIHostedAPIHost
+    }
+
+    /// Whether this configuration targets the hosted xAI API.
+    public var isXAIHostedAPI: Bool {
+        guard let host = baseURL?.host?.lowercased() else { return false }
+        return host == xAIHostedAPIHost || host == legacyXAIHostedAPIHost
     }
 }
 public enum LLMOAuthProviderKind: String, Sendable, Codable, CaseIterable {

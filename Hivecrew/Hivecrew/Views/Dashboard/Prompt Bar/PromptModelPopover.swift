@@ -71,13 +71,6 @@ struct PromptModelPopover: View {
         visibleProviders.first(where: { $0.id == selectedProviderId })
     }
     
-    var isOpenRouterProvider: Bool {
-        guard let host = selectedProvider?.effectiveBaseURL.host?.lowercased() else {
-            return false
-        }
-        return host.contains("openrouter.ai")
-    }
-
     var isCodexProvider: Bool {
         selectedProvider?.backendMode == .codexOAuth
     }
@@ -423,13 +416,21 @@ struct PromptModelPopover: View {
         }
     }
     
-    private func openRouterDetailsPane(for model: LLMProviderModel) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(model.displayName)
+    private func modelDetailsPane(for model: LLMProviderModel) -> some View {
+        let inputItems = inputModalityItems(model)
+        let outputItems = outputModalityItems(model)
+        let hasTechnicalDetails =
+            model.contextLength != nil
+            || model.createdAt != nil
+            || !inputItems.isEmpty
+            || !outputItems.isEmpty
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(model.id)
                 .font(.title2)
                 .fontWeight(.semibold)
                 .lineLimit(1)
-            
+
             Text(model.id)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
@@ -446,34 +447,40 @@ struct PromptModelPopover: View {
                     .tint(.accentColor)
             }
             
-            Divider()
-            
-            detailIconRow(
-                systemImage: "textformat.123",
-                title: "Context length",
-                value: model.contextLength.map { "\(formattedTokenCount($0)) tokens" } ?? "N/A"
-            )
-            detailIconRow(
-                systemImage: "calendar",
-                title: "Release date",
-                value: model.createdAt.map { Self.fullDateFormatter.string(from: $0) } ?? "N/A"
-            )
-            
-            if !inputModalityItems(model).isEmpty {
-                modalityIconRow(
-                    title: "Input modalities",
-                    symbol: "arrow.down.circle",
-                    accentColor: .secondary,
-                    items: inputModalityItems(model)
-                )
-            }
-            if !outputModalityItems(model).isEmpty {
-                modalityIconRow(
-                    title: "Output modalities",
-                    symbol: "arrow.up.circle",
-                    accentColor: .secondary,
-                    items: outputModalityItems(model)
-                )
+            if hasTechnicalDetails {
+                Divider()
+
+                if let contextLength = model.contextLength {
+                    detailIconRow(
+                        systemImage: "textformat.123",
+                        title: "Context length",
+                        value: "\(formattedTokenCount(contextLength)) tokens"
+                    )
+                }
+                if let createdAt = model.createdAt {
+                    detailIconRow(
+                        systemImage: "calendar",
+                        title: "Release date",
+                        value: Self.fullDateFormatter.string(from: createdAt)
+                    )
+                }
+
+                if !inputItems.isEmpty {
+                    modalityIconRow(
+                        title: "Input modalities",
+                        symbol: "arrow.down.circle",
+                        accentColor: .secondary,
+                        items: inputItems
+                    )
+                }
+                if !outputItems.isEmpty {
+                    modalityIconRow(
+                        title: "Output modalities",
+                        symbol: "arrow.up.circle",
+                        accentColor: .secondary,
+                        items: outputItems
+                    )
+                }
             }
         }
         .padding(12)
@@ -564,7 +571,7 @@ struct PromptModelPopover: View {
                 
                 Spacer(minLength: 8)
                 
-                if isOpenRouterProvider && model.isVisionCapable {
+                if model.isVisionCapable {
                     Image(systemName: "eye")
                         .font(.caption)
                         .foregroundStyle(.blue)
@@ -607,13 +614,13 @@ struct PromptModelPopover: View {
         .background(
             ScreenFrameReader { screenFrame in
                 modelRowFrames[model.id] = screenFrame
-                if panelModelId == model.id, isOpenRouterProvider {
+                if panelModelId == model.id, model.hasPickerSupplementaryMetadata {
                     showHoverPanel(for: model)
                 }
             }
         )
         .onHover { hovering in
-            guard isOpenRouterProvider else { return }
+            guard model.hasPickerSupplementaryMetadata else { return }
             
             if hovering {
                 hoveredModelId = model.id
@@ -962,14 +969,14 @@ struct PromptModelPopover: View {
     }
     
     private func showHoverPanel(for model: LLMProviderModel) {
-        guard isOpenRouterProvider else { return }
+        guard model.hasPickerSupplementaryMetadata else { return }
         guard panelModelId == model.id else { return }
         guard let rowFrame = modelRowFrames[model.id] else { return }
         let horizontalOffset: CGFloat = isModelListScrollbarVisible ? 14 : 0
         
         hoverPanelController.show(
             content: AnyView(
-                openRouterDetailsPane(for: model)
+                modelDetailsPane(for: model)
                     .frame(width: 430)
                     .onHover { hovering in
                         hoverPanelController.setPanelHovered(hovering)
@@ -1072,24 +1079,15 @@ struct PromptModelPopover: View {
     }
     
     private func primaryRowTitle(_ model: LLMProviderModel) -> String {
-        isOpenRouterProvider ? model.displayName : model.id
+        model.id
     }
     
     private func estimatedRowHeight(for model: LLMProviderModel) -> CGFloat {
-        // OpenRouter rows can include two text lines (title + model ID).
-        if isOpenRouterProvider && secondaryRowText(model) != nil {
-            return 40
-        }
         return 30
     }
     
     private func secondaryRowText(_ model: LLMProviderModel) -> String? {
-        guard isOpenRouterProvider else { return nil }
-        let displayName = model.displayName
-        if displayName.caseInsensitiveCompare(model.id) == .orderedSame {
-            return nil
-        }
-        return model.id
+        nil
     }
     
     private func trimmedDescription(_ description: String?) -> String? {

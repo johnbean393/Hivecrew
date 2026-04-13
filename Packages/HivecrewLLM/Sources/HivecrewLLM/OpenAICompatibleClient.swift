@@ -197,8 +197,7 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
         }
 
         let modelsResponse = try await fetchModelsResponse()
-        
-        return LLMProviderModel.sortByVersionDescending(
+        var models = LLMProviderModel.sortByVersionDescending(
             modelsResponse.data.map { model in
                 LLMProviderModel(
                     id: model.id,
@@ -212,7 +211,19 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
                     reasoningCapability: model.normalizedReasoningCapability
                 )
             }
+            .map { normalizeProviderModelMetadata($0, configuration: configuration) }
         )
+
+        if shouldTryLMStudioNativeModelsMetadata(configuration: configuration) {
+            if let nativeModels = try? await fetchLMStudioNativeModels(
+                configuration: configuration,
+                urlSession: urlSession
+            ) {
+                models = mergeProviderModels(primary: models, supplementary: nativeModels)
+            }
+        }
+
+        return models
     }
     
     private func fetchModelsResponse() async throws -> ModelsResponse {
@@ -258,7 +269,8 @@ public final class OpenAICompatibleClient: LLMClientProtocol, @unchecked Sendabl
     
     /// Build the models endpoint URL
     private func buildModelsURL() -> URL {
-        resolvedProviderBaseURL().appendingPathComponent("models")
+        let pathComponent = configuration.isXAIHostedAPI ? "language-models" : "models"
+        return resolvedProviderBaseURL().appendingPathComponent(pathComponent)
     }
 
     func resolvedProviderBaseURL() -> URL {

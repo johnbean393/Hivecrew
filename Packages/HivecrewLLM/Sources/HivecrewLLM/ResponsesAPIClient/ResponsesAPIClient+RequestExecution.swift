@@ -91,7 +91,7 @@ extension ResponsesAPIClient {
 
         do {
             let decoded = try JSONDecoder().decode(StrictModelsResponse.self, from: data)
-            return LLMProviderModel.sortByVersionDescending(
+            var models = LLMProviderModel.sortByVersionDescending(
                 decoded.data
                     .filter(\.isSupportedInAPI)
                     .map { model in
@@ -129,14 +129,36 @@ extension ResponsesAPIClient {
                             reasoningCapability: reasoningCapability
                         )
                     }
-                    .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+                    .map { normalizeProviderModelMetadata($0, configuration: configuration) }
             )
+
+            if shouldTryLMStudioNativeModelsMetadata(configuration: configuration) {
+                if let nativeModels = try? await fetchLMStudioNativeModels(
+                    configuration: configuration,
+                    urlSession: urlSession
+                ) {
+                    models = mergeProviderModels(primary: models, supplementary: nativeModels)
+                }
+            }
+
+            return models
         } catch {
             logStrictModelsDecodeFailure(error: error, data: data)
-            return LLMProviderModel.sortByVersionDescending(
+            var models = LLMProviderModel.sortByVersionDescending(
                 try parseModelsResponse(data)
-                    .map { normalizeProviderModelMetadata($0, backendMode: configuration.backendMode) }
+                    .map { normalizeProviderModelMetadata($0, configuration: configuration) }
             )
+
+            if shouldTryLMStudioNativeModelsMetadata(configuration: configuration) {
+                if let nativeModels = try? await fetchLMStudioNativeModels(
+                    configuration: configuration,
+                    urlSession: urlSession
+                ) {
+                    models = mergeProviderModels(primary: models, supplementary: nativeModels)
+                }
+            }
+
+            return models
         }
     }
 }

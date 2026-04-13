@@ -178,6 +178,7 @@ struct StrictModelsResponse: Decodable {
             case contextLength = "context_length"
             case contextLengthCamel = "contextLength"
             case maxContextLength = "max_context_length"
+            case maxPromptLength = "max_prompt_length"
             case inputTokenLimit = "input_token_limit"
             case tokenLimit = "token_limit"
             case contextWindow = "context_window"
@@ -229,7 +230,7 @@ struct StrictModelsResponse: Decodable {
 
             contextLength = Self.decodeInt(from: container, keys: [
                 .contextLength, .contextLengthCamel, .maxContextLength,
-                .inputTokenLimit, .tokenLimit, .contextWindow
+                .maxPromptLength, .inputTokenLimit, .tokenLimit, .contextWindow
             ])
 
             architecture = try? container.decodeIfPresent(Architecture.self, forKey: .architecture)

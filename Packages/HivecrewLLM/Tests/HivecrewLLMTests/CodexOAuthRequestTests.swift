@@ -366,6 +366,61 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(model.reasoningCapability.defaultEffort, "medium")
     }
 
+    func testCodexModelsPayloadExposesSupplementaryMetadataForPicker() throws {
+        let data = Data(
+            """
+            {
+              "models": [
+                {
+                  "id": "gpt-5-codex",
+                  "name": "GPT-5 Codex",
+                  "description": "Coding-focused GPT-5 variant.",
+                  "created": 1776124800,
+                  "context_window": 400000,
+                  "supported_in_api": true,
+                  "architecture": {
+                    "input_modalities": ["text"],
+                    "output_modalities": ["text"]
+                  }
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .codexOAuth)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.contextLength, 400000)
+        XCTAssertEqual(model.inputModalities ?? [], ["text", "image"])
+        XCTAssertEqual(model.outputModalities ?? [], ["text"])
+        XCTAssertTrue(model.hasPickerSupplementaryMetadata)
+    }
+
+    func testCodexNormalizationPreservesAPIReportedContextLength() {
+        let config = LLMConfiguration(
+            id: "codex-oauth-test",
+            displayName: "ChatGPT OAuth",
+            baseURL: codexOAuthBaseURL,
+            apiKey: "",
+            model: "gpt-5.4",
+            organizationId: nil,
+            backendMode: .codexOAuth,
+            authMode: .chatGPTOAuth
+        )
+        let model = LLMProviderModel(
+            id: "gpt-5.4",
+            contextLength: 272_000,
+            inputModalities: ["text"],
+            outputModalities: ["text"]
+        )
+
+        let normalized = normalizeProviderModelMetadata(model, configuration: config)
+
+        XCTAssertEqual(normalized.contextLength, 272_000)
+        XCTAssertEqual(normalized.inputModalities ?? [], ["text", "image"])
+    }
+
     func testResponsesModelsPayloadWithSupportedParametersMapsToToggleCapability() throws {
         let data = Data(
             """
@@ -463,6 +518,104 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertEqual(model.outputModalities ?? [], ["text"])
         XCTAssertEqual(model.supportsVisionInput, true)
         XCTAssertTrue(model.isVisionCapable)
+    }
+
+    func testKimiModelsPayloadExposesSupplementaryMetadataForPicker() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "moonshotai/kimi-k2.5",
+                  "name": "MoonshotAI: Kimi K2.5",
+                  "description": "Latest Kimi coding model.",
+                  "created": 1776124800,
+                  "context_length": 262144,
+                  "architecture": {
+                    "input_modalities": ["text", "image"],
+                    "output_modalities": ["text"]
+                  }
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try decodeOpenAICompatibleModelsForTests(from: data)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.contextLength, 262144)
+        XCTAssertEqual(model.inputModalities ?? [], ["text", "image"])
+        XCTAssertEqual(model.outputModalities ?? [], ["text"])
+        XCTAssertTrue(model.hasPickerSupplementaryMetadata)
+    }
+
+    func testXAILanguageModelsPayloadParsesFullMetadata() throws {
+        let data = Data(
+            """
+            {
+              "models": [
+                {
+                  "id": "grok-4-fast-reasoning",
+                  "created": 1776124800,
+                  "input_modalities": ["text", "image"],
+                  "output_modalities": ["text"],
+                  "aliases": ["grok-4-fast-reasoning-latest"],
+                  "version": "2026-03-01"
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try decodeOpenAICompatibleModelsForTests(from: data)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.id, "grok-4-fast-reasoning")
+        XCTAssertEqual(model.inputModalities ?? [], ["text", "image"])
+        XCTAssertEqual(model.outputModalities ?? [], ["text"])
+        XCTAssertEqual(model.supportsVisionInput, true)
+    }
+
+    func testLMStudioNativeModelsPayloadParsesContextAndVisionMetadata() throws {
+        let data = Data(
+            """
+            {
+              "models": [
+                {
+                  "type": "llm",
+                  "publisher": "lmstudio-community",
+                  "key": "qwen/qwen3.5-35b-a3b",
+                  "display_name": "Qwen 3.5 35B A3B",
+                  "loaded_instances": [
+                    {
+                      "id": "qwen/qwen3.5-35b-a3b",
+                      "config": {
+                        "context_length": 65536
+                      }
+                    }
+                  ],
+                  "max_context_length": 131072,
+                  "capabilities": {
+                    "vision": true,
+                    "trained_for_tool_use": true
+                  },
+                  "description": "Local multimodal model."
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try decodeLMStudioNativeModelsForTests(from: data)
+        let model = try XCTUnwrap(models.first)
+
+        XCTAssertEqual(model.id, "qwen/qwen3.5-35b-a3b")
+        XCTAssertEqual(model.contextLength, 65536)
+        XCTAssertEqual(model.inputModalities ?? [], ["text", "image"])
+        XCTAssertEqual(model.outputModalities ?? [], ["text"])
+        XCTAssertEqual(model.supportsVisionInput, true)
+        XCTAssertEqual(model.description, "Local multimodal model.")
     }
 
     func testParsesCodexRateLimitSnapshotFromStreamEvent() {

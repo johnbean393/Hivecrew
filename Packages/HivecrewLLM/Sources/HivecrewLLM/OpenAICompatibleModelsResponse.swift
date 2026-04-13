@@ -11,6 +11,49 @@ import Foundation
 struct ModelsResponse: Decodable {
     let data: [ModelInfo]
 
+    private enum RootCodingKeys: String, CodingKey {
+        case data
+        case models
+        case items
+        case results
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: RootCodingKeys.self)
+        if let models = try? container.decode([ModelInfo].self, forKey: .data) {
+            data = models
+            return
+        }
+        if let models = try? container.decode([ModelInfo].self, forKey: .models) {
+            data = models
+            return
+        }
+        if let models = try? container.decode([ModelInfo].self, forKey: .items) {
+            data = models
+            return
+        }
+        if let models = try? container.decode([ModelInfo].self, forKey: .results) {
+            data = models
+            return
+        }
+        if let ids = try? container.decode([String].self, forKey: .data) {
+            data = ids.map { ModelInfo(id: $0) }
+            return
+        }
+        if let ids = try? container.decode([String].self, forKey: .models) {
+            data = ids.map { ModelInfo(id: $0) }
+            return
+        }
+
+        throw DecodingError.keyNotFound(
+            RootCodingKeys.data,
+            DecodingError.Context(
+                codingPath: decoder.codingPath,
+                debugDescription: "Expected one of data/models/items/results in /models response"
+            )
+        )
+    }
+
     struct ModelInfo: Decodable {
         let id: String
         let name: String?
@@ -37,6 +80,7 @@ struct ModelsResponse: Decodable {
             case contextLength = "context_length"
             case contextLengthCamel = "contextLength"
             case maxContextLength = "max_context_length"
+            case maxPromptLength = "max_prompt_length"
             case maxInputTokens = "max_input_tokens"
             case inputTokenLimit = "input_token_limit"
             case inputTokenLimitCamel = "inputTokenLimit"
@@ -76,6 +120,7 @@ struct ModelsResponse: Decodable {
                 case contextLength = "context_length"
                 case contextLengthCamel = "contextLength"
                 case maxContextLength = "max_context_length"
+                case maxPromptLength = "max_prompt_length"
                 case maxInputTokens = "max_input_tokens"
                 case inputTokenLimit = "input_token_limit"
                 case inputTokenLimitCamel = "inputTokenLimit"
@@ -90,6 +135,7 @@ struct ModelsResponse: Decodable {
                         .contextLength,
                         .contextLengthCamel,
                         .maxContextLength,
+                        .maxPromptLength,
                         .maxInputTokens,
                         .inputTokenLimit,
                         .inputTokenLimitCamel,
@@ -215,6 +261,7 @@ struct ModelsResponse: Decodable {
                     .contextLength,
                     .contextLengthCamel,
                     .maxContextLength,
+                    .maxPromptLength,
                     .maxInputTokens,
                     .inputTokenLimit,
                     .inputTokenLimitCamel,
@@ -240,6 +287,25 @@ struct ModelsResponse: Decodable {
             self.imageInputFlag = Self.decodeBool(from: container, keys: [.imageInputFlag, .imageInputFlagCamel])
             self.supportsImageInputFlag = Self.decodeBool(from: container, keys: [.supportsImageInputFlag, .supportsImageInputFlagCamel])
             self.supportedParameters = try? container.decodeIfPresent([String].self, forKey: .supportedParameters)
+        }
+
+        init(id: String) {
+            self.id = id
+            self.name = nil
+            self.description = nil
+            self.created = nil
+            self.contextLength = nil
+            self.architecture = nil
+            self.topProvider = nil
+            self.topLevelInputModalities = nil
+            self.topLevelOutputModalities = nil
+            self.modalities = nil
+            self.capabilities = nil
+            self.visionFlag = nil
+            self.supportsVisionFlag = nil
+            self.imageInputFlag = nil
+            self.supportsImageInputFlag = nil
+            self.supportedParameters = nil
         }
 
         var normalizedInputModalities: [String]? {
