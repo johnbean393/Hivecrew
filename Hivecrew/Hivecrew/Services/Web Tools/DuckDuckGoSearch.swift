@@ -7,6 +7,10 @@
 
 import Foundation
 import OSLog
+#if canImport(WebKit)
+import WebKit
+import ObjectiveC
+#endif
 
 public class DuckDuckGoSearch {
     
@@ -95,6 +99,23 @@ public class DuckDuckGoSearch {
         startDate: Date? = nil,
         endDate: Date? = nil
     ) async throws -> [SearchResult] {
+        #if canImport(WebKit) && !os(watchOS)
+        do {
+            let webViewResults = try await fetchResultsWithWebView(
+                query: query,
+                site: site,
+                resultCount: resultCount,
+                startDate: startDate,
+                endDate: endDate
+            )
+            if !webViewResults.isEmpty {
+                return webViewResults
+            }
+        } catch {
+            Self.logger.info("DuckDuckGo WebView fetch failed, falling back to HTML parsing: \(error.localizedDescription)")
+        }
+        #endif
+
         // Complete query
         var query: String = query
         if let site = site {
@@ -131,6 +152,80 @@ public class DuckDuckGoSearch {
         guard let html = String(data: data, encoding: .utf8) else { return [] }
         return parseResults(from: html, limit: maxCount)
     }
+
+    #if canImport(WebKit) && !os(watchOS)
+    @MainActor
+    private static func fetchResultsWithWebView(
+        query: String,
+        site: String? = nil,
+        resultCount: Int,
+        startDate: Date? = nil,
+        endDate: Date? = nil
+    ) async throws -> [SearchResult] {
+        let maxCount = min(max(resultCount, 1), 20)
+        let searchURL = buildSearchURL(
+            query: query,
+            site: site,
+            resultCount: maxCount,
+            startDate: startDate,
+            endDate: endDate
+        )
+
+        let configuration = WKWebViewConfiguration()
+        let webpagePreferences = WKWebpagePreferences()
+        webpagePreferences.allowsContentJavaScript = true
+        configuration.defaultWebpagePreferences = webpagePreferences
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let coordinator = DuckDuckGoSearchWebViewCoordinator(limit: maxCount)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            coordinator.onComplete = { result in
+                continuation.resume(with: result)
+            }
+            webView.navigationDelegate = coordinator
+            objc_setAssociatedObject(webView, "duckduckgoCoordinator", coordinator, .OBJC_ASSOCIATION_RETAIN)
+            objc_setAssociatedObject(coordinator, "duckduckgoWebView", webView, .OBJC_ASSOCIATION_RETAIN)
+
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                if !coordinator.isCompleted {
+                    coordinator.complete(with: .failure(DuckDuckGoSearchError.timeout))
+                }
+            }
+
+            webView.load(URLRequest(url: searchURL))
+        }
+    }
+
+    private static func buildSearchURL(
+        query: String,
+        site: String?,
+        resultCount: Int,
+        startDate: Date?,
+        endDate: Date?
+    ) -> URL {
+        var searchQuery = query
+        if let site, !site.isEmpty {
+            searchQuery = "\(query) site:\(site)"
+        }
+
+        var components = URLComponents(string: "https://duckduckgo.com/")!
+        var queryItems = [
+            URLQueryItem(name: "q", value: searchQuery),
+            URLQueryItem(name: "ia", value: "web")
+        ]
+
+        if let startDate, let endDate {
+            let startDateString = startDate.toString(dateFormat: "yyyy-MM-dd")
+            let endDateString = endDate.toString(dateFormat: "yyyy-MM-dd")
+            queryItems.append(URLQueryItem(name: "df", value: "\(startDateString)..\(endDateString)"))
+        }
+
+        components.queryItems = queryItems
+        return components.url!
+    }
+    #endif
 
     static func parseResults(from html: String, limit: Int) -> [SearchResult] {
         let pattern = #"<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>.*?</a>.*?(?:<a[^>]*class="result__snippet"[^>]*>(.*?)</a>|<div[^>]*class="result__snippet"[^>]*>(.*?)</div>)"#
@@ -187,12 +282,103 @@ public class DuckDuckGoSearch {
     // Custom error for DuckDuckGo search
     enum DuckDuckGoSearchError: LocalizedError {
         case startDateAfterEndDate
+        case timeout
+        case invalidResponse
         var errorDescription: String? {
             switch self {
                 case .startDateAfterEndDate:
                     return "The start date cannot be after the end date."
+                case .timeout:
+                    return "DuckDuckGo search timed out."
+                case .invalidResponse:
+                    return "DuckDuckGo returned an invalid response."
             }
         }
     }
     
 }
+
+#if canImport(WebKit) && !os(watchOS)
+@MainActor
+private final class DuckDuckGoSearchWebViewCoordinator: NSObject, WKNavigationDelegate {
+    struct ResultPayload: Decodable {
+        let title: String
+        let url: String
+        let snippet: String
+    }
+
+    let limit: Int
+    var onComplete: ((Result<[SearchResult], Error>) -> Void)?
+    var isCompleted = false
+    private var extractionAttempts = 0
+
+    init(limit: Int) {
+        self.limit = limit
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        extractResults(from: webView)
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        complete(with: .failure(error))
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        complete(with: .failure(error))
+    }
+
+    func complete(with result: Result<[SearchResult], Error>) {
+        guard !isCompleted else { return }
+        isCompleted = true
+        onComplete?(result)
+    }
+
+    private func extractResults(from webView: WKWebView) {
+        guard !isCompleted else { return }
+
+        let script = """
+        (() => JSON.stringify(
+          Array.from(document.querySelectorAll("article[data-testid='result']:not([data-layout='ad'])"))
+            .map(article => {
+              const titleLink = article.querySelector("a[data-testid='result-title-a']");
+              const snippetNode = article.querySelector("[data-result='snippet']");
+              return {
+                title: titleLink?.textContent?.trim() || "",
+                url: titleLink?.href || "",
+                snippet: snippetNode?.textContent?.trim() || ""
+              };
+            })
+            .filter(item => item.title && item.url && item.snippet)
+        ))();
+        """
+
+        webView.evaluateJavaScript(script) { value, error in
+            if let error {
+                self.complete(with: .failure(error))
+                return
+            }
+
+            guard let json = value as? String,
+                  let data = json.data(using: .utf8),
+                  let payloads = try? JSONDecoder().decode([ResultPayload].self, from: data) else {
+                self.complete(with: .failure(DuckDuckGoSearch.DuckDuckGoSearchError.invalidResponse))
+                return
+            }
+
+            if payloads.isEmpty, self.extractionAttempts < 4 {
+                self.extractionAttempts += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    self.extractResults(from: webView)
+                }
+                return
+            }
+
+            let results = payloads.prefix(self.limit).map {
+                SearchResult(url: $0.url, title: $0.title, snippet: $0.snippet)
+            }
+            self.complete(with: .success(results))
+        }
+    }
+}
+#endif
