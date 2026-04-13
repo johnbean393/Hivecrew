@@ -12,6 +12,11 @@ import SwiftData
 import HivecrewAPI
 import HivecrewShared
 
+private struct StagedTaskReferenceArtifacts {
+    let contextBlocks: [String]
+    let files: [ClusterExecuteNowRequest.ReferenceFile]
+}
+
 @MainActor
 final class FederatedServiceProvider: APIServiceProvider, Sendable {
     private static let maxReportedAggregateCount = 1_000_000
@@ -1045,6 +1050,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             do {
                 let client = await getOrCreateClient(for: peer)
                 let stagedInputs = try await stageInputs(for: task, on: peer, using: client)
+                let stagedReferences = try await stageTaskReferenceArtifacts(for: task, on: peer, using: client)
                 let response = try await client.executeNow(ClusterExecuteNowRequest(
                     canonicalTaskId: task.id,
                     ownerTunnelId: ownerTunnelId,
@@ -1070,7 +1076,9 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                     contextSuggestionIds: task.retrievalSelectedSuggestionIds ?? [],
                     contextModeOverrides: task.retrievalModeOverrides,
                     contextInlineBlocks: task.retrievalInlineContextBlocks,
-                    contextAttachmentPaths: stagedInputs.contextAttachments
+                    contextAttachmentPaths: stagedInputs.contextAttachments,
+                    referenceContextBlocks: stagedReferences.contextBlocks,
+                    referenceFiles: stagedReferences.files
                 ))
                 
                 let taggedTask = tagWithNode(response.task, peer: peer, canonicalTaskId: task.id)
@@ -1195,6 +1203,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         on peer: PeerNode,
         using client: PeerAPIClient
     ) async throws -> (attached: [String], contextAttachments: [String]) {
+        _ = peer
         let uniquePaths = Array(Set(task.attachedFilePaths + (task.retrievalContextAttachmentPaths ?? []))).sorted()
         guard !uniquePaths.isEmpty else {
             return (task.attachedFilePaths, task.retrievalContextAttachmentPaths ?? [])
@@ -1207,6 +1216,80 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         let attached = task.attachedFilePaths.compactMap { mapping[$0] }
         let contextAttachments = (task.retrievalContextAttachmentPaths ?? []).compactMap { mapping[$0] }
         return (attached, contextAttachments)
+    }
+
+    private func stageTaskReferenceArtifacts(
+        for task: TaskRecord,
+        on peer: PeerNode,
+        using client: PeerAPIClient
+    ) async throws -> StagedTaskReferenceArtifacts {
+        _ = peer
+        guard !(task.referencedTaskIds ?? []).isEmpty else {
+            return StagedTaskReferenceArtifacts(contextBlocks: [], files: [])
+        }
+
+        let fm = FileManager.default
+        let stagingRoot = AppPaths.appSupportDirectory
+            .appendingPathComponent("ClusterReferenceStaging", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let referencesRoot = stagingRoot.appendingPathComponent("references", isDirectory: true)
+
+        try fm.createDirectory(at: referencesRoot, withIntermediateDirectories: true)
+        defer {
+            try? fm.removeItem(at: stagingRoot)
+        }
+
+        let contextBlocks = try localProvider.taskService.materializeTaskReferences(
+            for: task,
+            referencesRoot: referencesRoot
+        )
+
+        let files = collectRegularFiles(in: referencesRoot)
+        guard !files.isEmpty else {
+            return StagedTaskReferenceArtifacts(contextBlocks: contextBlocks, files: [])
+        }
+
+        let uploads = files.map { fileURL in
+            let uniqueName = "\(UUID().uuidString)-\(fileURL.lastPathComponent)"
+            return PeerAPIClient.StagedLocalFileUpload(
+                localPath: fileURL.path,
+                uploadFilename: uniqueName
+            )
+        }
+        let stagedPaths = try await client.stageInputFiles(
+            stagingId: "\(task.id)-attempt-\(task.clusterExecutionAttempt)-references",
+            uploads: uploads
+        )
+        let referenceFiles = zip(files, stagedPaths).map { fileURL, stagedPath in
+            let relativePath = fileURL.path.replacingOccurrences(
+                of: referencesRoot.path + "/",
+                with: ""
+            )
+            return ClusterExecuteNowRequest.ReferenceFile(
+                relativePath: relativePath,
+                stagedPath: stagedPath
+            )
+        }
+        return StagedTaskReferenceArtifacts(contextBlocks: contextBlocks, files: referenceFiles)
+    }
+
+    private func collectRegularFiles(in root: URL) -> [URL] {
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var files: [URL] = []
+        for case let fileURL as URL in enumerator {
+            let isRegularFile = (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false
+            if isRegularFile {
+                files.append(fileURL)
+            }
+        }
+        return files.sorted { $0.path < $1.path }
     }
 
     private func importCompletedRemoteArtifacts(

@@ -104,7 +104,9 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         contextSuggestionIds: [String],
         contextModeOverrides: [String: String],
         contextInlineBlocks: [String],
-        contextAttachmentPaths: [String]
+        contextAttachmentPaths: [String],
+        referenceContextBlocks: [String],
+        referenceFiles: [ClusterExecuteNowRequest.ReferenceFile]
     ) async throws -> APITask {
         guard taskService.canStartTaskImmediately() else {
             throw APIError.conflict("No free execution slot on worker.")
@@ -133,6 +135,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             retrievalContextAttachmentPaths: contextAttachmentPaths,
             retrievalSelectedSuggestionIds: contextSuggestionIds,
             retrievalModeOverrides: contextModeOverrides,
+            clusterReferenceContextBlocks: referenceContextBlocks,
+            clusterReferenceFiles: referenceFiles.map { ClusterReferenceFile(relativePath: $0.relativePath, stagedPath: $0.stagedPath) },
             planFirstEnabled: false,
             planMarkdown: planMarkdown,
             clusterOwnerTaskId: canonicalTaskId,
@@ -245,6 +249,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                     retrievalContextAttachmentPaths: [],
                     retrievalSelectedSuggestionIds: [],
                     retrievalModeOverrides: [:],
+                    clusterReferenceContextBlocks: [],
+                    clusterReferenceFiles: [],
                     planFirstEnabled: planFirst,
                     planMarkdown: nil,
                     planSelectedSkillNames: nil,

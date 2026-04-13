@@ -83,6 +83,11 @@ enum RemoteLeaseState: Int, Codable, CaseIterable {
     case superseded = 6
 }
 
+struct ClusterReferenceFile: Codable, Hashable, Sendable {
+    let relativePath: String
+    let stagedPath: String
+}
+
 /// SwiftData model for persisting task records
 @Model
 final class TaskRecord {
@@ -180,6 +185,12 @@ final class TaskRecord {
 
     /// JSON-encoded per-suggestion mode overrides at pack creation time.
     private var retrievalModeOverridesData: Data?
+
+    /// Owner-materialized continuation context blocks staged for a remote worker.
+    private var clusterReferenceContextBlocksData: Data?
+
+    /// Owner-materialized reference bundle files staged for a remote worker.
+    private var clusterReferenceFilesData: Data?
     
     /// Whether the task was verified as successful by the completion check
     /// nil = not yet checked, true = verified success, false = verified failure
@@ -324,6 +335,36 @@ final class TaskRecord {
         }
     }
 
+    var clusterReferenceContextBlocks: [String] {
+        get {
+            guard
+                let clusterReferenceContextBlocksData,
+                let decoded = try? JSONDecoder().decode([String].self, from: clusterReferenceContextBlocksData)
+            else {
+                return []
+            }
+            return decoded
+        }
+        set {
+            clusterReferenceContextBlocksData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    var clusterReferenceFiles: [ClusterReferenceFile] {
+        get {
+            guard
+                let clusterReferenceFilesData,
+                let decoded = try? JSONDecoder().decode([ClusterReferenceFile].self, from: clusterReferenceFilesData)
+            else {
+                return []
+            }
+            return decoded
+        }
+        set {
+            clusterReferenceFilesData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
     // MARK: - Writeback Properties
 
     var localAccessGrants: [LocalAccessGrant] {
@@ -428,6 +469,8 @@ final class TaskRecord {
         retrievalContextAttachmentPaths: [String]? = nil,
         retrievalSelectedSuggestionIds: [String]? = nil,
         retrievalModeOverrides: [String: String]? = nil,
+        clusterReferenceContextBlocks: [String] = [],
+        clusterReferenceFiles: [ClusterReferenceFile] = [],
         planFirstEnabled: Bool = false,
         planMarkdown: String? = nil,
         planSelectedSkillNames: [String]? = nil,
@@ -475,6 +518,8 @@ final class TaskRecord {
         self.retrievalSelectedSuggestionIds = retrievalSelectedSuggestionIds
         self.retrievalInlineContextData = try? JSONEncoder().encode(retrievalInlineContextBlocks)
         self.retrievalModeOverridesData = try? JSONEncoder().encode(retrievalModeOverrides ?? [:])
+        self.clusterReferenceContextBlocksData = try? JSONEncoder().encode(clusterReferenceContextBlocks)
+        self.clusterReferenceFilesData = try? JSONEncoder().encode(clusterReferenceFiles)
         self.planFirstEnabledRaw = planFirstEnabled
         self.planMarkdown = planMarkdown
         self.planSelectedSkillNames = planSelectedSkillNames

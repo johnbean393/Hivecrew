@@ -572,6 +572,45 @@ extension TaskService {
             print("TaskService: Failed to persist workspace snapshot: \(error)")
         }
     }
+
+    func restoreTransferredTaskReferences(
+        vmId: String,
+        referenceFiles: [ClusterReferenceFile]
+    ) throws {
+        guard !referenceFiles.isEmpty else { return }
+
+        let fm = FileManager.default
+        let referencesRoot = AppPaths.vmWorkspaceDirectory(id: vmId)
+            .appendingPathComponent("references", isDirectory: true)
+        if fm.fileExists(atPath: referencesRoot.path) {
+            try fm.removeItem(at: referencesRoot)
+        }
+        try fm.createDirectory(at: referencesRoot, withIntermediateDirectories: true)
+
+        for referenceFile in referenceFiles {
+            let relativePath = sanitizedRelativeReferencePath(referenceFile.relativePath)
+            let sourceURL = URL(fileURLWithPath: referenceFile.stagedPath)
+            guard fm.fileExists(atPath: sourceURL.path) else { continue }
+
+            let destinationURL = referencesRoot.appendingPathComponent(relativePath)
+            try fm.createDirectory(
+                at: destinationURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if fm.fileExists(atPath: destinationURL.path) {
+                try fm.removeItem(at: destinationURL)
+            }
+            try fm.copyItem(at: sourceURL, to: destinationURL)
+        }
+    }
+
+    private func sanitizedRelativeReferencePath(_ path: String) -> String {
+        let normalized = path.replacingOccurrences(of: "\\", with: "/")
+        let components = normalized.split(separator: "/").filter {
+            !$0.isEmpty && $0 != "." && $0 != ".."
+        }
+        return components.map(String.init).joined(separator: "/")
+    }
     
     /// Generate a subfolder name for task output based on title and timestamp
     /// - Parameter taskTitle: The task title

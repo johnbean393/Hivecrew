@@ -256,6 +256,8 @@ struct TaskInputView: View {
                         retrievalContextAttachmentPaths: contextAttachmentPaths,
                         retrievalSelectedSuggestionIds: selectedSuggestionIds,
                         retrievalModeOverrides: modeOverrides,
+                        clusterReferenceContextBlocks: [],
+                        clusterReferenceFiles: [],
                         planFirstEnabled: planFirstEnabled,
                         planMarkdown: nil,
                         planSelectedSkillNames: nil,

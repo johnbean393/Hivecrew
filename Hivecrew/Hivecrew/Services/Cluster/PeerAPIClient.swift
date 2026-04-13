@@ -9,6 +9,11 @@ import Foundation
 import HivecrewAPI
 
 actor PeerAPIClient {
+    struct StagedLocalFileUpload: Sendable {
+        let localPath: String
+        let uploadFilename: String
+    }
+
     let baseURL: String
     let clusterToken: String
     private let session: URLSession
@@ -230,7 +235,17 @@ actor PeerAPIClient {
     }
 
     func stageInputFiles(stagingId: String, filePaths: [String]) async throws -> [String] {
-        guard !filePaths.isEmpty else { return [] }
+        let uploads = filePaths.map { path in
+            StagedLocalFileUpload(
+                localPath: path,
+                uploadFilename: URL(fileURLWithPath: path).lastPathComponent
+            )
+        }
+        return try await stageInputFiles(stagingId: stagingId, uploads: uploads)
+    }
+
+    func stageInputFiles(stagingId: String, uploads: [StagedLocalFileUpload]) async throws -> [String] {
+        guard !uploads.isEmpty else { return [] }
 
         let boundary = "HivecrewBoundary-\(UUID().uuidString)"
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("hivecrew-cluster-stage-\(UUID().uuidString).multipart")
@@ -245,10 +260,10 @@ actor PeerAPIClient {
         try handle.write(contentsOf: Data("Content-Disposition: form-data; name=\"stagingId\"\r\n\r\n".utf8))
         try handle.write(contentsOf: Data("\(stagingId)\r\n".utf8))
 
-        for path in filePaths {
-            let fileURL = URL(fileURLWithPath: path)
-            let filename = fileURL.lastPathComponent
-            let mimeType = APIFile.mimeType(for: filename)
+        for upload in uploads {
+            let fileURL = URL(fileURLWithPath: upload.localPath)
+            let filename = upload.uploadFilename
+            let mimeType = APIFile.mimeType(for: fileURL.lastPathComponent)
             try handle.write(contentsOf: Data("--\(boundary)\r\n".utf8))
             try handle.write(contentsOf: Data("Content-Disposition: form-data; name=\"files\"; filename=\"\(filename)\"\r\n".utf8))
             try handle.write(contentsOf: Data("Content-Type: \(mimeType)\r\n\r\n".utf8))

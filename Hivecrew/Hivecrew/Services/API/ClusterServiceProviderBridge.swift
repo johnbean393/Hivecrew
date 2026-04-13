@@ -206,7 +206,9 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             contextSuggestionIds: request.contextSuggestionIds,
             contextModeOverrides: request.contextModeOverrides,
             contextInlineBlocks: request.contextInlineBlocks,
-            contextAttachmentPaths: request.contextAttachmentPaths
+            contextAttachmentPaths: request.contextAttachmentPaths,
+            referenceContextBlocks: request.referenceContextBlocks,
+            referenceFiles: request.referenceFiles
         )
         return ClusterExecuteNowResponse(workerTaskId: task.id, task: task)
     }

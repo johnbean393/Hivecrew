@@ -349,6 +349,8 @@ enum OrchestratorToolHandler {
                 retrievalContextAttachmentPaths: [],
                 retrievalSelectedSuggestionIds: [],
                 retrievalModeOverrides: [:],
+                clusterReferenceContextBlocks: [],
+                clusterReferenceFiles: [],
                 planFirstEnabled: false,
                 planMarkdown: nil,
                 planSelectedSkillNames: nil,

@@ -343,7 +343,18 @@ extension TaskService {
             // Prepare shared folder (inbox/outbox/workspace) on the HOST
             let inputFileNames = try prepareSharedFolder(vmId: vmId!, attachedFilePaths: task.attachedFilePaths)
 
-            if !(task.referencedTaskIds ?? []).isEmpty {
+            if !task.clusterReferenceFiles.isEmpty {
+                do {
+                    try restoreTransferredTaskReferences(
+                        vmId: vmId!,
+                        referenceFiles: task.clusterReferenceFiles
+                    )
+                    taskReferenceContextBlocks = task.clusterReferenceContextBlocks
+                    print("TaskService: Restored \(task.clusterReferenceFiles.count) staged task reference file(s)")
+                } catch {
+                    print("TaskService: Failed to restore staged task references (non-fatal): \(error)")
+                }
+            } else if !(task.referencedTaskIds ?? []).isEmpty {
                 do {
                     taskReferenceContextBlocks = try materializeTaskReferences(for: task, vmId: vmId!)
                     print("TaskService: Materialized \(taskReferenceContextBlocks.count) task reference context block(s)")

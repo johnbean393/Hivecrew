@@ -403,6 +403,52 @@ struct HivecrewTests {
     }
 
     @Test
+    @MainActor
+    func restoreTransferredTaskReferencesRebuildsNestedReferenceBundles() throws {
+        let fm = FileManager.default
+        let unique = UUID().uuidString
+        let ownerRoot = fm.temporaryDirectory.appendingPathComponent("HivecrewReferenceOwner-\(unique)", isDirectory: true)
+        let referencesRoot = ownerRoot.appendingPathComponent("references", isDirectory: true)
+        let vmId = "reference-restore-vm-\(unique)"
+
+        defer {
+            try? fm.removeItem(at: ownerRoot)
+            try? fm.removeItem(at: AppPaths.vmBundlePath(id: vmId))
+        }
+
+        let contextFile = referencesRoot
+            .appendingPathComponent("draft-report/context.md")
+        let workspaceFile = referencesRoot
+            .appendingPathComponent("draft-report/workspace/nested/notes.txt")
+        let inboxFile = referencesRoot
+            .appendingPathComponent("draft-report/inbox/brief.txt")
+
+        try fm.createDirectory(at: contextFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fm.createDirectory(at: workspaceFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fm.createDirectory(at: inboxFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "context".write(to: contextFile, atomically: true, encoding: .utf8)
+        try "notes".write(to: workspaceFile, atomically: true, encoding: .utf8)
+        try "brief".write(to: inboxFile, atomically: true, encoding: .utf8)
+
+        let stagedFiles = [contextFile, workspaceFile, inboxFile].map { fileURL in
+            ClusterReferenceFile(
+                relativePath: fileURL.path.replacingOccurrences(of: referencesRoot.path + "/", with: ""),
+                stagedPath: fileURL.path
+            )
+        }
+
+        let service = TaskService()
+        try service.restoreTransferredTaskReferences(vmId: vmId, referenceFiles: stagedFiles)
+
+        let restoredRoot = AppPaths.vmWorkspaceDirectory(id: vmId)
+            .appendingPathComponent("references", isDirectory: true)
+        #expect(fm.fileExists(atPath: restoredRoot.appendingPathComponent("draft-report/context.md").path))
+        #expect(fm.fileExists(atPath: restoredRoot.appendingPathComponent("draft-report/workspace/nested/notes.txt").path))
+        #expect(fm.fileExists(atPath: restoredRoot.appendingPathComponent("draft-report/inbox/brief.txt").path))
+        #expect(try String(contentsOf: restoredRoot.appendingPathComponent("draft-report/workspace/nested/notes.txt"), encoding: .utf8) == "notes")
+    }
+
+    @Test
     func googleSearchReturnsResultsForThreeQueries() async throws {
         let queries = [
             "Swift programming language",

@@ -33,6 +33,8 @@ struct TaskCreationRequest {
     let retrievalContextAttachmentPaths: [String]
     let retrievalSelectedSuggestionIds: [String]
     let retrievalModeOverrides: [String: String]
+    let clusterReferenceContextBlocks: [String]
+    let clusterReferenceFiles: [ClusterReferenceFile]
     let planFirstEnabled: Bool
     let planMarkdown: String?
     let planSelectedSkillNames: [String]?
@@ -140,6 +142,8 @@ class TaskService: ObservableObject {
         retrievalContextAttachmentPaths: [String] = [],
         retrievalSelectedSuggestionIds: [String] = [],
         retrievalModeOverrides: [String: String] = [:],
+        clusterReferenceContextBlocks: [String] = [],
+        clusterReferenceFiles: [ClusterReferenceFile] = [],
         planFirstEnabled: Bool = false,
         planMarkdown: String? = nil,
         planSelectedSkillNames: [String]? = nil,
@@ -169,6 +173,8 @@ class TaskService: ObservableObject {
             retrievalContextAttachmentPaths: retrievalContextAttachmentPaths,
             retrievalSelectedSuggestionIds: retrievalSelectedSuggestionIds,
             retrievalModeOverrides: retrievalModeOverrides,
+            clusterReferenceContextBlocks: clusterReferenceContextBlocks,
+            clusterReferenceFiles: clusterReferenceFiles,
             planFirstEnabled: planFirstEnabled,
             planMarkdown: planMarkdown,
             planSelectedSkillNames: planSelectedSkillNames,
@@ -242,6 +248,8 @@ class TaskService: ObservableObject {
                 retrievalContextAttachmentPaths: request.retrievalContextAttachmentPaths.isEmpty ? nil : request.retrievalContextAttachmentPaths,
                 retrievalSelectedSuggestionIds: request.retrievalSelectedSuggestionIds.isEmpty ? nil : request.retrievalSelectedSuggestionIds,
                 retrievalModeOverrides: request.retrievalModeOverrides.isEmpty ? nil : request.retrievalModeOverrides,
+                clusterReferenceContextBlocks: request.clusterReferenceContextBlocks,
+                clusterReferenceFiles: request.clusterReferenceFiles,
                 planFirstEnabled: request.planFirstEnabled,
                 localAccessGrants: request.localAccessGrants,
                 clusterOwnerTaskId: request.clusterOwnerTaskId,
@@ -684,17 +692,23 @@ extension TaskService {
     }
 
     func materializeTaskReferences(for task: TaskRecord, vmId: String) throws -> [String] {
+        let referencesRoot = AppPaths.vmWorkspaceDirectory(id: vmId)
+            .appendingPathComponent("references", isDirectory: true)
+        return try materializeTaskReferences(for: task, referencesRoot: referencesRoot)
+    }
+
+    func materializeTaskReferences(
+        for task: TaskRecord,
+        referencesRoot: URL,
+        guestReferencesRootPath: String = "~/Desktop/workspace/references"
+    ) throws -> [String] {
         let referencedTasks = resolvedDirectReferencedTasks(for: task)
         guard !referencedTasks.isEmpty else {
-            let referencesRoot = AppPaths.vmWorkspaceDirectory(id: vmId)
-                .appendingPathComponent("references", isDirectory: true)
             try? FileManager.default.removeItem(at: referencesRoot)
             return []
         }
 
         let fm = FileManager.default
-        let referencesRoot = AppPaths.vmWorkspaceDirectory(id: vmId)
-            .appendingPathComponent("references", isDirectory: true)
         if fm.fileExists(atPath: referencesRoot.path) {
             try fm.removeItem(at: referencesRoot)
         }
@@ -731,7 +745,7 @@ extension TaskService {
             )
 
             let ancestorTasks = resolvedAncestorReferencedTasks(for: referencedTask)
-            let guestBundlePath = "~/Desktop/workspace/references/\(bundleName)"
+            let guestBundlePath = "\(guestReferencesRootPath)/\(bundleName)"
             let contextMarkdown = taskReferenceContextMarkdown(
                 for: referencedTask,
                 ancestorTasks: ancestorTasks,

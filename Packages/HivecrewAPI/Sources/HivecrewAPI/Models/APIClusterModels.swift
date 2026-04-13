@@ -82,6 +82,16 @@ public struct PeerTaskUpdate: Codable, Sendable {
 }
 
 public struct ClusterExecuteNowRequest: Codable, Sendable {
+    public struct ReferenceFile: Codable, Sendable, Hashable {
+        public let relativePath: String
+        public let stagedPath: String
+
+        public init(relativePath: String, stagedPath: String) {
+            self.relativePath = relativePath
+            self.stagedPath = stagedPath
+        }
+    }
+
     public let canonicalTaskId: String
     public let ownerTunnelId: String
     public let ownerLeaseId: String
@@ -103,6 +113,8 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
     public let contextModeOverrides: [String: String]
     public let contextInlineBlocks: [String]
     public let contextAttachmentPaths: [String]
+    public let referenceContextBlocks: [String]
+    public let referenceFiles: [ReferenceFile]
     
     public init(
         canonicalTaskId: String,
@@ -125,7 +137,9 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
         contextSuggestionIds: [String] = [],
         contextModeOverrides: [String: String] = [:],
         contextInlineBlocks: [String] = [],
-        contextAttachmentPaths: [String] = []
+        contextAttachmentPaths: [String] = [],
+        referenceContextBlocks: [String] = [],
+        referenceFiles: [ReferenceFile] = []
     ) {
         self.canonicalTaskId = canonicalTaskId
         self.ownerTunnelId = ownerTunnelId
@@ -148,6 +162,8 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
         self.contextModeOverrides = contextModeOverrides
         self.contextInlineBlocks = contextInlineBlocks
         self.contextAttachmentPaths = contextAttachmentPaths
+        self.referenceContextBlocks = referenceContextBlocks
+        self.referenceFiles = referenceFiles
     }
 }
 
