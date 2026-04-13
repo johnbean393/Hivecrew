@@ -480,7 +480,12 @@ public class TemplateDownloadService: ObservableObject {
             return 0
         }
 
-        let totalArchiveBytes = template.sizeBytes ?? await fetchRemoteArchiveSize(for: template)
+        let totalArchiveBytes: Int64?
+        if let knownSize = template.sizeBytes {
+            totalArchiveBytes = knownSize
+        } else {
+            totalArchiveBytes = await fetchRemoteArchiveSize(for: template)
+        }
         guard let totalArchiveBytes, totalArchiveBytes > 0 else {
             return nil
         }
