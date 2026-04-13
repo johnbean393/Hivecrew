@@ -94,17 +94,12 @@ struct ProviderRow: View {
         if provider.isOAuthProvider {
             return provider.isOAuthAuthenticated ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.exclamationmark"
         }
-        if provider.backendMode == .responses {
-            return "bolt.horizontal.circle"
-        }
-        if provider.baseURL?.contains("azure") == true {
-            return "cloud.fill"
-        } else if provider.baseURL?.contains("localhost") == true {
+
+        let normalizedBaseURL = provider.baseURL?.lowercased() ?? ""
+        if normalizedBaseURL.contains("localhost") || normalizedBaseURL.contains("127.0.0.1") {
             return "desktopcomputer"
-        } else if provider.baseURL != nil {
-            return "server.rack"
-        } else {
-            return "cpu"
         }
+
+        return "server.rack"
     }
 }
