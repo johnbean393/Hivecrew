@@ -4,11 +4,11 @@
         <title>Hivecrew</title>
         <item>
             <title>1.22</title>
-            <pubDate>Mon, 13 Apr 2026 15:01:52 -0400</pubDate>
-            <sparkle:version>27</sparkle:version>
+            <pubDate>Mon, 13 Apr 2026 16:24:24 -0400</pubDate>
+            <sparkle:version>28</sparkle:version>
             <sparkle:shortVersionString>1.22</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/johnbean393/Hivecrew/releases/download/v1.22.0/Hivecrew.1.22.dmg" sparkle:edSignature="W34sJCEericojfXccygIW1vCv5R7koKrP/ufgBcbH/AY5odRBccQHKj3AklGWSoJmrwi1lwSMu+rC2dMRSgYCA==" length="61098651" type="application/octet-stream"/>
+            <enclosure url="https://github.com/johnbean393/Hivecrew/releases/download/v1.22.0/Hivecrew.1.22.dmg" sparkle:edSignature="SNDU6L1On3Zj2CVDIcui9rHS7x8q24ptbL5tAIZHnmx7zm1RfT1RXmqco/Madx/zpLpRqI7zYB2QuQZ6BoppAg==" length="61108672" type="application/octet-stream"/>
         </item>
         <item>
             <title>1.21</title>
