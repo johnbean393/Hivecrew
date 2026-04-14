@@ -54,6 +54,8 @@ struct NotchExpandedContent: View {
 
     var body: some View {
         CompactHUDContentView()
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(width: CompactShareHUDPanel.panelWidth)
             .environmentObject(orchestrator)
             .environmentObject(taskService)
             .environmentObject(compactCallManager)

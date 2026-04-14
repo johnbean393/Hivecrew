@@ -117,7 +117,14 @@ public class ScreenCaptureManager: NSObject, ObservableObject {
     }
 
     public func captureStillFrame(display: SCDisplay) async -> Data? {
-        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+        let excludedApps: [SCRunningApplication]
+        if let content = try? await SCShareableContent.current {
+            excludedApps = content.applications.filter { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
+        } else {
+            excludedApps = []
+        }
+
+        let filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
         let config = SCStreamConfiguration()
         config.width = display.width & ~1
         config.height = display.height & ~1
