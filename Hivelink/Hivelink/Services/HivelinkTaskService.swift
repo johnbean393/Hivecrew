@@ -70,6 +70,17 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         reconciliationTask = nil
     }
 
+    /// Reloads tasks from the SwiftData store (e.g. pull-to-refresh).
+    func refreshTaskList() {
+        refreshTasks()
+    }
+
+    /// Runs one remote reconciliation pass and refreshes the local task list.
+    func reconcileAndRefresh() async {
+        await dispatcher.reconcileRemoteTasks()
+        refreshTasks()
+    }
+
     private func startReconciliation() {
         reconciliationTask?.cancel()
         reconciliationTask = Task { @MainActor [weak self] in
@@ -100,6 +111,15 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         for (index, request) in requests.enumerated() {
             let title = Self.placeholderTitle(from: request.description)
 
+            let persistedExecutionTarget: TaskExecutionTarget = {
+                switch request.executionTarget.kind {
+                case .peer:
+                    return request.executionTarget
+                case .automatic, .remoteFirst, .local:
+                    return .remoteFirst
+                }
+            }()
+
             let mergedPaths = Array(Set(request.attachedFilePaths + request.retrievalContextAttachmentPaths)).sorted()
             let preparedAttachmentInfos: [AttachmentInfo]?
             if let existing = request.attachmentInfos {
@@ -118,7 +138,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 sortOrder: index,
                 providerId: request.providerId,
                 modelId: request.modelId,
-                executionTarget: .remoteFirst,
+                executionTarget: persistedExecutionTarget,
                 reasoningEnabled: request.reasoningEnabled,
                 reasoningEffort: request.reasoningEffort,
                 serviceTier: request.serviceTier,

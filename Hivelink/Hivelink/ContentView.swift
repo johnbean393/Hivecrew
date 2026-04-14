@@ -4,23 +4,24 @@
 //
 
 import HivecrewCore
+import SwiftData
 import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var authManager: RemoteAccessAuthManager
 
+    @State private var tabSelection = 0
+
     var body: some View {
-        TabView {
+        TabView(selection: $tabSelection) {
             NavigationStack {
-                Text("Tasks")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .navigationTitle("Hivelink")
-                    .navigationBarTitleDisplayMode(.large)
+                TaskListView(tabSelection: $tabSelection)
                     .toolbar { signOutToolbar }
             }
             .tabItem {
                 Label("Tasks", systemImage: "list.bullet")
             }
+            .tag(0)
 
             NavigationStack {
                 Text("Call")
@@ -32,6 +33,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Call", systemImage: "phone.fill")
             }
+            .tag(1)
 
             NavigationStack {
                 ClusterStatusView()
@@ -42,6 +44,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Cluster", systemImage: "server.rack")
             }
+            .tag(2)
 
             NavigationStack {
                 Text("Settings")
@@ -53,6 +56,7 @@ struct ContentView: View {
             .tabItem {
                 Label("Settings", systemImage: "gear")
             }
+            .tag(3)
         }
     }
 
@@ -72,4 +76,10 @@ struct ContentView: View {
     ContentView()
         .environmentObject(RemoteAccessAuthManager())
         .environmentObject(HivelinkClusterCoordinator())
+        .environmentObject(
+            HivelinkTaskService(
+                modelContext: ModelContext(try! ModelContainer(for: TaskRecord.self)),
+                clusterCoordinator: HivelinkClusterCoordinator()
+            )
+        )
 }

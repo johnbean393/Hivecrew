@@ -30,6 +30,9 @@
 		21F2B1022F90101200001102 /* ClusterStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F2A1022F90100200001002 /* ClusterStatusView.swift */; };
 		21F2B1032F90101300001103 /* PeerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F2A1032F90100300001003 /* PeerDetailView.swift */; };
 		21F2C2022F90110200002102 /* HivelinkTaskService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F2C2012F90110100002101 /* HivelinkTaskService.swift */; };
+		21F3E2012F90211100003301 /* TaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2012F90210100003201 /* TaskRowView.swift */; };
+		21F3E2022F90211200003302 /* TaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2022F90210200003202 /* TaskListView.swift */; };
+		21F3E2032F90211300003303 /* PromptBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2032F90210300003203 /* PromptBar.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -118,6 +121,9 @@
 		21F2A1022F90100200001002 /* ClusterStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterStatusView.swift; sourceTree = "<group>"; };
 		21F2A1032F90100300001003 /* PeerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDetailView.swift; sourceTree = "<group>"; };
 		21F2C2012F90110100002101 /* HivelinkTaskService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkTaskService.swift; sourceTree = "<group>"; };
+		21F3D2012F90210100003201 /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
+		21F3D2022F90210200003202 /* TaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListView.swift; sourceTree = "<group>"; };
+		21F3D2032F90210300003203 /* PromptBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBar.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -275,6 +281,9 @@
 			isa = PBXGroup;
 			children = (
 				21F110042F900A0400000A04 /* .gitkeep */,
+				21F3D2012F90210100003201 /* TaskRowView.swift */,
+				21F3D2022F90210200003202 /* TaskListView.swift */,
+				21F3D2032F90210300003203 /* PromptBar.swift */,
 			);
 			path = Tasks;
 			sourceTree = "<group>";
@@ -561,6 +570,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				21F2B1022F90101200001102 /* ClusterStatusView.swift in Sources */,
+				21F3E2032F90211300003303 /* PromptBar.swift in Sources */,
 				20C439552F8EA82300558698 /* ContentView.swift in Sources */,
 				21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */,
 				20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */,
@@ -569,6 +579,8 @@
 				21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */,
 				21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */,
 				21F2B1032F90101300001103 /* PeerDetailView.swift in Sources */,
+				21F3E2012F90211100003301 /* TaskRowView.swift in Sources */,
+				21F3E2022F90211200003302 /* TaskListView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
