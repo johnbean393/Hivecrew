@@ -102,7 +102,7 @@ final class CompactCallManager: ObservableObject {
         NotificationCenter.default.publisher(for: .screenCaptureAnimationRequested)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notification in
-                guard let self, self.isCompact else { return }
+                guard let self else { return }
                 guard let imageData = notification.userInfo?["imageData"] as? Data else { return }
                 self.playCaptureAnimation(imageData: imageData)
             }

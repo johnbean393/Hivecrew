@@ -37,6 +37,10 @@ struct AgentEnvironmentsView: View {
     @Binding var selectedTaskId: String?
     @State private var selectedItem: EnvironmentItem?
     @State private var showProvisioningSheet = false
+    @State private var showLocalTracePanel = true
+    @State private var showRemoteTracePanel = true
+    @State private var remoteCurrentTask: APITask?
+    @State private var isPerformingRemoteAction = false
     
     // Tips
     private let takeControlTip = TakeControlTip()
@@ -62,12 +66,27 @@ struct AgentEnvironmentsView: View {
         } detail: {
             detailContent
         }
+        .toolbar { toolbarContent }
         .onChange(of: selectedItem) { _, newValue in
             // Sync with selectedTaskId for compatibility
             if case .task(let taskId) = newValue {
                 selectedTaskId = taskId
             } else {
                 selectedTaskId = nil
+            }
+            
+            let selectedRemoteTaskId: String?
+            if case .task(let taskId) = newValue,
+               let task = activeTasksWithVMs.first(where: { $0.id == taskId }),
+               task.isExecutingRemotely {
+                selectedRemoteTaskId = taskId
+            } else {
+                selectedRemoteTaskId = nil
+            }
+            
+            if remoteCurrentTask?.id != selectedRemoteTaskId {
+                remoteCurrentTask = nil
+                isPerformingRemoteAction = false
             }
         }
         .onChange(of: selectedTaskId) { _, newValue in
@@ -174,35 +193,25 @@ struct AgentEnvironmentsView: View {
         switch selectedItem {
         case .task(let taskId):
             if let task = activeTasksWithVMs.first(where: { $0.id == taskId }) {
-                if task.isExecutingRemotely {
-                    RemoteTaskDetailView(task: task)
-                } else if let vmId = task.assignedVMId,
-                          let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
-                    VMDetailView(vm: vmInfo)
-                        .popoverTip(takeControlTip, arrowEdge: .bottom)
-                } else {
-                    emptyDetailView
-                }
+                taskDetailView(for: task)
             } else {
                 emptyDetailView
             }
             
         case .developerVM(let vmId):
             if let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
-                VMDetailView(vm: vmInfo)
+                VMDetailView(vm: vmInfo, showTracePanel: $showLocalTracePanel)
             } else {
                 emptyDetailView
             }
             
         case nil:
             // Auto-select first available item
-            if let firstTask = activeTasksWithVMs.first,
-               let vmId = firstTask.assignedVMId,
-               let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
-                VMDetailView(vm: vmInfo)
+            if let firstTask = activeTasksWithVMs.first {
+                taskDetailView(for: firstTask)
                     .onAppear { selectedItem = .task(firstTask.id) }
             } else if let firstDevVM = runningDeveloperVMs.first {
-                VMDetailView(vm: firstDevVM)
+                VMDetailView(vm: firstDevVM, showTracePanel: $showLocalTracePanel)
                     .onAppear { selectedItem = .developerVM(firstDevVM.id) }
             } else {
                 emptyDetailView
@@ -224,24 +233,219 @@ struct AgentEnvironmentsView: View {
             selectedItem = .task(taskId)
         }
     }
+    
+    @ViewBuilder
+    private func taskDetailView(for task: TaskRecord) -> some View {
+        if task.isExecutingRemotely {
+            RemoteTaskDetailView(
+                task: task,
+                currentTask: $remoteCurrentTask,
+                showTracePanel: $showRemoteTracePanel,
+                isPerformingAction: $isPerformingRemoteAction
+            )
+        } else if let vmId = task.assignedVMId,
+                  let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
+            VMDetailView(vm: vmInfo, showTracePanel: $showLocalTracePanel)
+                .popoverTip(takeControlTip, arrowEdge: .bottom)
+        } else {
+            emptyDetailView
+        }
+    }
+    
+    private var selectedTaskRecord: TaskRecord? {
+        guard case .task(let taskId) = selectedItem else { return nil }
+        return activeTasksWithVMs.first(where: { $0.id == taskId })
+    }
+    
+    private var selectedLocalTask: TaskRecord? {
+        if let task = selectedTaskRecord, !task.isExecutingRemotely {
+            return task
+        }
+        
+        guard case .developerVM(let vmId) = selectedItem else { return nil }
+        return taskService.tasks.first { task in
+            task.assignedVMId == vmId && taskService.isTaskEffectivelyActive(task)
+        }
+    }
+    
+    private var selectedLocalStatePublisher: AgentStatePublisher? {
+        guard let task = selectedLocalTask else { return nil }
+        return taskService.statePublisher(for: task.id)
+    }
+    
+    private var selectedRemoteTask: TaskRecord? {
+        guard let task = selectedTaskRecord, task.isExecutingRemotely else { return nil }
+        return task
+    }
+    
+    private var selectedRemoteStatus: APITaskStatus? {
+        if let remoteCurrentTask {
+            return remoteCurrentTask.status
+        }
+        guard let task = selectedRemoteTask else { return nil }
+        return apiStatus(for: task.status)
+    }
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            if selectedRemoteTask != nil {
+                remoteToolbarButtons
+            } else {
+                localToolbarButtons
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var localToolbarButtons: some View {
+        if let task = selectedLocalTask, let publisher = selectedLocalStatePublisher {
+            if publisher.status == .running {
+                Button(action: pauseSelectedLocalTask) {
+                    Label("Pause Agent", systemImage: "pause.fill")
+                }
+                .help("Pause the agent to take over manually")
+            } else if publisher.status == .paused {
+                Button(action: resumeSelectedLocalTask) {
+                    Label("Resume Agent", systemImage: "play.fill")
+                }
+                .tint(.green)
+                .help("Resume the agent")
+            }
+            
+            if task.status.isActive {
+                Button(action: cancelSelectedLocalTask) {
+                    Label("Cancel", systemImage: "xmark.circle")
+                }
+                .tint(.red)
+                .help("Cancel the task")
+            }
+            
+            Button(action: { showLocalTracePanel.toggle() }) {
+                Label("Trace", systemImage: "sidebar.trailing")
+            }
+            .help(showLocalTracePanel ? "Hide Trace Panel" : "Show Trace Panel")
+        }
+    }
+    
+    @ViewBuilder
+    private var remoteToolbarButtons: some View {
+        if selectedRemoteStatus == .running {
+            Button(action: pauseSelectedRemoteTask) {
+                Label("Pause Agent", systemImage: "pause.fill")
+            }
+            .disabled(isPerformingRemoteAction)
+        } else if selectedRemoteStatus == .paused {
+            Button(action: resumeSelectedRemoteTask) {
+                Label("Resume Agent", systemImage: "play.fill")
+            }
+            .tint(.green)
+            .disabled(isPerformingRemoteAction)
+        }
+        
+        if let status = selectedRemoteStatus, status.isActive {
+            Button(action: cancelSelectedRemoteTask) {
+                Label("Cancel", systemImage: "xmark.circle")
+            }
+            .tint(.red)
+            .disabled(isPerformingRemoteAction)
+        }
+        
+        Button(action: { showRemoteTracePanel.toggle() }) {
+            Label("Trace", systemImage: "sidebar.trailing")
+        }
+        .help(showRemoteTracePanel ? "Hide Trace Panel" : "Show Trace Panel")
+    }
+    
+    private func pauseSelectedLocalTask() {
+        guard let task = selectedLocalTask else { return }
+        taskService.pauseTask(task)
+    }
+    
+    private func resumeSelectedLocalTask() {
+        guard let task = selectedLocalTask else { return }
+        taskService.resumeTask(task)
+    }
+    
+    private func cancelSelectedLocalTask() {
+        guard let task = selectedLocalTask else { return }
+        Task {
+            await taskService.cancelTask(task)
+        }
+    }
+    
+    @MainActor
+    private func pauseSelectedRemoteTask() {
+        performRemoteAction(.pause)
+    }
+    
+    @MainActor
+    private func resumeSelectedRemoteTask() {
+        performRemoteAction(.resume)
+    }
+    
+    @MainActor
+    private func cancelSelectedRemoteTask() {
+        performRemoteAction(.cancel)
+    }
+    
+    @MainActor
+    private func performRemoteAction(_ action: APITaskAction, instructions: String? = nil) {
+        guard let task = selectedRemoteTask else { return }
+        
+        isPerformingRemoteAction = true
+        Task { @MainActor in
+            defer { isPerformingRemoteAction = false }
+            guard let provider = APIServerManager.shared.federatedProvider else { return }
+            if let updatedTask = try? await provider.performTaskAction(id: task.id, action: action, instructions: instructions) {
+                remoteCurrentTask = updatedTask
+            }
+        }
+    }
+    
+    private func apiStatus(for status: TaskStatus) -> APITaskStatus {
+        switch status {
+        case .queued: return .queued
+        case .waitingForVM: return .waitingForVM
+        case .running: return .running
+        case .paused: return .paused
+        case .completed: return .completed
+        case .failed: return .failed
+        case .cancelled: return .cancelled
+        case .timedOut: return .timedOut
+        case .maxIterations: return .maxIterations
+        case .planning: return .planning
+        case .planReview: return .planReview
+        case .planFailed: return .planFailed
+        case .writebackReview: return .writebackReview
+        }
+    }
 }
 
 private struct RemoteTaskDetailView: View {
     let task: TaskRecord
+    @Binding var currentTask: APITask?
+    @Binding var showTracePanel: Bool
+    @Binding var isPerformingAction: Bool
     @StateObject private var traceState: AgentStatePublisher
-    @State private var currentTask: APITask?
     @State private var screenshot: NSImage?
     @State private var since: Int = 0
     @State private var pollTask: Task<Void, Never>?
     @State private var instructionText: String = ""
     @State private var questionText: String = ""
-    @State private var showTracePanel = true
-    @State private var isPerformingAction = false
     @State private var errorMessage: String?
     @State private var showingError = false
 
-    init(task: TaskRecord) {
+    init(
+        task: TaskRecord,
+        currentTask: Binding<APITask?>,
+        showTracePanel: Binding<Bool>,
+        isPerformingAction: Binding<Bool>
+    ) {
         self.task = task
+        _currentTask = currentTask
+        _showTracePanel = showTracePanel
+        _isPerformingAction = isPerformingAction
         _traceState = StateObject(wrappedValue: AgentStatePublisher(taskId: task.id, taskTitle: task.title))
     }
 
@@ -300,7 +504,6 @@ private struct RemoteTaskDetailView: View {
         .task(id: task.id) {
             startPolling()
         }
-        .toolbar { toolbarContent }
         .onDisappear {
             pollTask?.cancel()
             pollTask = nil
@@ -357,56 +560,8 @@ private struct RemoteTaskDetailView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            if let currentTask {
-                if currentTask.status == .running {
-                    Button(action: pauseTask) {
-                        Label("Pause Agent", systemImage: "pause.fill")
-                    }
-                    .disabled(isPerformingAction)
-                } else if currentTask.status == .paused {
-                    Button(action: resumeTask) {
-                        Label("Resume Agent", systemImage: "play.fill")
-                    }
-                    .tint(.green)
-                    .disabled(isPerformingAction)
-                }
-
-                if currentTask.status.isActive {
-                    Button(action: cancelTask) {
-                        Label("Cancel", systemImage: "xmark.circle")
-                    }
-                    .tint(.red)
-                    .disabled(isPerformingAction)
-                }
-            }
-
-            Button(action: { showTracePanel.toggle() }) {
-                Label("Trace", systemImage: "sidebar.trailing")
-            }
-            .help(showTracePanel ? "Hide Trace Panel" : "Show Trace Panel")
-        }
-    }
-
     private var currentNodeName: String? {
         currentTask?.nodeName ?? task.clusterPeerName
-    }
-
-    @MainActor
-    private func pauseTask() {
-        performAction(.pause)
-    }
-
-    @MainActor
-    private func resumeTask() {
-        performAction(.resume)
-    }
-
-    @MainActor
-    private func cancelTask() {
-        performAction(.cancel)
     }
 
     @MainActor

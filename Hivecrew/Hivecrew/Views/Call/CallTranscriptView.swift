@@ -215,14 +215,28 @@ struct TranscriptToolUseView: View {
 
 // MARK: - File Preview Thumbnail
 
-/// Generates a QuickLook thumbnail for any file type. Falls back to NSImage for
-/// common image formats, and to NSWorkspace file icon if thumbnail generation fails.
+/// Generates a QuickLook thumbnail for any file type. Eagerly loads common
+/// image formats synchronously at init to avoid blank placeholders from
+/// LazyVStack recycling. Falls back to QuickLook for other file types.
 private struct FilePreviewThumbnail: View {
 
     let path: String
     var onTap: () -> Void = {}
 
     @State private var thumbnail: NSImage?
+
+    private static let imageExts: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "heif", "webp", "tiff", "bmp"]
+
+    init(path: String, onTap: @escaping () -> Void = {}) {
+        self.path = path
+        self.onTap = onTap
+
+        let url = URL(fileURLWithPath: path)
+        if Self.imageExts.contains(url.pathExtension.lowercased()),
+           let nsImage = NSImage(contentsOf: url) {
+            _thumbnail = State(initialValue: nsImage)
+        }
+    }
 
     private var url: URL { URL(fileURLWithPath: path) }
 
@@ -244,14 +258,14 @@ private struct FilePreviewThumbnail: View {
             .onTapGesture(perform: onTap)
             Spacer()
         }
-        .task { await generateThumbnail() }
+        .task { await loadThumbnailIfNeeded() }
     }
 
-    private func generateThumbnail() async {
+    private func loadThumbnailIfNeeded() async {
+        if thumbnail != nil { return }
         guard FileManager.default.fileExists(atPath: path) else { return }
 
-        let imageExts: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "heif", "webp", "tiff", "bmp"]
-        if imageExts.contains(url.pathExtension.lowercased()),
+        if Self.imageExts.contains(url.pathExtension.lowercased()),
            let nsImage = NSImage(contentsOf: url) {
             thumbnail = nsImage
             return

@@ -58,7 +58,7 @@ struct CompactHUDContentView: View {
             .font(.system(size: 11))
             .foregroundColor(.white.opacity(lastTranscriptSnippet != nil ? 0.6 : 0.3))
             .italic(lastTranscriptSnippet == nil)
-            .lineLimit(3)
+            .lineLimit(8)
             .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)

@@ -49,22 +49,23 @@ final class ScreenCaptureAnimationController {
 
 // MARK: - Overlay Window
 
-private final class ScreenCaptureAnimationWindow: NSWindow {
+private final class ScreenCaptureAnimationWindow: NSPanel {
 
     var renderer: SuckAnimationRenderer?
 
     init(screen: NSScreen) {
         super.init(
             contentRect: screen.frame,
-            styleMask: .borderless,
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         isReleasedWhenClosed = false
-        level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue - 1)
+        level = .mainMenu
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
+        hidesOnDeactivate = false
         ignoresMouseEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         setFrame(screen.frame, display: false)
