@@ -10,6 +10,7 @@ import SwiftData
 import Combine
 import UserNotifications
 import HivecrewLLM
+import HivecrewCore
 
 /// Service that monitors scheduled tasks and triggers them when due
 @MainActor

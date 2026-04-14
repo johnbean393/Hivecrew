@@ -10,6 +10,7 @@ import SwiftData
 import TipKit
 import UniformTypeIdentifiers
 import QuickLook
+import HivecrewCore
 import HivecrewLLM
 
 struct ReasoningSelectionResolution {

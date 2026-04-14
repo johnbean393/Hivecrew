@@ -9,6 +9,7 @@ import Foundation
 import Security
 import SwiftData
 import HivecrewLLM
+import HivecrewCore
 
 /// SwiftData model for persisting LLM provider configurations
 /// Note: Models are fetched dynamically from the provider's /v1/models endpoint

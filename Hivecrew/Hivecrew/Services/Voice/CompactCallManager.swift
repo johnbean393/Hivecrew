@@ -11,6 +11,7 @@ import SwiftUI
 import Combine
 import DynamicNotchKit
 import HivecrewVoice
+import HivecrewCore
 
 // MARK: - Compact HUD Style
 

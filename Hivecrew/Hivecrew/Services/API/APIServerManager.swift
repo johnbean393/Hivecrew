@@ -11,6 +11,7 @@ import Security
 import CryptoKit
 import HivecrewAPI
 import HivecrewShared
+import HivecrewCore
 
 /// Manages the API server lifecycle
 @MainActor

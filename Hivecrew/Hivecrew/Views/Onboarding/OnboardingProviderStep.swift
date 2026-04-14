@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import TipKit
 import HivecrewLLM
+import HivecrewCore
 
 /// LLM Provider configuration step
 struct OnboardingProviderStep: View {

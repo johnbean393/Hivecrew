@@ -12,6 +12,7 @@ import Combine
 import HivecrewLLM
 import HivecrewShared
 import UserNotifications
+import HivecrewCore
 
 private actor WorkerModelReasoningCache {
     static let shared = WorkerModelReasoningCache()

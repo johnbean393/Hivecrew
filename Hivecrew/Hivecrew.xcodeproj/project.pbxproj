@@ -102,6 +102,7 @@
 		207B73082F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */; };
 		207DD2F72F8495FD003405A5 /* ToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207DD2F62F8495FD003405A5 /* ToolsSettingsView.swift */; };
 		20867BF52F8354BC00F82B63 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 30B100042F72000300000004 /* HivecrewVoice */; };
+		30B1000B2F72000C0000000D /* HivecrewCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30B1000D2F72000E0000000F /* HivecrewCore */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -591,6 +592,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				20867BF52F8354BC00F82B63 /* HivecrewVoice in Frameworks */,
+				30B1000B2F72000C0000000D /* HivecrewCore in Frameworks */,
 				2053666C2F2FE3F70097E3FE /* HivecrewMCP in Frameworks */,
 				20A0FC0A2F1D1707000A066A /* HivecrewAPI in Frameworks */,
 				209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */,
@@ -1319,6 +1321,7 @@
 				20A0FC092F1D1707000A066A /* HivecrewAPI */,
 				2053666B2F2FE3F70097E3FE /* HivecrewMCP */,
 				30B100042F72000300000004 /* HivecrewVoice */,
+				30B1000D2F72000E0000000F /* HivecrewCore */,
 				D0A1B0022FA0000200000002 /* DynamicNotchKit */,
 			);
 			productName = Hivecrew;
@@ -1433,6 +1436,7 @@
 				20A0FC082F1D1707000A066A /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */,
 				30B100022F72000100000002 /* XCLocalSwiftPackageReference "../Packages/HivecrewMCP" */,
 				30B100032F72000200000003 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */,
+				30B1000C2F72000D0000000E /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */,
 				2019E33B2F13997E0041819D /* XCRemoteSwiftPackageReference "OpenAI" */,
 				20C413F72F143BAA00C6E8A9 /* XCRemoteSwiftPackageReference "MarkdownView" */,
 				204DF4492F15A81D004AB99B /* XCRemoteSwiftPackageReference "zstd" */,
@@ -2231,6 +2235,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewVoice;
 		};
+		30B1000C2F72000D0000000E /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewCore;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -2338,6 +2346,11 @@
 		30B100042F72000300000004 /* HivecrewVoice */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HivecrewVoice;
+		};
+		30B1000D2F72000E0000000F /* HivecrewCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 30B1000C2F72000D0000000E /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */;
+			productName = HivecrewCore;
 		};
 		D0A1B0022FA0000200000002 /* DynamicNotchKit */ = {
 			isa = XCSwiftPackageProductDependency;

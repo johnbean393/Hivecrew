@@ -7,7 +7,7 @@ public actor SpeakerIsolationEngine {
     private var lastConfidentMatchAt: Date?
 
     public init(
-        embeddingProvider: any SpeakerEmbeddingProviding = FluidAudioSpeakerEmbeddingProvider.shared,
+        embeddingProvider: any SpeakerEmbeddingProviding,
         extractor: any TargetSpeakerExtractor
     ) {
         self.embeddingProvider = embeddingProvider

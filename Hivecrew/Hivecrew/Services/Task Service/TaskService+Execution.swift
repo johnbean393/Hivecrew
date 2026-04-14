@@ -13,6 +13,7 @@ import Virtualization
 import Combine
 import HivecrewLLM
 import HivecrewShared
+import HivecrewCore
 
 // MARK: - Task Execution
 

@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import HivecrewCore
 import HivecrewLLM
 import HivecrewVoice
 import SwiftData
@@ -38,143 +39,7 @@ enum OrchestratorToolHandler {
 
     // MARK: - Tool Declarations
 
-    static let toolDeclarations: [VoiceToolDeclaration] = [
-        VoiceToolDeclaration(
-            name: "create_task",
-            description: "Create a new task for a worker agent. Each worker runs in a full macOS VM and can search the web, write files, run shell commands, and use GUI apps — so include the complete goal in one task rather than splitting simple multi-step work across workers. Returns the task ID and assigned worker name. To attach a captured reference image, pass its file path in the attachments array.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "description": VoiceToolProperty(type: "string", description: "The full end-to-end goal for the worker, including all steps (e.g. research + write file)"),
-                    "attachments": VoiceToolProperty(type: "string", description: "Comma-separated file paths to attach (e.g. from capture_reference)"),
-                ],
-                required: ["description"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "get_task_status",
-            description: "Get the current status of a task by worker name or task ID.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Worker name, role, or task ID"),
-                ],
-                required: ["query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "send_instruction",
-            description: "Send a follow-up instruction or answer to a worker's question.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Worker name or task ID"),
-                    "message": VoiceToolProperty(type: "string", description: "The instruction or answer"),
-                ],
-                required: ["query", "message"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "pause_task",
-            description: "Pause a running task.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Worker name or task ID"),
-                ],
-                required: ["query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "resume_task",
-            description: "Resume a paused task.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Worker name or task ID"),
-                ],
-                required: ["query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "cancel_task",
-            description: "Cancel a task.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Worker name or task ID"),
-                ],
-                required: ["query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "capture_reference",
-            description: "Capture the current video frame as a reference image for task creation.",
-            parameters: VoiceToolParameters(properties: [:])
-        ),
-        VoiceToolDeclaration(
-            name: "get_deliverables",
-            description: "List output files from a completed task.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Worker name or task ID"),
-                ],
-                required: ["query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "focus_task",
-            description: "Focus the UI task pane on a specific task.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Worker name or task ID"),
-                ],
-                required: ["query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "end_call",
-            description: "End the current voice call. Will only succeed when there are no active or queued tasks remaining.",
-            parameters: VoiceToolParameters(properties: [:])
-        ),
-        VoiceToolDeclaration(
-            name: "search_files",
-            description: "Search the user's indexed files and folders by natural language description. Returns matching paths with relevance scores. Use when the user mentions files, codebases, documents, or assets to attach. Call multiple times in parallel for different things to find. Pass the resulting paths to create_task via the attachments parameter.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "query": VoiceToolProperty(type: "string", description: "Natural language description of the files to find"),
-                    "source_filter": VoiceToolProperty(type: "string", description: "Optional filter: 'file', 'email', 'message', 'calendar'"),
-                ],
-                required: ["query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "read_file",
-            description: "Read the contents of a file on the host machine. Works with text, code, PDF, docx, xlsx, pptx, RTF, plist, and images. For image files, the image is loaded into your visual context so you can see and describe it. Use for reading deliverables or attached files.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "path": VoiceToolProperty(type: "string", description: "Absolute path to the file"),
-                ],
-                required: ["path"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "search_file_content",
-            description: "Search within a file for content matching a query. Returns only matching sections with context. Faster than read_file for large files when you need specific information.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "path": VoiceToolProperty(type: "string", description: "Absolute path to the file"),
-                    "query": VoiceToolProperty(type: "string", description: "Text to search for within the file"),
-                ],
-                required: ["path", "query"]
-            )
-        ),
-        VoiceToolDeclaration(
-            name: "open_file",
-            description: "Open a file or folder on the user's Mac using the default application, or reveal it in Finder.",
-            parameters: VoiceToolParameters(
-                properties: [
-                    "path": VoiceToolProperty(type: "string", description: "Absolute path to the file or folder"),
-                    "reveal": VoiceToolProperty(type: "string", description: "If 'true', reveal in Finder instead of opening. Default: false"),
-                ],
-                required: ["path"]
-            )
-        ),
-    ]
+    static let toolDeclarations: [VoiceToolDeclaration] = VoiceToolDeclaration.fromSharedToolSchemas()
 
     // MARK: - Dispatch
 
@@ -984,5 +849,39 @@ enum OrchestratorToolHandler {
             )
             return ToolCallResult(text: result, transcriptRecord: record)
         }
+    }
+}
+
+// MARK: - Shared schema → HivecrewVoice
+
+private extension VoiceToolDeclaration {
+    static func fromSharedToolSchemas() -> [VoiceToolDeclaration] {
+        SharedToolDeclarations.declarations.compactMap { VoiceToolDeclaration(sharedToolSchema: $0) }
+    }
+
+    init?(sharedToolSchema schema: [String: Any]) {
+        guard let name = schema["name"] as? String,
+              let description = schema["description"] as? String else { return nil }
+
+        guard let paramsDict = schema["parameters"] as? [String: Any] else {
+            self.init(name: name, description: description, parameters: nil)
+            return
+        }
+
+        let type = paramsDict["type"] as? String ?? "object"
+        let propertiesRaw = paramsDict["properties"] as? [String: Any] ?? [:]
+
+        var voiceProperties: [String: VoiceToolProperty] = [:]
+        for (key, value) in propertiesRaw {
+            guard let propDict = value as? [String: Any],
+                  let propType = propDict["type"] as? String,
+                  let propDescription = propDict["description"] as? String else { continue }
+            let enumValues = propDict["enum"] as? [String]
+            voiceProperties[key] = VoiceToolProperty(type: propType, description: propDescription, enumValues: enumValues)
+        }
+
+        let required = paramsDict["required"] as? [String]
+        let parameters = VoiceToolParameters(type: type, properties: voiceProperties, required: required)
+        self.init(name: name, description: description, parameters: parameters)
     }
 }

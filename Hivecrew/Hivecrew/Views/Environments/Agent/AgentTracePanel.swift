@@ -8,6 +8,7 @@
 
 import SwiftUI
 import AppKit
+import HivecrewCore
 
 /// Right-side panel showing agent trace with task, screenshots, and activity
 struct AgentTracePanel: View {

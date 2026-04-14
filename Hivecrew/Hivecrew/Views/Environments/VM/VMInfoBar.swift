@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import HivecrewCore
 
 /// Bottom info bar showing VM status and configuration
 struct VMInfoBar: View {

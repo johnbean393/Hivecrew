@@ -7,6 +7,7 @@
 
 import Foundation
 import HivecrewLLM
+import HivecrewCore
 
 final class SubagentRunner: @unchecked Sendable {
     static let finalReportToolName = "submit_final_report"

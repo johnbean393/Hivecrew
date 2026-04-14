@@ -31,7 +31,11 @@ public enum AppPaths {
             }
             return URL(fileURLWithPath: home, isDirectory: true)
         }
+        #if os(iOS) || os(tvOS) || os(watchOS)
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        #else
         return FileManager.default.homeDirectoryForCurrentUser
+        #endif
     }()
     
     /// Base application support directory for Hivecrew

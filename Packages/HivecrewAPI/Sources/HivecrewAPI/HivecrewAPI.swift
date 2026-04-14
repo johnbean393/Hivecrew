@@ -7,6 +7,7 @@
 
 @_exported import Hummingbird
 @_exported import HivecrewShared
+@_exported import HivecrewAPIModels
 
 // Re-export public types
 public typealias APIServer = HivecrewAPIServer

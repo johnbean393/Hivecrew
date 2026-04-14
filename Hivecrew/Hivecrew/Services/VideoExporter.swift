@@ -7,6 +7,7 @@
 
 internal import AVFoundation
 import AppKit
+import HivecrewCore
 
 /// Utility for exporting images to video
 enum VideoExporter {

@@ -14,6 +14,7 @@
 import SwiftUI
 import QuickLook
 import AppKit
+import HivecrewCore
 import HivecrewShared
 
 struct CallTaskDetailView: View {

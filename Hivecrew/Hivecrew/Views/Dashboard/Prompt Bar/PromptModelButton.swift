@@ -7,6 +7,7 @@
 
 import SwiftUI
 import HivecrewLLM
+import HivecrewCore
 
 /// A capsule-styled button for selecting the LLM model, similar to the Search button design
 struct PromptModelButton: View {

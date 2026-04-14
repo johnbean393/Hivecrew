@@ -9,6 +9,7 @@ import SwiftUI
 import TipKit
 import HivecrewAPI
 import CoreImage.CIFilterBuiltins
+import HivecrewCore
 
 /// Settings view for the Hivecrew REST API server and remote access
 struct APISettingsView: View {

@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import SwiftData
+import HivecrewCore
 
 extension TaskService {
     var writebackAutoApplySettings: WritebackAutoApplySettings {

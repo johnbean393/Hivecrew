@@ -3,8 +3,9 @@ import PackageDescription
 
 let package = Package(
     name: "HivecrewAPI",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
+        .library(name: "HivecrewAPIModels", targets: ["HivecrewAPIModels"]),
         .library(name: "HivecrewAPI", targets: ["HivecrewAPI"])
     ],
     dependencies: [
@@ -13,8 +14,12 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "HivecrewAPIModels"
+        ),
+        .target(
             name: "HivecrewAPI",
             dependencies: [
+                "HivecrewAPIModels",
                 .product(name: "Hummingbird", package: "hummingbird"),
                 "HivecrewShared"
             ],

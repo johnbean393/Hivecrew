@@ -9,40 +9,12 @@ import Foundation
 import SwiftData
 import Virtualization
 import Combine
+import HivecrewCore
 import HivecrewLLM
 import HivecrewShared
 import UserNotifications
 
-struct TaskCreationRequest {
-    let taskId: String?
-    let description: String
-    let providerId: String
-    let modelId: String
-    let executionTarget: TaskExecutionTarget
-    let reasoningEnabled: Bool?
-    let reasoningEffort: String?
-    let serviceTier: LLMServiceTier?
-    let attachedFilePaths: [String]
-    let attachmentInfos: [AttachmentInfo]?
-    let outputDirectory: String?
-    let mentionedSkillNames: [String]
-    let referencedTaskIds: [String]
-    let continuationSourceTaskId: String?
-    let retrievalContextPackId: String?
-    let retrievalInlineContextBlocks: [String]
-    let retrievalContextAttachmentPaths: [String]
-    let retrievalSelectedSuggestionIds: [String]
-    let retrievalModeOverrides: [String: String]
-    let clusterReferenceContextBlocks: [String]
-    let clusterReferenceFiles: [ClusterReferenceFile]
-    let planFirstEnabled: Bool
-    let planMarkdown: String?
-    let planSelectedSkillNames: [String]?
-    let localAccessGrants: [LocalAccessGrant]
-    let clusterOwnerTaskId: String?
-    let clusterExecutionAttempt: Int
-    let clusterLeaseId: String?
-}
+typealias TaskCreationRequest = HivecrewCore.TaskCreationRequest
 
 /// Service for managing tasks and agent execution
 @MainActor

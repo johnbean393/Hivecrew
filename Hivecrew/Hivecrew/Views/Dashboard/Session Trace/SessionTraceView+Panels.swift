@@ -9,6 +9,7 @@ import SwiftUI
 import TipKit
 import AppKit
 import UniformTypeIdentifiers
+import HivecrewCore
 import HivecrewShared
 import MarkdownView
 

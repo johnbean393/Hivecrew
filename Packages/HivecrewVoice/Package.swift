@@ -5,7 +5,8 @@ import PackageDescription
 let package = Package(
     name: "HivecrewVoice",
     platforms: [
-        .macOS(.v15)
+        .macOS(.v15),
+        .iOS(.v18)
     ],
     products: [
         .library(
@@ -20,7 +21,7 @@ let package = Package(
         .target(
             name: "HivecrewVoice",
             dependencies: [
-                "FluidAudio"
+                .product(name: "FluidAudio", package: "FluidAudio", condition: .when(platforms: [.macOS]))
             ]
         ),
         .testTarget(

@@ -1,10 +1,4 @@
 import Foundation
-import FluidAudio
-
-public enum FluidAudioSpeakerEmbeddingError: Error {
-    case invalidSampleWindow
-    case emptyEmbedding
-}
 
 public protocol SpeakerEmbeddingProviding: Sendable {
     func prepare() async throws
@@ -12,6 +6,14 @@ public protocol SpeakerEmbeddingProviding: Sendable {
         between profile: SpeakerIsolationProfile,
         and samples: [Float]
     ) async throws -> Float
+}
+
+#if os(macOS)
+import FluidAudio
+
+public enum FluidAudioSpeakerEmbeddingError: Error {
+    case invalidSampleWindow
+    case emptyEmbedding
 }
 
 public actor FluidAudioSpeakerEmbeddingProvider: SpeakerEmbeddingProviding {
@@ -109,3 +111,4 @@ public actor FluidAudioSpeakerEmbeddingProvider: SpeakerEmbeddingProviding {
         return Array(samples[first...last])
     }
 }
+#endif

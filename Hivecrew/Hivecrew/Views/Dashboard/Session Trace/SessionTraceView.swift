@@ -13,6 +13,7 @@ import AppKit
 import HivecrewShared
 import HivecrewAPI
 import MarkdownView
+import HivecrewCore
 
 /// View for displaying session trace logs with screenshot playback synced to scroll
 struct SessionTraceView: View {

@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import MarkdownView
+import HivecrewCore
 
 /// Wrapper view that handles the optional PlanningStatePublisher
 struct PlanReviewWindow: View {

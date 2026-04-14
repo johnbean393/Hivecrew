@@ -11,6 +11,7 @@ import SwiftUI
 import SwiftData
 import HivecrewAPI
 import HivecrewLLM
+import HivecrewCore
 
 /// Popover with searchable model list
 struct PromptModelPopover: View {

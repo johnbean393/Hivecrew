@@ -9,6 +9,7 @@ import SwiftUI
 import QuickLook
 import QuickLookUI
 import AppKit
+import HivecrewCore
 
 struct WritebackReviewWindow: View {
     let task: TaskRecord

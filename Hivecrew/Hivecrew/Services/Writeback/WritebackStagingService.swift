@@ -7,6 +7,7 @@
 
 import Foundation
 import HivecrewShared
+import HivecrewCore
 
 struct WritebackReviewItem: Identifiable, Sendable {
     let id: UUID

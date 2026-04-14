@@ -8,6 +8,7 @@
 import Foundation
 import AppKit
 import Combine
+import HivecrewCore
 
 /// Manages app termination, checking for active work and confirming with user
 @MainActor

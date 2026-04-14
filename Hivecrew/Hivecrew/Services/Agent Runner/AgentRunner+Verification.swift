@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HivecrewCore
 import HivecrewLLM
 
 // MARK: - Completion Verification

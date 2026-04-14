@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import HivecrewCore
 
 /// Sheet displayed when rerunning a task with missing attachments
 /// Allows the user to reselect missing files or cancel the rerun

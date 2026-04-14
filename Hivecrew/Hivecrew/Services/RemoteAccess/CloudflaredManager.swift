@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HivecrewCore
 
 /// Manages the cloudflared tunnel client process
 actor CloudflaredManager {

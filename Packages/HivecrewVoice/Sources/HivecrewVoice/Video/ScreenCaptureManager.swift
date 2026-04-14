@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  ScreenCaptureManager.swift
 //  HivecrewVoice
@@ -169,3 +170,4 @@ public class ScreenCaptureManager: NSObject, ObservableObject {
         }
     }
 }
+#endif

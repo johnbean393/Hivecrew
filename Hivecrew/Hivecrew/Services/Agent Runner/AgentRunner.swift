@@ -12,6 +12,7 @@ import OSLog
 import HivecrewLLM
 import HivecrewShared
 import HivecrewAgentProtocol
+import HivecrewCore
 
 /// Reason for agent termination
 enum AgentTerminationReason: String, Sendable {

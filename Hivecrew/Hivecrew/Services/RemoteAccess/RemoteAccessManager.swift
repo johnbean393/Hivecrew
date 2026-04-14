@@ -8,6 +8,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import HivecrewCore
 
 // MARK: - Remote Access State
 
@@ -143,11 +144,9 @@ actor RemoteAccessManager {
         await updateStatus(state: .connecting)
 
         if await cloudflaredManager.isRunning {
-            let url = "https://\(subdomain).hivecrew.org"
             let snapshot = await loadReconnectSnapshot()
-            await updateStatus(state: .connected, url: url, subdomain: subdomain, email: snapshot.email)
-            startHeartbeat()
-            print("RemoteAccessManager: Tunnel already running at \(url)")
+            await finishTunnelConnection(subdomain: subdomain, email: snapshot.email)
+            print("RemoteAccessManager: Reused existing tunnel at https://\(subdomain).hivecrew.org")
             return
         }
         
@@ -161,18 +160,9 @@ actor RemoteAccessManager {
         
         do {
             try await cloudflaredManager.start(token: tunnelToken)
-            
-            let url = "https://\(subdomain).hivecrew.org"
-            await updateStatus(state: .connected, url: url, subdomain: subdomain)
-            
-            // Start heartbeat
-            startHeartbeat()
-            await ClusterManager.shared.handleTunnelDidConnect()
-            await MainActor.run {
-                APIServerManager.shared.restart()
-            }
-            
-            print("RemoteAccessManager: Connected at \(url)")
+            let snapshot = await loadReconnectSnapshot()
+            await finishTunnelConnection(subdomain: subdomain, email: snapshot.email)
+            print("RemoteAccessManager: Connected at https://\(subdomain).hivecrew.org")
         } catch {
             await updateStatus(state: .failed, error: error.localizedDescription)
         }
@@ -334,6 +324,17 @@ actor RemoteAccessManager {
             
             print("RemoteAccessManager: Attempting auto-reconnect...")
             await self.reconnect()
+        }
+    }
+
+    private func finishTunnelConnection(subdomain: String, email: String?) async {
+        let url = "https://\(subdomain).hivecrew.org"
+        await updateStatus(state: .connected, url: url, subdomain: subdomain, email: email)
+
+        startHeartbeat()
+        await ClusterManager.shared.handleTunnelDidConnect()
+        await MainActor.run {
+            APIServerManager.shared.restart()
         }
     }
 

@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 public enum HushSpeechEnhancerError: Error, Sendable {
@@ -223,3 +224,4 @@ private struct HushLib: @unchecked Sendable {
         )
     }
 }
+#endif

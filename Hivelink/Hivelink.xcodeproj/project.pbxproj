@@ -13,7 +13,14 @@
 		20C439542F8EA82300558698 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20C4394F2F8EA82300558698 /* Assets.xcassets */; };
 		20C439552F8EA82300558698 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439502F8EA82300558698 /* ContentView.swift */; };
 		20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439512F8EA82300558698 /* HivelinkApp.swift */; };
-		20C439572F8EA82300558698 /* Item.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439522F8EA82300558698 /* Item.swift */; };
+		21F160012F90000100000001 /* HivecrewCore in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151012F90001100000011 /* HivecrewCore */; };
+		21F160022F90000200000002 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151022F90001200000012 /* HivecrewVoice */; };
+		21F160032F90000300000003 /* HivelinkBroadcast.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21F130042F90010400000104 /* HivelinkBroadcast.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		21F160042F90000400000004 /* HivelinkWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21F140062F90020600000206 /* HivelinkWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		21F160052F90000500000005 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F130012F90010100000101 /* SampleHandler.swift */; };
+		21F160062F90000600000006 /* HivelinkWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F140012F90020100000201 /* HivelinkWidgets.swift */; };
+		21F160072F90000700000007 /* HivelinkWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */; };
+		21F160082F90000800000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 21F140052F90020500000205 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,7 +38,36 @@
 			remoteGlobalIDString = 20C4391A2F8EA81900558698;
 			remoteInfo = Hivelink;
 		};
+		21F181012F90030100000301 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 20C439132F8EA81900558698 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 21F130032F90010300000103 /* HivelinkBroadcast */;
+			remoteInfo = HivelinkBroadcast;
+		};
+		21F181022F90030200000302 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 20C439132F8EA81900558698 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 21F140042F90020400000204 /* HivelinkWidgets */;
+			remoteInfo = HivelinkWidgets;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		21F170012F90040100000401 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				21F160032F90000300000003 /* HivelinkBroadcast.appex in Embed Foundation Extensions */,
+				21F160042F90000400000004 /* HivelinkWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		20C4391B2F8EA81900558698 /* Hivelink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hivelink.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -43,7 +79,28 @@
 		20C4394F2F8EA82300558698 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		20C439502F8EA82300558698 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		20C439512F8EA82300558698 /* HivelinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkApp.swift; sourceTree = "<group>"; };
-		20C439522F8EA82300558698 /* Item.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Item.swift; sourceTree = "<group>"; };
+		21F110012F900A0100000A01 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110022F900A0200000A02 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110032F900A0300000A03 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110042F900A0400000A04 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110052F900A0500000A05 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110062F900A0600000A06 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110072F900A0700000A07 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110082F900A0800000A08 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F110092F900A0900000A09 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F1100A2F900A0A00000A0A /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		21F120012F900B0100000B01 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		21F120022F900B0200000B02 /* Hivelink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Hivelink.entitlements; sourceTree = "<group>"; };
+		21F130012F90010100000101 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
+		21F130022F90010200000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		21F130042F90010400000104 /* HivelinkBroadcast.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HivelinkBroadcast.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		21F130052F90010500000105 /* HivelinkBroadcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HivelinkBroadcast.entitlements; sourceTree = "<group>"; };
+		21F140012F90020100000201 /* HivelinkWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkWidgets.swift; sourceTree = "<group>"; };
+		21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkWidgetsBundle.swift; sourceTree = "<group>"; };
+		21F140032F90020300000203 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		21F140052F90020500000205 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		21F140062F90020600000206 /* HivelinkWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HivelinkWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		21F140072F90020700000207 /* HivelinkWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HivelinkWidgetsExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +108,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				21F160012F90000100000001 /* HivecrewCore in Frameworks */,
+				21F160022F90000200000002 /* HivecrewVoice in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -68,6 +127,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		21F130062F90010600000106 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		21F140082F90020800000208 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -75,6 +148,8 @@
 			isa = PBXGroup;
 			children = (
 				20C439532F8EA82300558698 /* Hivelink */,
+				21F130002F90010000000100 /* HivelinkBroadcast */,
+				21F140002F90020000000200 /* HivelinkWidgets */,
 				20C439482F8EA82300558698 /* HivelinkTests */,
 				20C4394C2F8EA82300558698 /* HivelinkUITests */,
 				20C4391C2F8EA81900558698 /* Products */,
@@ -85,6 +160,8 @@
 			isa = PBXGroup;
 			children = (
 				20C4391B2F8EA81900558698 /* Hivelink.app */,
+				21F130042F90010400000104 /* HivelinkBroadcast.appex */,
+				21F140062F90020600000206 /* HivelinkWidgets.appex */,
 				20C4392A2F8EA81A00558698 /* HivelinkTests.xctest */,
 				20C439342F8EA81A00558698 /* HivelinkUITests.xctest */,
 			);
@@ -113,10 +190,131 @@
 			children = (
 				20C439512F8EA82300558698 /* HivelinkApp.swift */,
 				20C439502F8EA82300558698 /* ContentView.swift */,
-				20C439522F8EA82300558698 /* Item.swift */,
+				21F120012F900B0100000B01 /* Info.plist */,
+				21F120022F900B0200000B02 /* Hivelink.entitlements */,
+				21F102012F900C0100000C01 /* Models */,
+				21F102022F900C0200000C02 /* Services */,
+				21F102032F900C0300000C03 /* Views */,
+				21F102092F900C0900000C09 /* Intents */,
+				21F1020A2F900C0A00000C0A /* Widgets */,
+				21F1020B2F900C0B00000C0B /* LiveActivity */,
 				20C4394F2F8EA82300558698 /* Assets.xcassets */,
 			);
 			path = Hivelink;
+			sourceTree = "<group>";
+		};
+		21F102012F900C0100000C01 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				21F110012F900A0100000A01 /* .gitkeep */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		21F102022F900C0200000C02 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				21F110022F900A0200000A02 /* .gitkeep */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		21F102032F900C0300000C03 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				21F102042F900C0400000C04 /* Auth */,
+				21F102052F900C0500000C05 /* Tasks */,
+				21F102062F900C0600000C06 /* Call */,
+				21F102072F900C0700000C07 /* Cluster */,
+				21F102082F900C0800000C08 /* Settings */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		21F102042F900C0400000C04 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				21F110032F900A0300000A03 /* .gitkeep */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		21F102052F900C0500000C05 /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				21F110042F900A0400000A04 /* .gitkeep */,
+			);
+			path = Tasks;
+			sourceTree = "<group>";
+		};
+		21F102062F900C0600000C06 /* Call */ = {
+			isa = PBXGroup;
+			children = (
+				21F110052F900A0500000A05 /* .gitkeep */,
+			);
+			path = Call;
+			sourceTree = "<group>";
+		};
+		21F102072F900C0700000C07 /* Cluster */ = {
+			isa = PBXGroup;
+			children = (
+				21F110062F900A0600000A06 /* .gitkeep */,
+			);
+			path = Cluster;
+			sourceTree = "<group>";
+		};
+		21F102082F900C0800000C08 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				21F110072F900A0700000A07 /* .gitkeep */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		21F102092F900C0900000C09 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				21F110082F900A0800000A08 /* .gitkeep */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		21F1020A2F900C0A00000C0A /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				21F110092F900A0900000A09 /* .gitkeep */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		21F1020B2F900C0B00000C0B /* LiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				21F1100A2F900A0A00000A0A /* .gitkeep */,
+			);
+			path = LiveActivity;
+			sourceTree = "<group>";
+		};
+		21F130002F90010000000100 /* HivelinkBroadcast */ = {
+			isa = PBXGroup;
+			children = (
+				21F130012F90010100000101 /* SampleHandler.swift */,
+				21F130022F90010200000102 /* Info.plist */,
+				21F130052F90010500000105 /* HivelinkBroadcast.entitlements */,
+			);
+			path = HivelinkBroadcast;
+			sourceTree = "<group>";
+		};
+		21F140002F90020000000200 /* HivelinkWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				21F140012F90020100000201 /* HivelinkWidgets.swift */,
+				21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */,
+				21F140032F90020300000203 /* Info.plist */,
+				21F140072F90020700000207 /* HivelinkWidgetsExtension.entitlements */,
+				21F140052F90020500000205 /* Assets.xcassets */,
+			);
+			path = HivelinkWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -129,13 +327,18 @@
 				20C439172F8EA81900558698 /* Sources */,
 				20C439182F8EA81900558698 /* Frameworks */,
 				20C439192F8EA81900558698 /* Resources */,
+				21F170012F90040100000401 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				21F180012F90050100000501 /* PBXTargetDependency */,
+				21F180022F90050200000502 /* PBXTargetDependency */,
 			);
 			name = Hivelink;
 			packageProductDependencies = (
+				21F151012F90001100000011 /* HivecrewCore */,
+				21F151022F90001200000012 /* HivecrewVoice */,
 			);
 			productName = Hivelink;
 			productReference = 20C4391B2F8EA81900558698 /* Hivelink.app */;
@@ -181,6 +384,44 @@
 			productReference = 20C439342F8EA81A00558698 /* HivelinkUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		21F130032F90010300000103 /* HivelinkBroadcast */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 21F190012F90060100000601 /* Build configuration list for PBXNativeTarget "HivelinkBroadcast" */;
+			buildPhases = (
+				21F130072F90010700000107 /* Sources */,
+				21F130062F90010600000106 /* Frameworks */,
+				21F130082F90010800000108 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HivelinkBroadcast;
+			packageProductDependencies = (
+			);
+			productName = HivelinkBroadcast;
+			productReference = 21F130042F90010400000104 /* HivelinkBroadcast.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		21F140042F90020400000204 /* HivelinkWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 21F190022F90060200000602 /* Build configuration list for PBXNativeTarget "HivelinkWidgets" */;
+			buildPhases = (
+				21F140092F90020900000209 /* Sources */,
+				21F140082F90020800000208 /* Frameworks */,
+				21F1400A2F90020A0000020A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HivelinkWidgets;
+			packageProductDependencies = (
+			);
+			productName = HivelinkWidgets;
+			productReference = 21F140062F90020600000206 /* HivelinkWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -202,6 +443,12 @@
 						CreatedOnToolsVersion = 26.4;
 						TestTargetID = 20C4391A2F8EA81900558698;
 					};
+					21F130032F90010300000103 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+					21F140042F90020400000204 = {
+						CreatedOnToolsVersion = 26.4;
+					};
 				};
 			};
 			buildConfigurationList = 20C439162F8EA81900558698 /* Build configuration list for PBXProject "Hivelink" */;
@@ -213,12 +460,18 @@
 			);
 			mainGroup = 20C439122F8EA81900558698;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				21F150012F90080100000801 /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */,
+				21F150022F90080200000802 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 20C4391C2F8EA81900558698 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				20C4391A2F8EA81900558698 /* Hivelink */,
+				21F130032F90010300000103 /* HivelinkBroadcast */,
+				21F140042F90020400000204 /* HivelinkWidgets */,
 				20C439292F8EA81A00558698 /* HivelinkTests */,
 				20C439332F8EA81A00558698 /* HivelinkUITests */,
 			);
@@ -248,6 +501,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		21F130082F90010800000108 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		21F1400A2F90020A0000020A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				21F160082F90000800000008 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -257,7 +525,6 @@
 			files = (
 				20C439552F8EA82300558698 /* ContentView.swift in Sources */,
 				20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */,
-				20C439572F8EA82300558698 /* Item.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,6 +545,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		21F130072F90010700000107 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				21F160052F90000500000005 /* SampleHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		21F140092F90020900000209 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				21F160062F90000600000006 /* HivelinkWidgets.swift in Sources */,
+				21F160072F90000700000007 /* HivelinkWidgetsBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -290,6 +574,16 @@
 			isa = PBXTargetDependency;
 			target = 20C4391A2F8EA81900558698 /* Hivelink */;
 			targetProxy = 20C439352F8EA81A00558698 /* PBXContainerItemProxy */;
+		};
+		21F180012F90050100000501 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 21F130032F90010300000103 /* HivelinkBroadcast */;
+			targetProxy = 21F181012F90030100000301 /* PBXContainerItemProxy */;
+		};
+		21F180022F90050200000502 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 21F140042F90020400000204 /* HivelinkWidgets */;
+			targetProxy = 21F181022F90030200000302 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -347,7 +641,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -405,7 +699,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -420,11 +714,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Hivelink/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -446,7 +742,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -456,11 +752,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Hivelink/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -482,7 +780,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
@@ -495,7 +793,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivelinkTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -503,7 +801,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hivelink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Hivelink";
 			};
@@ -517,7 +815,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivelinkTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -525,7 +823,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hivelink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Hivelink";
 			};
@@ -538,6 +836,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivelinkUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -545,7 +844,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Hivelink;
 			};
@@ -558,6 +857,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.HivelinkUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -565,9 +865,143 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Hivelink;
+			};
+			name = Release;
+		};
+		21F190032F90060300000603 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HivelinkBroadcast/HivelinkBroadcast.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HivelinkBroadcast/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HivelinkBroadcast;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivelink.HivelinkBroadcast;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		21F190042F90060400000604 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HivelinkBroadcast/HivelinkBroadcast.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HivelinkBroadcast/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HivelinkBroadcast;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivelink.HivelinkBroadcast;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		21F190052F90060500000605 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = HivelinkWidgets/HivelinkWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HivelinkWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HivelinkWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivelink.HivelinkWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		21F190062F90060600000606 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = HivelinkWidgets/HivelinkWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HivelinkWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = HivelinkWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.pattonium.Hivelink.HivelinkWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -610,7 +1044,49 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		21F190012F90060100000601 /* Build configuration list for PBXNativeTarget "HivelinkBroadcast" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				21F190032F90060300000603 /* Debug */,
+				21F190042F90060400000604 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		21F190022F90060200000602 /* Build configuration list for PBXNativeTarget "HivelinkWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				21F190052F90060500000605 /* Debug */,
+				21F190062F90060600000606 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		21F150012F90080100000801 /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewCore;
+		};
+		21F150022F90080200000802 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewVoice;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		21F151012F90001100000011 /* HivecrewCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 21F150012F90080100000801 /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */;
+			productName = HivecrewCore;
+		};
+		21F151022F90001200000012 /* HivecrewVoice */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 21F150022F90080200000802 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */;
+			productName = HivecrewVoice;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 20C439132F8EA81900558698 /* Project object */;
 }

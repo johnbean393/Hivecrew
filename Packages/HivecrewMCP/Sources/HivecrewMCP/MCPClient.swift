@@ -27,6 +27,7 @@ public actor MCPClient {
         self.transport = transport
     }
     
+    #if os(macOS)
     /// Convenience initializer for stdio transport
     public init(command: String, arguments: [String] = [], workingDirectory: String? = nil, environment: [String: String]? = nil) {
         self.transport = StdioTransport(
@@ -36,6 +37,7 @@ public actor MCPClient {
             environment: environment
         )
     }
+    #endif
     
     /// Convenience initializer for HTTP transport
     public init(serverURL: URL) {

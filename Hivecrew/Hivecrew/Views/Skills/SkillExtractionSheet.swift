@@ -8,6 +8,7 @@
 import SwiftUI
 import HivecrewShared
 import HivecrewLLM
+import HivecrewCore
 
 /// Sheet for extracting a skill from a completed task
 struct SkillExtractionSheet: View {

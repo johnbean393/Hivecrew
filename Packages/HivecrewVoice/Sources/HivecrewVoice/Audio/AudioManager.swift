@@ -10,7 +10,9 @@
 import Foundation
 @preconcurrency import AVFoundation
 import AudioToolbox
+#if os(macOS)
 import CoreAudio
+#endif
 import os
 
 // MARK: - VoiceProcessingIO Bridge
@@ -226,6 +228,7 @@ private func resampleInt16Mono(_ data: Data, from sourceRate: Double, to targetR
     return output
 }
 
+#if os(macOS)
 private func audioObjectDataSize(
     objectID: AudioObjectID,
     address: inout AudioObjectPropertyAddress
@@ -342,6 +345,7 @@ private func microphoneModeDisplayName(_ mode: AVCaptureDevice.MicrophoneMode) -
         return "Unknown"
     }
 }
+#endif
 
 public struct AudioInputDevice: Identifiable, Hashable, Sendable {
     public enum Kind: String, Sendable {
@@ -418,13 +422,16 @@ public final class AudioManager: ObservableObject {
     // MARK: - Voice Processing
 
     public func showMicrophoneModePicker() {
+        #if os(macOS)
         AVCaptureDevice.showSystemUserInterface(.microphoneModes)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.refreshInputDevices()
         }
+        #endif
     }
 
     public func refreshInputDevices() {
+        #if os(macOS)
         let currentDeviceID = currentInputAudioDeviceID()
         let defaultDeviceID = defaultInputAudioDeviceID()
 
@@ -460,6 +467,10 @@ public final class AudioManager: ObservableObject {
 
         preferredMicrophoneModeName = microphoneModeDisplayName(AVCaptureDevice.preferredMicrophoneMode)
         activeMicrophoneModeName = microphoneModeDisplayName(AVCaptureDevice.activeMicrophoneMode)
+        #else
+        activeInputDeviceID = nil
+        activeInputDeviceName = "Default"
+        #endif
     }
 
     public func setPreferredInputDevice(_ deviceID: String?) {
@@ -509,6 +520,12 @@ public final class AudioManager: ObservableObject {
         }
         guard permission else { throw AudioError.permissionDenied }
 
+        #if os(iOS)
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .defaultToSpeaker])
+        try session.setActive(true)
+        #endif
+
         try setupVPIO()
         isCapturing = true
         startLevelMetering()
@@ -556,6 +573,7 @@ public final class AudioManager: ObservableObject {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    #if os(macOS)
     private func inputDeviceKind(for transportType: UInt32?) -> AudioInputDevice.Kind {
         guard let transportType else { return .unknown }
         switch transportType {
@@ -617,6 +635,7 @@ public final class AudioManager: ObservableObject {
             print("[AudioManager] Failed to select preferred input device: \(status)")
         }
     }
+    #endif
 
     // MARK: - VPIO Setup
 
@@ -694,7 +713,9 @@ public final class AudioManager: ObservableObject {
                                       UInt32(MemoryLayout.size(ofValue: bypassVP)))
         guard status == noErr else { throw AudioError.engineCreationFailed }
 
+        #if os(macOS)
         applyPreferredInputDevice(to: audioUnit)
+        #endif
 
         bridge.audioUnit = audioUnit
         self.vpioBridge = bridge

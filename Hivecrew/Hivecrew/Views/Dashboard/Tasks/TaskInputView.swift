@@ -11,6 +11,7 @@ import SwiftData
 import UniformTypeIdentifiers
 import HivecrewLLM
 import HivecrewShared
+import HivecrewCore
 
 /// Chat-style input for creating new tasks
 struct TaskInputView: View {

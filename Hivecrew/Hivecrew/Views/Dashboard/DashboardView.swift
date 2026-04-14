@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import TipKit
+import HivecrewCore
 
 /// Tab selection for the task list section
 enum TaskListTab: String, CaseIterable {

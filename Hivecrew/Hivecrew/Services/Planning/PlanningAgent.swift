@@ -8,6 +8,7 @@
 import Foundation
 import HivecrewLLM
 import HivecrewShared
+import HivecrewCore
 
 /// A lightweight agent that generates execution plans without requiring a VM
 @MainActor

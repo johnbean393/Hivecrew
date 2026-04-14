@@ -12,6 +12,7 @@ import TipKit
 import UniformTypeIdentifiers
 import HivecrewAPI
 import HivecrewShared
+import HivecrewCore
 
 /// A suggestion item for @mention autocomplete
 struct MentionSuggestion: Identifiable, Equatable {

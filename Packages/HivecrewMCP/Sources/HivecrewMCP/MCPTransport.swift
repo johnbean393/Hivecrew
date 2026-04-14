@@ -29,6 +29,7 @@ public protocol MCPTransport: Sendable {
 
 // MARK: - Stdio Transport
 
+#if os(macOS)
 /// Transport for MCP servers running as child processes with stdio communication
 public actor StdioTransport: MCPTransport {
     private let command: String
@@ -387,6 +388,7 @@ public actor StdioTransport: MCPTransport {
         }
     }
 }
+#endif
 
 // MARK: - HTTP Transport
 

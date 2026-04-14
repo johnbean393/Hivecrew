@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import HivecrewCore
 
 struct AgentPreviewCardObserved: View {
     let task: TaskRecord

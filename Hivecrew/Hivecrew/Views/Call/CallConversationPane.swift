@@ -7,6 +7,7 @@
 
 import SwiftUI
 internal import AVFoundation
+import HivecrewCore
 import HivecrewVoice
 
 struct CallConversationPane: View {

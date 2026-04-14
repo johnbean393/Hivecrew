@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import HivecrewLLM
 import HivecrewShared
+import HivecrewCore
 
 /// Executes tool calls from the LLM using the GuestAgentConnection
 @MainActor

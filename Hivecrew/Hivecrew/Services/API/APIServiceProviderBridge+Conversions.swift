@@ -10,6 +10,7 @@ import SwiftData
 import HivecrewAPI
 import HivecrewShared
 import HivecrewLLM
+import HivecrewCore
 
 // MARK: - Status Conversions
 

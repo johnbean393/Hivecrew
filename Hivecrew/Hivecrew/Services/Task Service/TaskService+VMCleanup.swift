@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import HivecrewShared
+import HivecrewCore
 
 // MARK: - VM Cleanup
 

@@ -12,6 +12,7 @@ import SwiftUI
 import SwiftData
 import Combine
 import ScreenCaptureKit
+import HivecrewCore
 import HivecrewVoice
 import HivecrewShared
 
@@ -697,7 +698,7 @@ final class VoiceOrchestrator: ObservableObject {
                     targetProfile: isolationProfile,
                     policy: prepared.audioPolicy.localSpeakerIsolation
                 ),
-                engine: SpeakerIsolationEngine(extractor: PassthroughTargetSpeakerExtractor()),
+                engine: SpeakerIsolationEngine(embeddingProvider: FluidAudioSpeakerEmbeddingProvider.shared, extractor: PassthroughTargetSpeakerExtractor()),
                 speechEnhancer: speechEnhancer,
                 captureWriter: captureWriter,
                 decisionHandler: { [weak self] decision in

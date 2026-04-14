@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import HivecrewCore
 
 /// Row displaying an active task in the sidebar
 struct ActiveTaskRow: View {

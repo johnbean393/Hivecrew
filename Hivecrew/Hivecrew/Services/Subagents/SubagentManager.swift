@@ -8,6 +8,7 @@
 import Foundation
 import HivecrewLLM
 import HivecrewAgentProtocol
+import HivecrewCore
 
 enum SubagentDomain: String, Sendable, CaseIterable {
     case host

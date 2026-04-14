@@ -15,6 +15,7 @@ import HivecrewLLM
 import HivecrewAPI
 import HivecrewVoice
 import AppKit
+import HivecrewCore
 
 @main
 struct HivecrewApp: App {

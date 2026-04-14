@@ -8,6 +8,7 @@
 
 import Foundation
 import HivecrewAPI
+import HivecrewCore
 
 actor ClusterAnnouncer {
     private let clusterBaseURL: String

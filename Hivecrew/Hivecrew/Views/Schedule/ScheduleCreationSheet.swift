@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import HivecrewLLM
+import HivecrewCore
 
 /// Sheet for creating or editing a scheduled task
 struct ScheduleCreationSheet: View {

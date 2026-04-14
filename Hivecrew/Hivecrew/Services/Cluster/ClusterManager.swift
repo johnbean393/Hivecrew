@@ -8,6 +8,7 @@
 import Combine
 import Foundation
 import HivecrewAPI
+import HivecrewCore
 
 // MARK: - Cluster Membership
 

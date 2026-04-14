@@ -7,6 +7,7 @@
 
 import Combine
 import SwiftUI
+import HivecrewCore
 
 /// Detail view for an ephemeral VM, showing display and agent controls
 struct VMDetailView: View {

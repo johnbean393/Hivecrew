@@ -2,6 +2,7 @@ import Foundation
 import HivecrewAPI
 import HivecrewLLM
 import SwiftUI
+import HivecrewCore
 
 extension TaskInputView {
     func synchronizePromptConfigurationForExecutionTarget() {

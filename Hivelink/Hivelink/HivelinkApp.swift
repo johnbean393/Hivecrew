@@ -2,18 +2,15 @@
 //  HivelinkApp.swift
 //  Hivelink
 //
-//  Created by John Bean on 4/14/26.
-//
 
-import SwiftUI
+import HivecrewCore
 import SwiftData
+import SwiftUI
 
 @main
 struct HivelinkApp: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
+        let schema = Schema([TaskRecord.self])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {

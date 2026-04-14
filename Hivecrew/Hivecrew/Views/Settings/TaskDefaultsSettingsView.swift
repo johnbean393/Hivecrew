@@ -8,6 +8,7 @@
 import SwiftUI
 import TipKit
 import UniformTypeIdentifiers
+import HivecrewCore
 
 /// Session trace retention policy
 enum TraceRetentionPolicy: String, CaseIterable, Identifiable {

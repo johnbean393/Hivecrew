@@ -7,6 +7,7 @@
 
 import SwiftUI
 import HivecrewLLM
+import HivecrewCore
 
 /// Options for number of task copies to create
 enum TaskCopyCount: Int, CaseIterable, Identifiable, Codable {

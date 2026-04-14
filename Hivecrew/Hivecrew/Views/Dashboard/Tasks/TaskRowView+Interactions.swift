@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import TipKit
+import HivecrewCore
 
 extension TaskRowView {
     @ViewBuilder

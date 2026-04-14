@@ -23,7 +23,11 @@ public let legacyXAIHostedAPIHost = "api.xai.com"
 public let googleAIGenerativeLanguageHost = "generativelanguage.googleapis.com"
 let codexOAuthClientVersionQueryName = "client_version"
 private let codexOAuthFallbackClientVersion = "0.107.0"
+#if os(macOS)
 private let cachedCodexOAuthClientVersion = resolveCodexOAuthClientVersion()
+#else
+private let cachedCodexOAuthClientVersion = codexOAuthFallbackClientVersion
+#endif
 
 public func normalizedLLMProviderBaseURL(_ baseURL: URL?) -> URL? {
     guard let baseURL else { return nil }
@@ -97,6 +101,7 @@ func parsedCodexCLIClientVersion(from output: String) -> String? {
     return String(output[range])
 }
 
+#if os(macOS)
 private func resolveCodexOAuthClientVersion() -> String {
     guard let executableURL = resolvedCodexCLIExecutableURL(),
           let cliVersion = codexCLIClientVersion(executableURL: executableURL) else {
@@ -155,6 +160,7 @@ private func resolvedCodexCLIExecutableURL() -> URL? {
 
     return nil
 }
+#endif
 
 // MARK: - Backend/Auth Modes
 

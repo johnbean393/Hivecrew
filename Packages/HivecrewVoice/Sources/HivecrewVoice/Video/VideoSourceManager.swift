@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  VideoSourceManager.swift
 //  HivecrewVoice
@@ -110,3 +111,4 @@ public final class VideoSourceManager: ObservableObject {
         }
     }
 }
+#endif

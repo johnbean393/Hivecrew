@@ -10,6 +10,7 @@ import SwiftData
 import HivecrewAPI
 import HivecrewShared
 import HivecrewLLM
+import HivecrewCore
 
 /// Implementation of the API service provider that bridges to Hivecrew's internal services
 @MainActor

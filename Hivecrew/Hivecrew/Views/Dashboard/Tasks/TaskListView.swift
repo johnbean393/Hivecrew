@@ -7,6 +7,7 @@
 
 import SwiftUI
 import TipKit
+import HivecrewCore
 
 /// List of tasks with search functionality
 struct TaskListView: View {

@@ -7,6 +7,8 @@
 
 import Foundation
 
+#if os(macOS)
+
 /// XPC Service identifier
 public let hivecrewVMServiceName = "com.pattonium.HivecrewVMService"
 
@@ -123,3 +125,5 @@ public let hivecrewVMServiceName = "com.pattonium.HivecrewVMService"
         reply: @escaping ([String: Any]) -> Void
     )
 }
+
+#endif

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HivecrewCore
 import HivecrewShared
 
 /// Result of validating attachments for a rerun

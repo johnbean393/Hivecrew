@@ -7,6 +7,7 @@
 
 import SwiftUI
 import HivecrewAPI
+import HivecrewCore
 
 struct ClusterSettingsView: View {
     @ObservedObject private var remoteStatus = RemoteAccessStatus.shared

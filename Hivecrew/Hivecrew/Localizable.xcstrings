@@ -5741,9 +5741,6 @@
         }
       }
     },
-    "Awaiting VM" : {
-
-    },
     "Back" : {
       "localizations" : {
         "de" : {
@@ -17335,6 +17332,7 @@
       }
     },
     "Generating Plan" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19139,6 +19137,7 @@
       }
     },
     "In Progress" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21259,6 +21258,7 @@
       }
     },
     "Max Iterations" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26519,6 +26519,7 @@
       }
     },
     "Paused" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26979,6 +26980,7 @@
       }
     },
     "Planning Failed" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27761,6 +27763,7 @@
       }
     },
     "Queued" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -31175,6 +31178,7 @@
       }
     },
     "Review Plan" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -39205,6 +39209,7 @@
       }
     },
     "Timed Out" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

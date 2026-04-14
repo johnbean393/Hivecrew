@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import SwiftData
 import HivecrewAPI
+import HivecrewCore
 
 final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sendable {
     

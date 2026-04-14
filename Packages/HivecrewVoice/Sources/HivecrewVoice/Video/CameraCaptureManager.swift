@@ -9,7 +9,6 @@
 import Foundation
 import AVFoundation
 import CoreImage
-import AppKit
 
 private let kSystemPreferredCameraKeyPath = "systemPreferredCamera"
 
@@ -72,8 +71,13 @@ public final class CameraCaptureManager: NSObject, ObservableObject {
 
     public override init() {
         super.init()
+        #if os(macOS)
+        let deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera, .continuityCamera, .external]
+        #else
+        let deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+        #endif
         let discovery = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera, .continuityCamera, .external],
+            deviceTypes: deviceTypes,
             mediaType: .video,
             position: .unspecified
         )

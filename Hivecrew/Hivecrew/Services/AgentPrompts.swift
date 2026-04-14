@@ -8,6 +8,7 @@
 import Foundation
 import HivecrewLLM
 import HivecrewShared
+import HivecrewCore
 
 /// System prompts for the agent
 enum AgentPrompts {

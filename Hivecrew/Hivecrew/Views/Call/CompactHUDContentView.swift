@@ -9,6 +9,7 @@
 
 import SwiftUI
 import HivecrewVoice
+import HivecrewCore
 
 struct CompactHUDContentView: View {
 

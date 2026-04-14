@@ -8,6 +8,7 @@
 import SwiftUI
 import TipKit
 import Combine
+import HivecrewCore
 
 /// Individual task row with status dot and title
 struct TaskRowView: View {

@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import Combine
+import HivecrewCore
 
 extension TaskService {
     func sendTaskCompletionNotification(task: TaskRecord) {

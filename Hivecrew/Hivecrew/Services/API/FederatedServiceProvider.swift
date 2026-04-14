@@ -11,6 +11,7 @@ import Combine
 import SwiftData
 import HivecrewAPI
 import HivecrewShared
+import HivecrewCore
 
 private struct StagedTaskReferenceArtifacts {
     let contextBlocks: [String]

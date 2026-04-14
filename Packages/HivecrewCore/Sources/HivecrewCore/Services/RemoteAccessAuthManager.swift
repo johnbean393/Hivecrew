@@ -1,0 +1,107 @@
+//
+//  RemoteAccessAuthManager.swift
+//  HivecrewCore
+//
+//  Email/OTP auth for the remote access Worker API (session JWT in Keychain).
+//  Tunnel / cloudflared lifecycle lives elsewhere.
+//
+
+import Combine
+import Foundation
+
+// MARK: - Status
+
+/// Auth state for the remote access OTP sign-in flow (aligned with `RemoteAccessState` in the app shell).
+public enum RemoteAccessStatus: Equatable, Sendable {
+    /// No session / not configured (`notConfigured`).
+    case disconnected
+    /// OTP request in flight (`authenticating` during `register`).
+    case connecting
+    /// OTP sent; waiting for user to enter the code (`awaitingOTP`).
+    case awaitingOTP
+    /// Verifying OTP with the server (`authenticating` during `verify`).
+    case verifyingOTP
+    /// Session JWT stored; signed in for Worker API calls (`connected` to auth only — tunnel may not exist yet).
+    case connected
+    /// Last operation failed; see `errorMessage` (`failed`).
+    case error
+}
+
+// MARK: - Auth Manager
+
+@MainActor
+public final class RemoteAccessAuthManager: ObservableObject {
+
+    @Published public private(set) var status: RemoteAccessStatus = .disconnected
+    @Published public private(set) var email: String?
+    /// Human-readable message when `status == .error`, or non-fatal errors while awaiting OTP.
+    @Published public private(set) var errorMessage: String?
+    /// Whether a session JWT is present in Keychain (same credential the Worker uses as Bearer token).
+    @Published public private(set) var isAuthenticated: Bool = false
+
+    private let apiClient: RemoteAccessAPIClient
+
+    public init(apiClient: RemoteAccessAPIClient = RemoteAccessAPIClient()) {
+        self.apiClient = apiClient
+    }
+
+    /// Loads email and session token from Keychain and updates published state.
+    public func loadStoredCredentials() {
+        let storedEmail = RemoteAccessKeychain.retrieveEmail()
+        let token = RemoteAccessKeychain.retrieveSessionToken()
+
+        email = storedEmail
+        isAuthenticated = token != nil
+
+        if token != nil {
+            status = .connected
+            errorMessage = nil
+        } else {
+            status = .disconnected
+        }
+    }
+
+    /// Step 1: Request an OTP for the given email (`requestOTP` in `RemoteAccessManager`).
+    public func requestOTP(email: String) async {
+        self.email = email
+        errorMessage = nil
+        status = .connecting
+
+        do {
+            try await apiClient.register(email: email)
+            status = .awaitingOTP
+        } catch {
+            status = .error
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Step 2: Verify OTP and persist session JWT + email (`verifyOTP` in `RemoteAccessManager`, without tunnel creation).
+    public func verifyOTP(email: String, code: String) async {
+        self.email = email
+        errorMessage = nil
+        status = .verifyingOTP
+
+        do {
+            let sessionToken = try await apiClient.verify(email: email, code: code)
+
+            _ = RemoteAccessKeychain.storeSessionToken(sessionToken)
+            _ = RemoteAccessKeychain.storeEmail(email)
+
+            isAuthenticated = true
+            status = .connected
+        } catch {
+            status = .awaitingOTP
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Clears stored remote access credentials from Keychain and resets published state.
+    public func logout() {
+        _ = RemoteAccessKeychain.clearAll()
+        email = nil
+        errorMessage = nil
+        isAuthenticated = false
+        status = .disconnected
+    }
+}

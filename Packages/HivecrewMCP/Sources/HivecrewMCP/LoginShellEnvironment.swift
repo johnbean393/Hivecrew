@@ -6,6 +6,7 @@
 //  exported variables that are available in Terminal.app.
 //
 
+#if os(macOS)
 import Darwin
 import Foundation
 import OSLog
@@ -211,3 +212,4 @@ actor LoginShellEnvironmentLoader {
         return "/bin/zsh"
     }
 }
+#endif

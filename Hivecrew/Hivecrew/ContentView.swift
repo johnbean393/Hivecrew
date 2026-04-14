@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import TipKit
+import HivecrewCore
 
 /// Main content view with tab-based navigation
 struct ContentView: View {

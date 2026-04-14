@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import HivecrewCore
 
 struct AgentPreviewStripView: View {
     @EnvironmentObject var taskService: TaskService

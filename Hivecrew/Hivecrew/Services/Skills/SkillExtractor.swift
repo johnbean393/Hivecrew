@@ -9,6 +9,7 @@ import Combine
 import Foundation
 import HivecrewShared
 import HivecrewLLM
+import HivecrewCore
 
 /// Extracted skill data from LLM
 public struct ExtractedSkillData: Codable, Sendable {

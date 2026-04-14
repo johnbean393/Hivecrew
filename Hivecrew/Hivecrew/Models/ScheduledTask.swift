@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import HivecrewLLM
+import HivecrewCore
 
 /// Type of schedule
 enum ScheduleType: Int, Codable, CaseIterable {

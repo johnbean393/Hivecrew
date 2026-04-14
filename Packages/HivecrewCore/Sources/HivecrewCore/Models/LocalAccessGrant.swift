@@ -1,0 +1,119 @@
+//
+//  LocalAccessGrant.swift
+//  Hivecrew
+//
+//  Persisted local filesystem grants for staged writeback operations.
+//
+
+import Foundation
+
+public enum LocalAccessScopeKind: String, Codable, CaseIterable, Sendable {
+    case file
+    case folder
+}
+
+public enum LocalAccessGrantOrigin: String, Codable, Sendable {
+    case attachment
+    case explicitGrant = "explicit_grant"
+}
+
+public enum LocalAccessGrantMode: String, Codable, Sendable {
+    case readWrite = "read_write"
+}
+
+public struct LocalAccessGrant: Codable, Hashable, Identifiable, Sendable {
+    public var id: UUID
+    public var scopeKind: LocalAccessScopeKind
+    public var displayName: String
+    public var rootPath: String
+    public var bookmarkData: Data?
+    public var origin: LocalAccessGrantOrigin
+    public var accessMode: LocalAccessGrantMode
+
+    public init(
+        id: UUID = UUID(),
+        scopeKind: LocalAccessScopeKind,
+        displayName: String,
+        rootPath: String,
+        bookmarkData: Data? = nil,
+        origin: LocalAccessGrantOrigin,
+        accessMode: LocalAccessGrantMode = .readWrite
+    ) {
+        self.id = id
+        self.scopeKind = scopeKind
+        self.displayName = displayName
+        self.rootPath = rootPath
+        self.bookmarkData = bookmarkData
+        self.origin = origin
+        self.accessMode = accessMode
+    }
+
+    public var rootURL: URL {
+        URL(fileURLWithPath: rootPath)
+    }
+
+    public var normalizedRootPath: String {
+        rootURL.standardizedFileURL.path
+    }
+
+    public func allowsAccess(to destinationPath: String) -> Bool {
+        let candidateURL = URL(fileURLWithPath: destinationPath).standardizedFileURL
+        let candidatePath = candidateURL.path
+
+        switch scopeKind {
+        case .file:
+            return candidatePath == normalizedRootPath
+        case .folder:
+            return candidatePath == normalizedRootPath
+                || candidatePath.hasPrefix(normalizedRootPath + "/")
+        }
+    }
+
+#if os(macOS)
+    public static func make(from url: URL, origin: LocalAccessGrantOrigin) -> LocalAccessGrant {
+        let standardizedURL = url.standardizedFileURL
+        let bookmarkData: Data?
+        if standardizedURL.startAccessingSecurityScopedResource() {
+            bookmarkData = try? standardizedURL.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+            standardizedURL.stopAccessingSecurityScopedResource()
+        } else {
+            bookmarkData = try? standardizedURL.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+        }
+
+        let scopeKind: LocalAccessScopeKind = standardizedURL.hasDirectoryPath ? .folder : .file
+        return LocalAccessGrant(
+            scopeKind: scopeKind,
+            displayName: standardizedURL.lastPathComponent,
+            rootPath: standardizedURL.path,
+            bookmarkData: bookmarkData,
+            origin: origin
+        )
+    }
+#else
+    public static func make(from url: URL, origin: LocalAccessGrantOrigin) -> LocalAccessGrant {
+        let standardizedURL = url.standardizedFileURL
+        let bookmarkData = try? standardizedURL.bookmarkData(
+            options: [],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+
+        let scopeKind: LocalAccessScopeKind = standardizedURL.hasDirectoryPath ? .folder : .file
+        return LocalAccessGrant(
+            scopeKind: scopeKind,
+            displayName: standardizedURL.lastPathComponent,
+            rootPath: standardizedURL.path,
+            bookmarkData: bookmarkData,
+            origin: origin
+        )
+    }
+#endif
+}

@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import TipKit
+import HivecrewCore
 
 /// View displaying the list of scheduled tasks
 struct ScheduledTasksView: View {

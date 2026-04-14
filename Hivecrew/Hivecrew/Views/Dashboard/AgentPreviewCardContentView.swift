@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import HivecrewAPI
+import HivecrewCore
 
 struct AgentPreviewCardContent: View {
     let task: TaskRecord

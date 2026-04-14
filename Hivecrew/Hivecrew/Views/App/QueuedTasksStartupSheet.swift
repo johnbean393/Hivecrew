@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import HivecrewCore
 
 /// Sheet shown on app startup when queued tasks exist from a previous session
 struct QueuedTasksStartupSheet: View {

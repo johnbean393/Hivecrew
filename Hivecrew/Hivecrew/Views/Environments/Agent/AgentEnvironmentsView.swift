@@ -12,6 +12,7 @@ import TipKit
 import AppKit
 import HivecrewAPI
 import HivecrewShared
+import HivecrewCore
 
 /// Represents an item in the environments sidebar (either a task or a developer VM)
 enum EnvironmentItem: Hashable {
