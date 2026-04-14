@@ -102,7 +102,6 @@
 		207B73082F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207B73072F3D0D0D00572AF5 /* TaskService+ModelCapabilities.swift */; };
 		207DD2F72F8495FD003405A5 /* ToolsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207DD2F62F8495FD003405A5 /* ToolsSettingsView.swift */; };
 		20867BF52F8354BC00F82B63 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 30B100042F72000300000004 /* HivecrewVoice */; };
-		30B1000B2F72000C0000000D /* HivecrewCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30B1000D2F72000E0000000F /* HivecrewCore */; };
 		209C5FEE2F12975600062D0E /* HivecrewVMService.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 209C5FDC2F12964700062D0E /* HivecrewVMService.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604A2F129A6400062D0E /* HivecrewShared */; };
 		209C604E2F129A7300062D0E /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 209C604D2F129A7300062D0E /* HivecrewShared */; };
@@ -225,6 +224,7 @@
 		30A1F0A22F61000100000002 /* SubagentRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B22F61000100000002 /* SubagentRunner.swift */; };
 		30A1F0A32F61000100000003 /* SubagentToolExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B32F61000100000003 /* SubagentToolExecutor.swift */; };
 		30A1F0A42F61000100000004 /* VMToolScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A1F0B42F61000100000004 /* VMToolScheduler.swift */; };
+		30B1000B2F72000C0000000D /* HivecrewCore in Frameworks */ = {isa = PBXBuildFile; productRef = 30B1000D2F72000E0000000F /* HivecrewCore */; };
 		30B2A2012F81000100000001 /* RetrievalIndexWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1012F81000100000001 /* RetrievalIndexWindow.swift */; };
 		30B2A2022F81000100000002 /* RetrievalIndexViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1022F81000100000002 /* RetrievalIndexViewModel.swift */; };
 		30B2A2032F81000100000003 /* RetrievalIndexSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B2A1032F81000100000003 /* RetrievalIndexSidebarView.swift */; };

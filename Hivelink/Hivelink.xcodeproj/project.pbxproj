@@ -13,9 +13,7 @@
 		20C439542F8EA82300558698 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20C4394F2F8EA82300558698 /* Assets.xcassets */; };
 		20C439552F8EA82300558698 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439502F8EA82300558698 /* ContentView.swift */; };
 		20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439512F8EA82300558698 /* HivelinkApp.swift */; };
-		21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC12F900D0100000D01 /* OnboardingView.swift */; };
-		21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC22F900D0200000D02 /* EmailEntryView.swift */; };
-		21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */; };
+		20C8D6382F8EFDE8009A0274 /* Hivecrew.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20C8D6372F8EFDE8009A0274 /* Hivecrew.icon */; };
 		21F160012F90000100000001 /* HivecrewCore in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151012F90001100000011 /* HivecrewCore */; };
 		21F160022F90000200000002 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151022F90001200000012 /* HivecrewVoice */; };
 		21F160032F90000300000003 /* HivelinkBroadcast.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21F130042F90010400000104 /* HivelinkBroadcast.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -24,6 +22,14 @@
 		21F160062F90000600000006 /* HivelinkWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F140012F90020100000201 /* HivelinkWidgets.swift */; };
 		21F160072F90000700000007 /* HivelinkWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */; };
 		21F160082F90000800000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 21F140052F90020500000205 /* Assets.xcassets */; };
+		21F160092F90000900000009 /* HivecrewAPIModels in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151032F90001300000013 /* HivecrewAPIModels */; };
+		21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC12F900D0100000D01 /* OnboardingView.swift */; };
+		21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC22F900D0200000D02 /* EmailEntryView.swift */; };
+		21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */; };
+		21F2B1012F90101100001101 /* HivelinkClusterCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F2A1012F90100100001001 /* HivelinkClusterCoordinator.swift */; };
+		21F2B1022F90101200001102 /* ClusterStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F2A1022F90100200001002 /* ClusterStatusView.swift */; };
+		21F2B1032F90101300001103 /* PeerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F2A1032F90100300001003 /* PeerDetailView.swift */; };
+		21F2C2022F90110200002102 /* HivelinkTaskService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F2C2012F90110100002101 /* HivelinkTaskService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,14 +51,14 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 20C439132F8EA81900558698 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 21F130032F90010300000103 /* HivelinkBroadcast */;
+			remoteGlobalIDString = 21F130032F90010300000103;
 			remoteInfo = HivelinkBroadcast;
 		};
 		21F181022F90030200000302 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 20C439132F8EA81900558698 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 21F140042F90020400000204 /* HivelinkWidgets */;
+			remoteGlobalIDString = 21F140042F90020400000204;
 			remoteInfo = HivelinkWidgets;
 		};
 /* End PBXContainerItemProxy section */
@@ -82,9 +88,7 @@
 		20C4394F2F8EA82300558698 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		20C439502F8EA82300558698 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		20C439512F8EA82300558698 /* HivelinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkApp.swift; sourceTree = "<group>"; };
-		21F1ABC12F900D0100000D01 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-		21F1ABC22F900D0200000D02 /* EmailEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailEntryView.swift; sourceTree = "<group>"; };
-		21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerificationView.swift; sourceTree = "<group>"; };
+		20C8D6372F8EFDE8009A0274 /* Hivecrew.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Hivecrew.icon; sourceTree = "<group>"; };
 		21F110012F900A0100000A01 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		21F110022F900A0200000A02 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		21F110032F900A0300000A03 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
@@ -107,6 +111,13 @@
 		21F140052F90020500000205 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		21F140062F90020600000206 /* HivelinkWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HivelinkWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		21F140072F90020700000207 /* HivelinkWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HivelinkWidgetsExtension.entitlements; sourceTree = "<group>"; };
+		21F1ABC12F900D0100000D01 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		21F1ABC22F900D0200000D02 /* EmailEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailEntryView.swift; sourceTree = "<group>"; };
+		21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerificationView.swift; sourceTree = "<group>"; };
+		21F2A1012F90100100001001 /* HivelinkClusterCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkClusterCoordinator.swift; sourceTree = "<group>"; };
+		21F2A1022F90100200001002 /* ClusterStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterStatusView.swift; sourceTree = "<group>"; };
+		21F2A1032F90100300001003 /* PeerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerDetailView.swift; sourceTree = "<group>"; };
+		21F2C2012F90110100002101 /* HivelinkTaskService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkTaskService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,6 +126,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				21F160012F90000100000001 /* HivecrewCore in Frameworks */,
+				21F160092F90000900000009 /* HivecrewAPIModels in Frameworks */,
 				21F160022F90000200000002 /* HivecrewVoice in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -194,6 +206,7 @@
 		20C439532F8EA82300558698 /* Hivelink */ = {
 			isa = PBXGroup;
 			children = (
+				20C8D6362F8EFDDD009A0274 /* Resources */,
 				20C439512F8EA82300558698 /* HivelinkApp.swift */,
 				20C439502F8EA82300558698 /* ContentView.swift */,
 				21F120012F900B0100000B01 /* Info.plist */,
@@ -209,6 +222,14 @@
 			path = Hivelink;
 			sourceTree = "<group>";
 		};
+		20C8D6362F8EFDDD009A0274 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				20C8D6372F8EFDE8009A0274 /* Hivecrew.icon */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		21F102012F900C0100000C01 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -221,6 +242,8 @@
 			isa = PBXGroup;
 			children = (
 				21F110022F900A0200000A02 /* .gitkeep */,
+				21F2A1012F90100100001001 /* HivelinkClusterCoordinator.swift */,
+				21F2C2012F90110100002101 /* HivelinkTaskService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -268,6 +291,8 @@
 			isa = PBXGroup;
 			children = (
 				21F110062F900A0600000A06 /* .gitkeep */,
+				21F2A1022F90100200001002 /* ClusterStatusView.swift */,
+				21F2A1032F90100300001003 /* PeerDetailView.swift */,
 			);
 			path = Cluster;
 			sourceTree = "<group>";
@@ -347,6 +372,7 @@
 			name = Hivelink;
 			packageProductDependencies = (
 				21F151012F90001100000011 /* HivecrewCore */,
+				21F151032F90001300000013 /* HivecrewAPIModels */,
 				21F151022F90001200000012 /* HivecrewVoice */,
 			);
 			productName = Hivelink;
@@ -471,6 +497,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				21F150012F90080100000801 /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */,
+				21F150032F90080300000803 /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */,
 				21F150022F90080200000802 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -493,6 +520,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				20C439542F8EA82300558698 /* Assets.xcassets in Resources */,
+				20C8D6382F8EFDE8009A0274 /* Hivecrew.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -532,11 +560,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				21F2B1022F90101200001102 /* ClusterStatusView.swift in Sources */,
 				20C439552F8EA82300558698 /* ContentView.swift in Sources */,
 				21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */,
 				20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */,
+				21F2B1012F90101100001101 /* HivelinkClusterCoordinator.swift in Sources */,
+				21F2C2022F90110200002102 /* HivelinkTaskService.swift in Sources */,
 				21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */,
 				21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */,
+				21F2B1032F90101300001103 /* PeerDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -724,7 +756,7 @@
 		20C4393F2F8EA81A00558698 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Hivecrew;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -762,7 +794,7 @@
 		20C439402F8EA81A00558698 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Hivecrew;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -1085,6 +1117,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewVoice;
 		};
+		21F150032F90080300000803 /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewAPI;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1097,6 +1133,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 21F150022F90080200000802 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */;
 			productName = HivecrewVoice;
+		};
+		21F151032F90001300000013 /* HivecrewAPIModels */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 21F150032F90080300000803 /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */;
+			productName = HivecrewAPIModels;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

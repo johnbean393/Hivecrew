@@ -10,38 +10,59 @@ struct ContentView: View {
     @EnvironmentObject private var authManager: RemoteAccessAuthManager
 
     var body: some View {
-        NavigationStack {
-            TabView {
+        TabView {
+            NavigationStack {
                 Text("Tasks")
-                    .tabItem {
-                        Label("Tasks", systemImage: "list.bullet")
-                    }
-
-                Text("Call")
-                    .tabItem {
-                        Label("Call", systemImage: "phone.fill")
-                    }
-
-                Text("Cluster")
-                    .tabItem {
-                        Label("Cluster", systemImage: "server.rack")
-                    }
-
-                Text("Settings")
-                    .tabItem {
-                        Label("Settings", systemImage: "gear")
-                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .navigationTitle("Hivelink")
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar { signOutToolbar }
             }
-            .navigationTitle("Hivelink")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        authManager.logout()
-                    } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                    }
-                }
+            .tabItem {
+                Label("Tasks", systemImage: "list.bullet")
+            }
+
+            NavigationStack {
+                Text("Call")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .navigationTitle("Hivelink")
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar { signOutToolbar }
+            }
+            .tabItem {
+                Label("Call", systemImage: "phone.fill")
+            }
+
+            NavigationStack {
+                ClusterStatusView()
+                    .navigationTitle("Cluster")
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar { signOutToolbar }
+            }
+            .tabItem {
+                Label("Cluster", systemImage: "server.rack")
+            }
+
+            NavigationStack {
+                Text("Settings")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .navigationTitle("Hivelink")
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar { signOutToolbar }
+            }
+            .tabItem {
+                Label("Settings", systemImage: "gear")
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var signOutToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                authManager.logout()
+            } label: {
+                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
             }
         }
     }
@@ -50,4 +71,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environmentObject(RemoteAccessAuthManager())
+        .environmentObject(HivelinkClusterCoordinator())
 }
