@@ -14,6 +14,7 @@ struct ContentView: View {
     @EnvironmentObject var vmService: VMServiceClient
     @EnvironmentObject var taskService: TaskService
     @EnvironmentObject var voiceOrchestrator: VoiceOrchestrator
+    @EnvironmentObject var compactCallManager: CompactCallManager
     @State private var selectedTab: AppTab = .dashboard
     @State private var selectedTaskId: String?
     @State private var pendingQuestion: AgentQuestion?
@@ -210,5 +211,6 @@ struct ContentView: View {
         .environmentObject(TaskService())
         .environmentObject(SchedulerService.shared)
         .environmentObject(VoiceOrchestrator())
+        .environmentObject(CompactCallManager())
         .modelContainer(for: [VMRecord.self, TaskRecord.self, ScheduledTask.self], inMemory: true)
 }

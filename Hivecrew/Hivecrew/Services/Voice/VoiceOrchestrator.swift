@@ -917,6 +917,7 @@ final class VoiceOrchestrator: ObservableObject {
     func endCall() {
         recordCaptureEvent(category: .lifecycle, message: "session_ending")
         logVoiceMetricsSummary()
+        let wasCompact = callState == .compactShare
         tearDownActiveSession(
             flushStreamFirst: currentAudioPolicy.streamEndBehavior.sendOnCallEnd,
             resetQuestions: true
@@ -924,6 +925,9 @@ final class VoiceOrchestrator: ObservableObject {
         Task { await videoSourceManager.deactivate() }
         connectionState = .disconnected
         callState = .idle
+        if wasCompact {
+            NotificationCenter.default.post(name: .compactCallDidEnd, object: nil)
+        }
         isModelSpeaking = false
         totalTokenCount = 0
         tokenCountBase = 0
@@ -1448,6 +1452,7 @@ final class VoiceOrchestrator: ObservableObject {
     /// callbacks can still be delivered and the model can respond once resumed.
     func suspendCall() {
         guard callState == .active || callState == .idleTimeout else { return }
+        guard callState != .compactShare else { return }
         recordCaptureEvent(category: .lifecycle, message: "session_suspended")
         if currentAudioPolicy.streamEndBehavior.sendOnSuspend {
             flushProviderInputStream(reason: "suspend")
@@ -1536,7 +1541,7 @@ final class VoiceOrchestrator: ObservableObject {
         idleTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.callState == .active else { return }
-                if self.isModelSpeaking {
+                if self.isModelSpeaking || self.callState == .compactShare {
                     self.startIdleTimer()
                     return
                 }
@@ -1550,6 +1555,7 @@ final class VoiceOrchestrator: ObservableObject {
         suspendTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.callState == .idleTimeout else { return }
+                if self.callState == .compactShare { return }
                 self.suspendCall()
             }
         }

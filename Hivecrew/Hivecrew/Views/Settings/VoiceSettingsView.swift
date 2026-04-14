@@ -43,11 +43,14 @@ struct VoiceSettingsView: View {
         return VoiceAvailability.hasConfiguredProvider(type: type, providers: providers)
     }
 
+    @AppStorage("voice_compact_hud_style") private var compactHUDStyle: String = CompactHUDStyle.notch.rawValue
+
     var body: some View {
         Form {
             providerSection
             inputSection
             voiceIsolationSection
+            compactModeSection
             advancedSection
         }
         .formStyle(.grouped)
@@ -80,6 +83,23 @@ struct VoiceSettingsView: View {
                 showDeleteButton: true,
                 showMicrophonePicker: false
             )
+        }
+    }
+
+    // MARK: - Compact Mode Section
+
+    private var compactModeSection: some View {
+        Section("Compact Mode") {
+            Picker("Style", selection: $compactHUDStyle) {
+                ForEach(CompactHUDStyle.allCases, id: \.rawValue) { style in
+                    Text(style.displayName).tag(style.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text("Choose how the in-call HUD appears when you minimize during a call or start screen sharing.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

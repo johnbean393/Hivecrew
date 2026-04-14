@@ -1373,6 +1373,16 @@
         }
       }
     },
+    "%lld running · %lld queued" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld running · %2$lld queued"
+          }
+        }
+      }
+    },
     "%lld skill%@" : {
       "localizations" : {
         "de" : {
@@ -1472,6 +1482,7 @@
       }
     },
     "%lld workers" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7669,6 +7680,9 @@
         }
       }
     },
+    "Choose how the in-call HUD appears when you minimize during a call or start screen sharing." : {
+
+    },
     "Choose Model" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8360,6 +8374,9 @@
           }
         }
       }
+    },
+    "Compact Mode" : {
+
     },
     "Compatibility" : {
       "localizations" : {
@@ -15048,6 +15065,9 @@
           }
         }
       }
+    },
+    "End" : {
+
     },
     "End Call" : {
       "localizations" : {
@@ -36734,6 +36754,9 @@
           }
         }
       }
+    },
+    "Style" : {
+
     },
     "Submit" : {
       "localizations" : {

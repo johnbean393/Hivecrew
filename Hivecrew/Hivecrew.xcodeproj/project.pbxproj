@@ -267,6 +267,12 @@
 		C10100062FA3000100000006 /* FederatedServiceProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000C2FA300010000000C /* FederatedServiceProvider.swift */; };
 		C101000D2FA300010000000D /* ClusterServiceProviderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C101000E2FA300010000000E /* ClusterServiceProviderBridge.swift */; };
 		C101000F2FA300010000000F /* ClusterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100102FA3000100000010 /* ClusterSettingsView.swift */; };
+		D0A1B0032FA0000300000003 /* DynamicNotchKit in Frameworks */ = {isa = PBXBuildFile; productRef = D0A1B0022FA0000200000002 /* DynamicNotchKit */; };
+		D0A1B0042FA0000400000004 /* CompactCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B0072FA0000700000007 /* CompactCallManager.swift */; };
+		D0A1B0052FA0000500000005 /* CompactHUDContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B0082FA0000800000008 /* CompactHUDContentView.swift */; };
+		D0A1B0062FA0000600000006 /* CompactCallNotch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B0092FA0000900000009 /* CompactCallNotch.swift */; };
+		D0A1B00B2FA000100000000B /* ScreenCaptureAnimationWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B00A2FA000100000000A /* ScreenCaptureAnimationWindow.swift */; };
+		D0A1B00C2FA000200000000C /* ScreenCaptureShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B00D2FA000200000000D /* ScreenCaptureShader.metal */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -572,6 +578,11 @@
 		C101000C2FA300010000000C /* FederatedServiceProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FederatedServiceProvider.swift; sourceTree = "<group>"; };
 		C101000E2FA300010000000E /* ClusterServiceProviderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterServiceProviderBridge.swift; sourceTree = "<group>"; };
 		C10100102FA3000100000010 /* ClusterSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterSettingsView.swift; sourceTree = "<group>"; };
+		D0A1B0072FA0000700000007 /* CompactCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactCallManager.swift; sourceTree = "<group>"; };
+		D0A1B0082FA0000800000008 /* CompactHUDContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactHUDContentView.swift; sourceTree = "<group>"; };
+		D0A1B0092FA0000900000009 /* CompactCallNotch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactCallNotch.swift; sourceTree = "<group>"; };
+		D0A1B00A2FA000100000000A /* ScreenCaptureAnimationWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureAnimationWindow.swift; sourceTree = "<group>"; };
+		D0A1B00D2FA000200000000D /* ScreenCaptureShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = ScreenCaptureShader.metal; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -590,6 +601,7 @@
 				209C604B2F129A6400062D0E /* HivecrewShared in Frameworks */,
 				20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */,
 				204DF4512F16274B004AB99B /* GoogleSearch in Frameworks */,
+				D0A1B0032FA0000300000003 /* DynamicNotchKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1096,6 +1108,7 @@
 				40A1F00400000001 /* OrchestratorSystemPrompt.swift */,
 				40A1F01400000001 /* VoiceAvailability.swift */,
 				40A1F01600000001 /* VoiceRetrievalModels.swift */,
+				D0A1B0072FA0000700000007 /* CompactCallManager.swift */,
 			);
 			path = Voice;
 			sourceTree = "<group>";
@@ -1115,6 +1128,10 @@
 				40A1F00E00000001 /* CallTaskRowView.swift */,
 				40A1F00F00000001 /* CallTaskDetailView.swift */,
 				40A1F01000000001 /* CompactShareHUD.swift */,
+				D0A1B0082FA0000800000008 /* CompactHUDContentView.swift */,
+				D0A1B0092FA0000900000009 /* CompactCallNotch.swift */,
+				D0A1B00A2FA000100000000A /* ScreenCaptureAnimationWindow.swift */,
+				D0A1B00D2FA000200000000D /* ScreenCaptureShader.metal */,
 				40A1F01100000001 /* InputSourcePickerView.swift */,
 				40A1F01200000001 /* CapturePreviewView.swift */,
 				40A1F01500000001 /* VoiceProviderSetupView.swift */,
@@ -1302,6 +1319,7 @@
 				20A0FC092F1D1707000A066A /* HivecrewAPI */,
 				2053666B2F2FE3F70097E3FE /* HivecrewMCP */,
 				30B100042F72000300000004 /* HivecrewVoice */,
+				D0A1B0022FA0000200000002 /* DynamicNotchKit */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -1421,6 +1439,7 @@
 				204DF44F2F16274B004AB99B /* XCRemoteSwiftPackageReference "GoogleSearch" */,
 				2049633B2F17E553007DD5FD /* XCRemoteSwiftPackageReference "Sparkle" */,
 				206C85822F3E2B7E00941285 /* XCLocalSwiftPackageReference "../Packages/HivecrewRetrievalSystem" */,
+				D0A1B0012FA0000100000001 /* XCRemoteSwiftPackageReference "DynamicNotchKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 209C5F952F12947F00062D0E /* Products */;
@@ -1727,6 +1746,11 @@
 				40B1F00E00000001 /* CallTaskRowView.swift in Sources */,
 				40B1F00F00000001 /* CallTaskDetailView.swift in Sources */,
 				40B1F01000000001 /* CompactShareHUD.swift in Sources */,
+				D0A1B0042FA0000400000004 /* CompactCallManager.swift in Sources */,
+				D0A1B0052FA0000500000005 /* CompactHUDContentView.swift in Sources */,
+				D0A1B0062FA0000600000006 /* CompactCallNotch.swift in Sources */,
+				D0A1B00B2FA000100000000B /* ScreenCaptureAnimationWindow.swift in Sources */,
+				D0A1B00C2FA000200000000C /* ScreenCaptureShader.metal in Sources */,
 				40B1F01100000001 /* InputSourcePickerView.swift in Sources */,
 				40B1F01200000001 /* CapturePreviewView.swift in Sources */,
 				40B1F01300000001 /* VoiceSettingsView.swift in Sources */,
@@ -2250,6 +2274,14 @@
 				minimumVersion = 2.6.0;
 			};
 		};
+		D0A1B0012FA0000100000001 /* XCRemoteSwiftPackageReference "DynamicNotchKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MrKai77/DynamicNotchKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -2306,6 +2338,11 @@
 		30B100042F72000300000004 /* HivecrewVoice */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HivecrewVoice;
+		};
+		D0A1B0022FA0000200000002 /* DynamicNotchKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0A1B0012FA0000100000001 /* XCRemoteSwiftPackageReference "DynamicNotchKit" */;
+			productName = DynamicNotchKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

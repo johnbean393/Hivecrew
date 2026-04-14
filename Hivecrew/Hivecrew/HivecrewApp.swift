@@ -43,6 +43,7 @@ struct HivecrewApp: App {
     @StateObject private var terminationManager = AppTerminationManager.shared
     @StateObject private var downloadService = TemplateDownloadService.shared
     @StateObject private var voiceOrchestrator = VoiceOrchestrator()
+    @StateObject private var compactCallManager = CompactCallManager()
     
     /// Whether to show the startup sheet for queued tasks
     @State private var showStartupSheet = false
@@ -71,6 +72,7 @@ struct HivecrewApp: App {
                 .environmentObject(taskService)
                 .environmentObject(schedulerService)
                 .environmentObject(voiceOrchestrator)
+                .environmentObject(compactCallManager)
                 .onAppear {
                     self.onStartup()
                 }
@@ -185,6 +187,10 @@ struct HivecrewApp: App {
         
         // Configure voice orchestrator
         voiceOrchestrator.configure(taskService: taskService, modelContext: sharedModelContainer.mainContext)
+        
+        // Configure compact call manager
+        compactCallManager.configure(orchestrator: voiceOrchestrator, taskService: taskService)
+        appDelegate.compactCallManager = compactCallManager
         
         // Configure TipKit
         TipStore.shared.configure()

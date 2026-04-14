@@ -418,7 +418,7 @@ struct PromptBar: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.15), value: hasText)
+        .animation(.easeInOut(duration: 0.3), value: hasText)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(rect)
         .overlay(

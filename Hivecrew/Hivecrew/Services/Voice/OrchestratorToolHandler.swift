@@ -642,6 +642,12 @@ enum OrchestratorToolHandler {
             return .textOnly("Error: Failed to capture frame from \(sourceDesc). The source may not have produced any frames yet — wait a moment and try again.")
         }
 
+        NotificationCenter.default.post(
+            name: .screenCaptureAnimationRequested,
+            object: nil,
+            userInfo: ["imageData": data]
+        )
+
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("capture_\(UUID().uuidString).jpg")
         do {

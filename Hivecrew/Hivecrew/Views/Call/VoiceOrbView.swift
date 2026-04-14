@@ -47,8 +47,8 @@ struct VoiceOrbView: View {
                     lineWidth: 3
                 )
                 .background(Circle().fill(Color.black.opacity(isConnected ? 0.3 : 0.1)))
-                .shadow(color: isConnected ? .blue.opacity(0.3) : .black.opacity(0.1),
-                        radius: isConnected ? 20 : 10)
+                .shadow(color: isConnected ? .blue.opacity(0.55) : .black.opacity(0.15),
+                        radius: isConnected ? 10 : 5)
 
             if isCameraActive {
                 // Camera preview replaces the liquid core
@@ -75,8 +75,8 @@ struct VoiceOrbView: View {
                         ))
                         .scaleEffect(isConnected ? (0.8 + activeLevel * 0.3) : 0.7)
                         .offset(x: isConnected ? wobble1 : 0, y: isConnected ? wobble2 : 0)
-                        .opacity(isConnected ? 0.8 : 0.3)
-                        .blur(radius: isConnected ? 10 : 15)
+                        .opacity(isConnected ? 0.95 : 0.4)
+                        .blur(radius: isConnected ? 5 : 8)
                         .grayscale(isConnected ? 0 : 0.8)
 
                     Circle()
@@ -95,8 +95,8 @@ struct VoiceOrbView: View {
                         .scaleEffect(isConnected ? (0.75 + activeLevel * 0.25) : 0.65)
                         .rotationEffect(.degrees(90))
                         .offset(x: isConnected ? -wobble2 : 0, y: isConnected ? -wobble1 : 0)
-                        .opacity(isConnected ? 0.7 : 0.2)
-                        .blur(radius: isConnected ? 8 : 12)
+                        .opacity(isConnected ? 0.85 : 0.3)
+                        .blur(radius: isConnected ? 4 : 6)
                         .grayscale(isConnected ? 0 : 0.8)
 
                     Circle()
@@ -111,7 +111,7 @@ struct VoiceOrbView: View {
                             endRadius: s * 0.45
                         ))
                         .scaleEffect(isConnected ? (0.6 + activeLevel * 0.4) : (0.5 * breatheScale))
-                        .blur(radius: 5)
+                        .blur(radius: 3)
                 }
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isConnected)
                 .animation(.spring(response: 0.3, dampingFraction: 0.6), value: activeLevel)

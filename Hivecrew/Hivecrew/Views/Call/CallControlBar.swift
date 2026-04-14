@@ -11,6 +11,7 @@ import HivecrewVoice
 struct CallControlBar: View {
 
     @EnvironmentObject var orchestrator: VoiceOrchestrator
+    @EnvironmentObject var compactCallManager: CompactCallManager
     @State private var showSourcePicker = false
     @State private var showSettingsPopover = false
 
@@ -64,6 +65,13 @@ struct CallControlBar: View {
             .popover(isPresented: $showSettingsPopover) {
                 VoiceSettingsPopover()
                     .environmentObject(orchestrator)
+            }
+
+            CallControlButton(
+                icon: "pip.enter",
+                color: .black
+            ) {
+                compactCallManager.enterCompactMode()
             }
 
             // End call

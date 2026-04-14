@@ -12,6 +12,7 @@ class HivecrewAppDelegate: NSObject, NSApplicationDelegate {
     /// Sparkle updater controller - manages the update lifecycle
     let updaterController: SPUStandardUpdaterController
     private var didRunAutomaticUpdateCheck = false
+    weak var compactCallManager: CompactCallManager?
     
     override init() {
         // Initialize Sparkle updater before app finishes launching
@@ -43,6 +44,14 @@ class HivecrewAppDelegate: NSObject, NSApplicationDelegate {
         updater.checkForUpdatesInBackground()
     }
     
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if compactCallManager?.isCompact == true {
+            compactCallManager?.exitCompactMode()
+            return false
+        }
+        return !hasVisibleWindows
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task { @MainActor in
             if AppTerminationManager.shared.shouldTerminate() {
