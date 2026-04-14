@@ -9,6 +9,8 @@ import SwiftUI
 
 @main
 struct HivelinkApp: App {
+    @StateObject private var authManager = RemoteAccessAuthManager()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([TaskRecord.self])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -22,7 +24,18 @@ struct HivelinkApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                if authManager.isAuthenticated {
+                    ContentView()
+                } else {
+                    OnboardingView()
+                }
+            }
+            .animation(.default, value: authManager.isAuthenticated)
+            .environmentObject(authManager)
+            .task {
+                authManager.loadStoredCredentials()
+            }
         }
         .modelContainer(sharedModelContainer)
     }

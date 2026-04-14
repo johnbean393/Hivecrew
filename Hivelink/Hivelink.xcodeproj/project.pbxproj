@@ -13,6 +13,9 @@
 		20C439542F8EA82300558698 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20C4394F2F8EA82300558698 /* Assets.xcassets */; };
 		20C439552F8EA82300558698 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439502F8EA82300558698 /* ContentView.swift */; };
 		20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439512F8EA82300558698 /* HivelinkApp.swift */; };
+		21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC12F900D0100000D01 /* OnboardingView.swift */; };
+		21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC22F900D0200000D02 /* EmailEntryView.swift */; };
+		21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */; };
 		21F160012F90000100000001 /* HivecrewCore in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151012F90001100000011 /* HivecrewCore */; };
 		21F160022F90000200000002 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151022F90001200000012 /* HivecrewVoice */; };
 		21F160032F90000300000003 /* HivelinkBroadcast.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21F130042F90010400000104 /* HivelinkBroadcast.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -79,6 +82,9 @@
 		20C4394F2F8EA82300558698 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		20C439502F8EA82300558698 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		20C439512F8EA82300558698 /* HivelinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkApp.swift; sourceTree = "<group>"; };
+		21F1ABC12F900D0100000D01 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		21F1ABC22F900D0200000D02 /* EmailEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailEntryView.swift; sourceTree = "<group>"; };
+		21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerificationView.swift; sourceTree = "<group>"; };
 		21F110012F900A0100000A01 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		21F110022F900A0200000A02 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		21F110032F900A0300000A03 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
@@ -235,6 +241,9 @@
 			isa = PBXGroup;
 			children = (
 				21F110032F900A0300000A03 /* .gitkeep */,
+				21F1ABC12F900D0100000D01 /* OnboardingView.swift */,
+				21F1ABC22F900D0200000D02 /* EmailEntryView.swift */,
+				21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -524,7 +533,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				20C439552F8EA82300558698 /* ContentView.swift in Sources */,
+				21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */,
 				20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */,
+				21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */,
+				21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
