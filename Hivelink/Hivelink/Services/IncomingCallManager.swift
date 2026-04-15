@@ -10,6 +10,7 @@
 import Combine
 import CallKit
 import Foundation
+import HivecrewCore
 import PushKit
 import UIKit
 
@@ -77,9 +78,9 @@ final class IncomingCallManager: NSObject, ObservableObject {
         "incomingCall_permission": true,
         "incomingCall_completed": false,
         "incomingCall_failed": true,
-        "incomingCall_planReview": false,
+        "incomingCall_planReview": true,
         "incomingCall_writebackReview": false,
-        "incomingCall_allFinished": true,
+        "incomingCall_allFinished": false,
     ]
 
     private func preferenceEnabled(forKey key: String) -> Bool {
@@ -316,7 +317,26 @@ final class IncomingCallManager: NSObject, ObservableObject {
     private func sendVoIPTokenToServer(_ token: Data) {
         let tokenString = token.map { String(format: "%02x", $0) }.joined()
         print("[IncomingCallManager] VoIP token: \(tokenString)")
-        // TODO: Send VoIP push token to the Worker API
+        Task {
+            await Self.registerPushToken(voipToken: tokenString, apnsToken: nil)
+        }
+    }
+
+    static func registerPushToken(voipToken: String?, apnsToken: String?) async {
+        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else { return }
+        guard let ownerId = RemoteAccessKeychain.retrieveTunnelId() else { return }
+
+        let client = RemoteAccessAPIClient()
+        do {
+            try await client.registerDevice(
+                sessionToken: sessionToken,
+                ownerId: ownerId,
+                voipToken: voipToken,
+                apnsToken: apnsToken
+            )
+        } catch {
+            print("[IncomingCallManager] Device registration failed: \(error.localizedDescription)")
+        }
     }
 }
 

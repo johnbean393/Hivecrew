@@ -82,6 +82,27 @@ public actor RemoteAccessAPIClient {
         return try await post("/cluster/ensure", body: EmptyBody(), token: sessionToken)
     }
 
+    // MARK: - Device Push Registration
+
+    /// Register a device's push tokens with the Worker API so the server can
+    /// send VoIP and standard APNs notifications to this device.
+    public func registerDevice(
+        sessionToken: String,
+        ownerId: String,
+        voipToken: String? = nil,
+        apnsToken: String? = nil,
+        bundleId: String? = nil
+    ) async throws {
+        let body = DeviceRegistrationRequest(
+            ownerId: ownerId,
+            voipToken: voipToken,
+            apnsToken: apnsToken,
+            platform: "ios",
+            bundleId: bundleId ?? Bundle.main.bundleIdentifier ?? ""
+        )
+        let _: MessageResponse = try await post("/devices/register", body: body, token: sessionToken)
+    }
+
     // MARK: - HTTP Helpers
 
     private func get<R: Decodable>(_ path: String, token: String? = nil) async throws -> R {
@@ -164,6 +185,14 @@ private struct VerifyResponse: Decodable {
 
 private struct CreateTunnelRequest: Encodable {
     let name: String?
+}
+
+struct DeviceRegistrationRequest: Encodable {
+    let ownerId: String
+    let voipToken: String?
+    let apnsToken: String?
+    let platform: String
+    let bundleId: String
 }
 
 public struct TunnelCreateResponse: Decodable {

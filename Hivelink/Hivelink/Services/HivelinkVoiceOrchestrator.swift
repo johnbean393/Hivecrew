@@ -2,9 +2,9 @@
 //  HivelinkVoiceOrchestrator.swift
 //  Hivelink
 //
-//  Central coordinator for voice mode on iOS. Simplified from the macOS
+//  Central coordinator for voice mode on iOS. Adapted from the macOS
 //  VoiceOrchestrator — no speaker isolation pipeline, no capture writer,
-//  no system sleep handling, no compact-share mode.
+//  no compact-share mode.
 //
 
 import AVFoundation
@@ -49,6 +49,158 @@ enum HivelinkCallState: Equatable {
     case active
     case idleTimeout
     case suspended
+}
+
+// MARK: - Recovery
+
+enum VoiceRecoveryPhase: Equatable {
+    case idle
+    case reconnecting(reason: String)
+    case staleWhileSuspended(reason: String)
+    case restarting(reason: String)
+    case terminalFailure(reason: String)
+}
+
+enum VoiceRecoveryDecision: Equatable {
+    case reconnecting
+    case deferUntilResume
+    case startFreshRestart
+    case terminalFailure
+}
+
+struct VoiceRecoveryPolicy {
+    static func decideNextStep(
+        callState: HivelinkCallState,
+        hasUsedFreshRestartInCurrentFailureEpisode: Bool
+    ) -> VoiceRecoveryDecision {
+        if hasUsedFreshRestartInCurrentFailureEpisode {
+            return .terminalFailure
+        }
+        if callState == .suspended {
+            return .deferUntilResume
+        }
+        return .startFreshRestart
+    }
+}
+
+// MARK: - Transcript Replay
+
+struct VoiceTranscriptReplaySerializer {
+    private static let maxChunkLength = 2_000
+
+    static func serialize(entries: [TranscriptEntry]) -> [String] {
+        let renderedEntries = entries.compactMap(renderEntry(_:))
+        guard !renderedEntries.isEmpty else { return [] }
+
+        var chunks: [String] = []
+        var current = ""
+
+        for entry in renderedEntries {
+            let candidate = current.isEmpty ? entry : "\(current)\n\n\(entry)"
+            if candidate.count <= maxChunkLength {
+                current = candidate
+                continue
+            }
+
+            if !current.isEmpty {
+                chunks.append(current)
+                current = ""
+            }
+
+            if entry.count <= maxChunkLength {
+                current = entry
+                continue
+            }
+
+            for fragment in splitLongEntry(entry) {
+                chunks.append(fragment)
+            }
+        }
+
+        if !current.isEmpty {
+            chunks.append(current)
+        }
+
+        return chunks
+    }
+
+    static func finalRecoveryInstruction(activeWorkerQuestions: [String: APIAgentQuestion]) -> String {
+        var sections: [String] = [
+            """
+            Transport recovery complete. Continue this same conversation naturally.
+            Do not mention that the voice call was restarted, reconnected, or recovered unless the user explicitly asks.
+            Treat the replayed transcript as authoritative prior conversation context.
+            """
+        ]
+
+        if !activeWorkerQuestions.isEmpty {
+            let pendingQuestions = activeWorkerQuestions.map {
+                "- \($0.key): \($0.value.question)"
+            }.joined(separator: "\n")
+            sections.append(
+                """
+                The following worker questions are still unresolved:
+                \(pendingQuestions)
+                """
+            )
+        }
+
+        return sections.joined(separator: "\n\n")
+    }
+
+    private static func renderEntry(_ entry: TranscriptEntry) -> String? {
+        switch entry.content {
+        case .text(let text):
+            let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { return nil }
+            return "\(entry.role.replayLabel): \(normalized)"
+        case .toolUse(let record):
+            var lines = [
+                "Tool \(record.toolName): \(record.summary)"
+            ]
+            let normalizedDetail = record.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !normalizedDetail.isEmpty, normalizedDetail != record.summary {
+                lines.append(normalizedDetail)
+            }
+            let selectedFiles = record.fileResults.filter(\.isSelected).map(\.path)
+            if !selectedFiles.isEmpty {
+                lines.append("Selected files:\n" + selectedFiles.joined(separator: "\n"))
+            }
+            if let previewFilePath = record.previewFilePath, !previewFilePath.isEmpty {
+                lines.append("Preview file: \(previewFilePath)")
+            }
+            return lines.joined(separator: "\n")
+        case .deliverables(let workerName, let filePaths):
+            return "Deliverables from \(workerName):\n" + filePaths.joined(separator: "\n")
+        }
+    }
+
+    private static func splitLongEntry(_ entry: String) -> [String] {
+        var fragments: [String] = []
+        var remaining = entry[...]
+
+        while remaining.count > maxChunkLength {
+            let splitIndex = remaining.index(remaining.startIndex, offsetBy: maxChunkLength)
+            fragments.append(String(remaining[..<splitIndex]))
+            remaining = remaining[splitIndex...]
+        }
+
+        if !remaining.isEmpty {
+            fragments.append(String(remaining))
+        }
+
+        return fragments
+    }
+}
+
+private extension TranscriptEntry.Role {
+    var replayLabel: String {
+        switch self {
+        case .user: return "User"
+        case .model: return "Assistant"
+        case .tool: return "Tool"
+        }
+    }
 }
 
 // MARK: - CallKit Delegate
@@ -154,6 +306,9 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     @Published private(set) var activeWorkerQuestions: [String: APIAgentQuestion] = [:]
 
     private var pendingEndCall = false
+    private var recoveryPhase: VoiceRecoveryPhase = .idle
+    private var hasUsedFreshRestartInCurrentFailureEpisode = false
+    private var isReplayingRecoveryTranscript = false
 
     /// Prefix to strip from model output transcriptions after a tool call.
     private var modelTranscriptPrefixToStrip: String = ""
@@ -203,6 +358,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
         setupAudioCallbacks()
         setupVideoCallbacks()
+        setupLifecycleObservers()
 
         delegate.orchestrator = self
         provider.setDelegate(delegate, queue: nil)
@@ -407,6 +563,9 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         connectionState = .disconnected
         callState = .idle
         isModelSpeaking = false
+        recoveryPhase = .idle
+        hasUsedFreshRestartInCurrentFailureEpisode = false
+        isReplayingRecoveryTranscript = false
     }
 
     // MARK: - Inline Delivery (during active call)
@@ -533,23 +692,17 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
         prov.onError = { [weak self] error in
             Task { @MainActor [weak self] in
-                self?.connectionState = .error(error.localizedDescription)
+                guard let self else { return }
+                if self.recoveryPhase == .idle {
+                    self.connectionState = .error(error.localizedDescription)
+                }
             }
         }
 
         prov.onDisconnected = { [weak self] event in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.connectionState = .error(event.message)
-                if self.callState != .idle {
-                    if let uuid = self.activeCallUUID {
-                        self.callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
-                        self.activeCallUUID = nil
-                        self.isInCall = false
-                    }
-                    self.tearDownSession()
-                    self.callState = .idle
-                }
+                self.handleProviderDisconnect(event)
             }
         }
 
@@ -557,12 +710,17 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         prov.onUsageUpdate = { _ in }
         prov.onReconnecting = { [weak self] in
             Task { @MainActor [weak self] in
-                self?.connectionState = .reconnecting
+                guard let self else { return }
+                self.recoveryPhase = .reconnecting(reason: "Attempting to resume session")
+                self.connectionState = .reconnecting
             }
         }
         prov.onReconnected = { [weak self] in
             Task { @MainActor [weak self] in
-                self?.connectionState = .connected
+                guard let self else { return }
+                self.recoveryPhase = .idle
+                self.hasUsedFreshRestartInCurrentFailureEpisode = false
+                self.connectionState = .connected
             }
         }
     }
@@ -712,6 +870,9 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     func clearSession() {
         pendingEndCall = false
+        recoveryPhase = .idle
+        hasUsedFreshRestartInCurrentFailureEpisode = false
+        isReplayingRecoveryTranscript = false
         teardownTaskObservers()
         transcript.removeAll()
         relevantTaskIds.removeAll()
@@ -787,8 +948,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 focusedTaskId = taskId
                 let summary = task.resultSummary ?? "Task finished."
                 var message = "[CALLBACK] \(workerName) finished their task. Result: \(summary)"
-                if let deliverables = task.outputFilePaths, !deliverables.isEmpty {
-                    message += "\nDeliverables saved at:\n" + deliverables.joined(separator: "\n")
+                let deliverablePaths = (task.outputFilePaths ?? []).filter {
+                    FileManager.default.fileExists(atPath: $0)
+                }
+                if !deliverablePaths.isEmpty {
+                    message += "\nDeliverables saved at:\n" + deliverablePaths.joined(separator: "\n")
+                    transcript.append(.deliverables(workerName: workerName, filePaths: deliverablePaths))
                 }
                 if allSessionTasksFinished {
                     message += " [ALL_TASKS_DONE] All tasks are now complete. Ask the user if they need anything else, and offer to end the call using the `end_call` tool."
@@ -870,6 +1035,190 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         activeWorkerQuestions.removeAll()
     }
 
+    // MARK: - Disconnect Recovery
+
+    private func handleProviderDisconnect(_ event: VoiceDisconnectEvent) {
+        guard backend == .geminiLive, callState != .idle else {
+            failCallTerminal(reason: event.message)
+            return
+        }
+
+        switch VoiceRecoveryPolicy.decideNextStep(
+            callState: callState,
+            hasUsedFreshRestartInCurrentFailureEpisode: hasUsedFreshRestartInCurrentFailureEpisode
+        ) {
+        case .deferUntilResume:
+            recoveryPhase = .staleWhileSuspended(reason: event.message)
+            connectionState = .error(event.message)
+        case .startFreshRestart:
+            Task { @MainActor [weak self] in
+                await self?.performFreshCallRestart(reason: event.message)
+            }
+        case .terminalFailure:
+            failCallTerminal(reason: event.message)
+        case .reconnecting:
+            break
+        }
+    }
+
+    private func performFreshCallRestart(reason: String) async {
+        guard VoiceRecoveryPolicy.decideNextStep(
+            callState: callState,
+            hasUsedFreshRestartInCurrentFailureEpisode: hasUsedFreshRestartInCurrentFailureEpisode
+        ) != .terminalFailure else {
+            failCallTerminal(reason: reason)
+            return
+        }
+
+        hasUsedFreshRestartInCurrentFailureEpisode = true
+        recoveryPhase = .restarting(reason: reason)
+        connectionState = .connecting
+
+        let priorCallState = callState
+
+        // Tear down the current provider without ending the CallKit call
+        cancelTimers()
+        unsubscribeFromInputLevel()
+        audioManager.stopCapture()
+        audioManager.stopPlayback()
+        audioManager.setServerModelSpeaking(false)
+        cameraCapture.stopCapture()
+        broadcastReceiver.stopMonitoring()
+        activeInputSource = .none
+        let oldProvider = provider
+        provider = nil
+        oldProvider?.disconnect()
+
+        callState = priorCallState == .suspended ? .suspended : .active
+        isModelSpeaking = false
+
+        let apiKey = voiceApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else {
+            failCallTerminal(reason: "No voice API key configured.")
+            return
+        }
+
+        do {
+            let newProvider = RealtimeVoiceService.shared.createProvider(
+                backend: backend,
+                apiKey: apiKey,
+                model: selectedModel
+            )
+            self.provider = newProvider
+            wireProviderCallbacks(newProvider)
+
+            let systemPrompt = makeSystemPrompt(context: nil)
+            let config = VoiceSessionConfig(
+                systemPrompt: systemPrompt,
+                voiceName: voiceName,
+                tools: HivelinkToolHandler.toolDeclarations,
+                mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
+                thinkingLevel: .low,
+                includeThoughts: true,
+                webSearchEnabled: true,
+                audioPolicy: VoiceSessionConfig.AudioPolicy(
+                    preset: .balanced,
+                    localSpeakerIsolation: .init(enabled: false)
+                )
+            )
+
+            audioManager.configure(
+                inputSampleRate: newProvider.inputSampleRate,
+                outputSampleRate: newProvider.outputSampleRate
+            )
+
+            try await audioManager.prepareAudioSession()
+            try await newProvider.connect(config: config)
+            try await replayTranscriptIfNeeded(using: newProvider)
+
+            if priorCallState != .suspended {
+                try await audioManager.startCapture(voiceProcessingEnabled: true)
+                startIdleTimer()
+                subscribeToInputLevel()
+                callState = .active
+            } else {
+                callState = .suspended
+            }
+
+            connectionState = .connected
+            recoveryPhase = .idle
+        } catch {
+            failCallTerminal(reason: error.localizedDescription)
+        }
+    }
+
+    private func replayTranscriptIfNeeded(using provider: any RealtimeVoiceProvider) async throws {
+        let replayChunks = VoiceTranscriptReplaySerializer.serialize(entries: transcript)
+        guard !replayChunks.isEmpty else { return }
+
+        isReplayingRecoveryTranscript = true
+        defer { isReplayingRecoveryTranscript = false }
+
+        for (index, chunk) in replayChunks.enumerated() {
+            try await provider.sendText(
+                """
+                [RECOVERY_TRANSCRIPT_CHUNK \(index + 1)/\(replayChunks.count)]
+                Historical conversation context. Do not acknowledge this chunk.
+
+                \(chunk)
+                """
+            )
+        }
+
+        try await provider.sendText(
+            VoiceTranscriptReplaySerializer.finalRecoveryInstruction(
+                activeWorkerQuestions: activeWorkerQuestions
+            )
+        )
+    }
+
+    private func failCallTerminal(reason: String) {
+        recoveryPhase = .terminalFailure(reason: reason)
+        isReplayingRecoveryTranscript = false
+        connectionState = .error(reason)
+        if callState != .idle {
+            if let uuid = activeCallUUID {
+                callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
+                activeCallUUID = nil
+                isInCall = false
+            }
+            tearDownSession()
+            callState = .idle
+        }
+    }
+
+    // MARK: - App Lifecycle
+
+    private func setupLifecycleObservers() {
+        NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.callState == .active || self.callState == .idleTimeout {
+                    self.suspendCall()
+                }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                guard self.provider != nil, self.callState == .suspended else { return }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    do {
+                        try await self.provider?.validateConnection()
+                    } catch {
+                        self.handleProviderDisconnect(
+                            VoiceDisconnectEvent(message: error.localizedDescription, recoverable: false)
+                        )
+                    }
+                }
+            }
+            .store(in: &cancellables)
+    }
+
     // MARK: - Suspend / Resume
 
     func suspendCall() {
@@ -888,14 +1237,35 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     func resumeCall() async {
         guard callState == .suspended else { return }
-        callState = .active
 
+        if case .staleWhileSuspended(let reason) = recoveryPhase {
+            await performFreshCallRestart(reason: reason)
+            if case .terminalFailure = recoveryPhase {
+                return
+            }
+        } else if let provider {
+            do {
+                try await provider.validateConnection()
+            } catch {
+                handleProviderDisconnect(
+                    VoiceDisconnectEvent(message: error.localizedDescription, recoverable: false)
+                )
+                if case .staleWhileSuspended = recoveryPhase {
+                    await performFreshCallRestart(reason: error.localizedDescription)
+                    if case .terminalFailure = recoveryPhase {
+                        return
+                    }
+                }
+            }
+        }
+
+        callState = .active
         audioManager.configure(
             inputSampleRate: provider?.inputSampleRate ?? 16000,
             outputSampleRate: provider?.outputSampleRate ?? 24000
         )
         try? await audioManager.startCapture(voiceProcessingEnabled: true)
-
+        recoveryPhase = .idle
         startIdleTimer()
         subscribeToInputLevel()
     }
@@ -969,6 +1339,7 @@ struct TranscriptEntry: Identifiable, Equatable {
     enum Content: Equatable {
         case text(String)
         case toolUse(ToolUseRecord)
+        case deliverables(workerName: String, filePaths: [String])
     }
 
     let id = UUID()
@@ -980,6 +1351,8 @@ struct TranscriptEntry: Identifiable, Equatable {
         switch content {
         case .text(let str): return str
         case .toolUse(let record): return record.summary
+        case .deliverables(let worker, let paths):
+            return "\(worker) — \(paths.count) file\(paths.count == 1 ? "" : "s")"
         }
     }
 
@@ -989,6 +1362,10 @@ struct TranscriptEntry: Identifiable, Equatable {
 
     static func toolUse(_ record: ToolUseRecord, timestamp: Date = Date()) -> TranscriptEntry {
         TranscriptEntry(role: .tool, content: .toolUse(record), timestamp: timestamp)
+    }
+
+    static func deliverables(workerName: String, filePaths: [String], timestamp: Date = Date()) -> TranscriptEntry {
+        TranscriptEntry(role: .tool, content: .deliverables(workerName: workerName, filePaths: filePaths), timestamp: timestamp)
     }
 }
 

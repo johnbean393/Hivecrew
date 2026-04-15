@@ -428,13 +428,12 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         )
 
         for task in tasks {
-            let elapsed = task.startedAt.map { Int(now.timeIntervalSince($0)) } ?? 0
             let needsAttention = task.status == .paused || task.status == .planReview || task.status == .writebackReview
             let attentionMessage: String? = needsAttention ? task.status.displayName : nil
 
             let contentState = TaskActivityAttributes.ContentState(
                 status: task.status.displayName,
-                elapsedSeconds: max(elapsed, 0),
+                completionPercent: todoCompletionPercent(for: task),
                 stepCount: nil,
                 needsAttention: needsAttention,
                 attentionMessage: attentionMessage
@@ -473,7 +472,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             liveActivities.removeValue(forKey: taskId)
             let endState = TaskActivityAttributes.ContentState(
                 status: "Removed",
-                elapsedSeconds: 0,
+                completionPercent: nil,
                 stepCount: nil,
                 needsAttention: false,
                 attentionMessage: nil
@@ -491,7 +490,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 nonisolated(unsafe) let sendableActivity = systemActivity
                 let endState = TaskActivityAttributes.ContentState(
                     status: "Ended",
-                    elapsedSeconds: 0,
+                    completionPercent: nil,
                     stepCount: nil,
                     needsAttention: false,
                     attentionMessage: nil
@@ -500,6 +499,39 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 Task { await sendableActivity.end(finalContent, dismissalPolicy: .immediate) }
             }
         }
+    }
+
+    private func todoCompletionPercent(for task: TaskRecord) -> Int? {
+        guard let plan = task.planMarkdown, !plan.isEmpty else { return nil }
+
+        let pattern = #"^\s*-\s*\[([ xX])\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .anchorsMatchLines) else { return nil }
+
+        let lines = plan.components(separatedBy: .newlines)
+        var total = 0
+        var preCompleted = 0
+        for line in lines {
+            let range = NSRange(line.startIndex..., in: line)
+            if let match = regex.firstMatch(in: line, range: range),
+               let stateRange = Range(match.range(at: 1), in: line) {
+                total += 1
+                if line[stateRange].lowercased() == "x" { preCompleted += 1 }
+            }
+        }
+        guard total > 0 else { return nil }
+
+        let events = peerConnectionManager?.events(for: task.id) ?? []
+        let finishCount = events.filter { event in
+            guard event.type == .toolCallResult else { return false }
+            let toolName = event.data["tool_name"]?.stringValue ?? ""
+            let summary = event.data["summary"]?.stringValue ?? ""
+            return toolName.contains("finish_todo")
+                || summary.contains("Plan item completed")
+                || (summary.contains("todo") && summary.contains("completed"))
+        }.count
+
+        let completed = min(preCompleted + finishCount, total)
+        return Int((Double(completed) / Double(total)) * 100)
     }
 
     private func startLiveActivity(for task: TaskRecord, state: TaskActivityAttributes.ContentState) {

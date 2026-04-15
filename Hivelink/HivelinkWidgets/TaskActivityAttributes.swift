@@ -17,7 +17,8 @@ struct TaskActivityAttributes: ActivityAttributes {
 
     struct ContentState: Codable, Hashable {
         var status: String
-        var elapsedSeconds: Int
+        /// 0–100 if the worker has a to-do list; nil otherwise.
+        var completionPercent: Int?
         var stepCount: Int?
         var needsAttention: Bool
         var attentionMessage: String?

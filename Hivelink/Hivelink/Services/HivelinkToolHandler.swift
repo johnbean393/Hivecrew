@@ -94,7 +94,10 @@ enum HivelinkToolHandler {
             )
 
         case "capture_reference":
-            return await handleCaptureReference(cameraCapture: cameraCapture)
+            return await handleCaptureReference(
+                cameraCapture: cameraCapture,
+                orchestrator: orchestrator
+            )
 
         case "get_deliverables":
             return handleGetDeliverables(
@@ -347,14 +350,28 @@ enum HivelinkToolHandler {
     // MARK: - Capture Reference
 
     private static func handleCaptureReference(
-        cameraCapture: CameraCaptureManager
+        cameraCapture: CameraCaptureManager,
+        orchestrator: HivelinkVoiceOrchestrator
     ) async -> HivelinkToolCallResult {
-        guard cameraCapture.isCapturing else {
-            return .textOnly("Error: No camera active. Ask the user to enable the camera via the input source picker.")
+        let data: Data?
+        let sourceName: String
+
+        switch orchestrator.activeInputSource {
+        case .camera:
+            guard cameraCapture.isCapturing else {
+                return .textOnly("Error: Camera is selected but not active yet. Wait a moment and try again.")
+            }
+            data = cameraCapture.captureStillFrame()
+            sourceName = "camera"
+        case .screenBroadcast:
+            data = orchestrator.broadcastReceiver.latestFrameData
+            sourceName = "screen broadcast"
+        case .none:
+            return .textOnly("Error: No video source active. Ask the user to enable the camera or screen broadcast via the input source picker.")
         }
 
-        guard let data = cameraCapture.captureStillFrame() else {
-            return .textOnly("Error: Failed to capture frame. The camera may not have produced any frames yet — wait a moment and try again.")
+        guard let data, !data.isEmpty else {
+            return .textOnly("Error: No frame available from \(sourceName) yet — wait a moment and try again.")
         }
 
         let tempURL = FileManager.default.temporaryDirectory
@@ -362,10 +379,10 @@ enum HivelinkToolHandler {
         do {
             try data.write(to: tempURL)
             let sizeKB = data.count / 1024
-            let result = "Reference captured (\(sizeKB) KB): \(tempURL.path)"
+            let result = "Reference captured from \(sourceName) (\(sizeKB) KB): \(tempURL.path)"
             let record = ToolUseRecord(
                 toolName: "capture_reference",
-                summary: "Captured reference image (\(sizeKB) KB)",
+                summary: "Captured reference from \(sourceName) (\(sizeKB) KB)",
                 detail: result,
                 fileResults: [],
                 previewFilePath: tempURL.path

@@ -41,6 +41,7 @@ struct TaskListView: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             PromptBar(tabSelection: $tabSelection)
+                .padding(.vertical, 6)
         }
         .alert(String(localized: "Couldn't create task"), isPresented: Binding(
             get: { sendError != nil },

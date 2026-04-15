@@ -19,6 +19,10 @@ final class iOSScreenBroadcastReceiver: ObservableObject {
 
     @Published private(set) var isReceiving = false
 
+    /// Most recent JPEG frame from the broadcast extension, available for
+    /// on-demand capture by tools like `capture_reference`.
+    private(set) var latestFrameData: Data?
+
     var onFrameReceived: ((Data) -> Void)?
 
     private var pollTimer: Timer?
@@ -50,6 +54,7 @@ final class iOSScreenBroadcastReceiver: ObservableObject {
         pollTimer = nil
         isReceiving = false
         lastFrameIndex = -1
+        latestFrameData = nil
     }
 
     private func pollForNewFrame() {
@@ -74,6 +79,7 @@ final class iOSScreenBroadcastReceiver: ObservableObject {
         guard let data = try? Data(contentsOf: frameURL) else { return }
 
         lastFrameIndex = frameIndex
+        latestFrameData = data
         onFrameReceived?(data)
     }
 }

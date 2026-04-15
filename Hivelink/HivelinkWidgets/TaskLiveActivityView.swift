@@ -26,15 +26,19 @@ struct TaskLiveActivity: Widget {
                             .lineLimit(1)
                         HStack(spacing: 6) {
                             statusPill(context.state.status)
-                            Text(formattedElapsed(context.state.elapsedSeconds))
-                                .font(.caption)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
+                            if let pct = context.state.completionPercent {
+                                Text("\(pct)%")
+                                    .font(.caption.bold())
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let steps = context.state.stepCount {
+                    if let pct = context.state.completionPercent {
+                        completionRing(percent: pct)
+                    } else if let steps = context.state.stepCount {
                         VStack(spacing: 0) {
                             Text("\(steps)")
                                 .font(.title3.bold())
@@ -59,9 +63,13 @@ struct TaskLiveActivity: Widget {
             } compactLeading: {
                 statusIndicator(for: context.state.status)
             } compactTrailing: {
-                Text(formattedElapsed(context.state.elapsedSeconds))
-                    .font(.caption2)
-                    .monospacedDigit()
+                if let pct = context.state.completionPercent {
+                    Text("\(pct)%")
+                        .font(.caption2.bold())
+                        .monospacedDigit()
+                } else {
+                    statusPill(context.state.status)
+                }
             } minimal: {
                 statusIndicator(for: context.state.status)
             }
@@ -94,14 +102,8 @@ struct TaskLiveActivity: Widget {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(formattedElapsed(context.state.elapsedSeconds))
-                    .font(.subheadline.monospacedDigit())
-                if let steps = context.state.stepCount {
-                    Text("\(steps) steps")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            if let pct = context.state.completionPercent {
+                completionRing(percent: pct)
             }
         }
         .padding(16)
@@ -135,13 +137,18 @@ struct TaskLiveActivity: Widget {
         }
     }
 
-    private func formattedElapsed(_ seconds: Int) -> String {
-        let h = seconds / 3600
-        let m = (seconds % 3600) / 60
-        let s = seconds % 60
-        if h > 0 {
-            return String(format: "%d:%02d:%02d", h, m, s)
+    private func completionRing(percent: Int) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: Double(percent) / 100.0)
+                .stroke(Color.green, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(percent)%")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .monospacedDigit()
         }
-        return String(format: "%d:%02d", m, s)
+        .frame(width: 34, height: 34)
     }
 }

@@ -29,7 +29,7 @@ struct VoiceOrbView: View {
     private var isCameraActive: Bool { cameraSession != nil }
 
     private var effectiveSize: CGFloat {
-        isCameraActive ? size * 1.8 : size
+        isCameraActive ? size * 2.34 : size
     }
 
     private var cornerRadius: CGFloat {

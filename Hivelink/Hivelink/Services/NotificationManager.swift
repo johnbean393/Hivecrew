@@ -174,7 +174,9 @@ final class NotificationManager: NSObject, ObservableObject {
     }
 
     private func sendTokenToServer(_ token: String) {
-        // TODO: Send APNs device token to the Worker API
+        Task {
+            await IncomingCallManager.registerPushToken(voipToken: nil, apnsToken: token)
+        }
     }
 
     // MARK: - Local Notifications
