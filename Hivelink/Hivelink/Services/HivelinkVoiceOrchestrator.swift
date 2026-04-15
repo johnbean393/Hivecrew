@@ -16,20 +16,12 @@ import HivecrewAPIModels
 import HivecrewCore
 import HivecrewVoice
 
-// MARK: - Incoming Call Context
-
-struct IncomingCallContext {
-    let triggerEvent: String
-    let taskId: String?
-    let workerName: String?
-    let summary: String?
-}
-
 // MARK: - Input Source
 
 enum VoiceInputSource: String, CaseIterable, Identifiable {
     case none
     case camera
+    case screenBroadcast
 
     var id: String { rawValue }
 
@@ -37,6 +29,7 @@ enum VoiceInputSource: String, CaseIterable, Identifiable {
         switch self {
         case .none: return "None"
         case .camera: return "Camera"
+        case .screenBroadcast: return "Screen Broadcast"
         }
     }
 
@@ -44,6 +37,7 @@ enum VoiceInputSource: String, CaseIterable, Identifiable {
         switch self {
         case .none: return "mic.fill"
         case .camera: return "camera.fill"
+        case .screenBroadcast: return "rectangle.inset.filled.and.person.filled"
         }
     }
 }
@@ -78,6 +72,16 @@ private final class CallKitDelegate: NSObject, CXProviderDelegate {
         }
     }
 
+    func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        Task { @MainActor [weak self] in
+            guard let orchestrator = self?.orchestrator else {
+                action.fail()
+                return
+            }
+            await orchestrator.handleAnswerCallAction(action)
+        }
+    }
+
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor [weak self] in
             self?.orchestrator?.handleEndCallAction(action)
@@ -107,11 +111,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     private(set) var provider: (any RealtimeVoiceProvider)?
     let audioManager = AudioManager()
     let cameraCapture = CameraCaptureManager()
+    let broadcastReceiver = iOSScreenBroadcastReceiver()
     let workerRegistry = WorkerRegistry()
 
     // MARK: - CallKit
 
-    private let callKitProvider: CXProvider
+    let callKitProvider: CXProvider
     private let callController = CXCallController()
     private let callKitDelegate: CallKitDelegate
     private var activeCallUUID: UUID?
@@ -122,9 +127,14 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     // MARK: - External Dependencies
 
     private(set) weak var taskService: HivelinkTaskService?
+    private(set) weak var incomingCallManager: IncomingCallManager?
 
     func configure(taskService: HivelinkTaskService) {
         self.taskService = taskService
+    }
+
+    func configure(incomingCallManager: IncomingCallManager) {
+        self.incomingCallManager = incomingCallManager
     }
 
     // MARK: - Published State
@@ -274,7 +284,24 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         }
     }
 
+    fileprivate func handleAnswerCallAction(_ action: CXAnswerCallAction) async {
+        let context = incomingCallManager?.contextForAnsweredCall(uuid: action.callUUID)
+
+        activeCallUUID = action.callUUID
+        isInCall = true
+        HapticManager.incomingCallAnswered()
+        action.fulfill()
+
+        await startSession(context: context)
+    }
+
     fileprivate func handleEndCallAction(_ action: CXEndCallAction) {
+        // Check if this is a declined incoming call (never answered).
+        if callState == .idle, let incomingCallManager {
+            incomingCallManager.handleDeclinedCall(uuid: action.callUUID)
+            action.fulfill()
+            return
+        }
         endSession()
         action.fulfill()
     }
@@ -359,6 +386,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             try await audioManager.prepareAudioSession()
             try await provider.connect(config: config)
             connectionState = .connected
+            HapticManager.voiceSessionConnected()
             startIdleTimer()
             subscribeToInputLevel()
             subscribeToTaskEvents()
@@ -381,6 +409,35 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         isModelSpeaking = false
     }
 
+    // MARK: - Inline Delivery (during active call)
+
+    /// Injects a text update into the active voice session when a VoIP push
+    /// is suppressed because the user is already in a call.
+    func deliverInlineUpdate(context: IncomingCallContext) {
+        guard callState == .active || callState == .suspended else { return }
+        let message: String
+        switch context.trigger {
+        case .completed:
+            message = "[INLINE_UPDATE] By the way, \(context.workerName) just finished: \(context.summary)"
+        case .failed:
+            message = "[INLINE_UPDATE] Heads up — \(context.workerName) failed: \(context.summary)"
+        case .question:
+            message = "[INLINE_UPDATE] \(context.workerName) has a question: \(context.summary)"
+        case .permission:
+            message = "[INLINE_UPDATE] \(context.workerName) needs permission: \(context.summary)"
+        case .planReady:
+            message = "[INLINE_UPDATE] A plan is ready for review: \(context.summary)"
+        case .writebackReady:
+            message = "[INLINE_UPDATE] Changes are ready for review: \(context.summary)"
+        case .allTasksDone:
+            message = "[INLINE_UPDATE] All tasks are now done. \(context.summary)"
+        }
+        Task {
+            await resumeIfSuspended()
+            try? await provider?.sendText(message)
+        }
+    }
+
     private func tearDownSession() {
         pendingEndCall = false
         cancelTimers()
@@ -389,6 +446,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         audioManager.stopCapture()
         audioManager.stopPlayback()
         cameraCapture.stopCapture()
+        broadcastReceiver.stopMonitoring()
         activeInputSource = .none
 
         let activeProvider = provider
@@ -408,16 +466,10 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
         if let context {
             var callReason = "\n\n## [CALL REASON]\n"
-            callReason += "You are calling the user because: \(context.triggerEvent)"
-            if let taskId = context.taskId {
-                callReason += "\nTask ID: \(taskId)"
-            }
-            if let workerName = context.workerName {
-                callReason += "\nWorker: \(workerName)"
-            }
-            if let summary = context.summary {
-                callReason += "\nSummary: \(summary)"
-            }
+            callReason += "You are calling the user because: \(context.trigger.rawValue)"
+            callReason += "\nTask ID: \(context.taskId)"
+            callReason += "\nWorker: \(context.workerName)"
+            callReason += "\nSummary: \(context.summary)"
             callReason += "\nAddress this reason naturally at the start of the conversation."
             prompt += callReason
         }
@@ -544,6 +596,11 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 try? await self?.provider?.sendVideoFrame(data)
             }
         }
+        broadcastReceiver.onFrameReceived = { [weak self] data in
+            Task { @MainActor [weak self] in
+                try? await self?.provider?.sendVideoFrame(data)
+            }
+        }
     }
 
     // MARK: - Transcription
@@ -623,13 +680,23 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         if oldSource == .camera && source != .camera {
             cameraCapture.stopCapture()
         }
+        if oldSource == .screenBroadcast && source != .screenBroadcast {
+            broadcastReceiver.stopMonitoring()
+        }
 
-        if source == .camera && !cameraCapture.isCapturing {
-            do {
-                try await cameraCapture.startCapture()
-            } catch {
-                activeInputSource = .none
+        switch source {
+        case .camera:
+            if !cameraCapture.isCapturing {
+                do {
+                    try await cameraCapture.startCapture()
+                } catch {
+                    activeInputSource = .none
+                }
             }
+        case .screenBroadcast:
+            broadcastReceiver.startMonitoring()
+        case .none:
+            break
         }
     }
 
@@ -813,6 +880,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         audioManager.stopPlayback()
         audioManager.setServerModelSpeaking(false)
         cameraCapture.stopCapture()
+        broadcastReceiver.stopMonitoring()
         activeInputSource = .none
         callState = .suspended
         isModelSpeaking = false

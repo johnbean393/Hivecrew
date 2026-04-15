@@ -647,6 +647,8 @@ struct PromptBar: View {
             planFirstEnabled: planFirstEnabled
         )
 
+        HapticManager.submitPrompt()
+
         do {
             _ = try await taskService.createTasks([request])
             text = ""

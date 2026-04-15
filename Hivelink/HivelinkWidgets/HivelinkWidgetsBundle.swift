@@ -9,6 +9,9 @@ import WidgetKit
 @main
 struct HivelinkWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        HivelinkWidgets()
+        ActiveTasksWidget()
+        ClusterStatusWidget()
+        ActiveTaskCountAccessoryWidget()
+        TaskLiveActivity()
     }
 }

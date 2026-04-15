@@ -9,10 +9,11 @@ import SwiftData
 import SwiftUI
 
 struct ContentView: View {
-    @State private var tabSelection = 0
+    @Binding var tabSelection: Int
 
     @EnvironmentObject private var taskService: HivelinkTaskService
     @EnvironmentObject private var peerConnectionManager: PeerConnectionManager
+    @EnvironmentObject private var voiceOrchestrator: HivelinkVoiceOrchestrator
 
     @State private var presentedQuestion: PendingQuestionContext?
     @State private var lastPresentedQuestionId: String?
@@ -63,11 +64,17 @@ struct ContentView: View {
                 presentedQuestion = nil
             }
 
-            guard presentedQuestion == nil else { return }
+            let voiceActive = voiceOrchestrator.callState != .idle
+            guard presentedQuestion == nil, !voiceActive else { return }
             if let (taskId, question) = questions.first(where: { !dismissedQuestionIds.contains($0.value.id) }),
                let task = taskService.getTask(byId: taskId) {
                 presentedQuestion = PendingQuestionContext(task: task, question: question)
                 lastPresentedQuestionId = question.id
+            }
+        }
+        .onChange(of: voiceOrchestrator.callState) { _, newState in
+            if newState != .idle, presentedQuestion != nil {
+                presentedQuestion = nil
             }
         }
         .sheet(item: $presentedQuestion, onDismiss: {
@@ -209,7 +216,7 @@ private struct AgentQuestionSheet: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(tabSelection: .constant(0))
         .environmentObject(RemoteAccessAuthManager())
         .environmentObject(HivelinkClusterCoordinator())
         .environmentObject(

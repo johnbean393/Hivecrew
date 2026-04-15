@@ -8,6 +8,7 @@
 
 import AVFoundation
 import HivecrewVoice
+import ReplayKit
 import SwiftUI
 
 struct InputSourcePickerView: View {
@@ -56,6 +57,28 @@ struct InputSourcePickerView: View {
                         }
                     }
                 }
+
+                Section("Screen Broadcast") {
+                    Button {
+                        Task {
+                            await orchestrator.setInputSource(.screenBroadcast)
+                        }
+                    } label: {
+                        HStack {
+                            Label("Share Screen", systemImage: "rectangle.inset.filled.and.person.filled")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if orchestrator.activeInputSource == .screenBroadcast {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+
+                    BroadcastPickerView()
+                        .frame(height: 44)
+                }
             }
             .navigationTitle("Video Source")
             .navigationBarTitleDisplayMode(.inline)
@@ -68,6 +91,19 @@ struct InputSourcePickerView: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
     }
+}
+
+// MARK: - Broadcast Picker
+
+struct BroadcastPickerView: UIViewRepresentable {
+    func makeUIView(context: Context) -> RPSystemBroadcastPickerView {
+        let picker = RPSystemBroadcastPickerView()
+        picker.preferredExtension = "com.pattonium.Hivelink.HivelinkBroadcast"
+        picker.showsMicrophoneButton = false
+        return picker
+    }
+
+    func updateUIView(_ uiView: RPSystemBroadcastPickerView, context: Context) {}
 }
 
 // MARK: - Camera Preview

@@ -5,12 +5,16 @@
 //  SwiftData-backed task list, remote dispatch host, and peer task actions.
 //
 
+import ActivityKit
 import Combine
+import CoreSpotlight
 import Foundation
 import HivecrewAPIModels
 import HivecrewCore
 import SwiftData
 import UIKit
+import UniformTypeIdentifiers
+import WidgetKit
 
 // MARK: - Task service
 
@@ -32,6 +36,12 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
     /// Long-running reconciliation loop; cancelled in `stopReconciliation()` (cannot use `Timer` + `deinit` with `@MainActor` isolation).
     private var reconciliationTask: Task<Void, Never>?
+
+    /// Tracks Live Activities for running tasks, keyed by `TaskRecord.id`.
+    private var liveActivities: [String: Activity<TaskActivityAttributes>] = [:]
+
+    /// Task IDs that already triggered a terminal haptic, to avoid repeating.
+    private var terminalHapticFired: Set<String> = []
 
     init(
         modelContext: ModelContext,
@@ -72,6 +82,9 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         await dispatcher.reconcileRemoteTasks()
         refreshTasks()
         await peerConnectionManager?.syncMonitoring(tasks: tasks)
+        syncLiveActivities()
+        writeSharedDataForWidgets()
+        indexAllTasksInSpotlight()
     }
 
     private func startReconciliation() {
@@ -81,6 +94,8 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             while !Task.isCancelled {
                 await self.dispatcher.reconcileRemoteTasks()
                 await self.peerConnectionManager?.syncMonitoring(tasks: self.tasks)
+                self.syncLiveActivities()
+                self.writeSharedDataForWidgets()
                 do {
                     try await Task.sleep(nanoseconds: 5_000_000_000)
                 } catch {
@@ -172,8 +187,10 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
         try modelContext.save()
         refreshTasks()
+        HapticManager.taskCreated()
 
         for task in created {
+            indexTaskInSpotlight(task)
             Task {
                 await dispatcher.dispatchQueuedCanonicalTaskToPeer(task)
             }
@@ -187,6 +204,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         modelContext.delete(task)
         try? modelContext.save()
         refreshTasks()
+        removeTaskFromSpotlight(taskId)
         Task {
             await remoteTaskIndex.remove(canonicalTaskId: taskId)
         }
@@ -370,6 +388,154 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             try? modelContext.save()
         }
         return success
+    }
+
+    // MARK: - Live Activities
+
+    private func syncLiveActivities() {
+        let now = Date()
+
+        for task in tasks {
+            let elapsed = task.startedAt.map { Int(now.timeIntervalSince($0)) } ?? 0
+            let needsAttention = task.status == .paused || task.status == .planReview || task.status == .writebackReview
+            let attentionMessage: String? = needsAttention ? task.status.displayName : nil
+
+            let contentState = TaskActivityAttributes.ContentState(
+                status: task.status.displayName,
+                elapsedSeconds: max(elapsed, 0),
+                stepCount: nil,
+                needsAttention: needsAttention,
+                attentionMessage: attentionMessage
+            )
+
+            if task.status == .running || task.status == .planning || task.status == .paused || task.status == .waitingForVM {
+                if let activity = liveActivities[task.id] {
+                    let content = ActivityContent(state: contentState, staleDate: now.addingTimeInterval(15))
+                    Task { await activity.update(content) }
+                } else {
+                    startLiveActivity(for: task, state: contentState)
+                }
+            } else if task.status.isTerminal {
+                if terminalHapticFired.insert(task.id).inserted {
+                    switch task.status {
+                    case .completed:
+                        HapticManager.taskCompleted()
+                    case .failed, .timedOut, .maxIterations, .planFailed:
+                        HapticManager.taskFailed()
+                    default:
+                        break
+                    }
+                }
+                if let activity = liveActivities.removeValue(forKey: task.id) {
+                    let finalContent = ActivityContent(state: contentState, staleDate: nil)
+                    Task { await activity.end(finalContent, dismissalPolicy: .after(now.addingTimeInterval(300))) }
+                }
+            }
+        }
+
+        let activeTaskIds = Set(tasks.map(\.id))
+        for (taskId, activity) in liveActivities where !activeTaskIds.contains(taskId) {
+            liveActivities.removeValue(forKey: taskId)
+            let endState = TaskActivityAttributes.ContentState(
+                status: "Removed",
+                elapsedSeconds: 0,
+                stepCount: nil,
+                needsAttention: false,
+                attentionMessage: nil
+            )
+            let finalContent = ActivityContent(state: endState, staleDate: nil)
+            Task { await activity.end(finalContent, dismissalPolicy: .immediate) }
+        }
+    }
+
+    private func startLiveActivity(for task: TaskRecord, state: TaskActivityAttributes.ContentState) {
+        let attributes = TaskActivityAttributes(
+            taskId: task.id,
+            taskTitle: task.title,
+            peerName: task.clusterPeerName ?? "",
+            createdAt: task.createdAt
+        )
+        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(15))
+
+        do {
+            let activity = try Activity.request(
+                attributes: attributes,
+                content: content,
+                pushType: nil
+            )
+            liveActivities[task.id] = activity
+        } catch {
+            // Live Activities may be disabled or unavailable
+        }
+    }
+
+    // MARK: - Shared data for widgets
+
+    func writeSharedDataForWidgets() {
+        let summaries = tasks.map { task in
+            SharedTaskSummary(
+                id: task.id,
+                title: task.title,
+                statusName: task.status.displayName,
+                statusColor: task.status.statusColor,
+                peerName: task.clusterPeerName,
+                startedAt: task.startedAt,
+                isActive: task.status.isActive
+            )
+        }
+        SharedDataWriter.writeTaskSummaries(summaries)
+
+        if let coordinator = clusterCoordinator {
+            let peers = coordinator.peers
+            let onlineCount = peers.filter { $0.status == .online }.count
+            let totalSlots = peers.reduce(0) { $0 + $1.availableSlots }
+            let totalRunning = peers.reduce(0) { $0 + $1.runningTasks }
+            let cluster = SharedClusterStatus(
+                peerCount: peers.count,
+                onlinePeerCount: onlineCount,
+                totalAvailableSlots: totalSlots,
+                totalRunningTasks: totalRunning
+            )
+            SharedDataWriter.writeClusterStatus(cluster)
+        }
+
+        SharedDataWriter.reloadWidgets()
+    }
+
+    // MARK: - Spotlight Indexing
+
+    func indexTaskInSpotlight(_ task: TaskRecord) {
+        let attributeSet = CSSearchableItemAttributeSet(contentType: .text)
+        attributeSet.title = task.title
+        attributeSet.contentDescription = task.taskDescription
+        attributeSet.keywords = [task.status.displayName]
+
+        let item = CSSearchableItem(
+            uniqueIdentifier: task.id,
+            domainIdentifier: "tasks",
+            attributeSet: attributeSet
+        )
+        CSSearchableIndex.default().indexSearchableItems([item])
+    }
+
+    func indexAllTasksInSpotlight() {
+        let items = tasks.map { task -> CSSearchableItem in
+            let attributeSet = CSSearchableItemAttributeSet(contentType: .text)
+            attributeSet.title = task.title
+            attributeSet.contentDescription = task.taskDescription
+            attributeSet.keywords = [task.status.displayName]
+            return CSSearchableItem(
+                uniqueIdentifier: task.id,
+                domainIdentifier: "tasks",
+                attributeSet: attributeSet
+            )
+        }
+        guard !items.isEmpty else { return }
+        CSSearchableIndex.default().indexSearchableItems(items)
+    }
+
+    private func removeTaskFromSpotlight(_ taskId: String) {
+        CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [taskId])
     }
 
     // MARK: - Private helpers

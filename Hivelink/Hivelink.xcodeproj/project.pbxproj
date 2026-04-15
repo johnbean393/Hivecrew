@@ -19,7 +19,6 @@
 		21F160032F90000300000003 /* HivelinkBroadcast.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21F130042F90010400000104 /* HivelinkBroadcast.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		21F160042F90000400000004 /* HivelinkWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21F140062F90020600000206 /* HivelinkWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		21F160052F90000500000005 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F130012F90010100000101 /* SampleHandler.swift */; };
-		21F160062F90000600000006 /* HivelinkWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F140012F90020100000201 /* HivelinkWidgets.swift */; };
 		21F160072F90000700000007 /* HivelinkWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */; };
 		21F160082F90000800000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 21F140052F90020500000205 /* Assets.xcassets */; };
 		21F160092F90000900000009 /* HivecrewAPIModels in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151032F90001300000013 /* HivecrewAPIModels */; };
@@ -50,6 +49,25 @@
 		21F7A1092F90610900007009 /* TranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A1082F90610800007008 /* TranscriptView.swift */; };
 		21F7A10B2F90610B0000700B /* VoiceSetupFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A10A2F90610A0000700A /* VoiceSetupFlowView.swift */; };
 		21F7A10D2F90610D0000700D /* InputSourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A10C2F90610C0000700C /* InputSourcePickerView.swift */; };
+		21FA00112FA0011100000011 /* SharedWidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00012FA0010100000001 /* SharedWidgetData.swift */; };
+		21FA00122FA0011200000012 /* TaskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00022FA0010200000002 /* TaskActivityAttributes.swift */; };
+		21FA00132FA0011300000013 /* AppDependencyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00032FA0010300000003 /* AppDependencyManager.swift */; };
+		21FA00142FA0011400000014 /* CreateTaskIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00042FA0010400000004 /* CreateTaskIntent.swift */; };
+		21FA00152FA0011500000015 /* StartVoiceSessionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00052FA0010500000005 /* StartVoiceSessionIntent.swift */; };
+		21FA00162FA0011600000016 /* GetTaskStatusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00062FA0010600000006 /* GetTaskStatusIntent.swift */; };
+		21FA00172FA0011700000017 /* HivelinkShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00072FA0010700000007 /* HivelinkShortcuts.swift */; };
+		21FA00212FA0012100000021 /* SharedWidgetData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00082FA0010800000008 /* SharedWidgetData.swift */; };
+		21FA00222FA0012200000022 /* TaskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA00092FA0010900000009 /* TaskActivityAttributes.swift */; };
+		21FA00232FA0012300000023 /* TaskLiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA000A2FA0010A0000000A /* TaskLiveActivityView.swift */; };
+		21FA00242FA0012400000024 /* ActiveTasksWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA000B2FA0010B0000000B /* ActiveTasksWidget.swift */; };
+		21FA00252FA0012500000025 /* ClusterStatusWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA000C2FA0010C0000000C /* ClusterStatusWidget.swift */; };
+		21FA00262FA0012600000026 /* ActiveTaskCountAccessoryWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FA000D2FA0010D0000000D /* ActiveTaskCountAccessoryWidget.swift */; };
+		21FB00312FB0013100100031 /* iOSScreenBroadcastReceiver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00212FB0012100100021 /* iOSScreenBroadcastReceiver.swift */; };
+		21FB00322FB0013200100032 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00222FB0012200100022 /* HapticManager.swift */; };
+		21FB00332FB0013300100033 /* HivelinkFocusFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00232FB0012300100023 /* HivelinkFocusFilter.swift */; };
+		21FB00342FB0013400100034 /* IncomingCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00242FB0012400100024 /* IncomingCallManager.swift */; };
+		21FB00352FB0013500100035 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00252FB0012500100025 /* NotificationManager.swift */; };
+		21FB00362FB0013600100036 /* IncomingCallContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00262FB0012600100026 /* IncomingCallContext.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -125,7 +143,6 @@
 		21F130022F90010200000102 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		21F130042F90010400000104 /* HivelinkBroadcast.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HivelinkBroadcast.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		21F130052F90010500000105 /* HivelinkBroadcast.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HivelinkBroadcast.entitlements; sourceTree = "<group>"; };
-		21F140012F90020100000201 /* HivelinkWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkWidgets.swift; sourceTree = "<group>"; };
 		21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkWidgetsBundle.swift; sourceTree = "<group>"; };
 		21F140032F90020300000203 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		21F140052F90020500000205 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -157,6 +174,25 @@
 		21F7A1082F90610800007008 /* TranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptView.swift; sourceTree = "<group>"; };
 		21F7A10A2F90610A0000700A /* VoiceSetupFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSetupFlowView.swift; sourceTree = "<group>"; };
 		21F7A10C2F90610C0000700C /* InputSourcePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourcePickerView.swift; sourceTree = "<group>"; };
+		21FA00012FA0010100000001 /* SharedWidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedWidgetData.swift; sourceTree = "<group>"; };
+		21FA00022FA0010200000002 /* TaskActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskActivityAttributes.swift; sourceTree = "<group>"; };
+		21FA00032FA0010300000003 /* AppDependencyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencyManager.swift; sourceTree = "<group>"; };
+		21FA00042FA0010400000004 /* CreateTaskIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateTaskIntent.swift; sourceTree = "<group>"; };
+		21FA00052FA0010500000005 /* StartVoiceSessionIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartVoiceSessionIntent.swift; sourceTree = "<group>"; };
+		21FA00062FA0010600000006 /* GetTaskStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetTaskStatusIntent.swift; sourceTree = "<group>"; };
+		21FA00072FA0010700000007 /* HivelinkShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkShortcuts.swift; sourceTree = "<group>"; };
+		21FA00082FA0010800000008 /* SharedWidgetData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedWidgetData.swift; sourceTree = "<group>"; };
+		21FA00092FA0010900000009 /* TaskActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskActivityAttributes.swift; sourceTree = "<group>"; };
+		21FA000A2FA0010A0000000A /* TaskLiveActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskLiveActivityView.swift; sourceTree = "<group>"; };
+		21FA000B2FA0010B0000000B /* ActiveTasksWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveTasksWidget.swift; sourceTree = "<group>"; };
+		21FA000C2FA0010C0000000C /* ClusterStatusWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterStatusWidget.swift; sourceTree = "<group>"; };
+		21FA000D2FA0010D0000000D /* ActiveTaskCountAccessoryWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveTaskCountAccessoryWidget.swift; sourceTree = "<group>"; };
+		21FB00212FB0012100100021 /* iOSScreenBroadcastReceiver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSScreenBroadcastReceiver.swift; sourceTree = "<group>"; };
+		21FB00222FB0012200100022 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		21FB00232FB0012300100023 /* HivelinkFocusFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkFocusFilter.swift; sourceTree = "<group>"; };
+		21FB00242FB0012400100024 /* IncomingCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingCallManager.swift; sourceTree = "<group>"; };
+		21FB00252FB0012500100025 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		21FB00262FB0012600100026 /* IncomingCallContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingCallContext.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -274,6 +310,8 @@
 			isa = PBXGroup;
 			children = (
 				21F110012F900A0100000A01 /* .gitkeep */,
+				21FB00262FB0012600100026 /* IncomingCallContext.swift */,
+				21FA00012FA0010100000001 /* SharedWidgetData.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -283,11 +321,15 @@
 			children = (
 				21F110022F900A0200000A02 /* .gitkeep */,
 				21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */,
+				21FB00222FB0012200100022 /* HapticManager.swift */,
 				21F2A1012F90100100001001 /* HivelinkClusterCoordinator.swift */,
 				21F2C2012F90110100002101 /* HivelinkTaskService.swift */,
 				21F7A1002F90610000007000 /* HivelinkToolHandler.swift */,
 				21F7A1022F90610200007002 /* HivelinkVoiceOrchestrator.swift */,
+				21FB00242FB0012400100024 /* IncomingCallManager.swift */,
+				21FB00252FB0012500100025 /* NotificationManager.swift */,
 				21F4D1012F90310100004001 /* PeerConnectionManager.swift */,
+				21FB00212FB0012100100021 /* iOSScreenBroadcastReceiver.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -368,6 +410,12 @@
 			isa = PBXGroup;
 			children = (
 				21F110082F900A0800000A08 /* .gitkeep */,
+				21FA00032FA0010300000003 /* AppDependencyManager.swift */,
+				21FA00042FA0010400000004 /* CreateTaskIntent.swift */,
+				21FA00062FA0010600000006 /* GetTaskStatusIntent.swift */,
+				21FB00232FB0012300100023 /* HivelinkFocusFilter.swift */,
+				21FA00072FA0010700000007 /* HivelinkShortcuts.swift */,
+				21FA00052FA0010500000005 /* StartVoiceSessionIntent.swift */,
 			);
 			path = Intents;
 			sourceTree = "<group>";
@@ -384,6 +432,7 @@
 			isa = PBXGroup;
 			children = (
 				21F1100A2F900A0A00000A0A /* .gitkeep */,
+				21FA00022FA0010200000002 /* TaskActivityAttributes.swift */,
 			);
 			path = LiveActivity;
 			sourceTree = "<group>";
@@ -401,8 +450,13 @@
 		21F140002F90020000000200 /* HivelinkWidgets */ = {
 			isa = PBXGroup;
 			children = (
-				21F140012F90020100000201 /* HivelinkWidgets.swift */,
+				21FA000B2FA0010B0000000B /* ActiveTasksWidget.swift */,
+				21FA000D2FA0010D0000000D /* ActiveTaskCountAccessoryWidget.swift */,
+				21FA000C2FA0010C0000000C /* ClusterStatusWidget.swift */,
 				21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */,
+				21FA00082FA0010800000008 /* SharedWidgetData.swift */,
+				21FA00092FA0010900000009 /* TaskActivityAttributes.swift */,
+				21FA000A2FA0010A0000000A /* TaskLiveActivityView.swift */,
 				21F140032F90020300000203 /* Info.plist */,
 				21F140072F90020700000207 /* HivelinkWidgetsExtension.entitlements */,
 				21F140052F90020500000205 /* Assets.xcassets */,
@@ -649,6 +703,19 @@
 				21F7A1092F90610900007009 /* TranscriptView.swift in Sources */,
 				21F7A10B2F90610B0000700B /* VoiceSetupFlowView.swift in Sources */,
 				21F7A10D2F90610D0000700D /* InputSourcePickerView.swift in Sources */,
+				21FA00112FA0011100000011 /* SharedWidgetData.swift in Sources */,
+				21FA00122FA0011200000012 /* TaskActivityAttributes.swift in Sources */,
+				21FA00132FA0011300000013 /* AppDependencyManager.swift in Sources */,
+				21FA00142FA0011400000014 /* CreateTaskIntent.swift in Sources */,
+				21FA00152FA0011500000015 /* StartVoiceSessionIntent.swift in Sources */,
+				21FA00162FA0011600000016 /* GetTaskStatusIntent.swift in Sources */,
+				21FA00172FA0011700000017 /* HivelinkShortcuts.swift in Sources */,
+				21FB00312FB0013100100031 /* iOSScreenBroadcastReceiver.swift in Sources */,
+				21FB00322FB0013200100032 /* HapticManager.swift in Sources */,
+				21FB00332FB0013300100033 /* HivelinkFocusFilter.swift in Sources */,
+				21FB00342FB0013400100034 /* IncomingCallManager.swift in Sources */,
+				21FB00352FB0013500100035 /* NotificationManager.swift in Sources */,
+				21FB00362FB0013600100036 /* IncomingCallContext.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -681,8 +748,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				21F160062F90000600000006 /* HivelinkWidgets.swift in Sources */,
 				21F160072F90000700000007 /* HivelinkWidgetsBundle.swift in Sources */,
+				21FA00212FA0012100000021 /* SharedWidgetData.swift in Sources */,
+				21FA00222FA0012200000022 /* TaskActivityAttributes.swift in Sources */,
+				21FA00232FA0012300000023 /* TaskLiveActivityView.swift in Sources */,
+				21FA00242FA0012400000024 /* ActiveTasksWidget.swift in Sources */,
+				21FA00252FA0012500000025 /* ClusterStatusWidget.swift in Sources */,
+				21FA00262FA0012600000026 /* ActiveTaskCountAccessoryWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

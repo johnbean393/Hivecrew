@@ -3,20 +3,55 @@
 //  Hivelink
 //
 
+import BackgroundTasks
 import Combine
+import CoreSpotlight
 import HivecrewCore
 import SwiftData
 import SwiftUI
+import UIKit
+
+// MARK: - App Delegate (APNs token forwarding)
+
+final class HivelinkAppDelegate: NSObject, UIApplicationDelegate {
+    weak var notificationManager: NotificationManager?
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            notificationManager?.didRegisterForRemoteNotifications(deviceToken: deviceToken)
+        }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            notificationManager?.didFailToRegisterForRemoteNotifications(error: error)
+        }
+    }
+}
+
+// MARK: - App Core
 
 /// Owns the shared `HivelinkClusterCoordinator`, `RemoteTaskIndex`, `PeerConnectionManager`, and `HivelinkTaskService`
 /// so remote dispatch and real-time monitoring share the same index and coordinator.
 @MainActor
 private final class HivelinkAppCore: ObservableObject {
+    static let backgroundTaskIdentifier = "com.pattonium.Hivelink.refresh"
+
     let clusterCoordinator: HivelinkClusterCoordinator
     let remoteTaskIndex: RemoteTaskIndex
     let peerConnectionManager: PeerConnectionManager
     let taskService: HivelinkTaskService
     let voiceOrchestrator: HivelinkVoiceOrchestrator
+    let notificationManager: NotificationManager
+    let incomingCallManager: IncomingCallManager
+
+    @Published var selectedTab: Int = 0
 
     init(modelContainer: ModelContainer) {
         let coordinator = HivelinkClusterCoordinator()
@@ -38,11 +73,63 @@ private final class HivelinkAppCore: ObservableObject {
         let orchestrator = HivelinkVoiceOrchestrator()
         orchestrator.configure(taskService: service)
         voiceOrchestrator = orchestrator
+
+        let notifManager = NotificationManager()
+        notificationManager = notifManager
+
+        let callManager = IncomingCallManager(callKitProvider: orchestrator.callKitProvider)
+        callManager.configure(
+            orchestrator: orchestrator,
+            notificationManager: notifManager,
+            callKitProvider: orchestrator.callKitProvider
+        )
+        orchestrator.configure(incomingCallManager: callManager)
+        incomingCallManager = callManager
+
+        let deps = AppDependencyManager.shared
+        deps.taskService = service
+        deps.voiceOrchestrator = orchestrator
+        deps.setSelectedTab = { [weak self] tab in self?.selectedTab = tab }
+    }
+
+    // MARK: - Background Refresh
+
+    func registerBackgroundRefresh() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: Self.backgroundTaskIdentifier,
+            using: nil
+        ) { [weak self] task in
+            guard let bgTask = task as? BGAppRefreshTask else { return }
+            Task { @MainActor [weak self] in
+                await self?.handleBackgroundRefresh(bgTask)
+            }
+        }
+    }
+
+    func scheduleBackgroundRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: Self.backgroundTaskIdentifier)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    private func handleBackgroundRefresh(_ task: BGAppRefreshTask) async {
+        scheduleBackgroundRefresh()
+
+        task.expirationHandler = { [weak self] in
+            self?.taskService.stopReconciliation()
+        }
+
+        await clusterCoordinator.loadCluster()
+        await taskService.reconcileAndRefresh()
+        taskService.indexAllTasksInSpotlight()
+
+        task.setTaskCompleted(success: true)
     }
 }
 
 @main
 struct HivelinkApp: App {
+    @UIApplicationDelegateAdaptor(HivelinkAppDelegate.self) private var appDelegate
     @StateObject private var authManager = RemoteAccessAuthManager()
     @StateObject private var appCore: HivelinkAppCore
 
@@ -58,14 +145,19 @@ struct HivelinkApp: App {
     }()
 
     init() {
-        _appCore = StateObject(wrappedValue: HivelinkAppCore(modelContainer: Self.sharedModelContainer))
+        let core = HivelinkAppCore(modelContainer: Self.sharedModelContainer)
+        core.registerBackgroundRefresh()
+        _appCore = StateObject(wrappedValue: core)
     }
 
     var body: some Scene {
         WindowGroup {
             Group {
                 if authManager.isAuthenticated {
-                    ContentView()
+                    ContentView(tabSelection: Binding(
+                        get: { appCore.selectedTab },
+                        set: { appCore.selectedTab = $0 }
+                    ))
                 } else {
                     OnboardingView()
                 }
@@ -77,11 +169,17 @@ struct HivelinkApp: App {
             .environmentObject(appCore.taskService)
             .environmentObject(appCore.taskService.artifactImportCoordinator)
             .environmentObject(appCore.voiceOrchestrator)
+            .environmentObject(appCore.notificationManager)
+            .environmentObject(appCore.incomingCallManager)
             .task {
+                appDelegate.notificationManager = appCore.notificationManager
+                await appCore.notificationManager.requestPermissions()
+
                 authManager.loadStoredCredentials()
                 if authManager.isAuthenticated {
                     await appCore.clusterCoordinator.loadCluster()
                     await appCore.taskService.bootstrap()
+                    appCore.scheduleBackgroundRefresh()
                 }
             }
             .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
@@ -97,6 +195,20 @@ struct HivelinkApp: App {
                         await appCore.clusterCoordinator.stopDiscovery()
                     }
                 }
+            }
+            .onChange(of: appCore.notificationManager.pendingDeepLink) { _, deepLink in
+                guard let deepLink else { return }
+                switch deepLink {
+                case .task:
+                    appCore.selectedTab = 0
+                case .cluster:
+                    appCore.selectedTab = 2
+                }
+                appCore.notificationManager.pendingDeepLink = nil
+            }
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                guard let taskId = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return }
+                appCore.notificationManager.pendingDeepLink = .task(id: taskId)
             }
         }
         .modelContainer(Self.sharedModelContainer)
