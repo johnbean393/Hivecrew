@@ -291,7 +291,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
         case .allTasksDone:    category = NotificationManager.categoryTaskCompleted
         }
 
-        notificationManager?.postLocalNotification(
+        notificationManager?.postIfEnabled(
             title: context.localizedCallerName,
             body: context.summary,
             categoryIdentifier: category,

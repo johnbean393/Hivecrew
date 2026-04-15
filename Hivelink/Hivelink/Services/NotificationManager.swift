@@ -179,12 +179,49 @@ final class NotificationManager: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - Preference Keys
+
+    private static let preferenceKeysByCategory: [String: String] = [
+        categoryTaskCompleted:  "hivelink.notify_completions",
+        categoryTaskFailed:     "hivelink.notify_failures",
+        categoryAgentQuestion:  "hivelink.notify_questions",
+        categoryToolPermission: "hivelink.notify_permissions",
+    ]
+
+    /// Returns whether the user has enabled notifications for a given category.
+    /// Categories without a preference key (plan ready, writeback, peer offline)
+    /// are always allowed.
+    func isNotificationEnabled(forCategory category: String) -> Bool {
+        guard let key = Self.preferenceKeysByCategory[category] else { return true }
+        if UserDefaults.standard.object(forKey: key) != nil {
+            return UserDefaults.standard.bool(forKey: key)
+        }
+        return true
+    }
+
     // MARK: - Local Notifications
 
     private static let criticalCategories: Set<String> = [
         categoryAgentQuestion,
         categoryToolPermission,
     ]
+
+    /// Posts a local notification only if the user's preference for the given
+    /// category is enabled. Use this for all proactive notifications.
+    func postIfEnabled(
+        title: String,
+        body: String,
+        categoryIdentifier: String,
+        userInfo: [AnyHashable: Any] = [:]
+    ) {
+        guard isNotificationEnabled(forCategory: categoryIdentifier) else { return }
+        postLocalNotification(
+            title: title,
+            body: body,
+            categoryIdentifier: categoryIdentifier,
+            userInfo: userInfo
+        )
+    }
 
     func postLocalNotification(
         title: String,

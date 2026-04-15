@@ -56,26 +56,31 @@ private final class HivelinkAppCore: ObservableObject {
     init(modelContainer: ModelContainer) {
         let coordinator = HivelinkClusterCoordinator()
         let index = RemoteTaskIndex()
+        let notifManager = NotificationManager()
+
         clusterCoordinator = coordinator
         remoteTaskIndex = index
-        peerConnectionManager = PeerConnectionManager(
+        notificationManager = notifManager
+
+        let pcm = PeerConnectionManager(
             remoteTaskIndex: index,
             clusterCoordinator: coordinator
         )
+        pcm.notificationManager = notifManager
+        peerConnectionManager = pcm
+
         let service = HivelinkTaskService(
             modelContext: modelContainer.mainContext,
             clusterCoordinator: coordinator,
             remoteTaskIndex: index
         )
-        service.peerConnectionManager = peerConnectionManager
+        service.peerConnectionManager = pcm
+        service.notificationManager = notifManager
         taskService = service
 
         let orchestrator = HivelinkVoiceOrchestrator()
         orchestrator.configure(taskService: service)
         voiceOrchestrator = orchestrator
-
-        let notifManager = NotificationManager()
-        notificationManager = notifManager
 
         let callManager = IncomingCallManager(callKitProvider: orchestrator.callKitProvider)
         callManager.configure(

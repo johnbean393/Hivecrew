@@ -24,7 +24,13 @@ final class PeerConnectionManager: ObservableObject {
     private let remoteTaskIndex: RemoteTaskIndex
     private let clusterCoordinator: HivelinkClusterCoordinator
 
+    /// Posts local notifications for agent questions (owned by `HivelinkAppCore`).
+    weak var notificationManager: NotificationManager?
+
     private var monitors: [String: TaskMonitor] = [:]
+
+    /// Question IDs that already triggered a notification, to avoid repeating.
+    private var notifiedQuestionIds: Set<String> = []
 
     init(remoteTaskIndex: RemoteTaskIndex, clusterCoordinator: HivelinkClusterCoordinator) {
         self.remoteTaskIndex = remoteTaskIndex
@@ -172,6 +178,15 @@ final class PeerConnectionManager: ObservableObject {
 
     fileprivate func setPendingQuestion(_ question: APIAgentQuestion?, for canonicalTaskId: String) {
         taskPendingQuestions[canonicalTaskId] = question
+
+        if let question, notifiedQuestionIds.insert(question.id).inserted {
+            notificationManager?.postIfEnabled(
+                title: String(localized: "Agent Question"),
+                body: question.question,
+                categoryIdentifier: NotificationManager.categoryAgentQuestion,
+                userInfo: ["taskId": canonicalTaskId, "questionId": question.id]
+            )
+        }
     }
 
     // MARK: - Detached loops (network off main thread)

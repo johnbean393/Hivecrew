@@ -35,6 +35,9 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     /// Real-time SSE + screenshot monitoring for active remote tasks (owned by `HivelinkAppCore`).
     weak var peerConnectionManager: PeerConnectionManager?
 
+    /// Posts local notifications for task state changes (owned by `HivelinkAppCore`).
+    weak var notificationManager: NotificationManager?
+
     /// Long-running reconciliation loop; cancelled in `stopReconciliation()` (cannot use `Timer` + `deinit` with `@MainActor` isolation).
     private var reconciliationTask: Task<Void, Never>?
 
@@ -452,8 +455,20 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                     switch task.status {
                     case .completed:
                         HapticManager.taskCompleted()
+                        notificationManager?.postIfEnabled(
+                            title: task.title,
+                            body: task.resultSummary ?? String(localized: "Task completed"),
+                            categoryIdentifier: NotificationManager.categoryTaskCompleted,
+                            userInfo: ["taskId": task.id]
+                        )
                     case .failed, .timedOut, .maxIterations, .planFailed:
                         HapticManager.taskFailed()
+                        notificationManager?.postIfEnabled(
+                            title: task.title,
+                            body: task.errorMessage ?? String(localized: "Task failed"),
+                            categoryIdentifier: NotificationManager.categoryTaskFailed,
+                            userInfo: ["taskId": task.id]
+                        )
                     default:
                         break
                     }
