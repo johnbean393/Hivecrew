@@ -102,44 +102,48 @@ struct TaskDetailView: View {
     // MARK: - Plan review
 
     private func planReviewView(_ task: TaskRecord) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Plan Review")
-                .font(.title3.weight(.semibold))
-
+        VStack(spacing: 0) {
             if let plan = task.planMarkdown, !plan.isEmpty {
-                ScrollView {
-                    Text(plan)
-                        .font(.body)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                PlanMarkdownView(markdown: plan)
             } else {
-                Text("No plan content available.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("No plan content available.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                Spacer()
             }
 
-            Spacer()
+            VStack(spacing: 0) {
+                Divider()
+                HStack(spacing: 12) {
+                    Button(role: .destructive) {
+                        Task { await taskService.cancelPlanning(for: task) }
+                    } label: {
+                        Label("Cancel", systemImage: "xmark.circle")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
 
-            HStack(spacing: 12) {
-                Button {
-                    Task { await taskService.executePlan(for: task) }
-                } label: {
-                    Label("Approve", systemImage: "checkmark.circle")
-                }
-                .buttonStyle(.borderedProminent)
+                    Spacer()
 
-                Button(role: .destructive) {
-                    Task { await taskService.cancelPlanning(for: task) }
-                } label: {
-                    Label("Cancel", systemImage: "xmark.circle")
+                    Button {
+                        Task { await taskService.executePlan(for: task) }
+                    } label: {
+                        Label("Execute Plan", systemImage: "play.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.bordered)
-                .tint(.orange)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
             }
-            .frame(maxWidth: .infinity)
+            .background(.bar)
         }
-        .padding(20)
     }
 
     // MARK: - Writeback review

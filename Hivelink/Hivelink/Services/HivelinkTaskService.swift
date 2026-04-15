@@ -83,7 +83,6 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         await dispatcher.reconcileRemoteTasks()
         refreshTasks()
         await peerConnectionManager?.syncMonitoring(tasks: tasks)
-        syncLiveActivities()
         writeSharedDataForWidgets()
         indexAllTasksInSpotlight()
     }
@@ -95,7 +94,6 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             while !Task.isCancelled {
                 await self.dispatcher.reconcileRemoteTasks()
                 await self.peerConnectionManager?.syncMonitoring(tasks: self.tasks)
-                self.syncLiveActivities()
                 self.writeSharedDataForWidgets()
                 do {
                     try await Task.sleep(nanoseconds: 5_000_000_000)
@@ -441,7 +439,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 if let activity = liveActivities.removeValue(forKey: task.id) {
                     let finalContent = ActivityContent(state: contentState, staleDate: nil)
                     nonisolated(unsafe) let sendableActivity = activity
-                    Task { await sendableActivity.end(finalContent, dismissalPolicy: .after(now.addingTimeInterval(300))) }
+                    Task { await sendableActivity.end(finalContent, dismissalPolicy: .immediate) }
                 }
             }
         }
@@ -586,6 +584,8 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 saveContext: { try ctx.save() }
             )
         }
+
+        syncLiveActivities()
     }
 
     private func performPeerAction(

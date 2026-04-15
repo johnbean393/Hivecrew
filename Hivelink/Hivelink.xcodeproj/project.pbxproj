@@ -68,6 +68,7 @@
 		21FB00342FB0013400100034 /* IncomingCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00242FB0012400100024 /* IncomingCallManager.swift */; };
 		21FB00352FB0013500100035 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00252FB0012500100025 /* NotificationManager.swift */; };
 		21FB00362FB0013600100036 /* IncomingCallContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00262FB0012600100026 /* IncomingCallContext.swift */; };
+		21FC00012FC0010100200001 /* PlanMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FC00022FC0010200200002 /* PlanMarkdownView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -183,6 +184,7 @@
 		21FB00242FB0012400100024 /* IncomingCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingCallManager.swift; sourceTree = "<group>"; };
 		21FB00252FB0012500100025 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		21FB00262FB0012600100026 /* IncomingCallContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingCallContext.swift; sourceTree = "<group>"; };
+		21FC00022FC0010200200002 /* PlanMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanMarkdownView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -349,6 +351,7 @@
 			children = (
 				21F5A1022F90410200005002 /* CompletedTaskDetailView.swift */,
 				21F5A1032F90410300005003 /* HistoricalTraceEventRow.swift */,
+				21FC00022FC0010200200002 /* PlanMarkdownView.swift */,
 				21F3D2032F90210300003203 /* PromptBar.swift */,
 				21F5A1042F90410400005004 /* QuickLookPreview.swift */,
 				21F3D2052F90210500003205 /* RunningTaskDetailView.swift */,
@@ -696,6 +699,7 @@
 				21FB00342FB0013400100034 /* IncomingCallManager.swift in Sources */,
 				21FB00352FB0013500100035 /* NotificationManager.swift in Sources */,
 				21FB00362FB0013600100036 /* IncomingCallContext.swift in Sources */,
+				21FC00012FC0010100200001 /* PlanMarkdownView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
