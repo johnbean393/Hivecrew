@@ -160,8 +160,13 @@ extension TaskService {
         // If plan mode is enabled and no plan exists yet, generate a plan BEFORE checking VM capacity.
         // Planning does not require a VM, so it should proceed even when VMs are at capacity.
         if task.planFirstEnabled && task.planMarkdown == nil {
-            guard !tasksInProgress.contains(task.id) else { return }
-            tasksInProgress.insert(task.id)
+            let alreadyTracked = tasksInProgress.contains(task.id)
+            if !alreadyTracked {
+                tasksInProgress.insert(task.id)
+            }
+            if skipCapacityReservation {
+                pendingVMCount = max(0, pendingVMCount - 1)
+            }
             await runPlanningPhase(task: task, context: context)
             tasksInProgress.remove(task.id)
             return // Planning phase complete, wait for user to execute

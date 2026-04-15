@@ -132,6 +132,9 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             task.resultSummary = update.task.resultSummary
             task.errorMessage = update.task.errorMessage
             task.wasSuccessful = update.task.wasSuccessful
+            if let plan = update.task.planMarkdown, !plan.isEmpty {
+                task.planMarkdown = plan
+            }
             task.clusterLastRemoteContactAt = Date()
             task.clusterLeaseFirstFailureAt = nil
             task.clusterLeaseFailureCount = 0

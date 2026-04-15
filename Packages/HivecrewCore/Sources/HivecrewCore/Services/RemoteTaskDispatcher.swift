@@ -480,6 +480,9 @@ public final class RemoteTaskDispatcher {
         task.resultSummary = remoteTask.resultSummary
         task.errorMessage = remoteTask.errorMessage
         task.wasSuccessful = remoteTask.wasSuccessful
+        if let plan = remoteTask.planMarkdown, !plan.isEmpty {
+            task.planMarkdown = plan
+        }
         task.status = host.convertFromAPIStatus(remoteTask.status)
         resetLeaseHealth(
             for: task,
