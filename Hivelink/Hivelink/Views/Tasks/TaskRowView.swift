@@ -58,8 +58,9 @@ struct TaskRowView: View {
                 .font(.system(size: 12))
 
         case .planning:
-            ProgressView()
-                .scaleEffect(0.55)
+            Image(systemName: "pencil.and.list.clipboard")
+                .foregroundStyle(.yellow)
+                .font(.system(size: 12))
 
         case .planReview:
             Image(systemName: "list.bullet.clipboard.fill")

@@ -624,16 +624,87 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         }
 
         if let context {
-            var callReason = "\n\n## [CALL REASON]\n"
-            callReason += "You are calling the user because: \(context.trigger.rawValue)"
-            callReason += "\nTask ID: \(context.taskId)"
-            callReason += "\nWorker: \(context.workerName)"
-            callReason += "\nSummary: \(context.summary)"
-            callReason += "\nAddress this reason naturally at the start of the conversation."
-            prompt += callReason
+            prompt += buildCallReasonSection(context: context)
         }
 
         return prompt
+    }
+
+    private func buildCallReasonSection(context: IncomingCallContext) -> String {
+        var section = "\n\n## [CALL REASON]\n"
+        section += "Task: \(context.workerName)\nTask ID: \(context.taskId)\n"
+
+        let task = taskService?.tasks.first { $0.id == context.taskId }
+        let worker = workerRegistry.resolve(query: context.taskId)
+        if let worker {
+            section += "Worker name: \(worker.displayName)\n"
+        }
+
+        switch context.trigger {
+        case .planReady:
+            section += """
+            A worker has finished planning and the plan is ready for your review.
+            Summarize the plan for the user concisely — hit the key steps and ask if they want \
+            to approve it, modify it, or reject it.
+            - To approve: use `approve_plan` with the task ID.
+            - To reject: use `reject_plan` with the task ID.
+            - If the user wants changes, use `send_instruction` to tell the worker, then wait for \
+            the updated plan.
+            """
+            if let plan = task?.planMarkdown, !plan.isEmpty {
+                let truncated = plan.count > 3000 ? String(plan.prefix(3000)) + "\n[...truncated]" : plan
+                section += "\n### Plan content\n\(truncated)\n"
+            }
+
+        case .writebackReady:
+            let count = task?.pendingWritebackOperations.count ?? 0
+            section += """
+            A worker has \(count) file change\(count == 1 ? "" : "s") ready to write back to disk.
+            Briefly describe what files are being changed and ask the user if they want to approve \
+            or discard the changes.
+            - To approve: use `approve_writeback` with the task ID.
+            - To discard: use `discard_writeback` with the task ID.
+            """
+
+        case .question:
+            section += """
+            A worker has a question that needs the user's input.
+            Question: \(context.summary)
+            Relay the question naturally to the user, get their answer, then use `send_instruction` \
+            with the task ID and the user's response.
+            """
+
+        case .permission:
+            section += """
+            A worker needs permission to proceed with an action.
+            Details: \(context.summary)
+            Explain what the worker wants to do and ask the user to approve or deny.
+            """
+
+        case .completed:
+            section += """
+            A worker has finished their task.
+            Result: \(context.summary)
+            Tell the user what was accomplished. Use `get_deliverables` to check for output files.
+            """
+
+        case .failed:
+            section += """
+            A worker's task has failed.
+            Error: \(context.summary)
+            Tell the user what went wrong and suggest next steps (retry, adjust, etc.).
+            """
+
+        case .allTasksDone:
+            section += """
+            All tasks are now complete.
+            Summary: \(context.summary)
+            Wrap up the conversation — summarize what was done and ask if the user needs anything else.
+            """
+        }
+
+        section += "\nAddress this reason naturally at the start of the conversation."
+        return section
     }
 
     // MARK: - Provider Callbacks
@@ -970,6 +1041,28 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 if allSessionTasksFinished {
                     message += " [ALL_TASKS_DONE] All tasks are now complete. Ask the user if they need anything else, and offer to end the call using the `end_call` tool."
                 }
+                Task {
+                    await resumeIfSuspended()
+                    try? await provider?.sendText(message)
+                }
+
+            case .planReview:
+                focusedTaskId = taskId
+                var message = "[CALLBACK] \(workerName) has finished planning and the plan is ready for review."
+                if let plan = task.planMarkdown, !plan.isEmpty {
+                    let truncated = plan.count > 3000 ? String(plan.prefix(3000)) + "\n[...truncated]" : plan
+                    message += "\n\nPlan:\n\(truncated)"
+                }
+                message += "\n\nSummarize the key steps for the user. To approve, use `approve_plan`. To reject, use `reject_plan`. If the user wants changes, use `send_instruction`."
+                Task {
+                    await resumeIfSuspended()
+                    try? await provider?.sendText(message)
+                }
+
+            case .writebackReview:
+                focusedTaskId = taskId
+                let count = task.pendingWritebackOperations.count
+                let message = "[CALLBACK] \(workerName) has \(count) file change\(count == 1 ? "" : "s") ready to write back. Ask the user if they want to approve or discard the changes. Use `approve_writeback` to approve or `discard_writeback` to discard."
                 Task {
                     await resumeIfSuspended()
                     try? await provider?.sendText(message)

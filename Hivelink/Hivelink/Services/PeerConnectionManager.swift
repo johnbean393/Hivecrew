@@ -27,6 +27,9 @@ final class PeerConnectionManager: ObservableObject {
     /// Posts local notifications for agent questions (owned by `HivelinkAppCore`).
     weak var notificationManager: NotificationManager?
 
+    /// Triggers incoming CallKit calls for agent questions (owned by `HivelinkAppCore`).
+    weak var incomingCallManager: IncomingCallManager?
+
     private var monitors: [String: TaskMonitor] = [:]
 
     /// Question IDs that already triggered a notification, to avoid repeating.
@@ -180,12 +183,15 @@ final class PeerConnectionManager: ObservableObject {
         taskPendingQuestions[canonicalTaskId] = question
 
         if let question, notifiedQuestionIds.insert(question.id).inserted {
-            notificationManager?.postIfEnabled(
-                title: String(localized: "Agent Question"),
-                body: question.question,
-                categoryIdentifier: NotificationManager.categoryAgentQuestion,
-                userInfo: ["taskId": canonicalTaskId, "questionId": question.id]
+            let monitor = monitors[canonicalTaskId]
+            let context = IncomingCallContext(
+                trigger: .question,
+                taskId: canonicalTaskId,
+                workerName: "Worker",
+                summary: question.question,
+                peerId: monitor?.peerUrl ?? ""
             )
+            incomingCallManager?.offerCall(context: context)
         }
     }
 

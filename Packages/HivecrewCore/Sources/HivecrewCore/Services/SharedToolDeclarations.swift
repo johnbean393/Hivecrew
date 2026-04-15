@@ -17,6 +17,7 @@ public enum SharedToolDeclarations {
             properties: [
                 "description": stringProperty(description: "The full end-to-end goal for the worker, including all steps (e.g. research + write file)"),
                 "attachments": stringProperty(description: "Comma-separated file paths to attach (e.g. from capture_reference)"),
+                "plan_first": stringProperty(description: "If 'true', the worker will create a plan for review before executing. Use when the user explicitly asks to plan first or review a plan before work begins."),
             ],
             required: ["description"]
         ),
@@ -77,6 +78,38 @@ public enum SharedToolDeclarations {
         tool(
             name: "focus_task",
             description: "Focus the UI task pane on a specific task.",
+            properties: [
+                "query": stringProperty(description: "Worker name or task ID"),
+            ],
+            required: ["query"]
+        ),
+        tool(
+            name: "approve_plan",
+            description: "Approve a worker's plan and begin execution. Use after reviewing the plan with the user and getting their approval.",
+            properties: [
+                "query": stringProperty(description: "Worker name or task ID"),
+            ],
+            required: ["query"]
+        ),
+        tool(
+            name: "reject_plan",
+            description: "Reject a worker's plan and cancel the planning task. Use when the user does not want to proceed with the plan.",
+            properties: [
+                "query": stringProperty(description: "Worker name or task ID"),
+            ],
+            required: ["query"]
+        ),
+        tool(
+            name: "approve_writeback",
+            description: "Approve pending file changes from a worker and write them to disk.",
+            properties: [
+                "query": stringProperty(description: "Worker name or task ID"),
+            ],
+            required: ["query"]
+        ),
+        tool(
+            name: "discard_writeback",
+            description: "Discard pending file changes from a worker without writing them to disk.",
             properties: [
                 "query": stringProperty(description: "Worker name or task ID"),
             ],

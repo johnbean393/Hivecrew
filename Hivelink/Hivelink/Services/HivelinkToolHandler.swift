@@ -51,6 +51,7 @@ enum HivelinkToolHandler {
             return await handleCreateTask(
                 description: args["description"] ?? "",
                 attachments: args["attachments"] ?? "",
+                planFirst: args["plan_first"]?.lowercased() == "true",
                 taskService: taskService,
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
@@ -88,6 +89,34 @@ enum HivelinkToolHandler {
 
         case "cancel_task":
             return await handleCancelTask(
+                query: args["query"] ?? "",
+                taskService: taskService,
+                workerRegistry: workerRegistry
+            )
+
+        case "approve_plan":
+            return await handleApprovePlan(
+                query: args["query"] ?? "",
+                taskService: taskService,
+                workerRegistry: workerRegistry
+            )
+
+        case "reject_plan":
+            return await handleRejectPlan(
+                query: args["query"] ?? "",
+                taskService: taskService,
+                workerRegistry: workerRegistry
+            )
+
+        case "approve_writeback":
+            return await handleApproveWriteback(
+                query: args["query"] ?? "",
+                taskService: taskService,
+                workerRegistry: workerRegistry
+            )
+
+        case "discard_writeback":
+            return await handleDiscardWriteback(
                 query: args["query"] ?? "",
                 taskService: taskService,
                 workerRegistry: workerRegistry
@@ -132,6 +161,7 @@ enum HivelinkToolHandler {
     private static func handleCreateTask(
         description: String,
         attachments: String,
+        planFirst: Bool,
         taskService: HivelinkTaskService,
         workerRegistry: WorkerRegistry,
         orchestrator: HivelinkVoiceOrchestrator
@@ -166,7 +196,8 @@ enum HivelinkToolHandler {
                 providerId: providerId,
                 modelId: modelId,
                 executionTarget: .remoteFirst,
-                attachedFilePaths: filePaths
+                attachedFilePaths: filePaths,
+                planFirstEnabled: planFirst
             )
 
             let created = try await taskService.createTasks([request])
@@ -178,6 +209,9 @@ enum HivelinkToolHandler {
             orchestrator.addRelevantTask(task.id)
 
             var result = "Task created. Worker \(worker.displayName) is on it — \"\(task.title)\". Task ID: \(task.id)"
+            if planFirst {
+                result += " (plan-first mode — will create a plan for review before executing)"
+            }
             if !filePaths.isEmpty {
                 result += " (\(filePaths.count) file\(filePaths.count == 1 ? "" : "s") attached)"
             }
@@ -341,6 +375,116 @@ enum HivelinkToolHandler {
         let record = ToolUseRecord(
             toolName: "cancel_task",
             summary: result,
+            detail: result,
+            fileResults: []
+        )
+        return HivelinkToolCallResult(text: result, transcriptRecord: record)
+    }
+
+    // MARK: - Plan Approval
+
+    private static func handleApprovePlan(
+        query: String,
+        taskService: HivelinkTaskService,
+        workerRegistry: WorkerRegistry
+    ) async -> HivelinkToolCallResult {
+        guard let worker = workerRegistry.resolve(query: query) else {
+            return .textOnly("No worker found matching '\(query)'")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == worker.id }) else {
+            return .textOnly("Task not found for \(worker.displayName)")
+        }
+        guard task.status == .planReview else {
+            return .textOnly("Cannot approve plan — \(worker.displayName) is not in plan review (status: \(task.status.displayName)).")
+        }
+
+        await taskService.executePlan(for: task)
+        let result = "Plan approved — \(worker.displayName) is now executing."
+        let record = ToolUseRecord(
+            toolName: "approve_plan",
+            summary: "Approved plan for \(worker.displayName)",
+            detail: result,
+            fileResults: []
+        )
+        return HivelinkToolCallResult(text: result, transcriptRecord: record)
+    }
+
+    private static func handleRejectPlan(
+        query: String,
+        taskService: HivelinkTaskService,
+        workerRegistry: WorkerRegistry
+    ) async -> HivelinkToolCallResult {
+        guard let worker = workerRegistry.resolve(query: query) else {
+            return .textOnly("No worker found matching '\(query)'")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == worker.id }) else {
+            return .textOnly("Task not found for \(worker.displayName)")
+        }
+        guard task.status == .planReview else {
+            return .textOnly("Cannot reject plan — \(worker.displayName) is not in plan review (status: \(task.status.displayName)).")
+        }
+
+        await taskService.cancelPlanning(for: task)
+        workerRegistry.deregister(taskId: worker.id)
+        let result = "Plan rejected — \(worker.displayName) has been cancelled."
+        let record = ToolUseRecord(
+            toolName: "reject_plan",
+            summary: "Rejected plan for \(worker.displayName)",
+            detail: result,
+            fileResults: []
+        )
+        return HivelinkToolCallResult(text: result, transcriptRecord: record)
+    }
+
+    // MARK: - Writeback Approval
+
+    private static func handleApproveWriteback(
+        query: String,
+        taskService: HivelinkTaskService,
+        workerRegistry: WorkerRegistry
+    ) async -> HivelinkToolCallResult {
+        guard let worker = workerRegistry.resolve(query: query) else {
+            return .textOnly("No worker found matching '\(query)'")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == worker.id }) else {
+            return .textOnly("Task not found for \(worker.displayName)")
+        }
+        guard task.status == .writebackReview else {
+            return .textOnly("Cannot approve writeback — \(worker.displayName) is not in writeback review (status: \(task.status.displayName)).")
+        }
+
+        await taskService.approveWriteback(for: task)
+        let count = task.pendingWritebackOperations.count
+        let result = "Writeback approved — \(count) file\(count == 1 ? "" : "s") written to disk for \(worker.displayName)."
+        let record = ToolUseRecord(
+            toolName: "approve_writeback",
+            summary: "Approved writeback for \(worker.displayName)",
+            detail: result,
+            fileResults: []
+        )
+        return HivelinkToolCallResult(text: result, transcriptRecord: record)
+    }
+
+    private static func handleDiscardWriteback(
+        query: String,
+        taskService: HivelinkTaskService,
+        workerRegistry: WorkerRegistry
+    ) async -> HivelinkToolCallResult {
+        guard let worker = workerRegistry.resolve(query: query) else {
+            return .textOnly("No worker found matching '\(query)'")
+        }
+        guard let task = taskService.tasks.first(where: { $0.id == worker.id }) else {
+            return .textOnly("Task not found for \(worker.displayName)")
+        }
+        guard task.status == .writebackReview else {
+            return .textOnly("Cannot discard writeback — \(worker.displayName) is not in writeback review (status: \(task.status.displayName)).")
+        }
+
+        await taskService.discardWriteback(for: task)
+        let result = "Writeback discarded for \(worker.displayName) — no files were written."
+        let record = ToolUseRecord(
+            toolName: "discard_writeback",
+            summary: "Discarded writeback for \(worker.displayName)",
             detail: result,
             fileResults: []
         )

@@ -89,6 +89,8 @@ private final class HivelinkAppCore: ObservableObject {
             callKitProvider: orchestrator.callKitProvider
         )
         orchestrator.configure(incomingCallManager: callManager)
+        service.incomingCallManager = callManager
+        pcm.incomingCallManager = callManager
         incomingCallManager = callManager
 
         let deps = AppDependencyManager.shared

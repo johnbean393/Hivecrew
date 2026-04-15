@@ -38,6 +38,9 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     /// Posts local notifications for task state changes (owned by `HivelinkAppCore`).
     weak var notificationManager: NotificationManager?
 
+    /// Triggers incoming CallKit calls for task events (owned by `HivelinkAppCore`).
+    weak var incomingCallManager: IncomingCallManager?
+
     /// Long-running reconciliation loop; cancelled in `stopReconciliation()` (cannot use `Timer` + `deinit` with `@MainActor` isolation).
     private var reconciliationTask: Task<Void, Never>?
 
@@ -46,6 +49,12 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
     /// Task IDs that already triggered a terminal haptic, to avoid repeating.
     private var terminalHapticFired: Set<String> = []
+
+    /// Previous task statuses, used to detect transitions that warrant incoming calls.
+    private var previousStatuses: [String: TaskStatus] = [:]
+
+    /// Task IDs that already triggered an incoming call, to avoid repeating.
+    private var callTriggeredTaskIds: Set<String> = []
 
     init(
         modelContext: ModelContext,
@@ -254,6 +263,14 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
     func cancelPlanning(for task: TaskRecord) async {
         await performPeerAction(task, action: "cancel_plan")
+    }
+
+    func approveWriteback(for task: TaskRecord) async {
+        await performPeerAction(task, action: "approve_writeback")
+    }
+
+    func discardWriteback(for task: TaskRecord) async {
+        await performPeerAction(task, action: "discard_writeback")
     }
 
     func sendInstruction(_ instruction: String, to task: TaskRecord) async {
@@ -684,6 +701,60 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         }
 
         syncLiveActivities()
+        triggerCallsForStateTransitions()
+    }
+
+    // MARK: - Local Incoming Call Triggers
+
+    private static let callTriggerStatuses: Set<TaskStatus> = [
+        .planReview, .writebackReview, .completed, .failed, .timedOut, .maxIterations, .planFailed,
+    ]
+
+    private func triggerCallsForStateTransitions() {
+        guard let incomingCallManager else { return }
+
+        for task in tasks {
+            let previous = previousStatuses[task.id]
+            let current = task.status
+
+            guard previous != current,
+                  Self.callTriggerStatuses.contains(current),
+                  callTriggeredTaskIds.insert(task.id + ":\(current.rawValue)").inserted
+            else { continue }
+
+            let trigger: IncomingCallContext.TriggerEvent
+            switch current {
+            case .planReview:       trigger = .planReady
+            case .writebackReview:  trigger = .writebackReady
+            case .completed:        trigger = .completed
+            case .failed, .timedOut, .maxIterations, .planFailed:
+                                    trigger = .failed
+            default: continue
+            }
+
+            let summary: String
+            switch trigger {
+            case .planReady:
+                summary = task.planMarkdown.flatMap { $0.isEmpty ? nil : "Plan: \($0.prefix(300))" }
+                    ?? "Plan ready for: \(task.title)"
+            case .writebackReady:
+                let count = task.pendingWritebackOperations.count
+                summary = "\(count) file\(count == 1 ? "" : "s") ready for review — \(task.title)"
+            default:
+                summary = task.resultSummary ?? task.title
+            }
+
+            let context = IncomingCallContext(
+                trigger: trigger,
+                taskId: task.id,
+                workerName: task.title,
+                summary: summary,
+                peerId: task.clusterPeerId ?? ""
+            )
+            incomingCallManager.offerCall(context: context)
+        }
+
+        previousStatuses = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0.status) })
     }
 
     private func performPeerAction(

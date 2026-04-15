@@ -126,6 +126,25 @@ final class IncomingCallManager: NSObject, ObservableObject {
         recentCallTimestamps = recentCallTimestamps.filter { $0.value > cutoff }
     }
 
+    // MARK: - Local Call Triggering
+
+    /// Offers an incoming call triggered locally (not from a VoIP push).
+    /// Use this when the app is in the foreground and detects a state change
+    /// that warrants an incoming call (e.g. plan ready, task completed).
+    func offerCall(context: IncomingCallContext) {
+        if context.trigger == .question {
+            HapticManager.agentQuestionReceived()
+        }
+
+        if shouldSuppress(context: context) {
+            deliverSuppressedNotification(context: context)
+            return
+        }
+
+        let uuid = UUID()
+        reportIncomingCall(uuid: uuid, context: context, completion: {})
+    }
+
     // MARK: - Incoming Call Handling
 
     /// Core handler for a parsed VoIP push. Every VoIP push MUST result in a
