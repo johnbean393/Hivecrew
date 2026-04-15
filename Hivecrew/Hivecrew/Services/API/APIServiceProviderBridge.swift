@@ -466,14 +466,23 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             throw APIError.notFound("File '\(filename)' not found in task")
         }
         
-        guard FileManager.default.fileExists(atPath: filePath) else {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: filePath, isDirectory: &isDirectory) else {
             throw APIError.notFound("File '\(filename)' no longer exists at expected location")
+        }
+        guard !isDirectory.boolValue else {
+            throw APIError.badRequest("'\(filename)' is a directory, not a file")
         }
         
         let url = URL(fileURLWithPath: filePath)
-        let data = try Data(contentsOf: url)
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw APIError.internalError("Failed to read file '\(filename)': \(error.localizedDescription)")
+        }
         let mimeType = APIFile.mimeType(for: filename)
-        
+
         return (data, mimeType)
     }
 
@@ -504,7 +513,12 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
 
         let sessionDirectory = AppPaths.sessionDirectory(id: sessionId)
         let fileURL = try traceBundleURL(in: sessionDirectory, relativePath: relativePath)
-        let data = try Data(contentsOf: fileURL)
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            throw APIError.internalError("Failed to read trace file '\(relativePath)': \(error.localizedDescription)")
+        }
         return (data, APIFile.mimeType(for: fileURL.lastPathComponent))
     }
 

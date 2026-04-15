@@ -82,6 +82,16 @@ final class ArtifactImportCoordinator: ObservableObject {
                 return false
             }
 
+            task.sessionId = sessionId
+        } catch {
+            lastImportError = error.localizedDescription
+            return false
+        }
+
+        // Output file download is best-effort; a failure here should not
+        // prevent the successfully-downloaded trace from being available.
+        var outputError: String?
+        do {
             let outputFiles = try await RemoteExecutionArtifactImporter.downloadRemoteOutputFiles(
                 client: client,
                 workerTaskId: workerTaskId,
@@ -101,16 +111,15 @@ final class ArtifactImportCoordinator: ObservableObject {
                 }
             }
 
-            task.sessionId = sessionId
             if !writtenPaths.isEmpty {
                 task.outputFilePaths = writtenPaths
             }
-            lastImportError = nil
-            return true
         } catch {
-            lastImportError = error.localizedDescription
-            return false
+            outputError = error.localizedDescription
         }
+
+        lastImportError = outputError
+        return true
     }
 
     // MARK: - Lazy import

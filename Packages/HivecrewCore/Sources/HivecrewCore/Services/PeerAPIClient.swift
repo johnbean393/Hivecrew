@@ -41,7 +41,7 @@ public actor PeerAPIClient {
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 30
+        config.timeoutIntervalForResource = 60
         self.session = URLSession(configuration: config)
     }
 
@@ -359,7 +359,7 @@ public actor PeerAPIClient {
             throw PeerAPIError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw PeerAPIError.httpError(statusCode: httpResponse.statusCode)
+            throw PeerAPIError.httpError(statusCode: httpResponse.statusCode, detail: Self.extractErrorDetail(from: data))
         }
         return try Self.decoder.decode(R.self, from: data)
     }
@@ -373,9 +373,18 @@ public actor PeerAPIClient {
             throw PeerAPIError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw PeerAPIError.httpError(statusCode: httpResponse.statusCode)
+            throw PeerAPIError.httpError(statusCode: httpResponse.statusCode, detail: Self.extractErrorDetail(from: data))
         }
         return (data, httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream")
+    }
+
+    private static func extractErrorDetail(from data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let errorObj = json["error"] as? [String: Any],
+              let message = errorObj["message"] as? String else {
+            return nil
+        }
+        return message
     }
 }
 
@@ -416,13 +425,17 @@ private struct EmptyOKResponse: Decodable {}
 public enum PeerAPIError: LocalizedError {
     case invalidURL
     case invalidResponse
-    case httpError(statusCode: Int)
+    case httpError(statusCode: Int, detail: String? = nil)
 
     public var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid peer URL"
         case .invalidResponse: return "Invalid response from peer"
-        case .httpError(let code): return "Peer returned HTTP \(code)"
+        case .httpError(let code, let detail):
+            if let detail, !detail.isEmpty {
+                return "Peer returned HTTP \(code): \(detail)"
+            }
+            return "Peer returned HTTP \(code)"
         }
     }
 }

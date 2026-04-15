@@ -26,16 +26,9 @@ final class PeerConnectionManager: ObservableObject {
 
     private var monitors: [String: TaskMonitor] = [:]
 
-    private let sseSession: URLSession
-
     init(remoteTaskIndex: RemoteTaskIndex, clusterCoordinator: HivelinkClusterCoordinator) {
         self.remoteTaskIndex = remoteTaskIndex
         self.clusterCoordinator = clusterCoordinator
-
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 0
-        config.timeoutIntervalForResource = 86400 * 7
-        self.sseSession = URLSession(configuration: config)
     }
 
     // MARK: - Public API
@@ -44,18 +37,18 @@ final class PeerConnectionManager: ObservableObject {
     func startMonitoring(taskId: String, workerTaskId: String, peerUrl: String, clusterToken: String) {
         if monitors[taskId] != nil { return }
 
-        let client = PeerAPIClient(baseURL: peerUrl, clusterToken: clusterToken)
-        let streamSession = sseSession
+        // Each loop gets its own PeerAPIClient to avoid actor serialization
+        // contention (e.g. a slow screenshot download blocking event polls).
+        let eventsClient = PeerAPIClient(baseURL: peerUrl, clusterToken: clusterToken)
+        let screenshotClient = PeerAPIClient(baseURL: peerUrl, clusterToken: clusterToken)
+        let questionClient = PeerAPIClient(baseURL: peerUrl, clusterToken: clusterToken)
 
         let eventsTask = Task.detached(priority: .utility) { [weak self] in
             await Self.runEventsLoop(
                 manager: self,
                 canonicalTaskId: taskId,
                 workerTaskId: workerTaskId,
-                peerUrl: peerUrl,
-                clusterToken: clusterToken,
-                client: client,
-                sseSession: streamSession
+                client: eventsClient
             )
         }
 
@@ -64,7 +57,7 @@ final class PeerConnectionManager: ObservableObject {
                 manager: self,
                 canonicalTaskId: taskId,
                 workerTaskId: workerTaskId,
-                client: client
+                client: screenshotClient
             )
         }
 
@@ -73,7 +66,7 @@ final class PeerConnectionManager: ObservableObject {
                 manager: self,
                 canonicalTaskId: taskId,
                 workerTaskId: workerTaskId,
-                client: client
+                client: questionClient
             )
         }
 
@@ -112,6 +105,24 @@ final class PeerConnectionManager: ObservableObject {
 
     func pendingQuestion(for taskId: String) -> APIAgentQuestion? {
         taskPendingQuestions[taskId]
+    }
+
+    /// Ensures monitoring is running for a single task without affecting other monitors.
+    func ensureMonitoring(for task: TaskRecord) async {
+        guard monitors[task.id] == nil else { return }
+        guard [TaskStatus.running, .waitingForVM, .planning, .paused].contains(task.status) else { return }
+        guard let clusterToken = await clusterCoordinator.clusterToken(),
+              let workerId = await remoteTaskIndex.workerTaskId(for: task.id),
+              let peerId = await remoteTaskIndex.peerId(for: task.id),
+              let peer = await clusterCoordinator.peer(id: peerId)
+        else { return }
+
+        startMonitoring(
+            taskId: task.id,
+            workerTaskId: workerId,
+            peerUrl: peer.tunnelUrl,
+            clusterToken: clusterToken
+        )
     }
 
     /// Starts monitoring for `.running` / `.waitingForVM` tasks with a remote index entry; stops for others.
@@ -169,113 +180,43 @@ final class PeerConnectionManager: ObservableObject {
         manager: PeerConnectionManager?,
         canonicalTaskId: String,
         workerTaskId: String,
-        peerUrl: String,
-        clusterToken: String,
-        client: PeerAPIClient,
-        sseSession: URLSession?
+        client: PeerAPIClient
     ) async {
-        guard let manager, let sseSession else { return }
+        guard let manager else { return }
 
-        var consecutiveSSEFailures = 0
         var activityCursor = 0
 
+        // Seed with historical events so the trace is populated immediately
+        // after a cold start (SSE only streams new events going forward).
+        do {
+            let response = try await client.getActivity(taskId: workerTaskId, since: 0)
+            activityCursor = response.total
+            if !response.events.isEmpty {
+                await MainActor.run {
+                    manager.appendEvents(response.events, for: canonicalTaskId)
+                }
+            }
+        } catch {
+            // Non-fatal; subsequent polls will populate events.
+        }
+
+        // Use activity polling exclusively. SSE over tunnel connections can
+        // open and hang indefinitely, blocking the loop and preventing any
+        // updates from reaching the UI.
         while !Task.isCancelled {
-            // Literal thresholds: detached context cannot use MainActor-isolated type members (Swift 6 default isolation).
-            if consecutiveSSEFailures >= 3 {
-                do {
-                    let response = try await client.getActivity(taskId: workerTaskId, since: activityCursor)
-                    activityCursor = response.total
-                    if !response.events.isEmpty {
-                        await MainActor.run {
-                            manager.appendEvents(response.events, for: canonicalTaskId)
-                        }
-                    }
-                } catch {
-                    // Keep polling; transient errors are expected.
-                }
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                continue
-            }
-
             do {
-                try await runSingleSSEConnection(
-                    manager: manager,
-                    canonicalTaskId: canonicalTaskId,
-                    workerTaskId: workerTaskId,
-                    peerUrl: peerUrl,
-                    clusterToken: clusterToken,
-                    sseSession: sseSession
-                )
-                consecutiveSSEFailures += 1
-            } catch {
-                consecutiveSSEFailures += 1
-            }
-
-            guard !Task.isCancelled else { break }
-
-            let backoff = min(UInt64(1) << UInt64(min(consecutiveSSEFailures, 5)), UInt64(30))
-            try? await Task.sleep(nanoseconds: backoff * 1_000_000_000)
-        }
-    }
-
-    private nonisolated static func runSingleSSEConnection(
-        manager: PeerConnectionManager,
-        canonicalTaskId: String,
-        workerTaskId: String,
-        peerUrl: String,
-        clusterToken: String,
-        sseSession: URLSession
-    ) async throws {
-        let trimmed = peerUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard let url = URL(string: "\(trimmed)/api/v1/tasks/\(workerTaskId)/events") else {
-            throw URLError(.badURL)
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-
-        let (bytes, response) = try await sseSession.bytes(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-        guard (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-
-        var pendingDataLines: [String] = []
-        let eventDecoder = JSONDecoder()
-        eventDecoder.dateDecodingStrategy = .iso8601
-
-        for try await line in bytes.lines {
-            if Task.isCancelled { break }
-
-            if line.isEmpty {
-                if !pendingDataLines.isEmpty {
-                    let payload = joinSSEDataLines(pendingDataLines)
-                    pendingDataLines.removeAll(keepingCapacity: true)
-                    if let data = payload.data(using: .utf8),
-                       let event = try? eventDecoder.decode(APITaskEvent.self, from: data) {
-                        await MainActor.run {
-                            manager.appendEvents([event], for: canonicalTaskId)
-                        }
+                let response = try await client.getActivity(taskId: workerTaskId, since: activityCursor)
+                activityCursor = response.total
+                if !response.events.isEmpty {
+                    await MainActor.run {
+                        manager.appendEvents(response.events, for: canonicalTaskId)
                     }
                 }
-                continue
+            } catch {
+                // Keep polling; transient errors are expected.
             }
-
-            let trimmedLine = String(line).trimmingCharacters(in: .whitespaces)
-            if trimmedLine.hasPrefix("data:") {
-                let rest = trimmedLine.dropFirst(5).drop(while: { $0 == " " || $0 == "\t" })
-                pendingDataLines.append(String(rest))
-            }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
         }
-    }
-
-    private nonisolated static func joinSSEDataLines(_ lines: [String]) -> String {
-        lines.joined(separator: "\n")
     }
 
     private nonisolated static func runScreenshotLoop(

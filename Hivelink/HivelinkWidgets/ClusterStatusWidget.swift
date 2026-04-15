@@ -62,7 +62,7 @@ struct ClusterStatusWidgetView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Circle()
                     .fill(healthColor)
@@ -71,13 +71,15 @@ struct ClusterStatusWidgetView: View {
                     .font(.headline)
             }
 
-            VStack(spacing: 6) {
-                statRow(icon: "desktopcomputer", value: "\(cluster.onlinePeerCount)/\(cluster.peerCount)", label: "Peers online")
+            VStack(alignment: .leading, spacing: 6) {
+                statRow(icon: "desktopcomputer", value: "\(cluster.onlinePeerCount)", label: "Peers online")
                 statRow(icon: "cpu", value: "\(cluster.totalAvailableSlots)", label: "Available slots")
                 statRow(icon: "bolt.fill", value: "\(cluster.totalRunningTasks)", label: "Running")
             }
+
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func statRow(icon: String, value: String, label: String) -> some View {

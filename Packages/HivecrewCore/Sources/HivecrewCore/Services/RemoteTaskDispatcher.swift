@@ -210,7 +210,7 @@ public final class RemoteTaskDispatcher {
                 )
             } catch let error as PeerAPIError {
                 let missingTask: Bool
-                if case .httpError(let statusCode) = error {
+                if case .httpError(let statusCode, _) = error {
                     missingTask = statusCode == 404
                 } else {
                     missingTask = false
@@ -430,7 +430,7 @@ public final class RemoteTaskDispatcher {
                 return true
             } catch {
                 await clusterDirectory.releaseSlot(peerId: peer.id)
-                if case PeerAPIError.httpError(let statusCode) = error, statusCode == 409 {
+                if case PeerAPIError.httpError(let statusCode, _) = error, statusCode == 409 {
                     task.clusterPeerId = nil
                     task.clusterPeerName = nil
                 } else {

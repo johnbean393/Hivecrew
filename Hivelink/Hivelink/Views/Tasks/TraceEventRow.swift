@@ -74,11 +74,20 @@ struct TraceEventRow: View {
                 .foregroundStyle(iconColor)
                 .frame(width: 20, alignment: .center)
 
-            Text(summaryText)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summaryText)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+
+                if let subtitle = subtitleText {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 6) {
                 if let tokens = tokenCount {
@@ -180,19 +189,51 @@ struct TraceEventRow: View {
         }
     }
 
+    private var subtitleText: String? {
+        if let details = event.data["details"]?.stringValue, !details.isEmpty {
+            return details
+        }
+        switch event.type {
+        case .toolCallResult:
+            if let tool = event.data["tool_name"]?.stringValue {
+                return tool
+            }
+        case .llmResponse:
+            if let usage = event.data["token_usage"]?.objectValue {
+                let prompt = usage["input_tokens"]?.intValue ?? usage["prompt_tokens"]?.intValue ?? 0
+                let completion = usage["output_tokens"]?.intValue ?? usage["completion_tokens"]?.intValue ?? 0
+                let total = prompt + completion
+                if total > 0 {
+                    return "Tokens: \(total) total (\(prompt) prompt, \(completion) completion)"
+                }
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
     private var summaryText: String {
         if let summary = event.data["summary"]?.stringValue, !summary.isEmpty {
             return summary
         }
         switch event.type {
-        case .screenshot: return "Screenshot captured"
+        case .screenshot: return "Captured screenshot"
         case .toolCallStart:
             if let tool = event.data["tool_name"]?.stringValue {
-                return "Calling \(tool)"
+                return "Executing: \(tool)"
             }
-            return "Tool call started"
-        case .toolCallResult: return "Tool call completed"
-        case .llmResponse: return "Model response"
+            return "Executing tool"
+        case .toolCallResult:
+            if let tool = event.data["tool_name"]?.stringValue {
+                return "✓ \(tool) completed"
+            }
+            return "Tool completed"
+        case .llmResponse:
+            if let toolCount = event.data["tool_call_count"]?.intValue, toolCount > 0 {
+                return "LLM requested \(toolCount) tool call\(toolCount == 1 ? "" : "s")"
+            }
+            return "Sending request to LLM"
         case .statusChange:
             if let status = event.data["status"]?.stringValue {
                 return "Status: \(status)"

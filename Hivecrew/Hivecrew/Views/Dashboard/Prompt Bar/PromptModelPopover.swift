@@ -421,7 +421,7 @@ struct PromptModelPopover: View {
         let inputItems = inputModalityItems(model)
         let outputItems = outputModalityItems(model)
         let hasTechnicalDetails =
-            model.contextLength != nil
+            model.effectiveContextLength != nil
             || model.createdAt != nil
             || !inputItems.isEmpty
             || !outputItems.isEmpty
@@ -451,7 +451,7 @@ struct PromptModelPopover: View {
             if hasTechnicalDetails {
                 Divider()
 
-                if let contextLength = model.contextLength {
+                if let contextLength = model.effectiveContextLength {
                     detailIconRow(
                         systemImage: "textformat.123",
                         title: "Context length",

@@ -38,7 +38,13 @@ struct RunningTaskDetailView: View {
         }
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            actionBar
+            VStack(spacing: 0) {
+                todoProgressBar
+                actionBar
+            }
+        }
+        .task {
+            await taskService.ensureMonitoring(for: task)
         }
         .sheet(isPresented: $showInstructionSheet) {
             instructionSheet
@@ -390,6 +396,88 @@ struct RunningTaskDetailView: View {
         .buttonStyle(.plain)
         .padding(.bottom, 12)
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    // MARK: - Todo progress
+
+    private var todoProgress: (completed: Int, total: Int, currentLabel: String?)? {
+        guard let plan = task.planMarkdown, !plan.isEmpty else { return nil }
+
+        let checkboxPattern = #"^\s*-\s*\[([ xX])\]\s*(.+)$"#
+        guard let regex = try? NSRegularExpression(pattern: checkboxPattern, options: .anchorsMatchLines) else {
+            return nil
+        }
+        let lines = plan.components(separatedBy: .newlines)
+        var items: [(label: String, preCompleted: Bool)] = []
+        for line in lines {
+            let range = NSRange(line.startIndex..., in: line)
+            if let match = regex.firstMatch(in: line, range: range),
+               let stateRange = Range(match.range(at: 1), in: line),
+               let contentRange = Range(match.range(at: 2), in: line) {
+                let state = String(line[stateRange])
+                let content = String(line[contentRange]).trimmingCharacters(in: .whitespaces)
+                items.append((content, state.lowercased() == "x"))
+            }
+        }
+        guard !items.isEmpty else { return nil }
+
+        let events = peerConnectionManager.events(for: task.id)
+        let finishCount = events.filter { event in
+            guard event.type == .toolCallResult else { return false }
+            let summary = event.data["summary"]?.stringValue ?? ""
+            let toolName = event.data["tool_name"]?.stringValue ?? ""
+            return toolName.contains("finish_todo") || summary.contains("Plan item completed")
+                || summary.contains("todo") && summary.contains("completed")
+        }.count
+
+        let preCompleted = items.filter(\.preCompleted).count
+        let completed = min(preCompleted + finishCount, items.count)
+        let currentLabel: String? = completed < items.count ? items[completed].label : nil
+        return (completed, items.count, currentLabel)
+    }
+
+    @ViewBuilder
+    private var todoProgressBar: some View {
+        if let progress = todoProgress, progress.total > 0 {
+            VStack(spacing: 0) {
+                Divider()
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 3)
+                        Circle()
+                            .trim(from: 0, to: Double(progress.completed) / Double(progress.total))
+                            .stroke(Color.green, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Text("\(progress.completed)/\(progress.total)")
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    .frame(width: 32, height: 32)
+
+                    if let label = progress.currentLabel {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Current step")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            Text(label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    } else {
+                        Text("All plan items completed")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.regularMaterial)
+            }
+        }
     }
 
     // MARK: - Action bar

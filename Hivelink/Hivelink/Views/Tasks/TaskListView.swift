@@ -149,7 +149,7 @@ struct TaskListView: View {
                                 Button {
                                     editAndRerunTask(task)
                                 } label: {
-                                    Label(String(localized: "Edit and Rerun"), systemImage: "pencil.and.list.clipboard")
+                                    Label(String(localized: "Edit"), systemImage: "pencil.and.list.clipboard")
                                 }
                                 .tint(.purple)
 
@@ -172,7 +172,7 @@ struct TaskListView: View {
                                 Button {
                                     editAndRerunTask(task)
                                 } label: {
-                                    Label(String(localized: "Edit and Rerun"), systemImage: "pencil.and.list.clipboard")
+                                    Label(String(localized: "Edit"), systemImage: "pencil.and.list.clipboard")
                                 }
 
                                 Button {

@@ -87,6 +87,12 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         indexAllTasksInSpotlight()
     }
 
+    /// Starts monitoring (screenshot + events + questions) for a single task
+    /// without waiting for a full remote reconciliation pass.
+    func ensureMonitoring(for task: TaskRecord) async {
+        await peerConnectionManager?.ensureMonitoring(for: task)
+    }
+
     private func startReconciliation() {
         reconciliationTask?.cancel()
         reconciliationTask = Task { @MainActor [weak self] in
@@ -404,6 +410,22 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     private func syncLiveActivities() {
         let now = Date()
 
+        // Re-adopt any system-owned activities from prior launches that we
+        // lost track of (e.g. after the app was killed and relaunched).
+        for systemActivity in Activity<TaskActivityAttributes>.activities {
+            let taskId = systemActivity.attributes.taskId
+            if liveActivities[taskId] == nil {
+                liveActivities[taskId] = systemActivity
+            }
+        }
+
+        // Build a set of task IDs that should have an active Live Activity.
+        let wantActiveIds: Set<String> = Set(
+            tasks
+                .filter { [.running, .planning, .paused, .waitingForVM].contains($0.status) }
+                .map(\.id)
+        )
+
         for task in tasks {
             let elapsed = task.startedAt.map { Int(now.timeIntervalSince($0)) } ?? 0
             let needsAttention = task.status == .paused || task.status == .planReview || task.status == .writebackReview
@@ -417,7 +439,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 attentionMessage: attentionMessage
             )
 
-            if task.status == .running || task.status == .planning || task.status == .paused || task.status == .waitingForVM {
+            if wantActiveIds.contains(task.id) {
                 if let activity = liveActivities[task.id] {
                     let content = ActivityContent(state: contentState, staleDate: now.addingTimeInterval(15))
                     nonisolated(unsafe) let sendableActivity = activity
@@ -444,8 +466,9 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             }
         }
 
-        let activeTaskIds = Set(tasks.map(\.id))
-        for (taskId, activity) in liveActivities where !activeTaskIds.contains(taskId) {
+        // End any tracked activities whose task no longer exists in the list.
+        let knownTaskIds = Set(tasks.map(\.id))
+        for (taskId, activity) in liveActivities where !knownTaskIds.contains(taskId) {
             liveActivities.removeValue(forKey: taskId)
             let endState = TaskActivityAttributes.ContentState(
                 status: "Removed",
@@ -458,9 +481,36 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             nonisolated(unsafe) let sendableActivity = activity
             Task { await sendableActivity.end(finalContent, dismissalPolicy: .immediate) }
         }
+
+        // End any system activities we never adopted (e.g. for a task ID we
+        // already handled as terminal above but that the system still holds).
+        for systemActivity in Activity<TaskActivityAttributes>.activities {
+            let taskId = systemActivity.attributes.taskId
+            if !wantActiveIds.contains(taskId) {
+                nonisolated(unsafe) let sendableActivity = systemActivity
+                let endState = TaskActivityAttributes.ContentState(
+                    status: "Ended",
+                    elapsedSeconds: 0,
+                    stepCount: nil,
+                    needsAttention: false,
+                    attentionMessage: nil
+                )
+                let finalContent = ActivityContent(state: endState, staleDate: nil)
+                Task { await sendableActivity.end(finalContent, dismissalPolicy: .immediate) }
+            }
+        }
     }
 
     private func startLiveActivity(for task: TaskRecord, state: TaskActivityAttributes.ContentState) {
+        // Don't create a new one if the system already has an activity for this task
+        // (possible race with the re-adoption pass above).
+        if Activity<TaskActivityAttributes>.activities.contains(where: { $0.attributes.taskId == task.id }) {
+            for existing in Activity<TaskActivityAttributes>.activities where existing.attributes.taskId == task.id {
+                liveActivities[task.id] = existing
+                return
+            }
+        }
+
         let attributes = TaskActivityAttributes(
             taskId: task.id,
             taskTitle: task.title,

@@ -163,7 +163,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 )
             } catch let error as PeerAPIError {
                 let missingTask: Bool
-                if case .httpError(let statusCode) = error {
+                if case .httpError(let statusCode, _) = error {
                     missingTask = statusCode == 404
                 } else {
                     missingTask = false
@@ -1101,7 +1101,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 return true
             } catch {
                 await clusterManager.releaseSlot(peerId: peer.id)
-                if case PeerAPIError.httpError(let statusCode) = error, statusCode == 409 {
+                if case PeerAPIError.httpError(let statusCode, _) = error, statusCode == 409 {
                     print("FederatedServiceProvider: Peer \(peer.id) had no free slot at execution time")
                     task.clusterPeerId = nil
                     task.clusterPeerName = nil

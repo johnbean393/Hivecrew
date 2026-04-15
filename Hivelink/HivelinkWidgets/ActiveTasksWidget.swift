@@ -114,6 +114,7 @@ struct ActiveTasksWidgetView: View {
                 ForEach(activeTasks.prefix(3)) { task in
                     taskRow(task)
                 }
+                Spacer(minLength: 0)
             }
         }
         .padding(2)
@@ -149,6 +150,7 @@ struct ActiveTasksWidgetView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 0)
             }
         }
         .padding(2)

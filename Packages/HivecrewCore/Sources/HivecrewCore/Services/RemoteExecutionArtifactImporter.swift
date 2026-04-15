@@ -57,8 +57,13 @@ public struct RemoteExecutionArtifactImporter: Sendable {
         downloads.reserveCapacity(remoteOutputFiles.count)
 
         for file in remoteOutputFiles {
-            let blob = try await client.downloadTaskFile(taskId: workerTaskId, filename: file.name, isInput: false)
-            downloads.append((name: file.name, data: blob.data))
+            do {
+                let blob = try await client.downloadTaskFile(taskId: workerTaskId, filename: file.name, isInput: false)
+                downloads.append((name: file.name, data: blob.data))
+            } catch {
+                // Skip files that fail (e.g. directories listed as output files).
+                continue
+            }
         }
 
         return downloads
