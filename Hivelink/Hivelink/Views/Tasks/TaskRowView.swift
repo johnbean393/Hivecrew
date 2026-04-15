@@ -5,154 +5,257 @@
 
 import HivecrewCore
 import SwiftUI
+import Combine
 
 struct TaskRowView: View {
     let task: TaskRecord
 
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .abbreviated
-        return f
-    }()
+    @EnvironmentObject private var peerConnectionManager: PeerConnectionManager
+
+    private var hasPendingQuestion: Bool {
+        peerConnectionManager.pendingQuestion(for: task.id) != nil
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            statusDot
-                .padding(.top, 4)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(task.title.isEmpty ? truncatedDescription : task.title)
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(displayTitle)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                    Spacer(minLength: 8)
-                    HStack(spacing: 6) {
-                        if needsAttention {
-                            Circle()
-                                .fill(Color.orange.opacity(0.95))
-                                .frame(width: 8, height: 8)
-                                .accessibilityLabel(String(localized: "Needs attention"))
-                        }
-                        Text(Self.relativeFormatter.localizedString(for: task.createdAt, relativeTo: Date()))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                metadataRow
+            }
 
-                HStack(spacing: 8) {
-                    Text(providerModelPillText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.quaternary, in: Capsule())
+            Spacer(minLength: 0)
 
-                    if let peer = task.clusterPeerName, !peer.isEmpty {
-                        Text(String(localized: "on \(peer)", comment: "Peer name suffix"))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+            if hasPendingQuestion {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.orange)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
+        .animation(.easeInOut(duration: 0.25), value: hasPendingQuestion)
     }
 
-    private var displayTitle: String {
-        let t = task.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    // MARK: - Status Icon
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch task.status {
+        case .queued:
+            Image(systemName: "clock.fill")
+                .foregroundStyle(.yellow)
+                .font(.system(size: 12))
+
+        case .waitingForVM:
+            Image(systemName: "desktopcomputer")
+                .foregroundStyle(.yellow)
+                .font(.system(size: 12))
+
+        case .planning:
+            ProgressView()
+                .scaleEffect(0.55)
+
+        case .planReview:
+            Image(systemName: "list.bullet.clipboard.fill")
+                .foregroundStyle(.blue)
+                .font(.system(size: 12))
+
+        case .writebackReview:
+            Image(systemName: "square.and.arrow.down.on.square.fill")
+                .foregroundStyle(.blue)
+                .font(.system(size: 12))
+
+        case .running:
+            Image(systemName: "play.circle.fill")
+                .foregroundStyle(.green)
+                .font(.system(size: 12))
+
+        case .completed:
+            if let success = task.wasSuccessful {
+                Image(systemName: success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundStyle(success ? .green : .red)
+                    .font(.system(size: 12))
+            } else {
+                Image(systemName: "checkmark.circle")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+            }
+
+        case .failed, .planFailed:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .font(.system(size: 12))
+
+        case .timedOut:
+            Image(systemName: "clock.badge.exclamationmark.fill")
+                .foregroundStyle(.orange)
+                .font(.system(size: 12))
+
+        case .maxIterations:
+            Image(systemName: "arrow.trianglehead.2.counterclockwise.rotate.90")
+                .foregroundStyle(.orange)
+                .font(.system(size: 12))
+
+        case .cancelled:
+            Image(systemName: "minus.circle.fill")
+                .foregroundStyle(.secondary)
+                .font(.system(size: 12))
+
+        case .paused:
+            Image(systemName: "pause.circle.fill")
+                .foregroundStyle(.yellow)
+                .font(.system(size: 12))
+        }
+    }
+
+    // MARK: - Metadata Row
+
+    private var metadataRow: some View {
+        HStack(spacing: 0) {
+            statusIcon
+                .frame(width: 14, height: 14)
+
+            if let nodeName = task.remoteNodeDisplayName {
+                metadataSeparator
+                HStack(spacing: 3) {
+                    Image(systemName: "server.rack")
+                        .font(.caption2)
+                    Text(nodeName)
+                        .font(.caption)
+                }
+                .foregroundStyle(.blue)
+            } else if let peer = task.clusterPeerName, !peer.isEmpty {
+                metadataSeparator
+                HStack(spacing: 3) {
+                    Image(systemName: "server.rack")
+                        .font(.caption2)
+                    Text(peer)
+                        .font(.caption)
+                }
+                .foregroundStyle(.blue)
+            }
+
+            if !task.status.isActive, task.completedAt != nil {
+                metadataSeparator
+                Text(task.durationString)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            if task.status == .running, let startedAt = task.startedAt {
+                metadataSeparator
+                ElapsedTimeLabel(startDate: startedAt)
+            }
+
+            if !task.status.isActive, let outputPaths = task.outputFilePaths, !outputPaths.isEmpty {
+                metadataSeparator
+                HStack(spacing: 3) {
+                    Image(systemName: "doc.fill")
+                        .font(.caption2)
+                    Text("\(outputPaths.count)")
+                        .font(.caption)
+                }
+                .foregroundStyle(.blue)
+            }
+        }
+    }
+
+    private var metadataSeparator: some View {
+        Text(" · ")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+    }
+
+    // MARK: - Helpers
+
+    private var truncatedDescription: String {
         let d = task.taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        if t.isEmpty {
-            return truncatedDescription(d)
-        }
-        if t == String(localized: "Task"), !d.isEmpty {
-            return truncatedDescription(d)
-        }
-        return t
-    }
-
-    private func truncatedDescription(_ d: String) -> String {
         guard !d.isEmpty else { return String(localized: "Untitled") }
         if d.count <= 120 { return d }
         return String(d.prefix(120)) + "…"
     }
 
-    private var providerModelPillText: String {
-        let provider = Self.displayProviderName(task.providerId)
-        let model = task.modelId
-        if model.isEmpty { return provider }
-        return "\(provider) · \(model)"
-    }
+}
 
-    private static func displayProviderName(_ id: String) -> String {
-        if id.hasPrefix(TaskRecord.remoteOnlyProviderPrefix) {
-            let raw = String(id.dropFirst(TaskRecord.remoteOnlyProviderPrefix.count))
-            return raw.isEmpty ? id : raw
-        }
-        return id.isEmpty ? String(localized: "Unknown") : id
-    }
+// MARK: - Elapsed Time Label
 
-    /// Proxy for pending user input: plan/writeback review and paused need attention.
-    private var needsAttention: Bool {
-        switch task.status {
-        case .paused, .planReview, .writebackReview:
-            return true
-        default:
-            return false
-        }
-    }
+private struct ElapsedTimeLabel: View {
+    let startDate: Date
+    @State private var elapsed: TimeInterval = 0
 
-    @ViewBuilder
-    private var statusDot: some View {
-        Circle()
-            .fill(statusDotColor)
-            .frame(width: 12, height: 12)
-            .overlay {
-                Circle()
-                    .strokeBorder(.white.opacity(0.35), lineWidth: 0.5)
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Text(formattedElapsed)
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .monospacedDigit()
+            .onReceive(timer) { _ in
+                elapsed = Date().timeIntervalSince(startDate)
             }
-            .shadow(color: statusDotColor.opacity(0.45), radius: 2, y: 1)
-            .accessibilityLabel(task.status.displayName)
+            .onAppear {
+                elapsed = Date().timeIntervalSince(startDate)
+            }
     }
 
-    private var statusDotColor: Color {
-        switch task.status {
-        case .completed:
-            if task.wasSuccessful == true {
-                return Color(red: 0.2, green: 0.78, blue: 0.35)
-            }
-            return Color(.tertiaryLabel)
-        case .running:
-            return Color(red: 0.0, green: 0.48, blue: 1.0)
-        case .planReview, .writebackReview:
-            return Color(red: 0.0, green: 0.55, blue: 1.0)
-        case .planning:
-            return Color(red: 0.58, green: 0.32, blue: 0.95)
-        case .failed, .planFailed:
-            return Color(red: 1.0, green: 0.45, blue: 0.12)
-        case .timedOut, .maxIterations:
-            return Color(red: 1.0, green: 0.45, blue: 0.12)
-        case .paused, .waitingForVM:
-            return Color(red: 1.0, green: 0.82, blue: 0.0)
-        case .queued:
-            return Color(.tertiaryLabel)
-        case .cancelled:
-            return Color(.tertiaryLabel)
+    private var formattedElapsed: String {
+        let seconds = Int(elapsed)
+        if seconds < 60 {
+            return "\(seconds)s"
+        } else if seconds < 3600 {
+            return "\(seconds / 60)m \(seconds % 60)s"
+        } else {
+            let hours = seconds / 3600
+            let minutes = (seconds % 3600) / 60
+            return "\(hours)h \(minutes)m"
         }
     }
 }
 
 #Preview {
     List {
+        TaskRowView(task: {
+            let t = TaskRecord(
+                id: "1",
+                title: "Create `txt` Hello World File",
+                taskDescription: "Create a hello world text file",
+                status: .completed,
+                completedAt: Date(),
+                providerId: "cluster-remote:Anthropic",
+                modelId: "claude-3-5-sonnet"
+            )
+            t.wasSuccessful = true
+            return t
+        }())
         TaskRowView(task: TaskRecord(
-            id: "1",
-            title: "Sample task title",
-            taskDescription: "Do something useful",
+            id: "2",
+            title: "Research Paris Trip",
+            taskDescription: "Find the best restaurants",
             status: .running,
-            providerId: "cluster-remote:Anthropic",
-            modelId: "claude-3-5-sonnet"
+            startedAt: Date().addingTimeInterval(-125),
+            providerId: "cluster-remote:OpenAI",
+            modelId: "gpt-5.4"
+        ))
+        TaskRowView(task: TaskRecord(
+            id: "3",
+            title: "Solve Cold Fusion",
+            taskDescription: "Invent nuclear fusion",
+            status: .failed,
+            completedAt: Date(),
+            providerId: "test",
+            modelId: "kimi-k2.5",
+            errorMessage: "Task is impossible"
         ))
     }
     .listStyle(.plain)
+    .environmentObject(PeerConnectionManager(
+        remoteTaskIndex: RemoteTaskIndex(),
+        clusterCoordinator: HivelinkClusterCoordinator()
+    ))
 }

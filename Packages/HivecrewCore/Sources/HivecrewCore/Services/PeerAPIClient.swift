@@ -229,6 +229,24 @@ public actor PeerAPIClient {
         ])
     }
 
+    public func getPendingQuestion(taskId: String) async throws -> APIAgentQuestion? {
+        guard let url = URL(string: "\(baseURL)/api/v1/tasks/\(taskId)/question") else {
+            throw PeerAPIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw PeerAPIError.invalidResponse }
+        if http.statusCode == 204 { return nil }
+        guard (200...299).contains(http.statusCode) else {
+            throw PeerAPIError.httpError(statusCode: http.statusCode)
+        }
+        return try Self.decoder.decode(APIAgentQuestion.self, from: data)
+    }
+
     public func answerQuestion(taskId: String, questionId: String, answer: String) async throws {
         let body = ["questionId": questionId, "answer": answer]
         let _: EmptyOKResponse = try await post("/api/v1/tasks/\(taskId)/question/answer", body: body)

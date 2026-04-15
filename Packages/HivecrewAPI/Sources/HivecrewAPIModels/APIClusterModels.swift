@@ -94,6 +94,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
 
     public let canonicalTaskId: String
     public let ownerTunnelId: String
+    public let ownerName: String?
     public let ownerLeaseId: String
     public let executionAttempt: Int
     public let description: String
@@ -119,6 +120,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
     public init(
         canonicalTaskId: String,
         ownerTunnelId: String,
+        ownerName: String? = nil,
         ownerLeaseId: String,
         executionAttempt: Int,
         description: String,
@@ -143,6 +145,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
     ) {
         self.canonicalTaskId = canonicalTaskId
         self.ownerTunnelId = ownerTunnelId
+        self.ownerName = ownerName
         self.ownerLeaseId = ownerLeaseId
         self.executionAttempt = executionAttempt
         self.description = description

@@ -190,6 +190,7 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
         let task = try await localProvider.createClusterExecutionTask(
             canonicalTaskId: request.canonicalTaskId,
             ownerTunnelId: request.ownerTunnelId,
+            ownerName: request.ownerName,
             ownerLeaseId: request.ownerLeaseId,
             executionAttempt: request.executionAttempt,
             description: request.description,

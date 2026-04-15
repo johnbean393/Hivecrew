@@ -74,7 +74,8 @@ struct AgentPreviewCardContent: View {
 
     private var ownerLabel: String? {
         guard task.isInternalClusterExecution else { return nil }
-        let ownerName = clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
+        let ownerName = task.clusterOwnerNodeName
+            ?? clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
             ?? task.clusterOwnerNodeId.map(shortOwnerLabel(for:))
         guard let ownerName, !ownerName.isEmpty else { return "Leased Task" }
         return "From \(ownerName)"

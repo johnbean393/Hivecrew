@@ -36,12 +36,21 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
     /// Loads cluster info from the Worker using the stored session token and starts health monitoring.
     func loadCluster() async {
         guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else { return }
+        ensureOwnerTunnelId()
         let cached = RemoteAccessKeychain.retrieveClusterToken()
         await discoveryService.loadCluster(
             sessionToken: sessionToken,
             excludingTunnelId: nil,
             cachedClusterToken: cached
         )
+    }
+
+    /// Hivelink doesn't run a real tunnel, but the dispatcher needs a stable owner
+    /// identity. Generate one on first launch and persist it in the keychain.
+    private func ensureOwnerTunnelId() {
+        if RemoteAccessKeychain.retrieveTunnelId() == nil {
+            _ = RemoteAccessKeychain.storeTunnelId("hivelink-\(UUID().uuidString)")
+        }
     }
 
     /// Re-fetches mesh-info and re-syncs peers (pull-to-refresh).
@@ -97,6 +106,34 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
 
     func clusterToken() async -> String? {
         discoveryService.clusterToken ?? RemoteAccessKeychain.retrieveClusterToken()
+    }
+
+    // MARK: - Model Capabilities
+
+    /// Fetches the reasoning capability for a specific model from the first online peer that supports it.
+    func fetchReasoningCapability(providerName: String, modelId: String) async -> APIReasoningCapability {
+        guard let token = await clusterToken() else { return APIReasoningCapability() }
+
+        let candidate = peers.first { peer in
+            peer.status == .online && Self.peerSupports(peer: peer, providerName: providerName, modelId: modelId)
+        }
+        guard let peer = candidate else { return APIReasoningCapability() }
+
+        let client = PeerAPIClient(baseURL: peer.tunnelUrl, clusterToken: token)
+        do {
+            let providersResponse = try await client.getProviders()
+            guard let apiProvider = providersResponse.providers.first(where: {
+                $0.displayName == providerName
+            }) else { return APIReasoningCapability() }
+
+            let modelsResponse = try await client.getProviderModels(providerId: apiProvider.id)
+            if let model = modelsResponse.models.first(where: { $0.id == modelId }) {
+                return model.reasoningCapability
+            }
+        } catch {
+            // Fallback handled by caller
+        }
+        return APIReasoningCapability()
     }
 
     // MARK: - Helpers

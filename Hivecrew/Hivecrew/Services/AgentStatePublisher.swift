@@ -43,6 +43,8 @@ struct AgentActivityEntry: Identifiable, Sendable {
     let reasoning: String?
     /// Subagent ID for subagent UI entries (optional)
     let subagentId: String?
+    /// Suggested answers for `.userQuestion` entries (multiple-choice options).
+    let suggestedAnswers: [String]?
     
     enum ActivityType: String, Sendable {
         case observation = "observation"
@@ -65,7 +67,8 @@ struct AgentActivityEntry: Identifiable, Sendable {
         details: String? = nil,
         screenshotPath: String? = nil,
         reasoning: String? = nil,
-        subagentId: String? = nil
+        subagentId: String? = nil,
+        suggestedAnswers: [String]? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -75,6 +78,7 @@ struct AgentActivityEntry: Identifiable, Sendable {
         self.screenshotPath = screenshotPath
         self.reasoning = reasoning
         self.subagentId = subagentId
+        self.suggestedAnswers = suggestedAnswers
     }
 }
 
@@ -163,11 +167,20 @@ class AgentStatePublisher: ObservableObject {
     func askQuestion(_ question: AgentQuestion) async -> String {
         // Set the pending question
         pendingQuestion = question
-        
-        // Log the question
+
+        // Build suggested answers for multiple-choice questions
+        var suggestions: [String]?
+        if case .multipleChoice(let mcq) = question {
+            suggestions = mcq.options
+        }
+
+        // Log the question with structured data so remote clients can display it
         addActivity(AgentActivityEntry(
+            id: question.id,
             type: .userQuestion,
-            summary: "Agent is asking: \(question.question)"
+            summary: "Agent is asking: \(question.question)",
+            details: question.question,
+            suggestedAnswers: suggestions
         ))
         
         // Show floating question window over all apps (including full-screen)

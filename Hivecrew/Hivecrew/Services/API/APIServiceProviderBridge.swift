@@ -88,6 +88,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
     func createClusterExecutionTask(
         canonicalTaskId: String,
         ownerTunnelId: String,
+        ownerName: String?,
         ownerLeaseId: String,
         executionAttempt: Int,
         description: String,
@@ -146,6 +147,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             autoStart: false
         )
         task.clusterOwnerNodeId = ownerTunnelId
+        task.clusterOwnerNodeName = ownerName
         task.remoteLeaseState = .running
         try? modelContext.save()
         
@@ -1275,6 +1277,16 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             data["subagentId"] = .string(subagentId)
         }
         data["activityType"] = .string(entry.type.rawValue)
+
+        if entry.type == .userQuestion {
+            data["id"] = .string(entry.id)
+            if let questionText = entry.details {
+                data["question"] = .string(questionText)
+            }
+            if let answers = entry.suggestedAnswers {
+                data["suggestedAnswers"] = .array(answers.map { .string($0) })
+            }
+        }
         
         return APITaskEvent(
             type: eventType,

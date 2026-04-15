@@ -23,6 +23,7 @@
 		21F160072F90000700000007 /* HivelinkWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */; };
 		21F160082F90000800000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 21F140052F90020500000205 /* Assets.xcassets */; };
 		21F160092F90000900000009 /* HivecrewAPIModels in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151032F90001300000013 /* HivecrewAPIModels */; };
+		21F1600A2F9000100000000A /* HivecrewShared in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151042F90001400000014 /* HivecrewShared */; };
 		21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC12F900D0100000D01 /* OnboardingView.swift */; };
 		21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC22F900D0200000D02 /* EmailEntryView.swift */; };
 		21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */; };
@@ -33,6 +34,22 @@
 		21F3E2012F90211100003301 /* TaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2012F90210100003201 /* TaskRowView.swift */; };
 		21F3E2022F90211200003302 /* TaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2022F90210200003202 /* TaskListView.swift */; };
 		21F3E2032F90211300003303 /* PromptBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2032F90210300003203 /* PromptBar.swift */; };
+		21F4E1012F90311100004401 /* PeerConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F4D1012F90310100004001 /* PeerConnectionManager.swift */; };
+		21F3E2042F90211400003304 /* TaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2042F90210400003204 /* TaskDetailView.swift */; };
+		21F3E2052F90211500003305 /* RunningTaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2052F90210500003205 /* RunningTaskDetailView.swift */; };
+		21F3E2062F90211600003306 /* TraceEventRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2062F90210600003206 /* TraceEventRow.swift */; };
+		21F5B1012F90411100005101 /* ArtifactImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */; };
+		21F5B1022F90411200005102 /* CompletedTaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F5A1022F90410200005002 /* CompletedTaskDetailView.swift */; };
+		21F5B1032F90411300005103 /* HistoricalTraceEventRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F5A1032F90410300005003 /* HistoricalTraceEventRow.swift */; };
+		21F5B1042F90411400005104 /* QuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F5A1042F90410400005004 /* QuickLookPreview.swift */; };
+		21F6A1012F90510100006001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F6A1002F90510000006000 /* SettingsView.swift */; };
+		21F7A1012F90610100007001 /* HivelinkToolHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A1002F90610000007000 /* HivelinkToolHandler.swift */; };
+		21F7A1032F90610300007003 /* HivelinkVoiceOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A1022F90610200007002 /* HivelinkVoiceOrchestrator.swift */; };
+		21F7A1052F90610500007005 /* VoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A1042F90610400007004 /* VoiceCallView.swift */; };
+		21F7A1072F90610700007007 /* VoiceOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A1062F90610600007006 /* VoiceOrbView.swift */; };
+		21F7A1092F90610900007009 /* TranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A1082F90610800007008 /* TranscriptView.swift */; };
+		21F7A10B2F90610B0000700B /* VoiceSetupFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A10A2F90610A0000700A /* VoiceSetupFlowView.swift */; };
+		21F7A10D2F90610D0000700D /* InputSourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F7A10C2F90610C0000700C /* InputSourcePickerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -124,6 +141,22 @@
 		21F3D2012F90210100003201 /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
 		21F3D2022F90210200003202 /* TaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListView.swift; sourceTree = "<group>"; };
 		21F3D2032F90210300003203 /* PromptBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBar.swift; sourceTree = "<group>"; };
+		21F4D1012F90310100004001 /* PeerConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerConnectionManager.swift; sourceTree = "<group>"; };
+		21F3D2042F90210400003204 /* TaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailView.swift; sourceTree = "<group>"; };
+		21F3D2052F90210500003205 /* RunningTaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningTaskDetailView.swift; sourceTree = "<group>"; };
+		21F3D2062F90210600003206 /* TraceEventRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceEventRow.swift; sourceTree = "<group>"; };
+		21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactImportCoordinator.swift; sourceTree = "<group>"; };
+		21F5A1022F90410200005002 /* CompletedTaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletedTaskDetailView.swift; sourceTree = "<group>"; };
+		21F5A1032F90410300005003 /* HistoricalTraceEventRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalTraceEventRow.swift; sourceTree = "<group>"; };
+		21F5A1042F90410400005004 /* QuickLookPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookPreview.swift; sourceTree = "<group>"; };
+		21F6A1002F90510000006000 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		21F7A1002F90610000007000 /* HivelinkToolHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkToolHandler.swift; sourceTree = "<group>"; };
+		21F7A1022F90610200007002 /* HivelinkVoiceOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkVoiceOrchestrator.swift; sourceTree = "<group>"; };
+		21F7A1042F90610400007004 /* VoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallView.swift; sourceTree = "<group>"; };
+		21F7A1062F90610600007006 /* VoiceOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbView.swift; sourceTree = "<group>"; };
+		21F7A1082F90610800007008 /* TranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptView.swift; sourceTree = "<group>"; };
+		21F7A10A2F90610A0000700A /* VoiceSetupFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSetupFlowView.swift; sourceTree = "<group>"; };
+		21F7A10C2F90610C0000700C /* InputSourcePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourcePickerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -133,6 +166,7 @@
 			files = (
 				21F160012F90000100000001 /* HivecrewCore in Frameworks */,
 				21F160092F90000900000009 /* HivecrewAPIModels in Frameworks */,
+				21F1600A2F9000100000000A /* HivecrewShared in Frameworks */,
 				21F160022F90000200000002 /* HivecrewVoice in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -248,8 +282,12 @@
 			isa = PBXGroup;
 			children = (
 				21F110022F900A0200000A02 /* .gitkeep */,
+				21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */,
 				21F2A1012F90100100001001 /* HivelinkClusterCoordinator.swift */,
 				21F2C2012F90110100002101 /* HivelinkTaskService.swift */,
+				21F7A1002F90610000007000 /* HivelinkToolHandler.swift */,
+				21F7A1022F90610200007002 /* HivelinkVoiceOrchestrator.swift */,
+				21F4D1012F90310100004001 /* PeerConnectionManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -281,9 +319,15 @@
 			isa = PBXGroup;
 			children = (
 				21F110042F900A0400000A04 /* .gitkeep */,
-				21F3D2012F90210100003201 /* TaskRowView.swift */,
-				21F3D2022F90210200003202 /* TaskListView.swift */,
+				21F5A1022F90410200005002 /* CompletedTaskDetailView.swift */,
+				21F5A1032F90410300005003 /* HistoricalTraceEventRow.swift */,
 				21F3D2032F90210300003203 /* PromptBar.swift */,
+				21F5A1042F90410400005004 /* QuickLookPreview.swift */,
+				21F3D2052F90210500003205 /* RunningTaskDetailView.swift */,
+				21F3D2042F90210400003204 /* TaskDetailView.swift */,
+				21F3D2022F90210200003202 /* TaskListView.swift */,
+				21F3D2012F90210100003201 /* TaskRowView.swift */,
+				21F3D2062F90210600003206 /* TraceEventRow.swift */,
 			);
 			path = Tasks;
 			sourceTree = "<group>";
@@ -292,6 +336,11 @@
 			isa = PBXGroup;
 			children = (
 				21F110052F900A0500000A05 /* .gitkeep */,
+				21F7A10C2F90610C0000700C /* InputSourcePickerView.swift */,
+				21F7A1082F90610800007008 /* TranscriptView.swift */,
+				21F7A1042F90610400007004 /* VoiceCallView.swift */,
+				21F7A1062F90610600007006 /* VoiceOrbView.swift */,
+				21F7A10A2F90610A0000700A /* VoiceSetupFlowView.swift */,
 			);
 			path = Call;
 			sourceTree = "<group>";
@@ -310,6 +359,7 @@
 			isa = PBXGroup;
 			children = (
 				21F110072F900A0700000A07 /* .gitkeep */,
+				21F6A1002F90510000006000 /* SettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -382,6 +432,7 @@
 			packageProductDependencies = (
 				21F151012F90001100000011 /* HivecrewCore */,
 				21F151032F90001300000013 /* HivecrewAPIModels */,
+				21F151042F90001400000014 /* HivecrewShared */,
 				21F151022F90001200000012 /* HivecrewVoice */,
 			);
 			productName = Hivelink;
@@ -507,6 +558,7 @@
 			packageReferences = (
 				21F150012F90080100000801 /* XCLocalSwiftPackageReference "../Packages/HivecrewCore" */,
 				21F150032F90080300000803 /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */,
+				21F150042F90080400000804 /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */,
 				21F150022F90080200000802 /* XCLocalSwiftPackageReference "../Packages/HivecrewVoice" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -569,18 +621,34 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				21F5B1012F90411100005101 /* ArtifactImportCoordinator.swift in Sources */,
 				21F2B1022F90101200001102 /* ClusterStatusView.swift in Sources */,
-				21F3E2032F90211300003303 /* PromptBar.swift in Sources */,
+				21F5B1022F90411200005102 /* CompletedTaskDetailView.swift in Sources */,
 				20C439552F8EA82300558698 /* ContentView.swift in Sources */,
 				21F1ABC52F900D0500000D05 /* EmailEntryView.swift in Sources */,
+				21F5B1032F90411300005103 /* HistoricalTraceEventRow.swift in Sources */,
 				20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */,
 				21F2B1012F90101100001101 /* HivelinkClusterCoordinator.swift in Sources */,
 				21F2C2022F90110200002102 /* HivelinkTaskService.swift in Sources */,
+				21F4E1012F90311100004401 /* PeerConnectionManager.swift in Sources */,
 				21F1ABC42F900D0400000D04 /* OnboardingView.swift in Sources */,
 				21F1ABC62F900D0600000D06 /* OTPVerificationView.swift in Sources */,
 				21F2B1032F90101300001103 /* PeerDetailView.swift in Sources */,
-				21F3E2012F90211100003301 /* TaskRowView.swift in Sources */,
+				21F3E2032F90211300003303 /* PromptBar.swift in Sources */,
+				21F5B1042F90411400005104 /* QuickLookPreview.swift in Sources */,
+				21F3E2052F90211500003305 /* RunningTaskDetailView.swift in Sources */,
+				21F3E2042F90211400003304 /* TaskDetailView.swift in Sources */,
 				21F3E2022F90211200003302 /* TaskListView.swift in Sources */,
+				21F3E2012F90211100003301 /* TaskRowView.swift in Sources */,
+				21F3E2062F90211600003306 /* TraceEventRow.swift in Sources */,
+				21F6A1012F90510100006001 /* SettingsView.swift in Sources */,
+				21F7A1012F90610100007001 /* HivelinkToolHandler.swift in Sources */,
+				21F7A1032F90610300007003 /* HivelinkVoiceOrchestrator.swift in Sources */,
+				21F7A1052F90610500007005 /* VoiceCallView.swift in Sources */,
+				21F7A1072F90610700007007 /* VoiceOrbView.swift in Sources */,
+				21F7A1092F90610900007009 /* TranscriptView.swift in Sources */,
+				21F7A10B2F90610B0000700B /* VoiceSetupFlowView.swift in Sources */,
+				21F7A10D2F90610D0000700D /* InputSourcePickerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1133,6 +1201,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../Packages/HivecrewAPI;
 		};
+		21F150042F90080400000804 /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/HivecrewShared;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1150,6 +1222,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 21F150032F90080300000803 /* XCLocalSwiftPackageReference "../Packages/HivecrewAPI" */;
 			productName = HivecrewAPIModels;
+		};
+		21F151042F90001400000014 /* HivecrewShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 21F150042F90080400000804 /* XCLocalSwiftPackageReference "../Packages/HivecrewShared" */;
+			productName = HivecrewShared;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

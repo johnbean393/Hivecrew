@@ -1055,6 +1055,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 let response = try await client.executeNow(ClusterExecuteNowRequest(
                     canonicalTaskId: task.id,
                     ownerTunnelId: ownerTunnelId,
+                    ownerName: Host.current().localizedName,
                     ownerLeaseId: task.clusterLeaseId ?? makeLeaseId(
                         canonicalTaskId: task.id,
                         executionAttempt: executionAttempt ?? task.clusterExecutionAttempt,

@@ -36,7 +36,7 @@ public enum APITaskPriority: String, Codable, Sendable {
 // MARK: - Agent Question
 
 /// A pending question from the agent that requires a human answer before the task can proceed.
-public struct APIAgentQuestion: Codable, Sendable {
+public struct APIAgentQuestion: Codable, Sendable, Equatable, Hashable {
     public let id: String
     public let question: String
     public let suggestedAnswers: [String]?

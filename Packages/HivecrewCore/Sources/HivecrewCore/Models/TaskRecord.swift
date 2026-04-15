@@ -64,6 +64,15 @@ public enum TaskStatus: Int, Codable, CaseIterable {
             return false
         }
     }
+
+    public var isTerminal: Bool {
+        switch self {
+        case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed:
+            return true
+        case .queued, .waitingForVM, .running, .paused, .planning, .planReview, .writebackReview:
+            return false
+        }
+    }
 }
 
 public enum ClusterExecutionState: Int, Codable, CaseIterable {
@@ -216,6 +225,9 @@ public final class TaskRecord {
     /// Owning node tunnel ID for executor-side cluster execution records.
     /// Nil for locally-owned tasks.
     public var clusterOwnerNodeId: String?
+
+    /// Human-readable owner device name for executor-side display.
+    public var clusterOwnerNodeName: String?
 
     /// User-selected execution target for the canonical owner-side task.
     private var executionTargetKindRaw: Int = TaskExecutionTargetKind.automatic.rawValue

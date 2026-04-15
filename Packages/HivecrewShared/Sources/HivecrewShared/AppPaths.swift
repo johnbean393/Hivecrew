@@ -12,8 +12,13 @@ public enum AppPaths {
     
     // MARK: - Base Directories
     
-    /// The real (non-sandboxed) home directory
+    /// The real (non-sandboxed) home directory.
+    /// On iOS the app must stay within its sandbox container; on macOS we
+    /// escape the sandbox remapping so all Hivecrew products share one path.
     public static let realHomeDirectory: URL = {
+        #if os(iOS) || os(tvOS) || os(watchOS)
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        #else
         // Get the real home directory from the passwd database
         // This bypasses sandbox container remapping
         if let pw = getpwuid(getuid()), let home = pw.pointee.pw_dir {
@@ -31,9 +36,6 @@ public enum AppPaths {
             }
             return URL(fileURLWithPath: home, isDirectory: true)
         }
-        #if os(iOS) || os(tvOS) || os(watchOS)
-        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-        #else
         return FileManager.default.homeDirectoryForCurrentUser
         #endif
     }()

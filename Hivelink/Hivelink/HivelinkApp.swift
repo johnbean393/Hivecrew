@@ -8,20 +8,36 @@ import HivecrewCore
 import SwiftData
 import SwiftUI
 
-/// Owns the shared `HivelinkClusterCoordinator` and `HivelinkTaskService` so both use the same coordinator
-/// and a stable `ModelContext` from the app container.
+/// Owns the shared `HivelinkClusterCoordinator`, `RemoteTaskIndex`, `PeerConnectionManager`, and `HivelinkTaskService`
+/// so remote dispatch and real-time monitoring share the same index and coordinator.
 @MainActor
 private final class HivelinkAppCore: ObservableObject {
     let clusterCoordinator: HivelinkClusterCoordinator
+    let remoteTaskIndex: RemoteTaskIndex
+    let peerConnectionManager: PeerConnectionManager
     let taskService: HivelinkTaskService
+    let voiceOrchestrator: HivelinkVoiceOrchestrator
 
     init(modelContainer: ModelContainer) {
         let coordinator = HivelinkClusterCoordinator()
+        let index = RemoteTaskIndex()
         clusterCoordinator = coordinator
-        taskService = HivelinkTaskService(
-            modelContext: modelContainer.mainContext,
+        remoteTaskIndex = index
+        peerConnectionManager = PeerConnectionManager(
+            remoteTaskIndex: index,
             clusterCoordinator: coordinator
         )
+        let service = HivelinkTaskService(
+            modelContext: modelContainer.mainContext,
+            clusterCoordinator: coordinator,
+            remoteTaskIndex: index
+        )
+        service.peerConnectionManager = peerConnectionManager
+        taskService = service
+
+        let orchestrator = HivelinkVoiceOrchestrator()
+        orchestrator.configure(taskService: service)
+        voiceOrchestrator = orchestrator
     }
 }
 
@@ -57,7 +73,10 @@ struct HivelinkApp: App {
             .animation(.default, value: authManager.isAuthenticated)
             .environmentObject(authManager)
             .environmentObject(appCore.clusterCoordinator)
+            .environmentObject(appCore.peerConnectionManager)
             .environmentObject(appCore.taskService)
+            .environmentObject(appCore.taskService.artifactImportCoordinator)
+            .environmentObject(appCore.voiceOrchestrator)
             .task {
                 authManager.loadStoredCredentials()
                 if authManager.isAuthenticated {
@@ -73,6 +92,7 @@ struct HivelinkApp: App {
                     }
                 } else {
                     appCore.taskService.stopReconciliation()
+                    appCore.peerConnectionManager.stopAll()
                     Task {
                         await appCore.clusterCoordinator.stopDiscovery()
                     }

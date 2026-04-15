@@ -10,26 +10,7 @@ import Foundation
 import HivecrewAPIModels
 import HivecrewCore
 import SwiftData
-
-// MARK: - Artifact import (stub)
-
-/// Placeholder for downloading and merging remote task artifacts; real implementation in a later phase.
-enum ArtifactImportCoordinator {
-    static func importCompletedRemoteArtifacts(
-        task: TaskRecord,
-        peer: RemoteClusterPeer,
-        workerTaskId: String,
-        remoteTask: APITask,
-        client: PeerAPIClient
-    ) async -> Bool {
-        _ = task
-        _ = peer
-        _ = workerTaskId
-        _ = remoteTask
-        _ = client
-        return true
-    }
-}
+import UIKit
 
 // MARK: - Task service
 
@@ -37,19 +18,29 @@ enum ArtifactImportCoordinator {
 final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTaskDispatchHost {
 
     private let modelContext: ModelContext
-    private weak var clusterCoordinator: HivelinkClusterCoordinator?
+    private(set) weak var clusterCoordinator: HivelinkClusterCoordinator?
 
     @Published private(set) var tasks: [TaskRecord] = []
 
-    private let remoteTaskIndex = RemoteTaskIndex()
-    private var dispatcher: RemoteTaskDispatcher!
+    private(set) var remoteTaskIndex: RemoteTaskIndex
+    private(set) var dispatcher: RemoteTaskDispatcher!
+
+    let artifactImportCoordinator = ArtifactImportCoordinator()
+
+    /// Real-time SSE + screenshot monitoring for active remote tasks (owned by `HivelinkAppCore`).
+    weak var peerConnectionManager: PeerConnectionManager?
 
     /// Long-running reconciliation loop; cancelled in `stopReconciliation()` (cannot use `Timer` + `deinit` with `@MainActor` isolation).
     private var reconciliationTask: Task<Void, Never>?
 
-    init(modelContext: ModelContext, clusterCoordinator: HivelinkClusterCoordinator) {
+    init(
+        modelContext: ModelContext,
+        clusterCoordinator: HivelinkClusterCoordinator,
+        remoteTaskIndex: RemoteTaskIndex
+    ) {
         self.modelContext = modelContext
         self.clusterCoordinator = clusterCoordinator
+        self.remoteTaskIndex = remoteTaskIndex
         self.dispatcher = RemoteTaskDispatcher(
             host: self,
             clusterDirectory: clusterCoordinator,
@@ -68,6 +59,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     func stopReconciliation() {
         reconciliationTask?.cancel()
         reconciliationTask = nil
+        peerConnectionManager?.stopAll()
     }
 
     /// Reloads tasks from the SwiftData store (e.g. pull-to-refresh).
@@ -79,6 +71,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     func reconcileAndRefresh() async {
         await dispatcher.reconcileRemoteTasks()
         refreshTasks()
+        await peerConnectionManager?.syncMonitoring(tasks: tasks)
     }
 
     private func startReconciliation() {
@@ -87,6 +80,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             guard let self else { return }
             while !Task.isCancelled {
                 await self.dispatcher.reconcileRemoteTasks()
+                await self.peerConnectionManager?.syncMonitoring(tasks: self.tasks)
                 do {
                     try await Task.sleep(nanoseconds: 5_000_000_000)
                 } catch {
@@ -189,9 +183,13 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     }
 
     func deleteTask(_ task: TaskRecord) {
+        let taskId = task.id
         modelContext.delete(task)
         try? modelContext.save()
         refreshTasks()
+        Task {
+            await remoteTaskIndex.remove(canonicalTaskId: taskId)
+        }
     }
 
     func renameTask(_ task: TaskRecord, to title: String) {
@@ -203,6 +201,13 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     }
 
     func cancelTask(_ task: TaskRecord) async {
+        let hasPeer = await remoteTaskIndex.peerId(for: task.id) != nil
+        if !hasPeer && task.status == .queued {
+            task.status = .cancelled
+            try? modelContext.save()
+            refreshTasks()
+            return
+        }
         await performPeerAction(task, action: "cancel")
     }
 
@@ -216,6 +221,28 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
     func sendInstruction(_ instruction: String, to task: TaskRecord) async {
         await performPeerAction(task, action: "instruct", instructions: instruction)
+    }
+
+    func answerQuestion(_ task: TaskRecord, questionId: String, answer: String) async {
+        guard let peerId = await remoteTaskIndex.peerId(for: task.id),
+              let workerTaskId = await remoteTaskIndex.workerTaskId(for: task.id),
+              let coordinator = clusterCoordinator,
+              let peer = await coordinator.peer(id: peerId)
+        else { return }
+
+        let client = await dispatcher.peerClient(for: peer)
+        try? await client.answerQuestion(taskId: workerTaskId, questionId: questionId, answer: answer)
+    }
+
+    func respondToPermission(_ task: TaskRecord, permissionId: String, approved: Bool) async {
+        guard let peerId = await remoteTaskIndex.peerId(for: task.id),
+              let workerTaskId = await remoteTaskIndex.workerTaskId(for: task.id),
+              let coordinator = clusterCoordinator,
+              let peer = await coordinator.peer(id: peerId)
+        else { return }
+
+        let client = await dispatcher.peerClient(for: peer)
+        try? await client.respondToPermission(taskId: workerTaskId, permissionId: permissionId, approved: approved)
     }
 
     func getTask(byId id: String) -> TaskRecord? {
@@ -315,6 +342,10 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         0
     }
 
+    func ownerDisplayName() -> String? {
+        UIDevice.current.name
+    }
+
     func materializeTaskReferences(for task: TaskRecord, referencesRoot: URL) throws -> [String] {
         _ = task
         _ = referencesRoot
@@ -328,13 +359,17 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         remoteTask: APITask,
         client: PeerAPIClient
     ) async -> Bool {
-        await ArtifactImportCoordinator.importCompletedRemoteArtifacts(
+        let success = await artifactImportCoordinator.importArtifacts(
             task: task,
             peer: peer,
             workerTaskId: workerTaskId,
             remoteTask: remoteTask,
             client: client
         )
+        if success {
+            try? modelContext.save()
+        }
+        return success
     }
 
     // MARK: - Private helpers
@@ -354,6 +389,22 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             tasks = try modelContext.fetch(descriptor)
         } catch {
             tasks = []
+        }
+
+        let currentTasks = tasks
+        let coordinator = artifactImportCoordinator
+        let index = remoteTaskIndex
+        let disp = dispatcher!
+        let ctx = modelContext
+        Task { [weak self] in
+            guard self != nil else { return }
+            await coordinator.importRecentCompleted(
+                tasks: currentTasks,
+                peerClient: { peer in await disp.peerClient(for: peer) },
+                peerLookup: { id in await self?.clusterCoordinator?.peer(id: id) },
+                remoteTaskIndex: index,
+                saveContext: { try ctx.save() }
+            )
         }
     }
 

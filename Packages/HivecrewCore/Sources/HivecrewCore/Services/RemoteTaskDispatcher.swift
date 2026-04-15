@@ -82,6 +82,8 @@ public protocol RemoteTaskDispatchHost: AnyObject {
     func notifyTaskListChanged()
     /// `nil` means “unknown” — remote dispatch is allowed (same as original `shouldDispatchRemotely`).
     func localAvailableSlotsForDispatchDecision() async -> Int?
+    /// Human-readable name for this device (shown on execution nodes as the task owner).
+    func ownerDisplayName() -> String?
     func materializeTaskReferences(for task: TaskRecord, referencesRoot: URL) throws -> [String]
     func importCompletedRemoteArtifacts(
         task: TaskRecord,
@@ -164,6 +166,7 @@ public final class RemoteTaskDispatcher {
         let entries = await remoteTaskIndex.allEntries()
 
         for task in host.allTasks() where task.hasRemoteLease {
+            guard !task.status.isTerminal else { continue }
             guard let lease = persistedRemoteLease(for: task) else { continue }
             guard let peer = await clusterDirectory.peer(id: lease.peerId) else {
                 noteLeaseFailure(for: task, state: .suspect, reason: "Remote worker node is missing from the cluster directory.")
@@ -381,6 +384,7 @@ public final class RemoteTaskDispatcher {
                     ClusterExecuteNowRequest(
                         canonicalTaskId: task.id,
                         ownerTunnelId: ownerTunnelId,
+                        ownerName: host.ownerDisplayName(),
                         ownerLeaseId: task.clusterLeaseId ?? makeLeaseId(
                             canonicalTaskId: task.id,
                             executionAttempt: executionAttempt ?? task.clusterExecutionAttempt,
@@ -494,7 +498,13 @@ public final class RemoteTaskDispatcher {
             )
             task.clusterExecutionState = .none
             if imported {
-                clearRemoteLease(for: task, preservePeerName: true)
+                // Clear lease tracking but preserve peer/worker IDs so on-demand
+                // import can retry if the trace files are later lost.
+                task.clusterLeaseId = nil
+                task.clusterLastRemoteContactAt = nil
+                task.clusterLeaseFirstFailureAt = nil
+                task.clusterLeaseFailureCount = 0
+                task.remoteLeaseState = .none
                 await remoteTaskIndex.remove(canonicalTaskId: canonicalTaskId)
             }
         default:
