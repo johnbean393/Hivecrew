@@ -11,6 +11,7 @@ struct TaskDetailView: View {
     let taskId: String
 
     @EnvironmentObject private var taskService: HivelinkTaskService
+    @EnvironmentObject private var notificationManager: NotificationManager
 
     var body: some View {
         Group {
@@ -22,6 +23,15 @@ struct TaskDetailView: View {
         }
         .navigationTitle("Task")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            notificationManager.removeNotifications(forTaskId: taskId)
+            notificationManager.activelyViewedTaskId = taskId
+        }
+        .onDisappear {
+            if notificationManager.activelyViewedTaskId == taskId {
+                notificationManager.activelyViewedTaskId = nil
+            }
+        }
     }
 
     @ViewBuilder

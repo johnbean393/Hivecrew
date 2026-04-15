@@ -178,6 +178,9 @@ struct HivelinkApp: App {
             .environmentObject(appCore.voiceOrchestrator)
             .environmentObject(appCore.notificationManager)
             .environmentObject(appCore.incomingCallManager)
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                appCore.notificationManager.removeAllTaskNotifications()
+            }
             .task {
                 appDelegate.notificationManager = appCore.notificationManager
                 await appCore.notificationManager.requestPermissions()
@@ -206,8 +209,9 @@ struct HivelinkApp: App {
             .onChange(of: appCore.notificationManager.pendingDeepLink) { _, deepLink in
                 guard let deepLink else { return }
                 switch deepLink {
-                case .task:
+                case .task(let id):
                     appCore.selectedTab = 0
+                    appCore.notificationManager.removeNotifications(forTaskId: id)
                 case .cluster:
                     appCore.selectedTab = 2
                 }

@@ -26,6 +26,10 @@ final class NotificationManager: NSObject, ObservableObject {
     @Published var pendingDeepLink: NotificationDeepLink?
     @Published private(set) var apnsToken: Data?
 
+    /// Set to the task ID currently visible in detail view so that
+    /// foreground banners for that task are suppressed.
+    var activelyViewedTaskId: String?
+
     // MARK: - Category Identifiers
 
     static let categoryTaskCompleted   = "taskCompleted"
@@ -245,12 +249,44 @@ final class NotificationManager: NSObject, ObservableObject {
         }
         content.userInfo = userInfo
 
+        let taskId = userInfo["taskId"] as? String
+        let identifier = taskId.map { "task-\($0)-\(categoryIdentifier ?? "general")" }
+            ?? UUID().uuidString
+
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: identifier,
             content: content,
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Notification Cleanup
+
+    /// Removes all delivered notifications associated with a specific task.
+    func removeNotifications(forTaskId taskId: String) {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { notifications in
+            let matchingIds = notifications
+                .filter { $0.request.content.userInfo["taskId"] as? String == taskId }
+                .map(\.request.identifier)
+            if !matchingIds.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: matchingIds)
+            }
+        }
+    }
+
+    /// Removes all delivered Hivelink task notifications.
+    func removeAllTaskNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { notifications in
+            let taskIds = notifications
+                .filter { $0.request.content.userInfo["taskId"] != nil }
+                .map(\.request.identifier)
+            if !taskIds.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: taskIds)
+            }
+        }
     }
 }
 
@@ -262,7 +298,14 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        let taskId = notification.request.content.userInfo["taskId"] as? String
+        if let taskId {
+            let viewedId = await activelyViewedTaskId
+            if viewedId == taskId {
+                return []
+            }
+        }
+        return [.banner, .sound, .badge]
     }
 
     nonisolated func userNotificationCenter(
