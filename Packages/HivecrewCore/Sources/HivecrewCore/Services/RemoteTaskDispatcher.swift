@@ -398,7 +398,7 @@ public final class RemoteTaskDispatcher {
                         reasoningEffort: task.reasoningEffort,
                         attachedFilePaths: stagedInputs.attached,
                         outputDirectory: nil,
-                        planFirst: false,
+                        planFirst: task.planFirstEnabled,
                         planMarkdown: task.planMarkdown,
                         mentionedSkillNames: task.mentionedSkillNames ?? [],
                         referencedTaskIds: task.referencedTaskIds ?? [],

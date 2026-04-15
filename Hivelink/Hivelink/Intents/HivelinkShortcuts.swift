@@ -9,11 +9,11 @@ import AppIntents
 
 struct HivelinkShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        AppShortcut(
+        AppShortcut( 
             intent: CreateTaskIntent(),
             phrases: [
                 "Create a \(.applicationName) task",
-                "Ask \(.applicationName) to \(\.$taskDescription)"
+                "Ask \(.applicationName) to do something"
             ],
             shortTitle: "Create Task",
             systemImageName: "plus.circle"

@@ -11,6 +11,7 @@ import CoreSpotlight
 import Foundation
 import HivecrewAPIModels
 import HivecrewCore
+import HivecrewShared
 import SwiftData
 import UIKit
 import UniformTypeIdentifiers
@@ -181,6 +182,8 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 task.planSelectedSkillNames = request.planSelectedSkillNames
             }
 
+            persistAttachmentsToDisk(for: task)
+
             modelContext.insert(task)
             created.append(task)
         }
@@ -235,6 +238,14 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
     func resumeTask(_ task: TaskRecord) async {
         await performPeerAction(task, action: "resume")
+    }
+
+    func executePlan(for task: TaskRecord) async {
+        await performPeerAction(task, action: "approve_plan")
+    }
+
+    func cancelPlanning(for task: TaskRecord) async {
+        await performPeerAction(task, action: "cancel_plan")
     }
 
     func sendInstruction(_ instruction: String, to task: TaskRecord) async {
@@ -411,7 +422,8 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             if task.status == .running || task.status == .planning || task.status == .paused || task.status == .waitingForVM {
                 if let activity = liveActivities[task.id] {
                     let content = ActivityContent(state: contentState, staleDate: now.addingTimeInterval(15))
-                    Task { await activity.update(content) }
+                    nonisolated(unsafe) let sendableActivity = activity
+                    Task { await sendableActivity.update(content) }
                 } else {
                     startLiveActivity(for: task, state: contentState)
                 }
@@ -428,7 +440,8 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 }
                 if let activity = liveActivities.removeValue(forKey: task.id) {
                     let finalContent = ActivityContent(state: contentState, staleDate: nil)
-                    Task { await activity.end(finalContent, dismissalPolicy: .after(now.addingTimeInterval(300))) }
+                    nonisolated(unsafe) let sendableActivity = activity
+                    Task { await sendableActivity.end(finalContent, dismissalPolicy: .after(now.addingTimeInterval(300))) }
                 }
             }
         }
@@ -444,7 +457,8 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 attentionMessage: nil
             )
             let finalContent = ActivityContent(state: endState, staleDate: nil)
-            Task { await activity.end(finalContent, dismissalPolicy: .immediate) }
+            nonisolated(unsafe) let sendableActivity = activity
+            Task { await sendableActivity.end(finalContent, dismissalPolicy: .immediate) }
         }
     }
 
@@ -641,5 +655,45 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         guard trimmed.count > 50 else { return trimmed.isEmpty ? "Task" : trimmed }
         let endIndex = trimmed.index(trimmed.startIndex, offsetBy: 50)
         return String(trimmed[..<endIndex]) + "…"
+    }
+
+    private func persistAttachmentsToDisk(for task: TaskRecord) {
+        let infos = task.attachmentInfos
+        guard !infos.isEmpty else { return }
+
+        let fm = FileManager.default
+        let attachmentsDir = AppPaths.appSupportDirectory
+            .appendingPathComponent("TaskAttachments", isDirectory: true)
+            .appendingPathComponent(task.id, isDirectory: true)
+        try? fm.createDirectory(at: attachmentsDir, withIntermediateDirectories: true)
+
+        var updated: [AttachmentInfo] = []
+        for info in infos {
+            let sourcePath = info.effectivePath
+            guard fm.fileExists(atPath: sourcePath) else {
+                updated.append(info)
+                continue
+            }
+            let destination = attachmentsDir.appendingPathComponent(
+                URL(fileURLWithPath: sourcePath).lastPathComponent
+            )
+            do {
+                if fm.fileExists(atPath: destination.path) {
+                    try fm.removeItem(at: destination)
+                }
+                try fm.copyItem(
+                    at: URL(fileURLWithPath: sourcePath),
+                    to: destination
+                )
+                updated.append(AttachmentInfo(
+                    originalPath: info.originalPath,
+                    copiedPath: destination.path,
+                    fileSize: info.fileSize
+                ))
+            } catch {
+                updated.append(info)
+            }
+        }
+        task.attachmentInfos = updated
     }
 }

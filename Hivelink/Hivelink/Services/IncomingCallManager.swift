@@ -7,6 +7,7 @@
 //  for active voice sessions.
 //
 
+import Combine
 import CallKit
 import Foundation
 import PushKit
@@ -244,6 +245,8 @@ final class IncomingCallManager: NSObject, ObservableObject {
     // MARK: - Report + Immediately End (Suppressed)
 
     private func reportAndImmediatelyEnd(uuid: UUID, context: IncomingCallContext, completion: @escaping () -> Void) {
+        nonisolated(unsafe) let done = completion
+
         let update = CXCallUpdate()
         update.localizedCallerName = context.localizedCallerName
         update.hasVideo = false
@@ -256,10 +259,9 @@ final class IncomingCallManager: NSObject, ObservableObject {
             if let error {
                 print("[IncomingCallManager] Suppressed report failed: \(error.localizedDescription)")
             }
-            // Immediately end -- user never sees the call UI.
             Task { @MainActor [weak self] in
                 guard let self else {
-                    completion()
+                    done()
                     return
                 }
                 self.callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .unanswered)
@@ -269,7 +271,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
                 } else {
                     self.deliverSuppressedNotification(context: context)
                 }
-                completion()
+                done()
             }
         }
     }
@@ -328,10 +330,11 @@ extension IncomingCallManager: PKPushRegistryDelegate {
         for type: PKPushType
     ) {
         guard type == .voIP else { return }
+        let tokenData = pushCredentials.token
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.voipToken = pushCredentials.token
-            self.sendVoIPTokenToServer(pushCredentials.token)
+            self.voipToken = tokenData
+            self.sendVoIPTokenToServer(tokenData)
         }
     }
 
@@ -346,27 +349,29 @@ extension IncomingCallManager: PKPushRegistryDelegate {
             return
         }
 
+        nonisolated(unsafe) let payloadDict = payload.dictionaryPayload
+        nonisolated(unsafe) let done = completion
+
         Task { @MainActor [weak self] in
             guard let self else {
-                completion()
+                done()
                 return
             }
 
-            guard let context = IncomingCallContext.from(payload: payload.dictionaryPayload) else {
-                // Invalid payload -- must still report a call to avoid termination.
+            guard let context = IncomingCallContext.from(payload: payloadDict) else {
                 let uuid = UUID()
                 let update = CXCallUpdate()
                 update.localizedCallerName = "Hivecrew"
                 self.callKitProvider.reportNewIncomingCall(with: uuid, update: update) { _ in
                     Task { @MainActor in
                         self.callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .failed)
-                        completion()
+                        done()
                     }
                 }
                 return
             }
 
-            self.handleIncomingPush(context: context, completion: completion)
+            self.handleIncomingPush(context: context, completion: done)
         }
     }
 

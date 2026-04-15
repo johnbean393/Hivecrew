@@ -674,11 +674,16 @@ struct PromptBar: View {
             reasoningEffort = effort
         }
 
-        selectedExecutionTarget = task.executionTarget
+        switch task.executionTarget.kind {
+        case .peer:
+            selectedExecutionTarget = task.executionTarget
+        default:
+            selectedExecutionTarget = .automatic
+        }
         planFirstEnabled = task.planFirstEnabled
 
         attachmentURLs = task.attachmentInfos.compactMap { info in
-            let url = URL(fileURLWithPath: info.originalPath)
+            let url = URL(fileURLWithPath: info.effectivePath)
             guard FileManager.default.fileExists(atPath: url.path) else { return nil }
             return url
         }

@@ -6,6 +6,7 @@
 //  and delegate handling for notification responses.
 //
 
+import Combine
 import Foundation
 import UIKit
 import UserNotifications
@@ -220,10 +221,9 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        completionHandler([.banner, .sound, .badge])
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound, .badge]
     }
 
     nonisolated func userNotificationCenter(
@@ -234,10 +234,14 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         let userInfo = response.notification.request.content.userInfo
         let taskId = userInfo["taskId"] as? String ?? ""
         let actionId = response.actionIdentifier
+        let categoryId = response.notification.request.content.categoryIdentifier
+        let replyText = (response as? UNTextInputNotificationResponse)?.userText
+
+        nonisolated(unsafe) let done = completionHandler
 
         Task { @MainActor [weak self] in
             guard let self else {
-                completionHandler()
+                done()
                 return
             }
             switch actionId {
@@ -255,18 +259,17 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
                 }
 
             case Self.actionTextReply:
-                if let textResponse = response as? UNTextInputNotificationResponse, !taskId.isEmpty {
-                    self.onQuestionReply?(taskId, textResponse.userText)
+                if let replyText, !taskId.isEmpty {
+                    self.onQuestionReply?(taskId, replyText)
                 }
 
             case Self.actionApprove:
-                let category = response.notification.request.content.categoryIdentifier
                 if !taskId.isEmpty {
-                    if category == Self.categoryToolPermission {
+                    if categoryId == Self.categoryToolPermission {
                         self.onPermissionResponse?(taskId, true)
-                    } else if category == Self.categoryPlanReady {
+                    } else if categoryId == Self.categoryPlanReady {
                         self.onPlanApproval?(taskId)
-                    } else if category == Self.categoryWritebackReady {
+                    } else if categoryId == Self.categoryWritebackReady {
                         self.onWritebackResponse?(taskId, true)
                     }
                 }
@@ -284,7 +287,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
             default:
                 break
             }
-            completionHandler()
+            done()
         }
     }
 }

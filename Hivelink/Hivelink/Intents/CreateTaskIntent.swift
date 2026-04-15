@@ -10,9 +10,9 @@ import Foundation
 import HivecrewCore
 
 struct CreateTaskIntent: AppIntent {
-    static var title: LocalizedStringResource = "Create a Hivelink Task"
-    static var description = IntentDescription("Creates a new task in Hivelink and dispatches it to a peer.")
-    static var openAppWhenRun = false
+    static let title: LocalizedStringResource = "Create a Hivelink Task"
+    static let description = IntentDescription("Creates a new task in Hivelink and dispatches it to a peer.")
+    static let openAppWhenRun = false
 
     @Parameter(title: "Task Description")
     var taskDescription: String

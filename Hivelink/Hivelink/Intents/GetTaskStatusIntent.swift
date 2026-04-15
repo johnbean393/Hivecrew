@@ -9,13 +9,14 @@ import AppIntents
 import Foundation
 
 struct GetTaskStatusIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Hivelink Status"
-    static var description = IntentDescription("Returns a summary of active Hivelink tasks.")
-    static var openAppWhenRun = false
+    static let title: LocalizedStringResource = "Get Hivelink Status"
+    static let description = IntentDescription("Returns a summary of active Hivelink tasks.")
+    static let openAppWhenRun = false
 
     @Parameter(title: "Task Name", default: nil)
     var taskName: String?
 
+    @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let summaries = SharedDataReader.taskSummaries()
 

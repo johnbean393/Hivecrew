@@ -9,8 +9,12 @@
 import AppIntents
 
 struct HivelinkFocusFilter: SetFocusFilterIntent {
-    static var title: LocalizedStringResource = "Hivelink Focus Filter"
-    static var description: IntentDescription? = "Controls Hivelink behavior during Focus modes."
+    static let title: LocalizedStringResource = "Hivelink Focus Filter"
+    static let description: IntentDescription = "Controls Hivelink behavior during Focus modes."
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "Hivelink Focus Filter")
+    }
 
     @Parameter(title: "Allow Notifications", default: true)
     var allowNotifications: Bool

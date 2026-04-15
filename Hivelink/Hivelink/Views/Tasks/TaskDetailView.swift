@@ -123,14 +123,14 @@ struct TaskDetailView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    Task { await taskService.resumeTask(task) }
+                    Task { await taskService.executePlan(for: task) }
                 } label: {
                     Label("Approve", systemImage: "checkmark.circle")
                 }
                 .buttonStyle(.borderedProminent)
 
                 Button(role: .destructive) {
-                    Task { await taskService.cancelTask(task) }
+                    Task { await taskService.cancelPlanning(for: task) }
                 } label: {
                     Label("Cancel", systemImage: "xmark.circle")
                 }

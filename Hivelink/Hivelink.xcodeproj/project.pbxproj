@@ -127,16 +127,6 @@
 		20C439502F8EA82300558698 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		20C439512F8EA82300558698 /* HivelinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkApp.swift; sourceTree = "<group>"; };
 		20C8D6372F8EFDE8009A0274 /* Hivecrew.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Hivecrew.icon; sourceTree = "<group>"; };
-		21F110012F900A0100000A01 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110022F900A0200000A02 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110032F900A0300000A03 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110042F900A0400000A04 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110052F900A0500000A05 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110062F900A0600000A06 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110072F900A0700000A07 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110082F900A0800000A08 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F110092F900A0900000A09 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
-		21F1100A2F900A0A00000A0A /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		21F120012F900B0100000B01 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		21F120022F900B0200000B02 /* Hivelink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Hivelink.entitlements; sourceTree = "<group>"; };
 		21F130012F90010100000101 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
@@ -309,7 +299,6 @@
 		21F102012F900C0100000C01 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				21F110012F900A0100000A01 /* .gitkeep */,
 				21FB00262FB0012600100026 /* IncomingCallContext.swift */,
 				21FA00012FA0010100000001 /* SharedWidgetData.swift */,
 			);
@@ -319,7 +308,6 @@
 		21F102022F900C0200000C02 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				21F110022F900A0200000A02 /* .gitkeep */,
 				21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */,
 				21FB00222FB0012200100022 /* HapticManager.swift */,
 				21F2A1012F90100100001001 /* HivelinkClusterCoordinator.swift */,
@@ -349,7 +337,6 @@
 		21F102042F900C0400000C04 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
-				21F110032F900A0300000A03 /* .gitkeep */,
 				21F1ABC12F900D0100000D01 /* OnboardingView.swift */,
 				21F1ABC22F900D0200000D02 /* EmailEntryView.swift */,
 				21F1ABC32F900D0300000D03 /* OTPVerificationView.swift */,
@@ -360,7 +347,6 @@
 		21F102052F900C0500000C05 /* Tasks */ = {
 			isa = PBXGroup;
 			children = (
-				21F110042F900A0400000A04 /* .gitkeep */,
 				21F5A1022F90410200005002 /* CompletedTaskDetailView.swift */,
 				21F5A1032F90410300005003 /* HistoricalTraceEventRow.swift */,
 				21F3D2032F90210300003203 /* PromptBar.swift */,
@@ -377,7 +363,6 @@
 		21F102062F900C0600000C06 /* Call */ = {
 			isa = PBXGroup;
 			children = (
-				21F110052F900A0500000A05 /* .gitkeep */,
 				21F7A10C2F90610C0000700C /* InputSourcePickerView.swift */,
 				21F7A1082F90610800007008 /* TranscriptView.swift */,
 				21F7A1042F90610400007004 /* VoiceCallView.swift */,
@@ -390,7 +375,6 @@
 		21F102072F900C0700000C07 /* Cluster */ = {
 			isa = PBXGroup;
 			children = (
-				21F110062F900A0600000A06 /* .gitkeep */,
 				21F2A1022F90100200001002 /* ClusterStatusView.swift */,
 				21F2A1032F90100300001003 /* PeerDetailView.swift */,
 			);
@@ -400,7 +384,6 @@
 		21F102082F900C0800000C08 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				21F110072F900A0700000A07 /* .gitkeep */,
 				21F6A1002F90510000006000 /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -409,7 +392,6 @@
 		21F102092F900C0900000C09 /* Intents */ = {
 			isa = PBXGroup;
 			children = (
-				21F110082F900A0800000A08 /* .gitkeep */,
 				21FA00032FA0010300000003 /* AppDependencyManager.swift */,
 				21FA00042FA0010400000004 /* CreateTaskIntent.swift */,
 				21FA00062FA0010600000006 /* GetTaskStatusIntent.swift */,
@@ -423,7 +405,6 @@
 		21F1020A2F900C0A00000C0A /* Widgets */ = {
 			isa = PBXGroup;
 			children = (
-				21F110092F900A0900000A09 /* .gitkeep */,
 			);
 			path = Widgets;
 			sourceTree = "<group>";
@@ -431,7 +412,6 @@
 		21F1020B2F900C0B00000C0B /* LiveActivity */ = {
 			isa = PBXGroup;
 			children = (
-				21F1100A2F900A0A00000A0A /* .gitkeep */,
 				21FA00022FA0010200000002 /* TaskActivityAttributes.swift */,
 			);
 			path = LiveActivity;

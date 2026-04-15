@@ -200,6 +200,7 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             reasoningEffort: request.reasoningEffort,
             attachedFilePaths: request.attachedFilePaths,
             outputDirectory: request.outputDirectory,
+            planFirst: request.planFirst,
             planMarkdown: request.planMarkdown,
             mentionedSkillNames: request.mentionedSkillNames,
             referencedTaskIds: request.referencedTaskIds,
