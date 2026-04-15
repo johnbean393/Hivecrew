@@ -606,6 +606,28 @@ public final class RemoteTaskDispatcher {
 
         try? host.saveModelContext()
         host.notifyTaskListChanged()
+
+        _ = await dispatchQueuedCanonicalTaskToPeer(task)
+    }
+
+    // MARK: - Queued task retry
+
+    /// Re-attempts dispatch for all tasks stuck in `.queued` with no active remote lease.
+    /// Called from the periodic reconciliation loop so that tasks whose initial (one-shot)
+    /// dispatch failed — or that were re-queued after a lost lease — eventually reach a peer.
+    public func retryQueuedTasks() async {
+        guard let host else { return }
+
+        let eligible = host.allTasks().filter {
+            $0.status == .queued
+                && $0.clusterExecutionState == .none
+                && !$0.isPinnedToLocalExecution
+        }
+        guard !eligible.isEmpty else { return }
+
+        for task in eligible {
+            _ = await dispatchQueuedCanonicalTaskToPeer(task)
+        }
     }
 
     public nonisolated static func shouldDispatchRemotely(

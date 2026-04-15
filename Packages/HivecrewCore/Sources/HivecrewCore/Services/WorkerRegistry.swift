@@ -46,12 +46,30 @@ public final class WorkerRegistry: ObservableObject {
             return existing
         }
 
-        let available = Self.namePool.filter { !activeNames.contains($0) }
-        let name = available.randomElement() ?? "Worker-\(workers.count + 1)"
+        let name = Self.stableName(for: taskId, excluding: activeNames)
 
         let identity = WorkerIdentity(id: taskId, displayName: name, taskTitle: taskTitle)
         workers.append(identity)
         return identity
+    }
+
+    /// Deterministic name derived from the task ID so the same task always
+    /// gets the same worker name across voice sessions.
+    private static func stableName(for taskId: String, excluding used: Set<String>) -> String {
+        var hash = taskId.utf8.reduce(into: UInt64(0)) { h, byte in
+            h = h &* 31 &+ UInt64(byte)
+        }
+        let poolSize = namePool.count
+        let startIndex = Int(hash % UInt64(poolSize))
+
+        for offset in 0..<poolSize {
+            let candidate = namePool[(startIndex + offset) % poolSize]
+            if !used.contains(candidate) {
+                return candidate
+            }
+        }
+        hash = hash &* 2_654_435_761
+        return "Worker-\(hash % 10000)"
     }
 
     @discardableResult

@@ -140,7 +140,6 @@ struct PromptBar: View {
             attachmentMenuButton
                 .frame(width: 28)
                 .padding(.leading, 8)
-                .padding(.trailing, 4)
 
             VStack(alignment: .leading, spacing: 6) {
                 TextField(
@@ -151,6 +150,7 @@ struct PromptBar: View {
                 .lineLimit(1...6)
                 .textFieldStyle(.plain)
                 .focused($fieldFocused)
+                .padding(.leading, 6)
 
                 controlsRow
             }
@@ -189,6 +189,7 @@ struct PromptBar: View {
                 executionTargetCapsule
                 planToggle
             }
+            .padding(.horizontal, 6)
         }
         .mask(
             HStack(spacing: 0) {
@@ -196,7 +197,7 @@ struct PromptBar: View {
                     .frame(width: 6)
                 Color.black
                 LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
-                    .frame(width: 6)
+                    .frame(width: 8)
             }
         )
     }

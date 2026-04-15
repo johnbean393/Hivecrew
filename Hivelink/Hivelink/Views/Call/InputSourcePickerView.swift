@@ -63,6 +63,7 @@ struct InputSourcePickerView: View {
                         Task {
                             await orchestrator.setInputSource(.screenBroadcast)
                         }
+                        BroadcastPickerTrigger.shared.trigger()
                     } label: {
                         HStack {
                             Label("Share Screen", systemImage: "rectangle.inset.filled.and.person.filled")
@@ -75,9 +76,13 @@ struct InputSourcePickerView: View {
                             }
                         }
                     }
-
-                    BroadcastPickerView()
-                        .frame(height: 44)
+                    .onAppear {
+                        BroadcastPickerTrigger.shared.ensureInstalled(
+                            in: UIApplication.shared.connectedScenes
+                                .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+                                .first
+                        )
+                    }
                 }
             }
             .navigationTitle("Video Source")
@@ -95,15 +100,36 @@ struct InputSourcePickerView: View {
 
 // MARK: - Broadcast Picker
 
-struct BroadcastPickerView: UIViewRepresentable {
-    func makeUIView(context: Context) -> RPSystemBroadcastPickerView {
-        let picker = RPSystemBroadcastPickerView()
-        picker.preferredExtension = "com.pattonium.Hivelink.HivelinkBroadcast"
-        picker.showsMicrophoneButton = false
-        return picker
+/// Holds a hidden `RPSystemBroadcastPickerView` off-screen and exposes a
+/// method to programmatically trigger its internal button. This lets us
+/// present a normal SwiftUI row while still invoking the system broadcast dialog.
+final class BroadcastPickerTrigger {
+    static let shared = BroadcastPickerTrigger()
+
+    private let picker: RPSystemBroadcastPickerView = {
+        let p = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        p.preferredExtension = "com.pattonium.Hivelink.HivelinkBroadcast"
+        p.showsMicrophoneButton = false
+        p.isHidden = true
+        return p
+    }()
+
+    private weak var installedIn: UIView?
+
+    func ensureInstalled(in window: UIWindow?) {
+        guard let window, installedIn !== window else { return }
+        window.addSubview(picker)
+        installedIn = window
     }
 
-    func updateUIView(_ uiView: RPSystemBroadcastPickerView, context: Context) {}
+    func trigger() {
+        for subview in picker.subviews {
+            if let button = subview as? UIButton {
+                button.sendActions(for: .touchUpInside)
+                return
+            }
+        }
+    }
 }
 
 // MARK: - Camera Preview

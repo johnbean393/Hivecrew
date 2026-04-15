@@ -7,30 +7,11 @@ import HivecrewCore
 import SwiftData
 import SwiftUI
 
-enum TaskFilter: String, CaseIterable, Identifiable {
-    case all
-    case active
-    case completed
-    case failed
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .all: String(localized: "All")
-        case .active: String(localized: "Active")
-        case .completed: String(localized: "Completed")
-        case .failed: String(localized: "Failed")
-        }
-    }
-}
-
 struct TaskListView: View {
     @Binding var tabSelection: Int
 
     @EnvironmentObject private var taskService: HivelinkTaskService
 
-    @State private var selectedFilter: TaskFilter = .all
     @State private var searchText = ""
     @State private var isSearchActive = false
     @State private var sendError: String?
@@ -97,19 +78,12 @@ struct TaskListView: View {
                 .onAppear { searchFieldFocused = true }
             }
 
-            Section {
-                filterChipsRow
-                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-            }
-
             if filteredTasks.isEmpty {
                 Section {
                     ContentUnavailableView(
                         "No matching tasks",
                         systemImage: "line.3.horizontal.decrease.circle",
-                        description: Text("Try a different filter or search.")
+                        description: Text("Try a different search.")
                     )
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
@@ -232,74 +206,13 @@ struct TaskListView: View {
         }
     }
 
-    private var filterChipsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(TaskFilter.allCases) { filter in
-                    filterChip(filter)
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-    }
-
-    private func filterChip(_ filter: TaskFilter) -> some View {
-        let selected = selectedFilter == filter
-        return Button {
-            selectedFilter = filter
-        } label: {
-            Text(filter.title)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    selected
-                        ? AnyShapeStyle(.tint.opacity(0.22))
-                        : AnyShapeStyle(.quaternary),
-                    in: Capsule()
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(selected ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
     private var filteredTasks: [TaskRecord] {
-        let searched = taskService.tasks.filter { task in
-            guard !searchText.isEmpty else { return true }
-            let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            if q.isEmpty { return true }
-            return task.title.localizedCaseInsensitiveContains(q)
+        guard !searchText.isEmpty else { return taskService.tasks }
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return taskService.tasks }
+        return taskService.tasks.filter { task in
+            task.title.localizedCaseInsensitiveContains(q)
                 || task.taskDescription.localizedCaseInsensitiveContains(q)
-        }
-        return searched.filter { matchesFilter($0, selectedFilter) }
-    }
-
-    private func matchesFilter(_ task: TaskRecord, _ filter: TaskFilter) -> Bool {
-        switch filter {
-        case .all:
-            return true
-        case .active:
-            switch task.status {
-            case .queued, .waitingForVM, .running, .planning, .planReview, .paused, .writebackReview:
-                return true
-            default:
-                return false
-            }
-        case .completed:
-            return task.status == .completed && task.wasSuccessful == true
-        case .failed:
-            if task.status == .completed {
-                return task.wasSuccessful != true
-            }
-            switch task.status {
-            case .failed, .cancelled, .timedOut, .maxIterations, .planFailed:
-                return true
-            default:
-                return false
-            }
         }
     }
 

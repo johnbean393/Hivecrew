@@ -99,6 +99,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             guard let self else { return }
             while !Task.isCancelled {
                 await self.dispatcher.reconcileRemoteTasks()
+                await self.dispatcher.retryQueuedTasks()
                 await self.peerConnectionManager?.syncMonitoring(tasks: self.tasks)
                 self.writeSharedDataForWidgets()
                 do {
