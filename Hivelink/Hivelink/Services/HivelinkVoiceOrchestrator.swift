@@ -426,6 +426,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     fileprivate func handleStartCallAction(_ action: CXStartCallAction) async {
         action.fulfill()
+        UIDevice.current.isProximityMonitoringEnabled = true
 
         let update = CXCallUpdate()
         update.localizedCallerName = "Hivecrew"
@@ -445,6 +446,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
         activeCallUUID = action.callUUID
         isInCall = true
+        UIDevice.current.isProximityMonitoringEnabled = true
         HapticManager.incomingCallAnswered()
         action.fulfill()
 
@@ -466,6 +468,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         endSession()
         activeCallUUID = nil
         isInCall = false
+        UIDevice.current.isProximityMonitoringEnabled = false
     }
 
     /// Called by CallKit once the audio session is activated. Start the VPIO
@@ -559,6 +562,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             activeCallUUID = nil
             isInCall = false
         }
+        UIDevice.current.isProximityMonitoringEnabled = false
         tearDownSession()
         connectionState = .disconnected
         callState = .idle
@@ -1275,6 +1279,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 activeCallUUID = nil
                 isInCall = false
             }
+            UIDevice.current.isProximityMonitoringEnabled = false
             tearDownSession()
             callState = .idle
         }
