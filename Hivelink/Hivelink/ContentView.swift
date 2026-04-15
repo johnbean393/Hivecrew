@@ -58,6 +58,11 @@ struct ContentView: View {
             .tag(3)
         }
         .onChange(of: peerConnectionManager.taskPendingQuestions) { _, questions in
+            if let context = presentedQuestion,
+               questions[context.task.id]?.id != context.question.id {
+                presentedQuestion = nil
+            }
+
             guard presentedQuestion == nil else { return }
             if let (taskId, question) = questions.first(where: { !dismissedQuestionIds.contains($0.value.id) }),
                let task = taskService.getTask(byId: taskId) {

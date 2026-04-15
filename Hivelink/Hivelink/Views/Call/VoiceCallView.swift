@@ -52,7 +52,7 @@ struct VoiceCallView: View {
                     size: 64,
                     iconSize: 28
                 ) {
-                    Task { await orchestrator.startSession() }
+                    orchestrator.startCall(video: false)
                 }
 
                 CallControlButton(
@@ -61,10 +61,7 @@ struct VoiceCallView: View {
                     size: 64,
                     iconSize: 24
                 ) {
-                    Task {
-                        await orchestrator.startSession()
-                        await orchestrator.setInputSource(.camera)
-                    }
+                    orchestrator.startCall(video: true)
                 }
             }
 
@@ -103,6 +100,56 @@ struct VoiceCallView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 12)
         }
+        .overlay {
+            if orchestrator.callState == .suspended {
+                suspendedOverlay
+            }
+        }
+    }
+
+    // MARK: - Suspended Overlay
+
+    private var suspendedOverlay: some View {
+        VStack {
+            Spacer()
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.title2)
+                        .foregroundStyle(.yellow)
+                    Text("Call paused to save costs")
+                        .font(.subheadline.weight(.medium))
+                }
+
+                Text("Resume the session when you're ready to continue.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await orchestrator.resumeCall() }
+                    } label: {
+                        Label("Resume", systemImage: "mic.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+
+                    Button {
+                        orchestrator.endCall()
+                    } label: {
+                        Label("End Call", systemImage: "phone.down.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .controlSize(.regular)
+                }
+            }
+            .padding(20)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 80)
+        }
     }
 
     // MARK: - Orb Section
@@ -133,6 +180,9 @@ struct VoiceCallView: View {
     }
 
     private var statusText: String {
+        if orchestrator.callState == .suspended {
+            return "Paused"
+        }
         switch orchestrator.connectionState {
         case .error(let msg): return "Error: \(msg)"
         case .connecting: return "Connecting…"
@@ -176,7 +226,7 @@ struct VoiceCallView: View {
                 icon: "xmark",
                 color: Color(red: 0.96, green: 0.26, blue: 0.21)
             ) {
-                orchestrator.endSession()
+                orchestrator.endCall()
             }
         }
     }

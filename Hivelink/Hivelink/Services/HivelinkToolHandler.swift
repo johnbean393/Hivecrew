@@ -31,7 +31,9 @@ struct HivelinkToolCallResult {
 @MainActor
 enum HivelinkToolHandler {
 
+    private static let unsupportedTools: Set<String> = ["search_files", "open_file", "search_file_content"]
     static let toolDeclarations: [VoiceToolDeclaration] = fromSharedToolSchemas()
+        .filter { !unsupportedTools.contains($0.name) }
 
     // MARK: - Dispatch
 
@@ -66,7 +68,8 @@ enum HivelinkToolHandler {
                 query: args["query"] ?? "",
                 message: args["message"] ?? "",
                 taskService: taskService,
-                workerRegistry: workerRegistry
+                workerRegistry: workerRegistry,
+                orchestrator: orchestrator
             )
 
         case "pause_task":
@@ -113,20 +116,8 @@ enum HivelinkToolHandler {
                 orchestrator: orchestrator
             )
 
-        case "search_files":
-            return .textOnly("File search is not available on iOS. Create the task without attachments, or describe what files the worker should look for in the task description.")
-
         case "read_file":
             return await handleReadFile(path: args["path"] ?? "")
-
-        case "search_file_content":
-            return handleSearchFileContent(
-                path: args["path"] ?? "",
-                query: args["query"] ?? ""
-            )
-
-        case "open_file":
-            return .textOnly("Files are on the Mac. Use get_deliverables to list output files, or read_file to view contents on this device.")
 
         default:
             return .textOnly("Unknown tool: \(toolCall.name)")
@@ -253,7 +244,8 @@ enum HivelinkToolHandler {
         query: String,
         message: String,
         taskService: HivelinkTaskService,
-        workerRegistry: WorkerRegistry
+        workerRegistry: WorkerRegistry,
+        orchestrator: HivelinkVoiceOrchestrator
     ) async -> HivelinkToolCallResult {
         guard let worker = workerRegistry.resolve(query: query) else {
             return .textOnly("No worker found matching '\(query)'")
@@ -267,7 +259,12 @@ enum HivelinkToolHandler {
             return .textOnly("Cannot send instructions to \(worker.displayName) — task status is \(task.status.displayName).")
         }
 
-        await taskService.sendInstruction(message, to: task)
+        if let question = taskService.peerConnectionManager?.pendingQuestion(for: task.id) {
+            await taskService.answerQuestion(task, questionId: question.id, answer: message)
+        } else {
+            await taskService.sendInstruction(message, to: task)
+        }
+
         let result = "Instruction sent to \(worker.displayName)."
         let record = ToolUseRecord(
             toolName: "send_instruction",
@@ -525,63 +522,6 @@ enum HivelinkToolHandler {
             return resized.jpegData(compressionQuality: 0.8)
         }
         return image.jpegData(compressionQuality: 0.8)
-    }
-
-    // MARK: - Search File Content
-
-    private static func handleSearchFileContent(
-        path: String,
-        query: String
-    ) -> HivelinkToolCallResult {
-        guard !path.isEmpty else {
-            return .textOnly("Error: path is required for search_file_content.")
-        }
-        guard !query.isEmpty else {
-            return .textOnly("Error: query is required for search_file_content.")
-        }
-        guard FileManager.default.fileExists(atPath: path) else {
-            return .textOnly("Error: File not found at \(path)")
-        }
-
-        let url = URL(fileURLWithPath: path)
-        let filename = url.lastPathComponent
-
-        guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
-            return .textOnly("Error: Could not read file as text.")
-        }
-
-        let lines = contents.components(separatedBy: .newlines)
-        let queryLower = query.lowercased()
-        var matches: [String] = []
-
-        for (index, line) in lines.enumerated() where line.lowercased().contains(queryLower) {
-            let lineNum = index + 1
-            let contextStart = max(0, index - 1)
-            let contextEnd = min(lines.count - 1, index + 1)
-            let contextLines = (contextStart...contextEnd).map { "  \($0 + 1): \(lines[$0])" }
-            matches.append("Line \(lineNum):\n" + contextLines.joined(separator: "\n"))
-            if matches.count >= 20 { break }
-        }
-
-        if matches.isEmpty {
-            let text = "No matches for \"\(query)\" in \(filename)."
-            let record = ToolUseRecord(
-                toolName: "search_file_content",
-                summary: "No matches in \(filename)",
-                detail: text,
-                fileResults: []
-            )
-            return HivelinkToolCallResult(text: text, transcriptRecord: record)
-        }
-
-        let text = "Found \(matches.count) match(es) for \"\(query)\" in \(filename):\n\n" + matches.joined(separator: "\n\n")
-        let record = ToolUseRecord(
-            toolName: "search_file_content",
-            summary: "Searched \(filename) for \"\(query)\"",
-            detail: text,
-            fileResults: []
-        )
-        return HivelinkToolCallResult(text: text, transcriptRecord: record)
     }
 
     // MARK: - Schema Conversion

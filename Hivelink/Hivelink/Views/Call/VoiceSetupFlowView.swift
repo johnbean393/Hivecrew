@@ -102,9 +102,7 @@ struct VoiceSetupFlowView: View {
                 if !editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     voiceName = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
-                Task {
-                    await orchestrator.startSession()
-                }
+                orchestrator.startCall()
             } label: {
                 Text("Save & Start Call")
                     .font(.headline)

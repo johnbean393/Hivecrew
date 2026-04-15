@@ -25,6 +25,7 @@ private final class VPIOBridge: @unchecked Sendable {
 
     // Capture state (accessed only from input callback thread)
     let muteBox: MuteStateBox
+    let echoGate: EchoGateBox
     let inputLevelBox: LevelBox
     let minSendSize: Int
     let vpioRate: Double
@@ -37,8 +38,9 @@ private final class VPIOBridge: @unchecked Sendable {
     private var pbBuffer = Data()
     let outputLevelBox: LevelBox
 
-    init(muteBox: MuteStateBox, minSendSize: Int, vpioRate: Double, targetCaptureRate: Double) {
+    init(muteBox: MuteStateBox, echoGate: EchoGateBox, minSendSize: Int, vpioRate: Double, targetCaptureRate: Double) {
         self.muteBox = muteBox
+        self.echoGate = echoGate
         self.inputLevelBox = LevelBox()
         self.outputLevelBox = LevelBox()
         self.minSendSize = minSendSize
@@ -86,6 +88,18 @@ private final class MuteStateBox: @unchecked Sendable {
     var value = false
 }
 
+/// Half-duplex echo gate. While the server model is producing audio,
+/// the input callback checks the playback buffer: if audio is actively
+/// being rendered to the speaker, captured mic data is suppressed.
+/// This prevents loudspeaker echo from reaching the server's VAD
+/// regardless of volume, while still allowing barge-in during natural
+/// pauses between model sentences (when the playback buffer briefly
+/// empties).
+private final class EchoGateBox: @unchecked Sendable {
+    var lock = os_unfair_lock_s()
+    var active = false
+}
+
 private final class LevelBox: @unchecked Sendable {
     var lock = os_unfair_lock_s()
     var level: Float = 0
@@ -128,7 +142,16 @@ private func vpioInputCallback(
 
     let byteCount = Int(mBuf.mDataByteSize)
 
-    bridge.inputLevelBox.update(levelFromInt16(mData, byteCount: byteCount))
+    let currentLevel = levelFromInt16(mData, byteCount: byteCount)
+    bridge.inputLevelBox.update(currentLevel)
+
+    os_unfair_lock_lock(&bridge.echoGate.lock)
+    let gateActive = bridge.echoGate.active
+    os_unfair_lock_unlock(&bridge.echoGate.lock)
+    if gateActive && !bridge.isPlaybackEmpty {
+        bridge.captureAccumulator.removeAll(keepingCapacity: true)
+        return noErr
+    }
 
     let raw = Data(bytes: mData, count: byteCount)
     let resampled: Data
@@ -407,11 +430,16 @@ public final class AudioManager: ObservableObject {
     private var vpioGraph: AUGraph?
     private var vpioBridge: VPIOBridge?
     private let muteState = MuteStateBox()
+    private let echoGateState = EchoGateBox()
     private var levelUpdateTimer: Timer?
     private var playbackDrainTicks = 0
     private static let bytesPerSample = 2
     private var preferredInputDeviceID: String?
     private var lastVoiceProcessingEnabled = false
+    /// True when the system's hardware echo cancellation
+    /// (`setPrefersEchoCancelledInput`) is active, so VPIO's own voice
+    /// processing should be bypassed to avoid double AEC.
+    private var usingSystemEchoCancellation = false
 
     // MARK: - Init
 
@@ -509,6 +537,23 @@ public final class AudioManager: ObservableObject {
 
     // MARK: - Capture
 
+    /// Configure the audio session category and request microphone permission
+    /// without activating the session or starting the VPIO graph. Call this
+    /// before CallKit reports the outgoing call so the session category is
+    /// ready when CallKit activates the audio session.
+    public func prepareAudioSession() async throws {
+        let permission = await withCheckedContinuation { continuation in
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                continuation.resume(returning: granted)
+            }
+        }
+        guard permission else { throw AudioError.permissionDenied }
+
+        #if os(iOS)
+        try configureAudioSessionCategory()
+        #endif
+    }
+
     public func startCapture(voiceProcessingEnabled: Bool = false) async throws {
         guard !isCapturing else { return }
         lastVoiceProcessingEnabled = voiceProcessingEnabled
@@ -521,9 +566,8 @@ public final class AudioManager: ObservableObject {
         guard permission else { throw AudioError.permissionDenied }
 
         #if os(iOS)
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .defaultToSpeaker])
-        try session.setActive(true)
+        try configureAudioSessionCategory()
+        try AVAudioSession.sharedInstance().setActive(true)
         #endif
 
         try setupVPIO()
@@ -543,6 +587,33 @@ public final class AudioManager: ObservableObject {
         stopLevelMetering()
         refreshInputDevices()
     }
+
+    #if os(iOS)
+    /// Sets the audio session category, mode, and echo-cancellation
+    /// preference. On iPhone models running iOS 18.2+ with hardware echo
+    /// cancellation support, uses `.default` mode with
+    /// `setPrefersEchoCancelledInput(true)`. Otherwise falls back to
+    /// `.voiceChat` mode which lets VPIO handle AEC.
+    private func configureAudioSessionCategory() throws {
+        let session = AVAudioSession.sharedInstance()
+        let options: AVAudioSession.CategoryOptions = [
+            .defaultToSpeaker,
+            .allowBluetooth,
+            .allowBluetoothA2DP,
+            .duckOthers,
+        ]
+
+        if #available(iOS 18.2, *), session.isEchoCancelledInputAvailable {
+            try session.setCategory(.playAndRecord, mode: .default, options: options)
+            try session.setPrefersEchoCancelledInput(true)
+            usingSystemEchoCancellation = true
+            print("[AudioManager] Using system hardware echo cancellation")
+        } else {
+            try session.setCategory(.playAndRecord, mode: .voiceChat, options: options)
+            usingSystemEchoCancellation = false
+        }
+    }
+    #endif
 
     // MARK: - Playback
 
@@ -565,8 +636,14 @@ public final class AudioManager: ObservableObject {
         clearPlaybackQueue()
     }
 
-    /// No-op: VPIO handles echo cancellation natively.
-    public func setServerModelSpeaking(_ isSpeaking: Bool) {}
+    /// Activate or deactivate the echo gate. While active, captured audio
+    /// below the barge-in threshold is suppressed so residual echo from the
+    /// loudspeaker doesn't trigger the server's voice-activity detector.
+    public func setServerModelSpeaking(_ isSpeaking: Bool) {
+        os_unfair_lock_lock(&echoGateState.lock)
+        echoGateState.active = isSpeaking
+        os_unfair_lock_unlock(&echoGateState.lock)
+    }
 
     private func normalizedDeviceID(_ deviceID: String?) -> String? {
         let trimmed = (deviceID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -644,6 +721,7 @@ public final class AudioManager: ObservableObject {
 
         let bridge = VPIOBridge(
             muteBox: muteState,
+            echoGate: echoGateState,
             minSendSize: 640,
             vpioRate: vpioRate,
             targetCaptureRate: configuredInputRate
@@ -707,7 +785,7 @@ public final class AudioManager: ObservableObject {
                                       kAudioUnitScope_Input, bus0, &streamDesc, descSize)
         guard status == noErr else { throw AudioError.engineCreationFailed }
 
-        var bypassVP: UInt32 = 0
+        var bypassVP: UInt32 = usingSystemEchoCancellation ? 1 : 0
         status = AudioUnitSetProperty(audioUnit, kAUVoiceIOProperty_BypassVoiceProcessing,
                                       kAudioUnitScope_Global, 0, &bypassVP,
                                       UInt32(MemoryLayout.size(ofValue: bypassVP)))

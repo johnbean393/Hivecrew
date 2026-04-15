@@ -7,9 +7,12 @@
 //  no system sleep handling, no compact-share mode.
 //
 
+import AVFoundation
+import CallKit
 import Combine
 import Foundation
 import SwiftUI
+import HivecrewAPIModels
 import HivecrewCore
 import HivecrewVoice
 
@@ -51,6 +54,47 @@ enum HivelinkCallState: Equatable {
     case idle
     case active
     case idleTimeout
+    case suspended
+}
+
+// MARK: - CallKit Delegate
+
+private final class CallKitDelegate: NSObject, CXProviderDelegate {
+    weak var orchestrator: HivelinkVoiceOrchestrator?
+
+    func providerDidReset(_ provider: CXProvider) {
+        Task { @MainActor [weak self] in
+            self?.orchestrator?.handleProviderDidReset()
+        }
+    }
+
+    func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
+        Task { @MainActor [weak self] in
+            guard let orchestrator = self?.orchestrator else {
+                action.fail()
+                return
+            }
+            await orchestrator.handleStartCallAction(action)
+        }
+    }
+
+    func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
+        Task { @MainActor [weak self] in
+            self?.orchestrator?.handleEndCallAction(action)
+        }
+    }
+
+    func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+        Task { @MainActor [weak self] in
+            await self?.orchestrator?.handleAudioSessionActivated()
+        }
+    }
+
+    func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+        Task { @MainActor [weak self] in
+            self?.orchestrator?.handleAudioSessionDeactivated()
+        }
+    }
 }
 
 // MARK: - Voice Orchestrator
@@ -64,6 +108,16 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     let audioManager = AudioManager()
     let cameraCapture = CameraCaptureManager()
     let workerRegistry = WorkerRegistry()
+
+    // MARK: - CallKit
+
+    private let callKitProvider: CXProvider
+    private let callController = CXCallController()
+    private let callKitDelegate: CallKitDelegate
+    private var activeCallUUID: UUID?
+    /// Whether a video source was requested when the call was started via CallKit.
+    private var pendingVideoStart = false
+    @Published private(set) var isInCall = false
 
     // MARK: - External Dependencies
 
@@ -87,6 +141,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     @Published var focusedTaskId: String?
     @Published var activeInputSource: VoiceInputSource = .none
     @Published private(set) var relevantTaskIds: [String] = []
+    @Published private(set) var activeWorkerQuestions: [String: APIAgentQuestion] = [:]
 
     private var pendingEndCall = false
 
@@ -117,10 +172,30 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var idleTimer: Timer?
+    private var suspendTimer: Timer?
+    private var inputLevelCancellable: AnyCancellable?
+    private var taskObservers: [AnyCancellable] = []
+    private var lastKnownStatuses: [String: TaskStatus] = [:]
 
     init() {
+        let config = CXProviderConfiguration()
+        config.supportsVideo = true
+        config.supportedHandleTypes = [.generic]
+        config.maximumCallsPerCallGroup = 1
+        config.includesCallsInRecents = true
+        config.iconTemplateImageData = UIImage(named: "AppIcon")?.pngData()
+
+        let provider = CXProvider(configuration: config)
+        self.callKitProvider = provider
+
+        let delegate = CallKitDelegate()
+        self.callKitDelegate = delegate
+
         setupAudioCallbacks()
         setupVideoCallbacks()
+
+        delegate.orchestrator = self
+        provider.setDelegate(delegate, queue: nil)
 
         audioManager.objectWillChange
             .receive(on: DispatchQueue.main)
@@ -128,7 +203,115 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             .store(in: &cancellables)
     }
 
+    // MARK: - CallKit Call Lifecycle
+
+    func startCall(video: Bool = false, context: IncomingCallContext? = nil) {
+        guard callState == .idle else { return }
+
+        let uuid = UUID()
+        activeCallUUID = uuid
+        isInCall = true
+        pendingVideoStart = video
+        pendingCallContext = context
+
+        let handle = CXHandle(type: .generic, value: "Hivecrew Voice")
+        let action = CXStartCallAction(call: uuid, handle: handle)
+        action.isVideo = video
+
+        callController.request(CXTransaction(action: action)) { [weak self] error in
+            if let error {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.activeCallUUID = nil
+                    self.isInCall = false
+                    self.pendingVideoStart = false
+                    self.pendingCallContext = nil
+                    self.connectionState = .error("CallKit: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    func endCall() {
+        guard let uuid = activeCallUUID else {
+            endSession()
+            return
+        }
+        let action = CXEndCallAction(call: uuid)
+        callController.request(CXTransaction(action: action)) { [weak self] error in
+            if let error {
+                Task { @MainActor [weak self] in
+                    self?.endSession()
+                    print("[CallKit] End call request failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    func endCallAfterSpeaking() {
+        if isModelSpeaking {
+            pendingEndCall = true
+        } else {
+            endCall()
+        }
+    }
+
+    // MARK: - CallKit Handler Methods
+
+    fileprivate func handleStartCallAction(_ action: CXStartCallAction) async {
+        action.fulfill()
+
+        let update = CXCallUpdate()
+        update.localizedCallerName = "Hivecrew"
+        update.hasVideo = action.isVideo
+        callKitProvider.reportCall(with: action.callUUID, updated: update)
+
+        await startSession(context: pendingCallContext)
+        pendingCallContext = nil
+
+        if connectionState != .connected {
+            pendingVideoStart = false
+        }
+    }
+
+    fileprivate func handleEndCallAction(_ action: CXEndCallAction) {
+        endSession()
+        action.fulfill()
+    }
+
+    fileprivate func handleProviderDidReset() {
+        endSession()
+        activeCallUUID = nil
+        isInCall = false
+    }
+
+    /// Called by CallKit once the audio session is activated. Start the VPIO
+    /// graph here so its echo-cancellation reference aligns with the active
+    /// session -- starting it earlier causes AEC to lose its reference when
+    /// CallKit reconfigures the audio hardware.
+    fileprivate func handleAudioSessionActivated() async {
+        guard callState == .active else { return }
+        if audioManager.isCapturing {
+            audioManager.stopCapture()
+        }
+        try? await audioManager.startCapture(voiceProcessingEnabled: true)
+
+        if let uuid = activeCallUUID {
+            callKitProvider.reportOutgoingCall(with: uuid, connectedAt: Date())
+        }
+        if pendingVideoStart {
+            pendingVideoStart = false
+            await setInputSource(.camera)
+        }
+    }
+
+    fileprivate func handleAudioSessionDeactivated() {
+        audioManager.stopCapture()
+    }
+
     // MARK: - Session Lifecycle
+
+    private var pendingCallContext: IncomingCallContext?
 
     func startSession(context: IncomingCallContext? = nil) async {
         guard callState == .idle else { return }
@@ -173,10 +356,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         )
 
         do {
+            try await audioManager.prepareAudioSession()
             try await provider.connect(config: config)
-            try await audioManager.startCapture(voiceProcessingEnabled: true)
             connectionState = .connected
             startIdleTimer()
+            subscribeToInputLevel()
+            subscribeToTaskEvents()
         } catch {
             tearDownSession()
             connectionState = .error(error.localizedDescription)
@@ -185,23 +370,22 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     }
 
     func endSession() {
+        if let uuid = activeCallUUID {
+            callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
+            activeCallUUID = nil
+            isInCall = false
+        }
         tearDownSession()
         connectionState = .disconnected
         callState = .idle
         isModelSpeaking = false
     }
 
-    func endCallAfterSpeaking() {
-        if isModelSpeaking {
-            pendingEndCall = true
-        } else {
-            endSession()
-        }
-    }
-
     private func tearDownSession() {
         pendingEndCall = false
-        cancelIdleTimer()
+        cancelTimers()
+        unsubscribeFromInputLevel()
+        teardownTaskObservers()
         audioManager.stopCapture()
         audioManager.stopPlayback()
         cameraCapture.stopCapture()
@@ -283,10 +467,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.isModelSpeaking = false
-                self.audioManager.setServerModelSpeaking(false)
+                // Don't disable the echo gate here — audio may still be
+                // draining from the playback buffer. onPlaybackFinished
+                // disables it after the buffer empties + 300ms cooldown.
                 if self.pendingEndCall {
                     self.pendingEndCall = false
-                    self.endSession()
+                    self.endCall()
                 } else {
                     self.resetIdleTimer()
                 }
@@ -304,6 +490,11 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 guard let self else { return }
                 self.connectionState = .error(event.message)
                 if self.callState != .idle {
+                    if let uuid = self.activeCallUUID {
+                        self.callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
+                        self.activeCallUUID = nil
+                        self.isInCall = false
+                    }
                     self.tearDownSession()
                     self.callState = .idle
                 }
@@ -447,10 +638,14 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     func addRelevantTask(_ taskId: String) {
         guard !relevantTaskIds.contains(taskId) else { return }
         relevantTaskIds.append(taskId)
+        if let task = taskService?.tasks.first(where: { $0.id == taskId }) {
+            lastKnownStatuses[taskId] = task.status
+        }
     }
 
     func clearSession() {
         pendingEndCall = false
+        teardownTaskObservers()
         transcript.removeAll()
         relevantTaskIds.removeAll()
         focusedTaskId = nil
@@ -483,31 +678,216 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         """
     }
 
-    // MARK: - Idle Timer
+    // MARK: - Task Event Subscriptions
+
+    private func subscribeToTaskEvents() {
+        teardownTaskObservers()
+
+        for taskId in relevantTaskIds {
+            if let task = taskService?.tasks.first(where: { $0.id == taskId }) {
+                lastKnownStatuses[taskId] = task.status
+            }
+        }
+
+        taskService?.$tasks
+            .receive(on: RunLoop.main)
+            .sink { [weak self] tasks in
+                self?.handleTaskListUpdate(tasks)
+            }
+            .store(in: &taskObservers)
+
+        taskService?.peerConnectionManager?.$taskPendingQuestions
+            .receive(on: RunLoop.main)
+            .sink { [weak self] questions in
+                self?.handleQuestionChanges(questions)
+            }
+            .store(in: &taskObservers)
+    }
+
+    private func handleTaskListUpdate(_ tasks: [TaskRecord]) {
+        for taskId in relevantTaskIds {
+            guard let task = tasks.first(where: { $0.id == taskId }) else { continue }
+            let newStatus = task.status
+            let oldStatus = lastKnownStatuses[taskId]
+            lastKnownStatuses[taskId] = newStatus
+
+            guard oldStatus != nil, oldStatus != newStatus else { continue }
+
+            let workerName = workerRegistry.resolve(query: taskId)?.displayName ?? "Worker"
+
+            switch newStatus {
+            case .completed:
+                focusedTaskId = taskId
+                let summary = task.resultSummary ?? "Task finished."
+                var message = "[CALLBACK] \(workerName) finished their task. Result: \(summary)"
+                if let deliverables = task.outputFilePaths, !deliverables.isEmpty {
+                    message += "\nDeliverables saved at:\n" + deliverables.joined(separator: "\n")
+                }
+                if allSessionTasksFinished {
+                    message += " [ALL_TASKS_DONE] All tasks are now complete. Ask the user if they need anything else, and offer to end the call using the `end_call` tool."
+                }
+                Task {
+                    await resumeIfSuspended()
+                    try? await provider?.sendText(message)
+                }
+
+            case .failed, .timedOut, .maxIterations, .planFailed:
+                focusedTaskId = taskId
+                let errorMsg = task.errorMessage ?? "Unknown error."
+                var message = "[CALLBACK] \(workerName) failed. Error: \(errorMsg)"
+                if allSessionTasksFinished {
+                    message += " [ALL_TASKS_DONE] All tasks are now complete. Ask the user if they need anything else, and offer to end the call using the `end_call` tool."
+                }
+                Task {
+                    await resumeIfSuspended()
+                    try? await provider?.sendText(message)
+                }
+
+            case .cancelled:
+                focusedTaskId = taskId
+                var message = "[CALLBACK] \(workerName) was cancelled."
+                if allSessionTasksFinished {
+                    message += " [ALL_TASKS_DONE] All tasks are now complete. Ask the user if they need anything else, and offer to end the call using the `end_call` tool."
+                }
+                Task {
+                    await resumeIfSuspended()
+                    try? await provider?.sendText(message)
+                }
+
+            default:
+                break
+            }
+        }
+    }
+
+    private func handleQuestionChanges(_ allQuestions: [String: APIAgentQuestion]) {
+        for taskId in relevantTaskIds {
+            let newQuestion = allQuestions[taskId]
+            let oldQuestion = activeWorkerQuestions[taskId]
+
+            if let newQuestion, newQuestion.id != oldQuestion?.id {
+                activeWorkerQuestions[taskId] = newQuestion
+
+                let workerName = workerRegistry.resolve(query: taskId)?.displayName ?? "Worker"
+                var message = "[CALLBACK] \(workerName) needs your input: \(newQuestion.question)"
+                if let options = newQuestion.suggestedAnswers, !options.isEmpty {
+                    let opts = options.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: ", ")
+                    message += " Options: \(opts)"
+                }
+                message += " — Ask the user and relay their answer using `send_instruction`."
+
+                Task {
+                    await resumeIfSuspended()
+                    try? await provider?.sendText(message)
+                }
+            } else if newQuestion == nil, oldQuestion != nil {
+                activeWorkerQuestions.removeValue(forKey: taskId)
+            }
+        }
+    }
+
+    private var allSessionTasksFinished: Bool {
+        guard let taskService, !relevantTaskIds.isEmpty else { return false }
+        let sessionTasks = taskService.tasks.filter { relevantTaskIds.contains($0.id) }
+        return !sessionTasks.isEmpty && sessionTasks.allSatisfy { !$0.status.isActive }
+    }
+
+    private func resumeIfSuspended() async {
+        guard callState == .suspended else { return }
+        await resumeCall()
+    }
+
+    private func teardownTaskObservers() {
+        taskObservers.removeAll()
+        lastKnownStatuses.removeAll()
+        activeWorkerQuestions.removeAll()
+    }
+
+    // MARK: - Suspend / Resume
+
+    func suspendCall() {
+        guard callState == .active || callState == .idleTimeout else { return }
+        cancelTimers()
+        unsubscribeFromInputLevel()
+        audioManager.stopCapture()
+        audioManager.stopPlayback()
+        audioManager.setServerModelSpeaking(false)
+        cameraCapture.stopCapture()
+        activeInputSource = .none
+        callState = .suspended
+        isModelSpeaking = false
+    }
+
+    func resumeCall() async {
+        guard callState == .suspended else { return }
+        callState = .active
+
+        audioManager.configure(
+            inputSampleRate: provider?.inputSampleRate ?? 16000,
+            outputSampleRate: provider?.outputSampleRate ?? 24000
+        )
+        try? await audioManager.startCapture(voiceProcessingEnabled: true)
+
+        startIdleTimer()
+        subscribeToInputLevel()
+    }
+
+    // MARK: - Idle / Suspend Timers
 
     private func startIdleTimer() {
-        cancelIdleTimer()
-        idleTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: false) { [weak self] _ in
+        cancelTimers()
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.callState == .active else { return }
                 if self.isModelSpeaking {
                     self.startIdleTimer()
                     return
                 }
-                self.endSession()
+                self.callState = .idleTimeout
+                self.startSuspendTimer()
+            }
+        }
+    }
+
+    private func startSuspendTimer() {
+        suspendTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.callState == .idleTimeout else { return }
+                self.suspendCall()
             }
         }
     }
 
     private func resetIdleTimer() {
+        cancelTimers()
+        if callState == .idleTimeout {
+            callState = .active
+        }
         if callState == .active {
             startIdleTimer()
         }
     }
 
-    private func cancelIdleTimer() {
+    private func cancelTimers() {
         idleTimer?.invalidate()
         idleTimer = nil
+        suspendTimer?.invalidate()
+        suspendTimer = nil
+    }
+
+    private func subscribeToInputLevel() {
+        inputLevelCancellable?.cancel()
+        inputLevelCancellable = audioManager.$inputLevel
+            .filter { $0 > 0.2 }
+            .throttle(for: .seconds(2), scheduler: RunLoop.main, latest: true)
+            .sink { [weak self] _ in
+                self?.resetIdleTimer()
+            }
+    }
+
+    private func unsubscribeFromInputLevel() {
+        inputLevelCancellable?.cancel()
+        inputLevelCancellable = nil
     }
 }
 

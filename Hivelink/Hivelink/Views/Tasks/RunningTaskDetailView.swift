@@ -25,9 +25,10 @@ struct RunningTaskDetailView: View {
         VStack(spacing: 0) {
             screenshotSection
 
-            statusBar
+            headerSection
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.top, 14)
+                .padding(.bottom, 12)
 
             Divider()
 
@@ -35,6 +36,7 @@ struct RunningTaskDetailView: View {
 
             activityStream
         }
+        .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom, spacing: 0) {
             actionBar
         }
@@ -52,26 +54,19 @@ struct RunningTaskDetailView: View {
     private var screenshotSection: some View {
         let screenshot = peerConnectionManager.screenshot(for: task.id)
 
-        GeometryReader { geo in
-            Group {
-                if let image = screenshot {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: geo.size.width)
-                        .id(image)
-                        .transition(.opacity)
-                        .onTapGesture { showFullScreenshot = true }
-                } else {
-                    screenshotPlaceholder
-                }
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .clipped()
+        if let image = screenshot {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .background(Color.black)
+                .id(image)
+                .transition(.opacity)
+                .onTapGesture { showFullScreenshot = true }
+                .animation(.easeInOut(duration: 0.3), value: screenshot != nil)
+        } else {
+            screenshotPlaceholder
         }
-        .frame(height: UIScreen.main.bounds.height * 0.35)
-        .background(Color(.secondarySystemBackground))
-        .animation(.easeInOut(duration: 0.3), value: screenshot != nil)
     }
 
     private var screenshotPlaceholder: some View {
@@ -82,7 +77,9 @@ struct RunningTaskDetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .frame(height: 180)
+        .background(Color(.secondarySystemBackground))
     }
 
     // MARK: - Full-screen screenshot
@@ -113,42 +110,59 @@ struct RunningTaskDetailView: View {
         }
     }
 
-    // MARK: - Status bar
+    // MARK: - Header
 
-    private var statusBar: some View {
-        HStack(spacing: 10) {
-            statusPill
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: statusIconName)
+                    .font(.title2)
+                    .foregroundStyle(statusColor)
 
-            if let peer = task.clusterPeerName, !peer.isEmpty {
-                Text(String(localized: "on \(peer)"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.status.displayName)
+                        .font(.headline)
+                    if let peer = task.clusterPeerName, !peer.isEmpty {
+                        Text("on \(peer)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    elapsedTime
+
+                    let stepCount = peerConnectionManager.events(for: task.id)
+                        .filter { $0.type == .toolCallStart }.count
+                    if stepCount > 0 {
+                        Text("\(stepCount) steps")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                    }
+                }
             }
 
-            Spacer()
-
-            elapsedTime
-
-            let stepCount = peerConnectionManager.events(for: task.id)
-                .filter { $0.type == .toolCallStart }.count
-            if stepCount > 0 {
-                Text("\(stepCount) steps")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.quaternary, in: Capsule())
-            }
+            modelPill
         }
     }
 
-    private var statusPill: some View {
-        Text(task.status.displayName)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(statusColor, in: Capsule())
+    private var modelPill: some View {
+        HStack(spacing: 6) {
+            let providerName = taskService.getProviderName(for: task.providerId)
+            Text(providerName)
+                .font(.caption2.weight(.medium))
+            Text("·")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Text(task.modelId)
+                .font(.caption2)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(.quaternary, in: Capsule())
     }
 
     private var elapsedTime: some View {
@@ -169,6 +183,16 @@ struct RunningTaskDetailView: View {
             return String(format: "%d:%02d:%02d", hours, minutes, seconds)
         }
         return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private var statusIconName: String {
+        switch task.status {
+        case .running: return "arrow.trianglehead.2.counterclockwise.rotate.90"
+        case .planning: return "brain"
+        case .paused: return "pause.circle.fill"
+        case .waitingForVM: return "clock.fill"
+        default: return "circle.fill"
+        }
     }
 
     private var statusColor: Color {

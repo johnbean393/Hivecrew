@@ -190,6 +190,15 @@ struct PromptBar: View {
                 planToggle
             }
         }
+        .mask(
+            HStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 6)
+                Color.black
+                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 6)
+            }
+        )
     }
 
     // MARK: - Model Capsule
@@ -412,9 +421,9 @@ struct PromptBar: View {
 
     private func segmentTextColor(isSelected: Bool) -> Color {
         if isSelected {
-            return fieldFocused ? .accentColor : .primary.opacity(0.6)
+            return fieldFocused ? .accentColor.opacity(0.8) : .primary.opacity(0.5)
         }
-        return .secondary.opacity(0.7)
+        return .secondary.opacity(0.5)
     }
 
     // MARK: - Input Row Components
@@ -436,7 +445,7 @@ struct PromptBar: View {
         } label: {
             Image(systemName: "paperclip")
                 .font(.system(size: 16))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(fieldFocused ? Color.accentColor : Color.secondary)
         }
     }
 
@@ -457,14 +466,19 @@ struct PromptBar: View {
         .accessibilityLabel(String(localized: "Send task"))
     }
 
+    @EnvironmentObject private var voiceOrchestrator: HivelinkVoiceOrchestrator
+
     private var voiceButton: some View {
         Button {
             tabSelection = 1
+            if voiceOrchestrator.isVoiceConfigured && voiceOrchestrator.callState == .idle {
+                voiceOrchestrator.startCall()
+            }
         } label: {
             Image(systemName: "waveform.circle.fill")
                 .font(.system(size: 24))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.tint)
+                .foregroundStyle(fieldFocused ? Color.accentColor : Color.secondary)
         }
         .accessibilityLabel(String(localized: "Voice call"))
     }
@@ -1010,4 +1024,5 @@ private struct SegmentHeightKey: PreferenceKey {
     PromptBar(tabSelection: .constant(0))
         .environmentObject(HivelinkTaskService(modelContext: ModelContext(try! ModelContainer(for: TaskRecord.self)), clusterCoordinator: HivelinkClusterCoordinator(), remoteTaskIndex: RemoteTaskIndex()))
         .environmentObject(HivelinkClusterCoordinator())
+        .environmentObject(HivelinkVoiceOrchestrator())
 }
