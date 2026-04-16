@@ -43,6 +43,11 @@ public actor RemoteAccessAPIClient {
         return response.token
     }
 
+    /// Delete the authenticated account and revoke all active sessions.
+    public func deleteAccount(sessionToken: String) async throws {
+        let _: MessageResponse = try await delete("/auth/account", token: sessionToken)
+    }
+
     // MARK: - Tunnel Endpoints
 
     /// Create a new tunnel (supports multiple per account). Returns tunnel info including the tunnel token.

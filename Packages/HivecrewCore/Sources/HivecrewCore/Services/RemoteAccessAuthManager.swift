@@ -38,6 +38,7 @@ public final class RemoteAccessAuthManager: ObservableObject {
     @Published public private(set) var errorMessage: String?
     /// Whether a session JWT is present in Keychain (same credential the Worker uses as Bearer token).
     @Published public private(set) var isAuthenticated: Bool = false
+    @Published public private(set) var isDeletingAccount: Bool = false
 
     private let apiClient: RemoteAccessAPIClient
 
@@ -102,6 +103,26 @@ public final class RemoteAccessAuthManager: ObservableObject {
         email = nil
         errorMessage = nil
         isAuthenticated = false
+        isDeletingAccount = false
         status = .disconnected
+    }
+
+    /// Permanently delete the authenticated account and revoke active sessions.
+    public func deleteAccount() async {
+        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
+            errorMessage = RemoteAccessError.notAuthenticated.localizedDescription
+            return
+        }
+
+        errorMessage = nil
+        isDeletingAccount = true
+
+        do {
+            try await apiClient.deleteAccount(sessionToken: sessionToken)
+            logout()
+        } catch {
+            isDeletingAccount = false
+            errorMessage = error.localizedDescription
+        }
     }
 }

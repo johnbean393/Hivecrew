@@ -51,6 +51,8 @@ struct SettingsView: View {
     @State private var cacheSize: Int64 = 0
     @State private var showClearCacheConfirmation = false
     @State private var showModelPicker = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var showDeleteAccountError = false
 
     private var onlinePeerCount: Int {
         coordinator.peers.filter { $0.status == .online }.count
@@ -95,8 +97,45 @@ struct SettingsView: View {
                 Text(String(localized: "Sign Out"))
                     .frame(maxWidth: .infinity, alignment: .center)
             }
+
+            Button(role: .destructive) {
+                showDeleteAccountConfirmation = true
+            } label: {
+                if authManager.isDeletingAccount {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    Text(String(localized: "Delete Account"))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+            .disabled(authManager.isDeletingAccount)
         } header: {
             Text(String(localized: "Account"))
+        }
+        .alert(
+            String(localized: "Delete Account"),
+            isPresented: $showDeleteAccountConfirmation
+        ) {
+            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(String(localized: "Delete"), role: .destructive) {
+                Task {
+                    await authManager.deleteAccount()
+                    if authManager.errorMessage != nil {
+                        showDeleteAccountError = true
+                    }
+                }
+            }
+        } message: {
+            Text(String(localized: "This permanently deletes your account, signed-in devices, and remote access configuration. This action cannot be undone."))
+        }
+        .alert(
+            String(localized: "Delete Account Failed"),
+            isPresented: $showDeleteAccountError
+        ) {
+            Button(String(localized: "OK"), role: .cancel) {}
+        } message: {
+            Text(authManager.errorMessage ?? String(localized: "Something went wrong while deleting your account."))
         }
     }
 
