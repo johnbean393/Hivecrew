@@ -307,11 +307,11 @@ struct SettingsView: View {
             }
 
             Link(String(localized: "Privacy Policy"),
-                 destination: URL(string: "https://hivecrew.app/privacy")!)
+                 destination: URL(string: "https://github.com/johnbean393/Hivecrew/blob/main/PRIVACY.md")!)
             Link(String(localized: "Terms of Service"),
-                 destination: URL(string: "https://hivecrew.app/terms")!)
+                 destination: URL(string: "https://github.com/johnbean393/Hivecrew/blob/main/TERMS.md")!)
             Link(String(localized: "Support"),
-                 destination: URL(string: "https://hivecrew.app/support")!)
+                 destination: URL(string: "https://github.com/johnbean393/Hivecrew/issues")!)
         } header: {
             Text(String(localized: "About"))
         }
