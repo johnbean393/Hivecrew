@@ -40,7 +40,7 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
         let cached = RemoteAccessKeychain.retrieveClusterToken()
         await discoveryService.loadCluster(
             sessionToken: sessionToken,
-            excludingTunnelId: nil,
+            excludingTunnelId: RemoteAccessKeychain.retrieveTunnelId(),
             cachedClusterToken: cached
         )
     }
@@ -56,7 +56,10 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
     /// Re-fetches mesh-info and re-syncs peers (pull-to-refresh).
     func refreshPeers() async {
         guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else { return }
-        await discoveryService.refreshPeersFromDirectory(sessionToken: sessionToken, excludingTunnelId: nil)
+        await discoveryService.refreshPeersFromDirectory(
+            sessionToken: sessionToken,
+            excludingTunnelId: RemoteAccessKeychain.retrieveTunnelId()
+        )
     }
 
     func stopDiscovery() async {

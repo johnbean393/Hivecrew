@@ -195,15 +195,26 @@ final class APIServerManager {
     
     /// Restart the server with current configuration
     func restart() {
-        stop()
-        
-        // Brief delay before restarting
-        Task {
-            try? await Task.sleep(for: .milliseconds(200))
-            await MainActor.run {
-                startIfEnabled()
-            }
+        Task { @MainActor in
+            await restartAndWaitIfEnabled()
         }
+    }
+
+    /// Restart the server and wait until the listener is healthy again.
+    func restartAndWaitIfEnabled() async {
+        let priorTask = serverTask
+        stop()
+
+        if let priorTask {
+            _ = await waitForServerTaskToExit(priorTask, timeout: .seconds(2))
+        } else {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+
+        startIfEnabled()
+
+        guard APIConfiguration.load().isEnabled else { return }
+        _ = await waitForHealthEndpoint(timeout: .seconds(4))
     }
     
     /// Start the server with the given configuration
@@ -403,6 +414,53 @@ final class APIServerManager {
             return "Permission denied"
         }
         return error.localizedDescription
+    }
+
+    private func waitForServerTaskToExit(_ task: Task<Void, Never>, timeout: Duration) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                await task.value
+                return true
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return false
+            }
+
+            let didExit = await group.next() ?? false
+            group.cancelAll()
+            return didExit
+        }
+    }
+
+    private func waitForHealthEndpoint(timeout: Duration) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+
+        while ContinuousClock.now < deadline {
+            if await isLocalHealthEndpointReachable() {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(150))
+        }
+
+        return false
+    }
+
+    private func isLocalHealthEndpointReachable() async -> Bool {
+        let config = APIConfiguration.load()
+        guard let url = URL(string: "http://\(config.host):\(config.port)/health") else {
+            return false
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 0.5
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            return (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            return false
+        }
     }
 }
 

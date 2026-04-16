@@ -115,8 +115,7 @@ actor ClusterManager {
                 return
             }
             
-            let myTunnelId = RemoteAccessKeychain.retrieveTunnelId()
-            let directoryPeers = info.peers.filter { $0.tunnelId != myTunnelId }
+            let directoryPeers = filteredRemotePeers(from: info.peers)
 
             await configure(role: .member, clusterToken: token)
             RemoteAccessKeychain.storeClusterToken(token)
@@ -166,10 +165,11 @@ actor ClusterManager {
     }
     
     private func syncPeersFromDirectory(_ directoryPeers: [ClusterPeerInfo]) {
-        let directoryIds = Set(directoryPeers.map(\.tunnelId))
+        let remotePeers = directoryPeers.filter { !isLocalPeer(tunnelId: $0.tunnelId, subdomain: $0.subdomain, url: $0.url) }
+        let directoryIds = Set(remotePeers.map(\.tunnelId))
         peers = peers.filter { directoryIds.contains($0.key) }
         
-        for peer in directoryPeers {
+        for peer in remotePeers {
             let existing = peers[peer.tunnelId]
             peers[peer.tunnelId] = PeerNode(
                 id: peer.tunnelId,
@@ -256,6 +256,14 @@ actor ClusterManager {
     // MARK: - Peer Management
     
     func registerPeer(_ announcement: PeerAnnouncement) async {
+        guard !isLocalPeer(
+            tunnelId: announcement.tunnelId,
+            subdomain: announcement.subdomain,
+            url: announcement.tunnelUrl
+        ) else {
+            return
+        }
+
         let availableSlots = Self.sanitizeReportedCount(announcement.availableSlots, label: "announcement availableSlots", peerId: announcement.tunnelId)
         let runningTasks = Self.sanitizeReportedCount(announcement.runningTasks, label: "announcement runningTasks", peerId: announcement.tunnelId)
         let queuedTasks = Self.sanitizeReportedCount(announcement.queuedTasks, label: "announcement queuedTasks", peerId: announcement.tunnelId)
@@ -617,6 +625,7 @@ actor ClusterManager {
     
     func handleTunnelDidConnect() async {
         await initialize()
+        await APIServerManager.shared.restartAndWaitIfEnabled()
         if role != .none {
             await broadcastCapacityUpdate()
         }
@@ -725,8 +734,7 @@ actor ClusterManager {
         do {
             let info = try await apiClient.getClusterInfo(sessionToken: sessionToken)
             guard info.hasCluster, let token = info.clusterToken else { return }
-            let myTunnelId = RemoteAccessKeychain.retrieveTunnelId()
-            let directoryPeers = info.peers.filter { $0.tunnelId != myTunnelId }
+            let directoryPeers = filteredRemotePeers(from: info.peers)
 
             self.clusterToken = token
             RemoteAccessKeychain.storeClusterToken(token)
@@ -870,7 +878,9 @@ actor ClusterManager {
             }
         )
 
-        let currentPeers = peers.values.filter { $0.id != selfId }
+        let currentPeers = peers.values.filter {
+            !self.isLocalPeer(tunnelId: $0.id, subdomain: $0.subdomain, url: $0.tunnelUrl)
+        }
         await withTaskGroup(of: Void.self) { group in
             for peer in currentPeers {
                 group.addTask {
@@ -886,7 +896,9 @@ actor ClusterManager {
     private func broadcastDeparture() async {
         guard let selfId = RemoteAccessKeychain.retrieveTunnelId(), !selfId.isEmpty else { return }
         let departure = PeerDeparture(tunnelId: selfId)
-        let currentPeers = peers.values.filter { $0.id != selfId }
+        let currentPeers = peers.values.filter {
+            !self.isLocalPeer(tunnelId: $0.id, subdomain: $0.subdomain, url: $0.tunnelUrl)
+        }
         await withTaskGroup(of: Void.self) { group in
             for peer in currentPeers {
                 group.addTask {
@@ -964,6 +976,45 @@ actor ClusterManager {
         } catch {
             print("ClusterManager: Failed posting cluster payload to \(urlString): \(error)")
         }
+    }
+
+    private func filteredRemotePeers(from peers: [ClusterPeerInfo]) -> [ClusterPeerInfo] {
+        peers.filter { !isLocalPeer(tunnelId: $0.tunnelId, subdomain: $0.subdomain, url: $0.url) }
+    }
+
+    private func isLocalPeer(tunnelId: String, subdomain: String?, url: String) -> Bool {
+        if let localTunnelId = RemoteAccessKeychain.retrieveTunnelId(),
+           !localTunnelId.isEmpty,
+           tunnelId == localTunnelId {
+            return true
+        }
+
+        if let localSubdomain = RemoteAccessKeychain.retrieveSubdomain(),
+           !localSubdomain.isEmpty,
+           subdomain?.caseInsensitiveCompare(localSubdomain) == .orderedSame {
+            return true
+        }
+
+        guard let localHost = Self.tunnelHost(subdomain: RemoteAccessKeychain.retrieveSubdomain()) else {
+            return false
+        }
+        return Self.normalizedTunnelHost(from: url) == localHost
+    }
+
+    private static func normalizedTunnelHost(from urlString: String) -> String? {
+        if let host = URL(string: urlString)?.host?.lowercased() {
+            return host
+        }
+        return urlString
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .replacingOccurrences(of: "https://", with: "", options: [.caseInsensitive])
+            .replacingOccurrences(of: "http://", with: "", options: [.caseInsensitive])
+            .lowercased()
+    }
+
+    private static func tunnelHost(subdomain: String?) -> String? {
+        guard let subdomain, !subdomain.isEmpty else { return nil }
+        return "\(subdomain).hivecrew.org".lowercased()
     }
 }
 

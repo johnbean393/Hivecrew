@@ -116,7 +116,7 @@ public final class ClusterDiscoveryService: ObservableObject {
                 return
             }
 
-            let directoryPeers = info.peers.filter { $0.tunnelId != excludingTunnelId }
+            let directoryPeers = filteredRemotePeers(from: info.peers, excludingTunnelId: excludingTunnelId)
 
             clusterToken = token
             _ = RemoteAccessKeychain.storeClusterToken(token)
@@ -139,7 +139,7 @@ public final class ClusterDiscoveryService: ObservableObject {
             let info = try await apiClient.getClusterInfo(sessionToken: sessionToken)
             guard info.hasCluster, let token = info.clusterToken else { return }
 
-            let directoryPeers = info.peers.filter { $0.tunnelId != excludingTunnelId }
+            let directoryPeers = filteredRemotePeers(from: info.peers, excludingTunnelId: excludingTunnelId)
 
             self.clusterToken = token
             _ = RemoteAccessKeychain.storeClusterToken(token)
@@ -195,10 +195,11 @@ public final class ClusterDiscoveryService: ObservableObject {
     }
 
     private func syncPeersFromDirectory(_ directoryPeers: [ClusterPeerInfo]) {
-        let directoryIds = Set(directoryPeers.map(\.tunnelId))
+        let remotePeers = filteredRemotePeers(from: directoryPeers, excludingTunnelId: nil)
+        let directoryIds = Set(remotePeers.map(\.tunnelId))
         peerById = peerById.filter { directoryIds.contains($0.key) }
 
-        for peer in directoryPeers {
+        for peer in remotePeers {
             let existing = peerById[peer.tunnelId]
             peerById[peer.tunnelId] = DiscoveredClusterPeer(
                 id: peer.tunnelId,
@@ -297,6 +298,53 @@ public final class ClusterDiscoveryService: ObservableObject {
 
     private static func heartbeatDate(_ lastHeartbeat: Double) -> Date {
         Date(timeIntervalSince1970: lastHeartbeat / 1000)
+    }
+
+    private func filteredRemotePeers(
+        from peers: [ClusterPeerInfo],
+        excludingTunnelId: String?
+    ) -> [ClusterPeerInfo] {
+        peers.filter { peer in
+            if let excludingTunnelId, peer.tunnelId == excludingTunnelId {
+                return false
+            }
+            return !isLocalPeer(tunnelId: peer.tunnelId, subdomain: peer.subdomain, url: peer.url)
+        }
+    }
+
+    private func isLocalPeer(tunnelId: String, subdomain: String?, url: String) -> Bool {
+        if let localTunnelId = RemoteAccessKeychain.retrieveTunnelId(),
+           !localTunnelId.isEmpty,
+           tunnelId == localTunnelId {
+            return true
+        }
+
+        if let localSubdomain = RemoteAccessKeychain.retrieveSubdomain(),
+           !localSubdomain.isEmpty,
+           subdomain?.caseInsensitiveCompare(localSubdomain) == .orderedSame {
+            return true
+        }
+
+        guard let localHost = Self.tunnelHost(subdomain: RemoteAccessKeychain.retrieveSubdomain()) else {
+            return false
+        }
+        return Self.normalizedTunnelHost(from: url) == localHost
+    }
+
+    private static func normalizedTunnelHost(from urlString: String) -> String? {
+        if let host = URL(string: urlString)?.host?.lowercased() {
+            return host
+        }
+        return urlString
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .replacingOccurrences(of: "https://", with: "", options: [.caseInsensitive])
+            .replacingOccurrences(of: "http://", with: "", options: [.caseInsensitive])
+            .lowercased()
+    }
+
+    private static func tunnelHost(subdomain: String?) -> String? {
+        guard let subdomain, !subdomain.isEmpty else { return nil }
+        return "\(subdomain).hivecrew.org".lowercased()
     }
 
     private static func sanitizeReportedCount(_ value: Int, label: String, peerId: String) -> Int {

@@ -333,9 +333,6 @@ actor RemoteAccessManager {
 
         startHeartbeat()
         await ClusterManager.shared.handleTunnelDidConnect()
-        await MainActor.run {
-            APIServerManager.shared.restart()
-        }
     }
 
     private func loadReconnectSnapshot() async -> RemoteReconnectSnapshot {
