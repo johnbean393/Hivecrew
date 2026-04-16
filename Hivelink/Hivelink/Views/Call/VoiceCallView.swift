@@ -30,9 +30,43 @@ struct VoiceCallView: View {
     // MARK: - Idle
 
     private var idleView: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
 
+            VStack(spacing: isLandscape ? 24 : 32) {
+                Spacer()
+
+                if isLandscape {
+                    HStack(spacing: 40) {
+                        idleOrbSection
+
+                        idleButtonColumn
+                    }
+                } else {
+                    VStack(spacing: 32) {
+                        idleOrbSection
+                        idleButtonRow
+                    }
+                }
+
+                if case .error(let message) = orchestrator.connectionState {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .padding(.horizontal, 32)
+                }
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 32)
+        }
+    }
+
+    private var idleOrbSection: some View {
+        VStack(spacing: 32) {
             VoiceOrbView(
                 inputLevel: 0,
                 outputLevel: 0,
@@ -44,39 +78,44 @@ struct VoiceCallView: View {
             Text("Start a voice session")
                 .font(.title3)
                 .foregroundStyle(.secondary)
-
-            HStack(spacing: 16) {
-                CallControlButton(
-                    icon: "phone.fill",
-                    color: Color(red: 0.2, green: 0.78, blue: 0.35),
-                    size: 64,
-                    iconSize: 28
-                ) {
-                    orchestrator.startCall(video: false)
-                }
-
-                CallControlButton(
-                    icon: "video.fill",
-                    color: .blue,
-                    size: 64,
-                    iconSize: 24
-                ) {
-                    orchestrator.startCall(video: true)
-                }
-            }
-
-            if case .error(let message) = orchestrator.connectionState {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(nil)
-                    .padding(.horizontal, 32)
-            }
-
-            Spacer()
+                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var idleButtonRow: some View {
+        HStack(spacing: 16) {
+            idleVoiceButton
+            idleVideoButton
+        }
+    }
+
+    private var idleButtonColumn: some View {
+        VStack(spacing: 16) {
+            idleVoiceButton
+            idleVideoButton
+        }
+    }
+
+    private var idleVoiceButton: some View {
+        CallControlButton(
+            icon: "phone.fill",
+            color: Color(red: 0.2, green: 0.78, blue: 0.35),
+            size: 64,
+            iconSize: 28
+        ) {
+            orchestrator.startCall(video: false)
+        }
+    }
+
+    private var idleVideoButton: some View {
+        CallControlButton(
+            icon: "video.fill",
+            color: .blue,
+            size: 64,
+            iconSize: 24
+        ) {
+            orchestrator.startCall(video: true)
+        }
     }
 
     // MARK: - Active Call

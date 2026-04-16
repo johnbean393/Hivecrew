@@ -22,19 +22,26 @@ struct RunningTaskDetailView: View {
     @State private var isUserScrolledUp = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            screenshotSection
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
 
-            headerSection
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 12)
+            VStack(spacing: 0) {
+                if isLandscape {
+                    HStack(spacing: 0) {
+                        screenshotPane(expandToFillHeight: true)
+                            .frame(width: geometry.size.width * 0.46)
 
-            Divider()
+                        Divider()
 
-            alertBanner
-
-            activityStream
+                        detailPane
+                    }
+                } else {
+                    VStack(spacing: 0) {
+                        screenshotPane(expandToFillHeight: false)
+                        detailPane
+                    }
+                }
+            }
         }
         .background(Color(.systemGroupedBackground))
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -57,25 +64,46 @@ struct RunningTaskDetailView: View {
     // MARK: - Screenshot
 
     @ViewBuilder
-    private var screenshotSection: some View {
+    private func screenshotPane(expandToFillHeight: Bool) -> some View {
+        screenshotSection(expandToFillHeight: expandToFillHeight)
+            .frame(maxWidth: .infinity, maxHeight: expandToFillHeight ? .infinity : nil)
+    }
+
+    private var detailPane: some View {
+        VStack(spacing: 0) {
+            headerSection
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 12)
+
+            Divider()
+
+            alertBanner
+
+            activityStream
+        }
+    }
+
+    @ViewBuilder
+    private func screenshotSection(expandToFillHeight: Bool) -> some View {
         let screenshot = peerConnectionManager.screenshot(for: task.id)
 
         if let image = screenshot {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: expandToFillHeight ? .infinity : nil)
                 .background(Color.black)
                 .id(image)
                 .transition(.opacity)
                 .onTapGesture { showFullScreenshot = true }
                 .animation(.easeInOut(duration: 0.3), value: screenshot != nil)
         } else {
-            screenshotPlaceholder
+            screenshotPlaceholder(expandToFillHeight: expandToFillHeight)
         }
     }
 
-    private var screenshotPlaceholder: some View {
+    private func screenshotPlaceholder(expandToFillHeight: Bool) -> some View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.regular)
@@ -84,7 +112,8 @@ struct RunningTaskDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 180)
+        .frame(maxHeight: expandToFillHeight ? .infinity : nil)
+        .frame(height: expandToFillHeight ? nil : 180)
         .background(Color(.secondarySystemBackground))
     }
 

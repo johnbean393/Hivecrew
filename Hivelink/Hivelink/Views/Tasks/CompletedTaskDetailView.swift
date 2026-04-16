@@ -2,8 +2,7 @@
 //  CompletedTaskDetailView.swift
 //  Hivelink
 //
-//  Stacked detail view for completed (terminal) tasks: screenshot on top,
-//  trace timeline + deliverables below.
+//  Responsive detail view for terminal tasks.
 //
 
 import HivecrewCore
@@ -46,21 +45,29 @@ struct CompletedTaskDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                screenshotSection
-                headerSection
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
 
-                tabPicker
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 4)
+            Group {
+                if isLandscape {
+                    HStack(spacing: 0) {
+                        screenshotPane(expandToFillHeight: true)
+                            .frame(width: geometry.size.width * 0.46)
 
-                Divider()
+                        Divider()
 
-                tabContent
+                        ScrollView {
+                            detailPane
+                        }
+                    }
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            screenshotPane(expandToFillHeight: false)
+                            detailPane
+                        }
+                    }
+                }
             }
         }
         .background(Color(.systemGroupedBackground))
@@ -96,23 +103,46 @@ struct CompletedTaskDetailView: View {
     // MARK: - Screenshot section
 
     @ViewBuilder
-    private var screenshotSection: some View {
+    private func screenshotPane(expandToFillHeight: Bool) -> some View {
+        screenshotSection(expandToFillHeight: expandToFillHeight)
+            .frame(maxWidth: .infinity, maxHeight: expandToFillHeight ? .infinity : nil)
+    }
+
+    private var detailPane: some View {
+        VStack(spacing: 0) {
+            headerSection
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+            tabPicker
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+
+            Divider()
+
+            tabContent
+        }
+    }
+
+    @ViewBuilder
+    private func screenshotSection(expandToFillHeight: Bool) -> some View {
         if let path = visibleScreenshotPath,
            let image = UIImage(contentsOfFile: path) {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: expandToFillHeight ? .infinity : nil)
                 .background(Color.black)
                 .onTapGesture { showFullScreenshot = true }
         } else if isImporting {
-            importingPlaceholder
+            importingPlaceholder(expandToFillHeight: expandToFillHeight)
         } else if !hasTrace {
-            downloadPrompt
+            downloadPrompt(expandToFillHeight: expandToFillHeight)
         }
     }
 
-    private var importingPlaceholder: some View {
+    private func importingPlaceholder(expandToFillHeight: Bool) -> some View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.regular)
@@ -121,11 +151,12 @@ struct CompletedTaskDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 180)
+        .frame(maxHeight: expandToFillHeight ? .infinity : nil)
+        .frame(height: expandToFillHeight ? nil : 180)
         .background(Color(.secondarySystemBackground))
     }
 
-    private var downloadPrompt: some View {
+    private func downloadPrompt(expandToFillHeight: Bool) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "arrow.down.circle")
                 .font(.system(size: 36))
@@ -150,7 +181,8 @@ struct CompletedTaskDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 200)
+        .frame(maxHeight: expandToFillHeight ? .infinity : nil)
+        .frame(height: expandToFillHeight ? nil : 200)
         .background(Color(.secondarySystemBackground))
     }
 
