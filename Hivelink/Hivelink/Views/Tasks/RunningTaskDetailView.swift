@@ -78,8 +78,6 @@ struct RunningTaskDetailView: View {
 
             Divider()
 
-            alertBanner
-
             activityStream
         }
     }
@@ -377,6 +375,8 @@ struct RunningTaskDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
+                        alertBanner
+
                         ForEach(Array(events.enumerated()), id: \.offset) { index, event in
                             TraceEventRow(event: event)
                                 .id(index)
@@ -384,8 +384,9 @@ struct RunningTaskDetailView: View {
                                 Divider().padding(.leading, 44)
                             }
                         }
+
                         Color.clear
-                            .frame(height: 1)
+                            .frame(height: 96)
                             .id("bottom")
                             .onAppear { isUserScrolledUp = false }
                             .onDisappear { isUserScrolledUp = true }

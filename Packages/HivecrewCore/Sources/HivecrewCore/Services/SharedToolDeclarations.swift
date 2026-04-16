@@ -9,8 +9,9 @@
 import Foundation
 
 public enum SharedToolDeclarations {
-    /// Immutable tool schemas; marked unsafe because `Any` is not `Sendable` (Swift 6 strict concurrency).
-    public nonisolated(unsafe) static let declarations: [[String: Any]] = [
+    /// Tool schemas are generated on demand so descriptions can stay in sync with runtime prompt flags.
+    /// Marked unsafe because `Any` is not `Sendable` (Swift 6 strict concurrency).
+    public nonisolated(unsafe) static var declarations: [[String: Any]] { [
         tool(
             name: "create_task",
             description: "Create a new task for a worker agent. Each worker runs in a full macOS VM and can search the web, write files, run shell commands, and use GUI apps — so include the complete goal in one task rather than splitting simple multi-step work across workers. Returns the task ID and assigned worker name. To attach a captured reference image, pass its file path in the attachments array.",
@@ -117,7 +118,7 @@ public enum SharedToolDeclarations {
         ),
         tool(
             name: "end_call",
-            description: "End the current voice call. Will only succeed when there are no active or queued tasks remaining.",
+            description: endCallDescription,
             properties: [String: [String: Any]]()
         ),
         tool(
@@ -155,7 +156,14 @@ public enum SharedToolDeclarations {
             ],
             required: ["path"]
         ),
-    ]
+    ] }
+
+    private static var endCallDescription: String {
+        if OrchestratorSystemPrompt.allowEndCallWithActiveTasks {
+            return "End the current voice call. Can be used even if tasks are still running; they will continue in the background and the user will be notified when they finish."
+        }
+        return "End the current voice call. Will only succeed when there are no active or queued tasks remaining."
+    }
 }
 
 private func stringProperty(description: String) -> [String: Any] {

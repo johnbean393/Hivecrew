@@ -32,8 +32,9 @@ struct HivelinkToolCallResult {
 enum HivelinkToolHandler {
 
     static let unsupportedTools: Set<String> = ["search_files", "open_file", "search_file_content", "read_file", "get_deliverables"]
-    static let toolDeclarations: [VoiceToolDeclaration] = fromSharedToolSchemas()
-        .filter { !unsupportedTools.contains($0.name) }
+    static var toolDeclarations: [VoiceToolDeclaration] {
+        fromSharedToolSchemas().filter { !unsupportedTools.contains($0.name) }
+    }
 
     // MARK: - Dispatch
 

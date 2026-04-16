@@ -39,7 +39,7 @@ enum OrchestratorToolHandler {
 
     // MARK: - Tool Declarations
 
-    static let toolDeclarations: [VoiceToolDeclaration] = VoiceToolDeclaration.fromSharedToolSchemas()
+    static var toolDeclarations: [VoiceToolDeclaration] { VoiceToolDeclaration.fromSharedToolSchemas() }
 
     // MARK: - Dispatch
 
