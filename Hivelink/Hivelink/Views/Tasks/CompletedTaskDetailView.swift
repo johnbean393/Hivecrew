@@ -37,11 +37,18 @@ struct CompletedTaskDetailView: View {
     @State private var showFullScreenshot = false
     @State private var isImporting = false
     @State private var importFailed = false
+    @State private var bulkExportFolderURL: URL?
+    @State private var bulkShareFolderURL: URL?
+    @State private var bulkActionErrorMessage: String?
 
     private var hasTrace: Bool { artifactCoordinator.hasImportedTrace(for: task) }
     private var hasDeliverables: Bool {
-        guard let paths = task.outputFilePaths else { return false }
-        return !paths.isEmpty
+        !deliverableURLs.isEmpty
+    }
+    private var deliverableURLs: [URL] {
+        (task.outputFilePaths ?? [])
+            .filter { FileManager.default.fileExists(atPath: $0) }
+            .map(URL.init(fileURLWithPath:))
     }
 
     var body: some View {
@@ -91,6 +98,17 @@ struct CompletedTaskDetailView: View {
         }
         .fullScreenCover(isPresented: $showFullScreenshot) {
             fullScreenScreenshotView
+        }
+        .sheet(item: $bulkExportFolderURL) { folderURL in
+            DocumentExporterView(sourceURL: folderURL)
+        }
+        .sheet(item: $bulkShareFolderURL) { folderURL in
+            ActivityShareView(activityItems: [folderURL])
+        }
+        .alert("Couldn’t Prepare Deliverables Folder", isPresented: bulkActionErrorPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(bulkActionErrorMessage ?? "An unknown error occurred.")
         }
         .onAppear {
             loadTraceIfAvailable()
@@ -355,11 +373,17 @@ struct CompletedTaskDetailView: View {
 
     @ViewBuilder
     private var deliverablesContent: some View {
-        if hasDeliverables, let paths = task.outputFilePaths {
-            LazyVStack(spacing: 0) {
-                ForEach(paths, id: \.self) { path in
-                    DeliverableDisclosureRow(path: path)
-                    Divider().padding(.leading, 52)
+        if hasDeliverables {
+            VStack(spacing: 0) {
+                bulkDeliverableActions
+
+                Divider()
+
+                ForEach(Array(deliverableURLs.enumerated()), id: \.element) { index, url in
+                    DeliverableDisclosureRow(path: url.path)
+                    if index < deliverableURLs.count - 1 {
+                        Divider().padding(.leading, 52)
+                    }
                 }
             }
         } else {
@@ -370,6 +394,29 @@ struct CompletedTaskDetailView: View {
             )
             .frame(minHeight: 260)
         }
+    }
+
+    private var bulkDeliverableActions: some View {
+        HStack(spacing: 12) {
+            Button {
+                exportAllDeliverables()
+            } label: {
+                Label("Save All", systemImage: "square.and.arrow.down")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                shareAllDeliverables()
+            } label: {
+                Label("Share All", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(16)
     }
 
     // MARK: - Actions
@@ -408,6 +455,102 @@ struct CompletedTaskDetailView: View {
         }
     }
 
+    private var bulkActionErrorPresented: Binding<Bool> {
+        Binding(
+            get: { bulkActionErrorMessage != nil },
+            set: { if !$0 { bulkActionErrorMessage = nil } }
+        )
+    }
+
+    private func exportAllDeliverables() {
+        do {
+            bulkExportFolderURL = try makeBulkDeliverablesFolder()
+        } catch {
+            bulkActionErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func shareAllDeliverables() {
+        do {
+            bulkShareFolderURL = try makeBulkDeliverablesFolder()
+        } catch {
+            bulkActionErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func makeBulkDeliverablesFolder() throws -> URL {
+        guard !deliverableURLs.isEmpty else {
+            throw BulkDeliverablesFolderError.noDeliverables
+        }
+
+        let fileManager = FileManager.default
+        let parentDirectory = fileManager.temporaryDirectory.appendingPathComponent(
+            "HivelinkDeliverables",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
+
+        let folderURL = parentDirectory.appendingPathComponent(bulkFolderName, isDirectory: true)
+        if fileManager.fileExists(atPath: folderURL.path) {
+            try fileManager.removeItem(at: folderURL)
+        }
+        try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
+
+        var copiedCount = 0
+        for sourceURL in deliverableURLs where fileManager.fileExists(atPath: sourceURL.path) {
+            let destinationURL = uniqueDestinationURL(
+                for: sourceURL.lastPathComponent,
+                in: folderURL,
+                fileManager: fileManager
+            )
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            copiedCount += 1
+        }
+
+        guard copiedCount > 0 else {
+            throw BulkDeliverablesFolderError.noReadableDeliverables
+        }
+
+        return folderURL
+    }
+
+    private var bulkFolderName: String {
+        "\(sanitizedTaskTitle)_\(Self.bulkFolderTimestampFormatter.string(from: Date()))"
+    }
+
+    private var sanitizedTaskTitle: String {
+        let invalidCharacters = CharacterSet(charactersIn: "/:\\?%*|\"<>")
+        let cleanedScalars = task.title.unicodeScalars.map { scalar in
+            invalidCharacters.contains(scalar) ? "_" : Character(scalar)
+        }
+        let cleanedTitle = String(cleanedScalars).trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleanedTitle.isEmpty ? "Task" : cleanedTitle
+    }
+
+    private func uniqueDestinationURL(
+        for filename: String,
+        in directory: URL,
+        fileManager: FileManager
+    ) -> URL {
+        let candidateURL = directory.appendingPathComponent(filename)
+        guard !fileManager.fileExists(atPath: candidateURL.path) else {
+            let ext = candidateURL.pathExtension
+            let baseName = candidateURL.deletingPathExtension().lastPathComponent
+            var index = 2
+
+            while true {
+                let suffix = " \(index)"
+                let adjustedName = ext.isEmpty ? "\(baseName)\(suffix)" : "\(baseName)\(suffix).\(ext)"
+                let adjustedURL = directory.appendingPathComponent(adjustedName)
+                if !fileManager.fileExists(atPath: adjustedURL.path) {
+                    return adjustedURL
+                }
+                index += 1
+            }
+        }
+        return candidateURL
+    }
+
     // MARK: - Formatting helpers
 
     private var statusIconName: String {
@@ -439,6 +582,27 @@ struct CompletedTaskDetailView: View {
 
     private var totalTokens: Int {
         traceEvents.reduce(TraceTokenUsage.zero) { $0.adding($1.tokenUsage) }.effectiveTotal
+    }
+
+    private static let bulkFolderTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        return formatter
+    }()
+}
+
+private enum BulkDeliverablesFolderError: LocalizedError {
+    case noDeliverables
+    case noReadableDeliverables
+
+    var errorDescription: String? {
+        switch self {
+        case .noDeliverables:
+            return "This task has no deliverables to export."
+        case .noReadableDeliverables:
+            return "None of the deliverables could be copied into the export folder."
+        }
     }
 }
 
@@ -554,13 +718,31 @@ extension URL: @retroactive Identifiable {
 // MARK: - Document exporter bridge
 
 struct DocumentExporterView: UIViewControllerRepresentable {
-    let sourceURL: URL
+    let sourceURLs: [URL]
+
+    init(sourceURL: URL) {
+        self.sourceURLs = [sourceURL]
+    }
+
+    init(sourceURLs: [URL]) {
+        self.sourceURLs = sourceURLs
+    }
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        UIDocumentPickerViewController(forExporting: [sourceURL])
+        UIDocumentPickerViewController(forExporting: sourceURLs)
     }
 
     func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+}
+
+struct ActivityShareView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {
