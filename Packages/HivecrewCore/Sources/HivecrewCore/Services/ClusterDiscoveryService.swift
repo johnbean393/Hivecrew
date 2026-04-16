@@ -73,9 +73,13 @@ public final class ClusterDiscoveryService: ObservableObject {
 
     private var peerById: [String: DiscoveredClusterPeer] = [:]
     private var healthCheckTask: Task<Void, Never>?
+    private var directoryRefreshTask: Task<Void, Never>?
     private var peerProbeFailureCounts: [String: Int] = [:]
 
-    private static let healthCheckInterval: TimeInterval = 10
+    private static let peerHealthCheckInterval: TimeInterval = 10
+    private static let initialDirectoryRefreshInterval: TimeInterval = 3
+    private static let steadyStateDirectoryRefreshInterval: TimeInterval = 30
+    private static let initialDirectoryRefreshCycles = 5
     private static let peerOfflineThreshold = 3
     private static let maxReportedPeerCount = 1_000_000
 
@@ -152,18 +156,38 @@ public final class ClusterDiscoveryService: ObservableObject {
 
     public func startHealthMonitoring() {
         healthCheckTask?.cancel()
+        directoryRefreshTask?.cancel()
+
         healthCheckTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Self.healthCheckInterval))
+                try? await Task.sleep(for: .seconds(Self.peerHealthCheckInterval))
                 guard !Task.isCancelled else { break }
-                await self?.runHealthCycle()
+                await self?.probeAllPeers()
+            }
+        }
+
+        directoryRefreshTask = Task { @MainActor [weak self] in
+            var remainingFastRefreshes = Self.initialDirectoryRefreshCycles
+
+            while !Task.isCancelled {
+                let interval = remainingFastRefreshes > 0
+                    ? Self.initialDirectoryRefreshInterval
+                    : Self.steadyStateDirectoryRefreshInterval
+                try? await Task.sleep(for: .seconds(interval))
+                guard !Task.isCancelled else { break }
+                await self?.refreshFromWorkerIfPossible()
+                if remainingFastRefreshes > 0 {
+                    remainingFastRefreshes -= 1
+                }
             }
         }
     }
 
     public func stopHealthMonitoring() {
         healthCheckTask?.cancel()
+        directoryRefreshTask?.cancel()
         healthCheckTask = nil
+        directoryRefreshTask = nil
     }
 
     /// Stops timers and clears published state (e.g. sign-out or tunnel teardown).
@@ -360,11 +384,6 @@ public final class ClusterDiscoveryService: ObservableObject {
     }
 
     // MARK: - Health
-
-    private func runHealthCycle() async {
-        await refreshFromWorkerIfPossible()
-        await probeAllPeers()
-    }
 
     private func refreshFromWorkerIfPossible() async {
         guard clusterToken != nil,

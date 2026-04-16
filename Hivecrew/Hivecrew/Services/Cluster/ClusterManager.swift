@@ -61,9 +61,13 @@ actor ClusterManager {
     private let apiClient = RemoteAccessAPIClient()
     private var capacityObserver: Any?
     private var healthCheckTask: Task<Void, Never>?
+    private var directoryRefreshTask: Task<Void, Never>?
     private var peerProbeFailureCounts: [String: Int] = [:]
     
-    private static let healthCheckInterval: TimeInterval = 10
+    private static let peerHealthCheckInterval: TimeInterval = 10
+    private static let initialDirectoryRefreshInterval: TimeInterval = 3
+    private static let steadyStateDirectoryRefreshInterval: TimeInterval = 30
+    private static let initialDirectoryRefreshCycles = 5
     private static let peerOfflineThreshold = 3
     private static let dispatchOrderKey = "clusterDispatchOrder"
     private static let maxReportedPeerCount = 1_000_000
@@ -635,19 +639,38 @@ actor ClusterManager {
     
     private func startHealthChecks() {
         healthCheckTask?.cancel()
+        directoryRefreshTask?.cancel()
+
         healthCheckTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Self.healthCheckInterval))
+                try? await Task.sleep(for: .seconds(Self.peerHealthCheckInterval))
+                guard !Task.isCancelled else { break }
+                await self?.probeAllPeers()
+            }
+        }
+
+        directoryRefreshTask = Task { [weak self] in
+            var remainingFastRefreshes = Self.initialDirectoryRefreshCycles
+
+            while !Task.isCancelled {
+                let interval = remainingFastRefreshes > 0
+                    ? Self.initialDirectoryRefreshInterval
+                    : Self.steadyStateDirectoryRefreshInterval
+                try? await Task.sleep(for: .seconds(interval))
                 guard !Task.isCancelled else { break }
                 await self?.refreshPeersFromDirectoryIfNeeded()
-                await self?.probeAllPeers()
+                if remainingFastRefreshes > 0 {
+                    remainingFastRefreshes -= 1
+                }
             }
         }
     }
     
     private func stopHealthChecks() {
         healthCheckTask?.cancel()
+        directoryRefreshTask?.cancel()
         healthCheckTask = nil
+        directoryRefreshTask = nil
     }
     
     private func probeAllPeers() async {
