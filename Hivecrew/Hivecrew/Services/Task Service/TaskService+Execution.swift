@@ -518,6 +518,7 @@ extension TaskService {
             
             // Observe permission requests from this state publisher
             observePermissionRequests(for: task.id, from: statePublisher)
+            observeClusterPushEvents(for: task.id, from: statePublisher)
             
             // LLM client should be ready by now (created in parallel with VM boot)
             guard let llmClientTask = llmClientTask else {

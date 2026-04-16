@@ -597,7 +597,7 @@ enum OrchestratorToolHandler {
         }
 
         orchestrator.endCallAfterSpeaking()
-        let result = "Bye for now!"
+        let result = ""
         let record = ToolUseRecord(
             toolName: "end_call",
             summary: "Ending call",

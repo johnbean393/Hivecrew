@@ -81,8 +81,44 @@ extension TaskService {
         cancellables[taskId] = cancellable
     }
 
+    func observeClusterPushEvents(for taskId: String, from publisher: AgentStatePublisher) {
+        guard let task = tasks.first(where: { $0.id == taskId }),
+              let canonicalTaskId = task.clusterOwnerTaskId else { return }
+
+        let questionSub = publisher.$pendingQuestion
+            .compactMap { $0 }
+            .receive(on: DispatchQueue.main)
+            .sink { question in
+                Task {
+                    await ClusterManager.shared.notifyTaskQuestionAsked(
+                        canonicalTaskId: canonicalTaskId,
+                        workerTaskId: taskId,
+                        question: question.question
+                    )
+                }
+            }
+
+        let permissionSub = publisher.$pendingPermissionRequest
+            .compactMap { $0 }
+            .receive(on: DispatchQueue.main)
+            .sink { request in
+                Task {
+                    await ClusterManager.shared.notifyTaskPermissionRequested(
+                        canonicalTaskId: canonicalTaskId,
+                        workerTaskId: taskId,
+                        details: request.details
+                    )
+                }
+            }
+
+        cancellables["cluster-q-\(taskId)"] = questionSub
+        cancellables["cluster-p-\(taskId)"] = permissionSub
+    }
+
     func cleanupTaskObservations(taskId: String) {
         cancellables.removeValue(forKey: taskId)
+        cancellables.removeValue(forKey: "cluster-q-\(taskId)")
+        cancellables.removeValue(forKey: "cluster-p-\(taskId)")
         pendingPermissions.removeValue(forKey: taskId)
     }
 

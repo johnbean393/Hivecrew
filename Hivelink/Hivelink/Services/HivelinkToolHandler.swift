@@ -31,7 +31,7 @@ struct HivelinkToolCallResult {
 @MainActor
 enum HivelinkToolHandler {
 
-    private static let unsupportedTools: Set<String> = ["search_files", "open_file", "search_file_content"]
+    static let unsupportedTools: Set<String> = ["search_files", "open_file", "search_file_content", "read_file", "get_deliverables"]
     static let toolDeclarations: [VoiceToolDeclaration] = fromSharedToolSchemas()
         .filter { !unsupportedTools.contains($0.name) }
 
@@ -128,13 +128,6 @@ enum HivelinkToolHandler {
                 orchestrator: orchestrator
             )
 
-        case "get_deliverables":
-            return handleGetDeliverables(
-                query: args["query"] ?? "",
-                taskService: taskService,
-                workerRegistry: workerRegistry
-            )
-
         case "focus_task":
             return handleFocusTask(
                 query: args["query"] ?? "",
@@ -147,9 +140,6 @@ enum HivelinkToolHandler {
                 taskService: taskService,
                 orchestrator: orchestrator
             )
-
-        case "read_file":
-            return await handleReadFile(path: args["path"] ?? "")
 
         default:
             return .textOnly("Unknown tool: \(toolCall.name)")
@@ -247,10 +237,6 @@ enum HivelinkToolHandler {
         if isFinished {
             let summary = task.resultSummary ?? task.errorMessage ?? "No details available."
             result += ". Result: \(summary)"
-            let deliverableCount = task.outputFilePaths?.count ?? 0
-            if deliverableCount > 0 {
-                result += " (\(deliverableCount) deliverable\(deliverableCount == 1 ? "" : "s"))"
-            }
         } else {
             let events = taskService.peerConnectionManager?.events(for: task.id) ?? []
             if let lastEvent = events.last {
@@ -598,18 +584,19 @@ enum HivelinkToolHandler {
         taskService: HivelinkTaskService,
         orchestrator: HivelinkVoiceOrchestrator
     ) -> HivelinkToolCallResult {
+        orchestrator.endCallAfterSpeaking()
+
         let sessionTasks = taskService.tasks.filter { orchestrator.relevantTaskIds.contains($0.id) }
         let activeTasks = sessionTasks.filter { $0.status.isActive }
-
-        if !activeTasks.isEmpty {
+        let result: String
+        if activeTasks.isEmpty {
+            result = ""
+        } else {
             let names = activeTasks.compactMap {
                 orchestrator.workerRegistry.resolve(query: $0.id)?.displayName ?? $0.id
             }.joined(separator: ", ")
-            return .textOnly("Cannot end call — \(activeTasks.count) task(s) still active: \(names). Wait for them to finish or cancel them first.")
+            result = "\(activeTasks.count) task(s) still running (\(names)) — they will continue in the background."
         }
-
-        orchestrator.endCallAfterSpeaking()
-        let result = "Bye for now!"
         let record = ToolUseRecord(
             toolName: "end_call",
             summary: "Ending call",

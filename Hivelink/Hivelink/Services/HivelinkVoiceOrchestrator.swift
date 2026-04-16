@@ -450,6 +450,8 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         HapticManager.incomingCallAnswered()
         action.fulfill()
 
+        AppDependencyManager.shared.setSelectedTab?(1)
+
         await startSession(context: context)
     }
 
@@ -549,6 +551,13 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             startIdleTimer()
             subscribeToInputLevel()
             subscribeToTaskEvents()
+
+            // On iOS, mic capture is deferred until CallKit fires
+            // didActivate. Send a text nudge so the model starts
+            // speaking immediately instead of waiting for audio.
+            if context != nil {
+                try? await provider.sendText("[SYSTEM] The user just answered the call. Greet them and address the call reason now.")
+            }
         } catch {
             tearDownSession()
             connectionState = .error(error.localizedDescription)
@@ -620,7 +629,11 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     // MARK: - System Prompt
 
     private func makeSystemPrompt(context: IncomingCallContext?) -> String {
-        var prompt = OrchestratorSystemPrompt.build(voiceName: voiceName.capitalized)
+        OrchestratorSystemPrompt.allowEndCallWithActiveTasks = true
+        var prompt = OrchestratorSystemPrompt.build(
+            voiceName: voiceName.capitalized,
+            excludedTools: HivelinkToolHandler.unsupportedTools
+        )
 
         let existingTasksSummary = importActiveTasks()
         if !existingTasksSummary.isEmpty {
@@ -689,7 +702,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             section += """
             A worker has finished their task.
             Result: \(context.summary)
-            Tell the user what was accomplished. Use `get_deliverables` to check for output files.
+            Tell the user what was accomplished. Any output files are available on their device.
             """
 
         case .failed:
@@ -753,9 +766,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.isModelSpeaking = false
-                // Don't disable the echo gate here — audio may still be
-                // draining from the playback buffer. onPlaybackFinished
-                // disables it after the buffer empties + 300ms cooldown.
+                self.audioManager.setServerModelSpeaking(false)
                 if self.pendingEndCall {
                     self.pendingEndCall = false
                     self.endCall()
@@ -1023,13 +1034,6 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 focusedTaskId = taskId
                 let summary = task.resultSummary ?? "Task finished."
                 var message = "[CALLBACK] \(workerName) finished their task. Result: \(summary)"
-                let deliverablePaths = (task.outputFilePaths ?? []).filter {
-                    FileManager.default.fileExists(atPath: $0)
-                }
-                if !deliverablePaths.isEmpty {
-                    message += "\nDeliverables saved at:\n" + deliverablePaths.joined(separator: "\n")
-                    transcript.append(.deliverables(workerName: workerName, filePaths: deliverablePaths))
-                }
                 if allSessionTasksFinished {
                     message += " [ALL_TASKS_DONE] All tasks are now complete. Ask the user if they need anything else, and offer to end the call using the `end_call` tool."
                 }

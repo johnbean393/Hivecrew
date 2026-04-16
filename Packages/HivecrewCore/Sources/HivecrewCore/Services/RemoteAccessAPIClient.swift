@@ -103,6 +103,27 @@ public actor RemoteAccessAPIClient {
         let _: MessageResponse = try await post("/devices/register", body: body, token: sessionToken)
     }
 
+    // MARK: - VoIP Push Delivery
+
+    /// Ask the coordination Worker to deliver a VoIP push notification to all
+    /// devices registered under `targetOwnerId`. The Worker looks up the
+    /// stored VoIP token and sends via APNs.
+    public func sendVoIPPush(
+        sessionToken: String,
+        targetOwnerId: String,
+        payload: VoIPPushPayload
+    ) async throws {
+        let body = VoIPPushRequest(
+            targetOwnerId: targetOwnerId,
+            trigger: payload.trigger,
+            taskId: payload.taskId,
+            workerName: payload.workerName,
+            summary: payload.summary,
+            peerId: payload.peerId
+        )
+        let _: MessageResponse = try await post("/push/send-voip", body: body, token: sessionToken)
+    }
+
     // MARK: - HTTP Helpers
 
     private func get<R: Decodable>(_ path: String, token: String? = nil) async throws -> R {
@@ -193,6 +214,31 @@ struct DeviceRegistrationRequest: Encodable {
     let apnsToken: String?
     let platform: String
     let bundleId: String
+}
+
+public struct VoIPPushPayload: Sendable {
+    public let trigger: String
+    public let taskId: String
+    public let workerName: String
+    public let summary: String
+    public let peerId: String
+
+    public init(trigger: String, taskId: String, workerName: String, summary: String, peerId: String) {
+        self.trigger = trigger
+        self.taskId = taskId
+        self.workerName = workerName
+        self.summary = summary
+        self.peerId = peerId
+    }
+}
+
+private struct VoIPPushRequest: Encodable {
+    let targetOwnerId: String
+    let trigger: String
+    let taskId: String
+    let workerName: String
+    let summary: String
+    let peerId: String
 }
 
 public struct TunnelCreateResponse: Decodable {

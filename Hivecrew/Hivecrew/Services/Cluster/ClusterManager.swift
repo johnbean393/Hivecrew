@@ -513,6 +513,90 @@ actor ClusterManager {
                     task: task
                 )
             )
+
+            let trigger: String? = {
+                switch task.status {
+                case .completed:                        return "completed"
+                case .failed, .timedOut, .maxIterations, .planFailed: return "failed"
+                case .planReview:                       return "planReady"
+                case .writebackReview:                  return "writebackReady"
+                default:                                return nil
+                }
+            }()
+
+            if let trigger {
+                await sendVoIPPush(
+                    targetOwnerId: leaseContext.ownerNodeId,
+                    trigger: trigger,
+                    taskId: canonicalTaskId,
+                    workerName: task.title,
+                    summary: task.resultSummary ?? task.errorMessage ?? ""
+                )
+            }
+        }
+    }
+
+    /// Called when a running agent posts a question that needs the user's input.
+    func notifyTaskQuestionAsked(
+        canonicalTaskId: String,
+        workerTaskId: String,
+        question: String
+    ) {
+        Task {
+            guard let leaseContext = await self.currentLeaseContext(forWorkerTaskId: workerTaskId) else { return }
+            guard let apiTask = await APIServerManager.shared.localTaskSnapshot(taskId: workerTaskId) else { return }
+
+            await pushTaskUpdate(
+                ownerNodeId: leaseContext.ownerNodeId,
+                update: PeerTaskUpdate(
+                    tunnelId: RemoteAccessKeychain.retrieveTunnelId() ?? "",
+                    canonicalTaskId: canonicalTaskId,
+                    ownerLeaseId: leaseContext.leaseId,
+                    workerTaskId: workerTaskId,
+                    executionAttempt: 0,
+                    task: apiTask
+                )
+            )
+
+            await sendVoIPPush(
+                targetOwnerId: leaseContext.ownerNodeId,
+                trigger: "question",
+                taskId: canonicalTaskId,
+                workerName: apiTask.title,
+                summary: question
+            )
+        }
+    }
+
+    /// Called when a running agent requests permission for a dangerous action.
+    func notifyTaskPermissionRequested(
+        canonicalTaskId: String,
+        workerTaskId: String,
+        details: String
+    ) {
+        Task {
+            guard let leaseContext = await self.currentLeaseContext(forWorkerTaskId: workerTaskId) else { return }
+            guard let apiTask = await APIServerManager.shared.localTaskSnapshot(taskId: workerTaskId) else { return }
+
+            await pushTaskUpdate(
+                ownerNodeId: leaseContext.ownerNodeId,
+                update: PeerTaskUpdate(
+                    tunnelId: RemoteAccessKeychain.retrieveTunnelId() ?? "",
+                    canonicalTaskId: canonicalTaskId,
+                    ownerLeaseId: leaseContext.leaseId,
+                    workerTaskId: workerTaskId,
+                    executionAttempt: 0,
+                    task: apiTask
+                )
+            )
+
+            await sendVoIPPush(
+                targetOwnerId: leaseContext.ownerNodeId,
+                trigger: "permission",
+                taskId: canonicalTaskId,
+                workerName: apiTask.title,
+                summary: details
+            )
         }
     }
     
@@ -818,6 +902,33 @@ actor ClusterManager {
     private func pushTaskUpdate(ownerNodeId: String, update: PeerTaskUpdate) async {
         guard let ownerPeer = peers[ownerNodeId] else { return }
         await postClusterPayload(update, to: "\(ownerPeer.tunnelUrl)/api/v1/cluster/task-update")
+    }
+
+    private func sendVoIPPush(
+        targetOwnerId: String,
+        trigger: String,
+        taskId: String,
+        workerName: String,
+        summary: String
+    ) async {
+        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else { return }
+        let peerId = RemoteAccessKeychain.retrieveTunnelId() ?? ""
+        let payload = VoIPPushPayload(
+            trigger: trigger,
+            taskId: taskId,
+            workerName: workerName,
+            summary: String(summary.prefix(500)),
+            peerId: peerId
+        )
+        do {
+            try await apiClient.sendVoIPPush(
+                sessionToken: sessionToken,
+                targetOwnerId: targetOwnerId,
+                payload: payload
+            )
+        } catch {
+            print("[ClusterManager] VoIP push failed for \(trigger): \(error.localizedDescription)")
+        }
     }
 
     @MainActor
