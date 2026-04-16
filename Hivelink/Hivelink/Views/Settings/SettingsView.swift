@@ -43,7 +43,6 @@ struct SettingsView: View {
     @AppStorage("incomingCall_failed") private var callFailed = true
     @AppStorage("incomingCall_planReview") private var callPlanReview = false
     @AppStorage("incomingCall_writebackReview") private var callWritebackReview = false
-    @AppStorage("incomingCall_allFinished") private var callAllFinished = true
 
     // MARK: - Storage
 
@@ -209,7 +208,6 @@ struct SettingsView: View {
                 Toggle(String(localized: "Task Failures"), isOn: $callFailed)
                 Toggle(String(localized: "Plan Reviews"), isOn: $callPlanReview)
                 Toggle(String(localized: "Writeback Reviews"), isOn: $callWritebackReview)
-                Toggle(String(localized: "All Tasks Finished"), isOn: $callAllFinished)
             }
         } header: {
             Text(String(localized: "Incoming Calls"))

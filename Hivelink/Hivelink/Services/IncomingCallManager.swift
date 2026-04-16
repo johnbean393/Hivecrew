@@ -41,7 +41,6 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
     private var completionBatchTimer: Timer?
     private var pendingCompletionContexts: [IncomingCallContext] = []
-    private var batchedSilentUUIDs: [UUID] = []
 
     private static let batchWindowSeconds: TimeInterval = 5
     private static let callCooldownSeconds: TimeInterval = 60
@@ -87,7 +86,6 @@ final class IncomingCallManager: NSObject, ObservableObject {
         "incomingCall_failed": true,
         "incomingCall_planReview": true,
         "incomingCall_writebackReview": false,
-        "incomingCall_allFinished": false,
     ]
 
     private func preferenceEnabled(forKey key: String) -> Bool {
@@ -200,8 +198,8 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
     // MARK: - Completion Batching
 
-    /// If multiple tasks complete within 5 seconds, coalesce into one "All tasks done" call.
-    /// Each VoIP push still gets a `reportNewIncomingCall` (iOS requirement).
+    /// Delay completion notifications briefly so near-simultaneous task finishes
+    /// are delivered together after the silent CallKit reports complete.
     private func handleCompletionBatching(context: IncomingCallContext, completion: @escaping () -> Void) {
         pendingCompletionContexts.append(context)
 
@@ -216,14 +214,12 @@ final class IncomingCallManager: NSObject, ObservableObject {
             }
 
             // For the first completion, we wait for the batch window.
-            // Report silently to satisfy iOS, will be replaced if batch fires.
+            // Report silently to satisfy iOS, then flush notifications later.
             let uuid = UUID()
-            batchedSilentUUIDs.append(uuid)
             reportAndImmediatelyEnd(uuid: uuid, context: context, completion: completion)
         } else {
             // Additional completions during the batch window: report + end silently.
             let uuid = UUID()
-            batchedSilentUUIDs.append(uuid)
             reportAndImmediatelyEnd(uuid: uuid, context: context, completion: completion)
         }
     }
@@ -231,37 +227,14 @@ final class IncomingCallManager: NSObject, ObservableObject {
     private func flushCompletionBatch() {
         completionBatchTimer?.invalidate()
         completionBatchTimer = nil
-        batchedSilentUUIDs.removeAll()
 
         let contexts = pendingCompletionContexts
         pendingCompletionContexts.removeAll()
 
         guard !contexts.isEmpty else { return }
 
-        if contexts.count > 1 {
-            // Coalesce into "All tasks done"
-            let coalesced = IncomingCallContext(
-                trigger: .allTasksDone,
-                taskId: contexts.map(\.taskId).joined(separator: ","),
-                workerName: "Hivecrew",
-                summary: "\(contexts.count) tasks finished",
-                peerId: contexts.first?.peerId ?? ""
-            )
-
-            if shouldSuppress(context: coalesced) {
-                deliverSuppressedNotification(context: coalesced)
-            } else {
-                // The VoIP pushes were already reported+ended. Post a local
-                // notification or use a CXStartCallAction to ring the user.
-                // Since we can't reportNewIncomingCall without a VoIP push,
-                // we post a rich local notification instead.
-                deliverSuppressedNotification(context: coalesced)
-            }
-        } else {
-            // Single completion -- already handled silently above. Post notification.
-            if let single = contexts.first {
-                deliverSuppressedNotification(context: single)
-            }
+        for context in contexts {
+            deliverSuppressedNotification(context: context)
         }
     }
 
@@ -339,7 +312,6 @@ final class IncomingCallManager: NSObject, ObservableObject {
         case .permission:      category = NotificationManager.categoryToolPermission
         case .planReady:       category = NotificationManager.categoryPlanReady
         case .writebackReady:  category = NotificationManager.categoryWritebackReady
-        case .allTasksDone:    category = NotificationManager.categoryTaskCompleted
         }
 
         notificationManager?.postIfEnabled(

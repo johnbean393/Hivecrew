@@ -601,8 +601,6 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             message = "[INLINE_UPDATE] A plan is ready for review: \(context.summary)"
         case .writebackReady:
             message = "[INLINE_UPDATE] Changes are ready for review: \(context.summary)"
-        case .allTasksDone:
-            message = "[INLINE_UPDATE] All tasks are now done. \(context.summary)"
         }
         Task {
             await resumeIfSuspended()
@@ -710,13 +708,6 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             A worker's task has failed.
             Error: \(context.summary)
             Tell the user what went wrong and suggest next steps (retry, adjust, etc.).
-            """
-
-        case .allTasksDone:
-            section += """
-            All tasks are now complete.
-            Summary: \(context.summary)
-            Wrap up the conversation — summarize what was done and ask if the user needs anything else.
             """
         }
 

@@ -8,7 +8,7 @@ import Foundation
 struct IncomingCallContext: Sendable {
     enum TriggerEvent: String, Sendable, Codable {
         case question, permission, completed, failed
-        case planReady, writebackReady, allTasksDone
+        case planReady, writebackReady
     }
 
     let trigger: TriggerEvent
@@ -26,7 +26,6 @@ struct IncomingCallContext: Sendable {
         case .failed:          return "incomingCall_failed"
         case .planReady:       return "incomingCall_planReview"
         case .writebackReady:  return "incomingCall_writebackReview"
-        case .allTasksDone:    return "incomingCall_allFinished"
         }
     }
 
@@ -38,7 +37,6 @@ struct IncomingCallContext: Sendable {
         case .failed:          return "Hivecrew · \(workerName) failed"
         case .planReady:       return "Hivecrew · Plan ready"
         case .writebackReady:  return "Hivecrew · Review changes"
-        case .allTasksDone:    return "Hivecrew · All tasks done"
         }
     }
 
