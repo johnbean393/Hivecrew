@@ -31,6 +31,9 @@ final class IncomingCallManager: NSObject, ObservableObject {
     /// Tracks recent call timestamps per task to prevent spam (60s cooldown).
     private var recentCallTimestamps: [String: Date] = [:]
 
+    /// Task+trigger combinations already reported to CallKit, persisted across launches.
+    private var handledTaskTriggers: Set<String> = []
+
     /// VoIP push token.
     @Published private(set) var voipToken: Data?
 
@@ -42,6 +45,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
     private static let batchWindowSeconds: TimeInterval = 5
     private static let callCooldownSeconds: TimeInterval = 60
+    private static let handledTriggersKey = "IncomingCallManager.handledTaskTriggers"
 
     // MARK: - PushKit
 
@@ -67,6 +71,9 @@ final class IncomingCallManager: NSObject, ObservableObject {
     init(callKitProvider: CXProvider) {
         self.callKitProvider = callKitProvider
         super.init()
+        if let stored = UserDefaults.standard.array(forKey: Self.handledTriggersKey) as? [String] {
+            handledTaskTriggers = Set(stored)
+        }
     }
 
     // MARK: - Suppression
@@ -124,6 +131,28 @@ final class IncomingCallManager: NSObject, ObservableObject {
     private func pruneOldTimestamps() {
         let cutoff = Date().addingTimeInterval(-Self.callCooldownSeconds * 2)
         recentCallTimestamps = recentCallTimestamps.filter { $0.value > cutoff }
+    }
+
+    // MARK: - Cross-Path Deduplication
+
+    private func recordHandledTrigger(context: IncomingCallContext) {
+        let key = "\(context.taskId):\(context.trigger.rawValue)"
+        guard handledTaskTriggers.insert(key).inserted else { return }
+        persistHandledTriggers()
+    }
+
+    private func persistHandledTriggers() {
+        var array = Array(handledTaskTriggers)
+        if array.count > 500 {
+            array = Array(array.suffix(250))
+            handledTaskTriggers = Set(array)
+        }
+        UserDefaults.standard.set(array, forKey: Self.handledTriggersKey)
+    }
+
+    /// Whether a call for this task+trigger was already reported via any path (VoIP or local).
+    func hasHandledCall(taskId: String, trigger: IncomingCallContext.TriggerEvent) -> Bool {
+        handledTaskTriggers.contains("\(taskId):\(trigger.rawValue)")
     }
 
     // MARK: - Local Call Triggering
@@ -240,6 +269,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
     private func reportIncomingCall(uuid: UUID, context: IncomingCallContext, completion: @escaping () -> Void) {
         recordCallTimestamp(for: context.taskId)
+        recordHandledTrigger(context: context)
         pendingContexts[uuid] = context
 
         let update = CXCallUpdate()
@@ -265,6 +295,8 @@ final class IncomingCallManager: NSObject, ObservableObject {
     // MARK: - Report + Immediately End (Suppressed)
 
     private func reportAndImmediatelyEnd(uuid: UUID, context: IncomingCallContext, completion: @escaping () -> Void) {
+        recordCallTimestamp(for: context.taskId)
+        recordHandledTrigger(context: context)
         nonisolated(unsafe) let done = completion
 
         let update = CXCallUpdate()

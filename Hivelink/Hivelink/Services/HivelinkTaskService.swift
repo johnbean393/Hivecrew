@@ -55,6 +55,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
     /// Task IDs that already triggered an incoming call, to avoid repeating.
     private var callTriggeredTaskIds: Set<String> = []
+    private static let callTriggeredIdsKey = "HivelinkTaskService.callTriggeredTaskIds"
 
     init(
         modelContext: ModelContext,
@@ -69,6 +70,9 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             clusterDirectory: clusterCoordinator,
             remoteTaskIndex: remoteTaskIndex
         )
+        if let stored = UserDefaults.standard.array(forKey: Self.callTriggeredIdsKey) as? [String] {
+            callTriggeredTaskIds = Set(stored)
+        }
         loadTasks()
     }
 
@@ -720,6 +724,10 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             default: continue
             }
 
+            if incomingCallManager.hasHandledCall(taskId: task.id, trigger: trigger) {
+                continue
+            }
+
             let summary: String
             switch trigger {
             case .planReady:
@@ -743,6 +751,16 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         }
 
         previousStatuses = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0.status) })
+        persistCallTriggeredIds()
+    }
+
+    private func persistCallTriggeredIds() {
+        var array = Array(callTriggeredTaskIds)
+        if array.count > 500 {
+            array = Array(array.suffix(250))
+            callTriggeredTaskIds = Set(array)
+        }
+        UserDefaults.standard.set(array, forKey: Self.callTriggeredIdsKey)
     }
 
     private func performPeerAction(
