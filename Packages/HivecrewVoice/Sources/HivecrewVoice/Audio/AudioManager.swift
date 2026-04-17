@@ -419,6 +419,7 @@ public final class AudioManager: ObservableObject {
 
     private var configuredInputRate: Double = 16000
     private var configuredOutputRate: Double = 24000
+    public var playbackGain: Float = 1
 
     public func configure(inputSampleRate: Double, outputSampleRate: Double) {
         self.configuredInputRate = inputSampleRate
@@ -620,7 +621,7 @@ public final class AudioManager: ObservableObject {
     public func queueAudio(_ audioData: Data) {
         guard audioData.count > 0, audioData.count % Self.bytesPerSample == 0 else { return }
         guard let bridge = vpioBridge else { return }
-        bridge.writePlayback(audioData)
+        bridge.writePlayback(Self.scalePCM16Audio(audioData, gain: playbackGain))
         playbackDrainTicks = 0
         if !isPlaying { isPlaying = true }
     }
@@ -648,6 +649,31 @@ public final class AudioManager: ObservableObject {
     private func normalizedDeviceID(_ deviceID: String?) -> String? {
         let trimmed = (deviceID ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func scalePCM16Audio(_ audioData: Data, gain: Float) -> Data {
+        let normalizedGain = max(0, gain)
+        guard normalizedGain != 1 else { return audioData }
+        guard normalizedGain != 0 else { return Data(count: audioData.count) }
+
+        var scaledData = Data(count: audioData.count)
+        let sampleCount = audioData.count / Self.bytesPerSample
+
+        audioData.withUnsafeBytes { srcRaw in
+            scaledData.withUnsafeMutableBytes { dstRaw in
+                guard let src = srcRaw.baseAddress?.assumingMemoryBound(to: Int16.self),
+                      let dst = dstRaw.baseAddress?.assumingMemoryBound(to: Int16.self) else {
+                    return
+                }
+
+                for index in 0..<sampleCount {
+                    let scaledSample = (Float(src[index]) * normalizedGain).rounded()
+                    dst[index] = Int16(clamping: Int(scaledSample))
+                }
+            }
+        }
+
+        return scaledData
     }
 
     #if os(macOS)

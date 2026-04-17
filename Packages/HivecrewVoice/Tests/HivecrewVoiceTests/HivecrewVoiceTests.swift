@@ -452,6 +452,19 @@ actor VoiceToolCallSink {
 }
 
 @MainActor
+@Test func audioManagerPlaybackGainScalesPCM16Samples() async throws {
+    let samples: [Int16] = [1000, -2000, 5000, -5000]
+    let input = samples.withUnsafeBufferPointer { Data(buffer: $0) }
+
+    let scaled = AudioManager.scalePCM16Audio(input, gain: 0.6)
+    let output = scaled.withUnsafeBytes { rawBuffer in
+        Array(rawBuffer.bindMemory(to: Int16.self))
+    }
+
+    #expect(output == [600, -1200, 3000, -3000])
+}
+
+@MainActor
 private func makeTestGeminiWebSocketTask(provider: GeminiLiveProvider) -> URLSessionWebSocketTask {
     provider.urlSession.webSocketTask(with: URL(string: "wss://example.com/socket")!)
 }

@@ -341,6 +341,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     private var inputLevelCancellable: AnyCancellable?
     private var taskObservers: [AnyCancellable] = []
     private var lastKnownStatuses: [String: TaskStatus] = [:]
+    private static let agentPlaybackGain: Float = 0.6
 
     init() {
         let config = CXProviderConfiguration()
@@ -355,6 +356,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
         let delegate = CallKitDelegate()
         self.callKitDelegate = delegate
+        audioManager.playbackGain = Self.agentPlaybackGain
 
         setupAudioCallbacks()
         setupVideoCallbacks()
