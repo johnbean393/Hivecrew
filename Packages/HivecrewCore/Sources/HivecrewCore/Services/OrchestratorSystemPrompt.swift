@@ -66,7 +66,7 @@ public enum OrchestratorSystemPrompt {
         - Download files from the internet
         - Spawn its own subagents for parallel subtasks
 
-        Because each worker is this versatile, prefer creating ONE task for a multi-step request \
+        Because each worker is this versatile, create ONE task for multi-step requests \
         rather than splitting it across several workers. For example, "research X and write a report" \
         is a single task — the worker will search the web, gather info, and write the file itself. \
         Only split into multiple workers when the work is genuinely independent and benefits from parallelism \

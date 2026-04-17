@@ -36,6 +36,16 @@ struct ToolCallResult {
 
 @MainActor
 enum OrchestratorToolHandler {
+    private static let voiceTaskLaunchSnapshotDefaultsKey = "hivecrew.voiceTaskLaunchSnapshot"
+
+    private struct VoiceTaskLaunchSnapshot: Codable {
+        let providerId: String
+        let modelId: String
+        let executionTarget: TaskExecutionTarget
+        let reasoningEnabled: Bool?
+        let reasoningEffort: String?
+        let serviceTier: LLMServiceTier?
+    }
 
     // MARK: - Tool Declarations
 
@@ -152,16 +162,40 @@ enum OrchestratorToolHandler {
     // MARK: - Handlers
 
     /// Same resolution as the dashboard prompt bar (`TaskInputView`): main chat provider + model.
-    private static func resolvedMainModelSelection() -> (providerId: String, modelId: String)? {
+    private static func resolvedTaskLaunchSnapshot() -> VoiceTaskLaunchSnapshot? {
         let defaults = UserDefaults.standard
+
+        if let data = defaults.data(forKey: voiceTaskLaunchSnapshotDefaultsKey),
+           let snapshot = try? JSONDecoder().decode(VoiceTaskLaunchSnapshot.self, from: data) {
+            let providerId = snapshot.providerId.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let modelId = snapshot.modelId.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            guard !providerId.isEmpty, !modelId.isEmpty else { return nil }
+
+            return VoiceTaskLaunchSnapshot(
+                providerId: providerId,
+                modelId: modelId,
+                executionTarget: snapshot.executionTarget,
+                reasoningEnabled: snapshot.reasoningEnabled,
+                reasoningEffort: snapshot.reasoningEffort?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines),
+                serviceTier: snapshot.serviceTier
+            )
+        }
+
         let providerId = (defaults.string(forKey: "lastSelectedProviderId") ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
         guard !providerId.isEmpty else { return nil }
 
         let persisted = defaults.persistedModelId(for: providerId)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         let modelId = persisted.isEmpty ? "moonshotai/kimi-k2.5" : persisted
-        return (providerId, modelId)
+        return VoiceTaskLaunchSnapshot(
+            providerId: providerId,
+            modelId: modelId,
+            executionTarget: .automatic,
+            reasoningEnabled: nil,
+            reasoningEffort: nil,
+            serviceTier: nil
+        )
     }
 
     private static func handleCreateTask(
@@ -172,7 +206,7 @@ enum OrchestratorToolHandler {
         workerRegistry: WorkerRegistry,
         orchestrator: VoiceOrchestrator
     ) async -> ToolCallResult {
-        guard let (providerId, modelId) = resolvedMainModelSelection() else {
+        guard let launchSnapshot = resolvedTaskLaunchSnapshot() else {
             return .textOnly("Error: Main model not configured. Select a provider and model in the prompt bar or Settings.")
         }
 
@@ -199,12 +233,12 @@ enum OrchestratorToolHandler {
             let request = TaskCreationRequest(
                 taskId: nil,
                 description: description,
-                providerId: providerId,
-                modelId: modelId,
-                executionTarget: .automatic,
-                reasoningEnabled: nil,
-                reasoningEffort: nil,
-                serviceTier: nil,
+                providerId: launchSnapshot.providerId,
+                modelId: launchSnapshot.modelId,
+                executionTarget: launchSnapshot.executionTarget,
+                reasoningEnabled: launchSnapshot.reasoningEnabled,
+                reasoningEffort: launchSnapshot.reasoningEffort,
+                serviceTier: launchSnapshot.serviceTier,
                 attachedFilePaths: filePaths,
                 attachmentInfos: nil,
                 outputDirectory: nil,
@@ -237,9 +271,12 @@ enum OrchestratorToolHandler {
             } else {
                 task = try await taskService.createTask(
                     description: description,
-                    providerId: providerId,
-                    modelId: modelId,
-                    executionTarget: .automatic,
+                    providerId: launchSnapshot.providerId,
+                    modelId: launchSnapshot.modelId,
+                    executionTarget: launchSnapshot.executionTarget,
+                    reasoningEnabled: launchSnapshot.reasoningEnabled,
+                    reasoningEffort: launchSnapshot.reasoningEffort,
+                    serviceTier: launchSnapshot.serviceTier,
                     attachedFilePaths: filePaths,
                     planFirstEnabled: planFirst
                 )

@@ -11,6 +11,16 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct PromptBar: View {
+    private static let voiceTaskLaunchSnapshotDefaultsKey = "hivelink.voiceTaskLaunchSnapshot"
+
+    private struct VoiceTaskLaunchSnapshot: Codable {
+        let providerName: String
+        let modelId: String
+        let executionTarget: TaskExecutionTarget
+        let reasoningEnabled: Bool?
+        let reasoningEffort: String?
+    }
+
     @Binding var tabSelection: Int
 
     @EnvironmentObject private var taskService: HivelinkTaskService
@@ -83,6 +93,7 @@ struct PromptBar: View {
         .animation(.easeInOut(duration: 0.2), value: attachmentURLs.count)
         .onAppear {
             seedDefaultsIfNeeded()
+            persistVoiceTaskLaunchSnapshot()
         }
         .onReceive(NotificationCenter.default.publisher(for: .loadTaskIntoPromptBar)) { notification in
             guard let taskId = notification.userInfo?["taskId"] as? String,
@@ -91,6 +102,21 @@ struct PromptBar: View {
         }
         .task(id: reasoningCapabilityTaskID) {
             await loadReasoningCapability()
+        }
+        .onChange(of: storedProviderName) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
+        }
+        .onChange(of: storedModelId) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
+        }
+        .onChange(of: selectedExecutionTarget) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
+        }
+        .onChange(of: reasoningEnabled) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
+        }
+        .onChange(of: reasoningEffort) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
         }
         .onChange(of: photoPickerItems) { _, newValue in
             Task { await ingestPhotoItems(newValue) }
@@ -612,6 +638,8 @@ struct PromptBar: View {
         case .none:
             reasoningEnabled = nil
         }
+
+        persistVoiceTaskLaunchSnapshot()
     }
 
     private func sendTask() async {
@@ -726,6 +754,31 @@ struct PromptBar: View {
             }
         }
         photoPickerItems = []
+    }
+
+    private func persistVoiceTaskLaunchSnapshot() {
+        let providerName = effectiveProviderName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelId = effectiveModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !providerName.isEmpty, !modelId.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: Self.voiceTaskLaunchSnapshotDefaultsKey)
+            return
+        }
+
+        let snapshot = VoiceTaskLaunchSnapshot(
+            providerName: providerName,
+            modelId: modelId,
+            executionTarget: selectedExecutionTarget,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+
+        guard let data = try? JSONEncoder().encode(snapshot) else {
+            UserDefaults.standard.removeObject(forKey: Self.voiceTaskLaunchSnapshotDefaultsKey)
+            return
+        }
+
+        UserDefaults.standard.set(data, forKey: Self.voiceTaskLaunchSnapshotDefaultsKey)
     }
 }
 

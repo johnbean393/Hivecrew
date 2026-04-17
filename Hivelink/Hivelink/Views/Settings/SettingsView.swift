@@ -23,12 +23,6 @@ struct SettingsView: View {
     @AppStorage("hivelink.mediaResolution") private var mediaResolution = "medium"
     @AppStorage("hivelink.reasoningEffort") private var reasoningEffort = "low"
 
-    // MARK: - Defaults
-
-    @AppStorage("hivelink.lastProviderName") private var defaultProviderName = ""
-    @AppStorage("hivelink.lastModelId") private var defaultModelId = ""
-    @AppStorage("hivelink.defaultExecutionTarget") private var defaultExecutionTarget = "automatic"
-
     // MARK: - Notifications
 
     @AppStorage("hivelink.notify_completions") private var notifyCompletions = true
@@ -52,7 +46,6 @@ struct SettingsView: View {
 
     @State private var cacheSize: Int64 = 0
     @State private var showClearCacheConfirmation = false
-    @State private var showModelPicker = false
     @State private var showSignOutError = false
     @State private var showDeleteAccountConfirmation = false
     @State private var showDeleteAccountError = false
@@ -70,7 +63,6 @@ struct SettingsView: View {
         Form {
             accountSection
             voiceSection
-            defaultsSection
             notificationsSection
             incomingCallsSection
             storageSection
@@ -199,52 +191,6 @@ struct SettingsView: View {
         } header: {
             Text(String(localized: "Voice"))
         }
-    }
-
-    // MARK: - Defaults
-
-    private var defaultsSection: some View {
-        Section {
-            Button {
-                showModelPicker = true
-            } label: {
-                LabeledContent(String(localized: "Provider / Model")) {
-                    Text(defaultModelLabel)
-                        .foregroundStyle(.secondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Picker(String(localized: "Execution Target"), selection: $defaultExecutionTarget) {
-                Text(String(localized: "Automatic")).tag("automatic")
-                ForEach(coordinator.peers.filter { $0.status == .online }) { peer in
-                    Text(peer.name ?? peer.subdomain).tag(peer.id)
-                }
-            }
-        } header: {
-            Text(String(localized: "Defaults"))
-        }
-        .sheet(isPresented: $showModelPicker) {
-            SettingsModelPickerSheet(
-                selectedProviderName: $defaultProviderName,
-                selectedModelId: $defaultModelId,
-                isPresented: $showModelPicker,
-                peers: coordinator.peers
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-    }
-
-    private var defaultModelLabel: String {
-        if defaultModelId.isEmpty {
-            return String(localized: "Select model")
-        }
-        if defaultProviderName.isEmpty {
-            return defaultModelId
-        }
-        return "\(defaultProviderName) / \(defaultModelId)"
     }
 
     // MARK: - Notifications
@@ -413,196 +359,6 @@ struct SettingsView: View {
     private var hasVoIPDiagnosticsLog: Bool {
         _ = diagnosticsVersion
         return FileManager.default.fileExists(atPath: VoIPDiagnosticsLog.fileURL.path)
-    }
-}
-
-// MARK: - Settings Model Picker Sheet
-
-private struct SettingsModelPickerSheet: View {
-    @Binding var selectedProviderName: String
-    @Binding var selectedModelId: String
-    @Binding var isPresented: Bool
-    let peers: [DiscoveredClusterPeer]
-
-    @State private var searchText = ""
-    @State private var pickerProviderName = ""
-
-    private var onlinePeers: [DiscoveredClusterPeer] {
-        peers.filter { $0.status == .online }
-    }
-
-    private var allProviderNames: [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-        for peer in onlinePeers {
-            for provider in peer.providers where !seen.contains(provider.providerName) {
-                seen.insert(provider.providerName)
-                result.append(provider.providerName)
-            }
-        }
-        return result
-    }
-
-    private var activeProviderName: String {
-        if !pickerProviderName.isEmpty, allProviderNames.contains(pickerProviderName) {
-            return pickerProviderName
-        }
-        if allProviderNames.contains(selectedProviderName) {
-            return selectedProviderName
-        }
-        return allProviderNames.first ?? ""
-    }
-
-    private var modelsForActiveProvider: [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-        for peer in onlinePeers {
-            for provider in peer.providers where provider.providerName == activeProviderName {
-                for modelId in provider.modelIds where !seen.contains(modelId) {
-                    seen.insert(modelId)
-                    result.append(modelId)
-                }
-            }
-        }
-        return result
-    }
-
-    private var filteredModels: [String] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return modelsForActiveProvider }
-        return modelsForActiveProvider.filter {
-            $0.localizedCaseInsensitiveContains(query)
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if allProviderNames.count > 1 {
-                    providerChips
-                    Divider()
-                }
-
-                searchField
-                Divider()
-
-                if onlinePeers.isEmpty {
-                    ContentUnavailableView(
-                        "No online peers",
-                        systemImage: "wifi.slash",
-                        description: Text("Open the Cluster tab and wait for workers to come online.")
-                    )
-                } else if filteredModels.isEmpty {
-                    ContentUnavailableView(
-                        searchText.isEmpty ? "No models available" : "No matching models",
-                        systemImage: searchText.isEmpty ? "brain" : "magnifyingglass",
-                        description: searchText.isEmpty
-                            ? Text("No models found for this provider.")
-                            : Text("Try a different search term.")
-                    )
-                } else {
-                    modelList
-                }
-            }
-            .navigationTitle(String(localized: "Default Model"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Done")) { isPresented = false }
-                }
-            }
-        }
-        .onAppear {
-            if pickerProviderName.isEmpty {
-                pickerProviderName = selectedProviderName
-            }
-        }
-    }
-
-    private var providerChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(allProviderNames, id: \.self) { name in
-                    providerChip(name)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-        }
-    }
-
-    private func providerChip(_ name: String) -> some View {
-        let isSelected = name == activeProviderName
-        return Button {
-            pickerProviderName = name
-            searchText = ""
-        } label: {
-            Text(name)
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(
-                    isSelected
-                        ? AnyShapeStyle(.tint.opacity(0.22))
-                        : AnyShapeStyle(.quaternary),
-                    in: Capsule()
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(isSelected ? Color.accentColor.opacity(0.55) : Color.clear, lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.body)
-                .foregroundStyle(.secondary)
-            TextField(String(localized: "Search models"), text: $searchText)
-                .textFieldStyle(.plain)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-    }
-
-    private var modelList: some View {
-        List {
-            ForEach(filteredModels, id: \.self) { modelId in
-                modelRow(modelId)
-            }
-        }
-        .listStyle(.plain)
-    }
-
-    private func modelRow(_ modelId: String) -> some View {
-        let isSelected = modelId == selectedModelId && activeProviderName == selectedProviderName
-
-        return Button {
-            selectedProviderName = activeProviderName
-            selectedModelId = modelId
-            isPresented = false
-        } label: {
-            HStack(spacing: 12) {
-                Text(modelId)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.tint)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 

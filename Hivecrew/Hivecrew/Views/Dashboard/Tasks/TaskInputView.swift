@@ -15,6 +15,17 @@ import HivecrewCore
 
 /// Chat-style input for creating new tasks
 struct TaskInputView: View {
+    private static let voiceTaskLaunchSnapshotDefaultsKey = "hivecrew.voiceTaskLaunchSnapshot"
+
+    private struct VoiceTaskLaunchSnapshot: Codable {
+        let providerId: String
+        let modelId: String
+        let executionTarget: TaskExecutionTarget
+        let reasoningEnabled: Bool?
+        let reasoningEffort: String?
+        let serviceTier: LLMServiceTier?
+    }
+
     @EnvironmentObject var taskService: TaskService
     @Environment(\.modelContext) private var modelContext
     @Query var providers: [LLMProviderRecord]
@@ -109,6 +120,7 @@ struct TaskInputView: View {
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
             synchronizePromptConfigurationForExecutionTarget()
+            persistVoiceTaskLaunchSnapshot()
         }
         .onChange(of: providers) { _, newValue in
             // Update if no provider selected or stored provider was deleted.
@@ -121,6 +133,7 @@ struct TaskInputView: View {
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
             synchronizePromptConfigurationForExecutionTarget()
+            persistVoiceTaskLaunchSnapshot()
         }
         .onChange(of: taskDescription) { _, newValue in
             contextProvider.updateDraft(newValue)
@@ -143,21 +156,32 @@ struct TaskInputView: View {
             normalizePromptModelSelections()
             restorePersistedServiceTierForSelectedProvider()
             synchronizePromptConfigurationForExecutionTarget()
+            persistVoiceTaskLaunchSnapshot()
         }
         .onChange(of: selectedModelId) { _, _ in
             synchronizePromptConfigurationForExecutionTarget()
+            persistVoiceTaskLaunchSnapshot()
         }
         .onChange(of: useMultiplePromptModels) { _, _ in
             synchronizePromptConfigurationForExecutionTarget()
         }
         .onChange(of: executionTarget) { _, _ in
             synchronizePromptConfigurationForExecutionTarget()
+            persistVoiceTaskLaunchSnapshot()
         }
         .onChange(of: serviceTier) { _, newValue in
             persistServiceTier(newValue, for: selectedProviderId)
+            persistVoiceTaskLaunchSnapshot()
+        }
+        .onChange(of: reasoningEnabled) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
+        }
+        .onChange(of: reasoningEffort) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
         }
         .onReceive(clusterStatus.$peers) { _ in
             synchronizePromptConfigurationForExecutionTarget()
+            persistVoiceTaskLaunchSnapshot()
         }
         .onReceive(NotificationCenter.default.publisher(for: .continueFromTask)) { notification in
             guard let taskId = notification.userInfo?["taskId"] as? String,
@@ -296,6 +320,32 @@ struct TaskInputView: View {
         } catch {
             print("Failed to create task: \(error)")
         }
+    }
+
+    private func persistVoiceTaskLaunchSnapshot() {
+        let providerId = selectedProviderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelId = selectedModelId.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !providerId.isEmpty, !modelId.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: Self.voiceTaskLaunchSnapshotDefaultsKey)
+            return
+        }
+
+        let snapshot = VoiceTaskLaunchSnapshot(
+            providerId: providerId,
+            modelId: modelId,
+            executionTarget: executionTarget,
+            reasoningEnabled: reasoningEnabled,
+            reasoningEffort: reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines),
+            serviceTier: serviceTier
+        )
+
+        guard let data = try? JSONEncoder().encode(snapshot) else {
+            UserDefaults.standard.removeObject(forKey: Self.voiceTaskLaunchSnapshotDefaultsKey)
+            return
+        }
+
+        UserDefaults.standard.set(data, forKey: Self.voiceTaskLaunchSnapshotDefaultsKey)
     }
 
     private func resolvedLocalAccessGrants(for description: String) -> [LocalAccessGrant] {

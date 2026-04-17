@@ -30,10 +30,53 @@ struct HivelinkToolCallResult {
 
 @MainActor
 enum HivelinkToolHandler {
+    private static let voiceTaskLaunchSnapshotDefaultsKey = "hivelink.voiceTaskLaunchSnapshot"
+
+    private struct VoiceTaskLaunchSnapshot: Codable {
+        let providerName: String
+        let modelId: String
+        let executionTarget: TaskExecutionTarget
+        let reasoningEnabled: Bool?
+        let reasoningEffort: String?
+    }
 
     static let unsupportedTools: Set<String> = ["search_files", "open_file", "search_file_content", "read_file", "get_deliverables"]
     static var toolDeclarations: [VoiceToolDeclaration] {
         fromSharedToolSchemas().filter { !unsupportedTools.contains($0.name) }
+    }
+
+    private static func resolvedTaskLaunchSnapshot() -> VoiceTaskLaunchSnapshot? {
+        let defaults = UserDefaults.standard
+
+        if let data = defaults.data(forKey: voiceTaskLaunchSnapshotDefaultsKey),
+           let snapshot = try? JSONDecoder().decode(VoiceTaskLaunchSnapshot.self, from: data) {
+            let providerName = snapshot.providerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let modelId = snapshot.modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !providerName.isEmpty, !modelId.isEmpty else { return nil }
+
+            return VoiceTaskLaunchSnapshot(
+                providerName: providerName,
+                modelId: modelId,
+                executionTarget: snapshot.executionTarget,
+                reasoningEnabled: snapshot.reasoningEnabled,
+                reasoningEffort: snapshot.reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        }
+
+        let providerName = defaults.string(forKey: "hivelink.lastProviderName")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let modelId = defaults.string(forKey: "hivelink.lastModelId")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !providerName.isEmpty, !modelId.isEmpty else { return nil }
+
+        return VoiceTaskLaunchSnapshot(
+            providerName: providerName,
+            modelId: modelId,
+            executionTarget: .remoteFirst,
+            reasoningEnabled: nil,
+            reasoningEffort: defaults.string(forKey: "hivelink.reasoningEffort")?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 
     // MARK: - Dispatch
@@ -157,16 +200,11 @@ enum HivelinkToolHandler {
         workerRegistry: WorkerRegistry,
         orchestrator: HivelinkVoiceOrchestrator
     ) async -> HivelinkToolCallResult {
-        let providerName = UserDefaults.standard.string(forKey: "hivelink.lastProviderName")?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let modelId = UserDefaults.standard.string(forKey: "hivelink.lastModelId")?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        guard !providerName.isEmpty, !modelId.isEmpty else {
+        guard let launchSnapshot = resolvedTaskLaunchSnapshot() else {
             return .textOnly("Error: Default model not configured. Go to Settings → Defaults and select a provider and model.")
         }
 
-        let providerId = "\(TaskRecord.remoteOnlyProviderPrefix)\(providerName)"
+        let providerId = "\(TaskRecord.remoteOnlyProviderPrefix)\(launchSnapshot.providerName)"
 
         var filePaths: [String] = []
         if !attachments.isEmpty {
@@ -185,8 +223,10 @@ enum HivelinkToolHandler {
             let request = TaskCreationRequest(
                 description: description,
                 providerId: providerId,
-                modelId: modelId,
-                executionTarget: .remoteFirst,
+                modelId: launchSnapshot.modelId,
+                executionTarget: launchSnapshot.executionTarget,
+                reasoningEnabled: launchSnapshot.reasoningEnabled,
+                reasoningEffort: launchSnapshot.reasoningEffort,
                 attachedFilePaths: filePaths,
                 planFirstEnabled: planFirst
             )
