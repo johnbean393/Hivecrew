@@ -38,6 +38,7 @@ public final class RemoteAccessAuthManager: ObservableObject {
     @Published public private(set) var errorMessage: String?
     /// Whether a session JWT is present in Keychain (same credential the Worker uses as Bearer token).
     @Published public private(set) var isAuthenticated: Bool = false
+    @Published public private(set) var isSigningOut: Bool = false
     @Published public private(set) var isDeletingAccount: Bool = false
 
     private let apiClient: RemoteAccessAPIClient
@@ -97,12 +98,41 @@ public final class RemoteAccessAuthManager: ObservableObject {
         }
     }
 
+    /// Revoke the current remote session, unregister this device, and clear local credentials.
+    public func logout() async {
+        guard !isSigningOut else { return }
+
+        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
+            clearLocalCredentials()
+            return
+        }
+
+        errorMessage = nil
+        isSigningOut = true
+        defer { isSigningOut = false }
+
+        do {
+            try await apiClient.logout(
+                sessionToken: sessionToken,
+                ownerId: RemoteAccessKeychain.retrieveTunnelId()
+            )
+            clearLocalCredentials()
+        } catch {
+            if shouldClearLocalCredentials(after: error) {
+                clearLocalCredentials()
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
     /// Clears stored remote access credentials from Keychain and resets published state.
-    public func logout() {
+    private func clearLocalCredentials() {
         _ = RemoteAccessKeychain.clearAll()
         email = nil
         errorMessage = nil
         isAuthenticated = false
+        isSigningOut = false
         isDeletingAccount = false
         status = .disconnected
     }
@@ -119,10 +149,21 @@ public final class RemoteAccessAuthManager: ObservableObject {
 
         do {
             try await apiClient.deleteAccount(sessionToken: sessionToken)
-            logout()
+            clearLocalCredentials()
         } catch {
             isDeletingAccount = false
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func shouldClearLocalCredentials(after error: Error) -> Bool {
+        switch error {
+        case RemoteAccessError.httpError(let statusCode):
+            return statusCode == 401
+        case RemoteAccessError.serverError(let statusCode, _):
+            return statusCode == 401
+        default:
+            return false
         }
     }
 }

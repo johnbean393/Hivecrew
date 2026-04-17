@@ -14,8 +14,6 @@
 		20C439552F8EA82300558698 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439502F8EA82300558698 /* ContentView.swift */; };
 		20C439562F8EA82300558698 /* HivelinkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20C439512F8EA82300558698 /* HivelinkApp.swift */; };
 		20C8D6382F8EFDE8009A0274 /* Hivecrew.icon in Resources */ = {isa = PBXBuildFile; fileRef = 20C8D6372F8EFDE8009A0274 /* Hivecrew.icon */; };
-		22A100012FD0010100000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 22A100112FD0011100000011 /* PrivacyInfo.xcprivacy */; };
-		22A100022FD0010200000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 22A100122FD0011200000012 /* PrivacyInfo.xcprivacy */; };
 		21F160012F90000100000001 /* HivecrewCore in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151012F90001100000011 /* HivecrewCore */; };
 		21F160022F90000200000002 /* HivecrewVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 21F151022F90001200000012 /* HivecrewVoice */; };
 		21F160032F90000300000003 /* HivelinkBroadcast.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 21F130042F90010400000104 /* HivelinkBroadcast.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -35,10 +33,10 @@
 		21F3E2012F90211100003301 /* TaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2012F90210100003201 /* TaskRowView.swift */; };
 		21F3E2022F90211200003302 /* TaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2022F90210200003202 /* TaskListView.swift */; };
 		21F3E2032F90211300003303 /* PromptBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2032F90210300003203 /* PromptBar.swift */; };
-		21F4E1012F90311100004401 /* PeerConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F4D1012F90310100004001 /* PeerConnectionManager.swift */; };
 		21F3E2042F90211400003304 /* TaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2042F90210400003204 /* TaskDetailView.swift */; };
 		21F3E2052F90211500003305 /* RunningTaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2052F90210500003205 /* RunningTaskDetailView.swift */; };
 		21F3E2062F90211600003306 /* TraceEventRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F3D2062F90210600003206 /* TraceEventRow.swift */; };
+		21F4E1012F90311100004401 /* PeerConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F4D1012F90310100004001 /* PeerConnectionManager.swift */; };
 		21F5B1012F90411100005101 /* ArtifactImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */; };
 		21F5B1022F90411200005102 /* CompletedTaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F5A1022F90410200005002 /* CompletedTaskDetailView.swift */; };
 		21F5B1032F90411300005103 /* HistoricalTraceEventRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F5A1032F90410300005003 /* HistoricalTraceEventRow.swift */; };
@@ -71,6 +69,8 @@
 		21FB00352FB0013500100035 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00252FB0012500100025 /* NotificationManager.swift */; };
 		21FB00362FB0013600100036 /* IncomingCallContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FB00262FB0012600100026 /* IncomingCallContext.swift */; };
 		21FC00012FC0010100200001 /* PlanMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FC00022FC0010200200002 /* PlanMarkdownView.swift */; };
+		22A100012FD0010100000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 22A100112FD0011100000011 /* PrivacyInfo.xcprivacy */; };
+		22A100022FD0010200000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 22A100122FD0011200000012 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -130,8 +130,6 @@
 		20C439502F8EA82300558698 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		20C439512F8EA82300558698 /* HivelinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkApp.swift; sourceTree = "<group>"; };
 		20C8D6372F8EFDE8009A0274 /* Hivecrew.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Hivecrew.icon; sourceTree = "<group>"; };
-		22A100112FD0011100000011 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		22A100122FD0011200000012 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		21F120012F900B0100000B01 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		21F120022F900B0200000B02 /* Hivelink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Hivelink.entitlements; sourceTree = "<group>"; };
 		21F130012F90010100000101 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
@@ -153,10 +151,10 @@
 		21F3D2012F90210100003201 /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
 		21F3D2022F90210200003202 /* TaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListView.swift; sourceTree = "<group>"; };
 		21F3D2032F90210300003203 /* PromptBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptBar.swift; sourceTree = "<group>"; };
-		21F4D1012F90310100004001 /* PeerConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerConnectionManager.swift; sourceTree = "<group>"; };
 		21F3D2042F90210400003204 /* TaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailView.swift; sourceTree = "<group>"; };
 		21F3D2052F90210500003205 /* RunningTaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunningTaskDetailView.swift; sourceTree = "<group>"; };
 		21F3D2062F90210600003206 /* TraceEventRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceEventRow.swift; sourceTree = "<group>"; };
+		21F4D1012F90310100004001 /* PeerConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerConnectionManager.swift; sourceTree = "<group>"; };
 		21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtifactImportCoordinator.swift; sourceTree = "<group>"; };
 		21F5A1022F90410200005002 /* CompletedTaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletedTaskDetailView.swift; sourceTree = "<group>"; };
 		21F5A1032F90410300005003 /* HistoricalTraceEventRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalTraceEventRow.swift; sourceTree = "<group>"; };
@@ -189,6 +187,8 @@
 		21FB00252FB0012500100025 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		21FB00262FB0012600100026 /* IncomingCallContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingCallContext.swift; sourceTree = "<group>"; };
 		21FC00022FC0010200200002 /* PlanMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanMarkdownView.swift; sourceTree = "<group>"; };
+		22A100112FD0011100000011 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		22A100122FD0011200000012 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -905,12 +905,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hivelink/Info.plist;
 				INFOPLIST_KEY_HivelinkAPNsEnvironment = "$(APS_ENVIRONMENT)";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -945,12 +946,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hivelink/Info.plist;
 				INFOPLIST_KEY_HivelinkAPNsEnvironment = "$(APS_ENVIRONMENT)";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

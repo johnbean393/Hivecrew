@@ -21,6 +21,7 @@ import WidgetKit
 
 @MainActor
 final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTaskDispatchHost {
+    private static let taskAttachmentsDirectoryName = "TaskAttachments"
 
     private let modelContext: ModelContext
     private(set) weak var clusterCoordinator: HivelinkClusterCoordinator?
@@ -92,6 +93,49 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
     /// Reloads tasks from the SwiftData store (e.g. pull-to-refresh).
     func refreshTaskList() {
         refreshTasks()
+    }
+
+    /// Removes all local task records and task-owned artifacts after account deletion.
+    func wipeAllLocalData() async {
+        stopReconciliation()
+        notificationManager?.removeAllTaskNotifications()
+
+        let existingTasks = tasks
+        let taskIds = existingTasks.map(\.id)
+        for task in existingTasks {
+            modelContext.delete(task)
+        }
+        try? modelContext.save()
+
+        let entries = await remoteTaskIndex.allEntries()
+        for entry in entries {
+            await remoteTaskIndex.remove(canonicalTaskId: entry.canonicalTaskId)
+        }
+        dispatcher.invalidatePeerClientCache()
+
+        tasks = []
+        previousStatuses.removeAll()
+        terminalHapticFired.removeAll()
+        callTriggeredTaskIds.removeAll()
+        UserDefaults.standard.removeObject(forKey: Self.callTriggeredIdsKey)
+
+        if !taskIds.isEmpty {
+            try? await CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: taskIds)
+        }
+
+        clearLocalTaskFiles()
+        syncLiveActivities()
+        SharedDataWriter.writeTaskSummaries([])
+        SharedDataWriter.writeClusterStatus(
+            SharedClusterStatus(
+                peerCount: 0,
+                onlinePeerCount: 0,
+                totalAvailableSlots: 0,
+                totalRunningTasks: 0
+            )
+        )
+        SharedDataWriter.reloadWidgets()
+        VoIPDiagnosticsLog.clear()
     }
 
     /// Runs one remote reconciliation pass and refreshes the local task list.
@@ -663,6 +707,20 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         refreshTasks()
     }
 
+    private func clearLocalTaskFiles() {
+        let fm = FileManager.default
+        let directories = [
+            AppPaths.sessionsDirectory,
+            ArtifactImportCoordinator.outputsDirectory,
+            Self.taskAttachmentsDirectory,
+            AppPaths.supersededClusterAttemptsDirectory,
+        ]
+
+        for directory in directories where fm.fileExists(atPath: directory.path) {
+            try? fm.removeItem(at: directory)
+        }
+    }
+
     private func refreshTasks() {
         do {
             let descriptor = FetchDescriptor<TaskRecord>(
@@ -844,13 +902,16 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         return String(trimmed[..<endIndex]) + "…"
     }
 
+    private static var taskAttachmentsDirectory: URL {
+        AppPaths.appSupportDirectory.appendingPathComponent(taskAttachmentsDirectoryName, isDirectory: true)
+    }
+
     private func persistAttachmentsToDisk(for task: TaskRecord) {
         let infos = task.attachmentInfos
         guard !infos.isEmpty else { return }
 
         let fm = FileManager.default
-        let attachmentsDir = AppPaths.appSupportDirectory
-            .appendingPathComponent("TaskAttachments", isDirectory: true)
+        let attachmentsDir = Self.taskAttachmentsDirectory
             .appendingPathComponent(task.id, isDirectory: true)
         try? fm.createDirectory(at: attachmentsDir, withIntermediateDirectories: true)
 

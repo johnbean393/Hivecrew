@@ -6,12 +6,14 @@
 import HivecrewAPIModels
 import HivecrewCore
 import HivecrewShared
+import SwiftData
 import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var authManager: RemoteAccessAuthManager
     @EnvironmentObject private var coordinator: HivelinkClusterCoordinator
     @EnvironmentObject private var artifactCoordinator: ArtifactImportCoordinator
+    @EnvironmentObject private var taskService: HivelinkTaskService
 
     // MARK: - Voice
 
@@ -51,6 +53,7 @@ struct SettingsView: View {
     @State private var cacheSize: Int64 = 0
     @State private var showClearCacheConfirmation = false
     @State private var showModelPicker = false
+    @State private var showSignOutError = false
     @State private var showDeleteAccountConfirmation = false
     @State private var showDeleteAccountError = false
     @State private var diagnosticsVersion = 0
@@ -94,11 +97,22 @@ struct SettingsView: View {
             }
 
             Button(role: .destructive) {
-                authManager.logout()
+                Task {
+                    await authManager.logout()
+                    if authManager.errorMessage != nil {
+                        showSignOutError = true
+                    }
+                }
             } label: {
-                Text(String(localized: "Sign Out"))
-                    .frame(maxWidth: .infinity, alignment: .center)
+                if authManager.isSigningOut {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    Text(String(localized: "Sign Out"))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
+            .disabled(authManager.isSigningOut || authManager.isDeletingAccount)
 
             Button(role: .destructive) {
                 showDeleteAccountConfirmation = true
@@ -116,6 +130,14 @@ struct SettingsView: View {
             Text(String(localized: "Account"))
         }
         .alert(
+            String(localized: "Sign Out Failed"),
+            isPresented: $showSignOutError
+        ) {
+            Button(String(localized: "OK"), role: .cancel) {}
+        } message: {
+            Text(authManager.errorMessage ?? String(localized: "Something went wrong while signing out."))
+        }
+        .alert(
             String(localized: "Delete Account"),
             isPresented: $showDeleteAccountConfirmation
         ) {
@@ -125,6 +147,8 @@ struct SettingsView: View {
                     await authManager.deleteAccount()
                     if authManager.errorMessage != nil {
                         showDeleteAccountError = true
+                    } else {
+                        await taskService.wipeAllLocalData()
                     }
                 }
             }
@@ -583,12 +607,21 @@ private struct SettingsModelPickerSheet: View {
 }
 
 #Preview {
+    let container = try! ModelContainer(for: TaskRecord.self)
+    let coordinator = HivelinkClusterCoordinator()
     NavigationStack {
         SettingsView()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .environmentObject(RemoteAccessAuthManager())
-            .environmentObject(HivelinkClusterCoordinator())
+            .environmentObject(coordinator)
             .environmentObject(ArtifactImportCoordinator())
+            .environmentObject(
+                HivelinkTaskService(
+                    modelContext: ModelContext(container),
+                    clusterCoordinator: coordinator,
+                    remoteTaskIndex: RemoteTaskIndex()
+                )
+            )
     }
 }

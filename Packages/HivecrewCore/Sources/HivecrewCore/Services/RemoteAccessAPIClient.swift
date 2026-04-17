@@ -43,6 +43,12 @@ public actor RemoteAccessAPIClient {
         return response.token
     }
 
+    /// Revoke the current session and unregister this device's push record when an owner ID is provided.
+    public func logout(sessionToken: String, ownerId: String?) async throws {
+        let body = LogoutRequest(ownerId: ownerId)
+        let _: MessageResponse = try await post("/auth/logout", body: body, token: sessionToken)
+    }
+
     /// Delete the authenticated account and revoke all active sessions.
     public func deleteAccount(sessionToken: String) async throws {
         let _: MessageResponse = try await delete("/auth/account", token: sessionToken)
@@ -209,6 +215,10 @@ private struct MessageResponse: Decodable {
 
 private struct VerifyResponse: Decodable {
     let token: String
+}
+
+private struct LogoutRequest: Encodable {
+    let ownerId: String?
 }
 
 private struct CreateTunnelRequest: Encodable {
