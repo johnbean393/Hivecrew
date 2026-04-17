@@ -71,6 +71,7 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
 
     var currentOutputTranscript: String = ""
     var hasBufferedInputAudio = false
+    var deliveredToolCallIDs = Set<String>()
 
     // MARK: - Init
 

@@ -955,12 +955,14 @@ actor ClusterManager {
             summary: String(summary.prefix(500)),
             peerId: peerId
         )
+        print("[ClusterManager] Sending VoIP push: targetOwnerId=\(targetOwnerId) trigger=\(trigger) taskId=\(taskId) workerName=\(workerName) peerId=\(peerId)")
         do {
             try await apiClient.sendVoIPPush(
                 sessionToken: sessionToken,
                 targetOwnerId: targetOwnerId,
                 payload: payload
             )
+            print("[ClusterManager] VoIP push sent: targetOwnerId=\(targetOwnerId) trigger=\(trigger) taskId=\(taskId)")
         } catch {
             print("[ClusterManager] VoIP push failed for \(trigger): \(error.localizedDescription)")
         }

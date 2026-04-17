@@ -2,6 +2,18 @@ import Testing
 @testable import HivecrewVoice
 import Foundation
 
+actor VoiceToolCallSink {
+    private var calls: [VoiceToolCall] = []
+
+    func record(_ call: VoiceToolCall) {
+        calls.append(call)
+    }
+
+    func snapshot() -> [VoiceToolCall] {
+        calls
+    }
+}
+
 @MainActor
 @Test func openAISessionUpdateEncodesProviderOwnedVADPolicy() async throws {
     let provider = OpenAIRealtimeProvider()
@@ -169,6 +181,88 @@ import Foundation
     {"usageMetadata":{"totalTokenCount":180}}
     """)
     #expect(provider.totalTokenCount == 180)
+}
+
+@MainActor
+@Test func openAIStreamedFunctionCallArgumentsTriggerToolCall() async throws {
+    let provider = OpenAIRealtimeProvider()
+    provider.configure(apiKey: "test")
+
+    let sink = VoiceToolCallSink()
+    provider.onToolCall = { call in
+        Task {
+            await sink.record(call)
+        }
+    }
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.function_call_arguments.done",
+          "call_id": "call_123",
+          "name": "create_task",
+          "arguments": "{\"description\":\"Draft the release notes\",\"plan_first\":\"true\"}"
+        }
+        """#
+    )
+
+    try await Task.sleep(for: .milliseconds(20))
+    let calls = await sink.snapshot()
+
+    #expect(calls.count == 1)
+    #expect(calls.first?.id == "call_123")
+    #expect(calls.first?.name == "create_task")
+    #expect(calls.first?.arguments["description"] == "Draft the release notes")
+    #expect(calls.first?.arguments["plan_first"] == "true")
+}
+
+@MainActor
+@Test func openAIToolCallIsDeduplicatedAcrossStreamedAndDoneEvents() async throws {
+    let provider = OpenAIRealtimeProvider()
+    provider.configure(apiKey: "test")
+
+    let sink = VoiceToolCallSink()
+    provider.onToolCall = { call in
+        Task {
+            await sink.record(call)
+        }
+    }
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.function_call_arguments.done",
+          "call_id": "call_456",
+          "name": "create_task",
+          "arguments": "{\"description\":\"Prepare the launch email\"}"
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.done",
+          "response": {
+            "output": [
+              {
+                "type": "function_call",
+                "call_id": "call_456",
+                "name": "create_task",
+                "arguments": "{\"description\":\"Prepare the launch email\"}"
+              }
+            ]
+          }
+        }
+        """#
+    )
+
+    try await Task.sleep(for: .milliseconds(20))
+    let calls = await sink.snapshot()
+
+    #expect(calls.count == 1)
+    #expect(calls.first?.id == "call_456")
+    #expect(calls.first?.arguments["description"] == "Prepare the launch email")
 }
 
 @MainActor

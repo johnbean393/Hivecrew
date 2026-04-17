@@ -96,14 +96,16 @@ public actor RemoteAccessAPIClient {
         ownerId: String,
         voipToken: String? = nil,
         apnsToken: String? = nil,
-        bundleId: String? = nil
+        bundleId: String? = nil,
+        apnsEnvironment: String? = nil
     ) async throws {
         let body = DeviceRegistrationRequest(
             ownerId: ownerId,
             voipToken: voipToken,
             apnsToken: apnsToken,
             platform: "ios",
-            bundleId: bundleId ?? Bundle.main.bundleIdentifier ?? ""
+            bundleId: bundleId ?? Bundle.main.bundleIdentifier ?? "",
+            apnsEnvironment: apnsEnvironment
         )
         let _: MessageResponse = try await post("/devices/register", body: body, token: sessionToken)
     }
@@ -219,6 +221,7 @@ struct DeviceRegistrationRequest: Encodable {
     let apnsToken: String?
     let platform: String
     let bundleId: String
+    let apnsEnvironment: String?
 }
 
 public struct VoIPPushPayload: Sendable {

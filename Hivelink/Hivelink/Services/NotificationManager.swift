@@ -8,6 +8,8 @@
 
 import Combine
 import Foundation
+import OSLog
+import HivecrewShared
 import UIKit
 import UserNotifications
 
@@ -18,13 +20,77 @@ enum NotificationDeepLink: Equatable {
     case cluster
 }
 
+enum VoIPDiagnosticsLog {
+    private static let logger = Logger(subsystem: "com.pattonium.Hivelink", category: "VoIP")
+    private static let queue = DispatchQueue(label: "com.pattonium.Hivelink.voip-log")
+    private static let maxLogBytes: Int64 = 512 * 1024
+
+    static let fileURL = AppPaths.logsDirectory.appendingPathComponent("hivelink-voip.log")
+
+    static func log(_ message: String) {
+        print(message)
+        logger.info("\(message, privacy: .public)")
+
+        let line = "[\(timestamp())] \(message)\n"
+        queue.async {
+            append(line)
+        }
+    }
+
+    static func clear() {
+        queue.sync {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+    }
+
+    private static func append(_ line: String) {
+        let data = Data(line.utf8)
+        let fm = FileManager.default
+
+        if let attrs = try? fm.attributesOfItem(atPath: fileURL.path),
+           let size = attrs[.size] as? NSNumber,
+           size.int64Value > maxLogBytes {
+            try? Data().write(to: fileURL, options: .atomic)
+        }
+
+        if !fm.fileExists(atPath: fileURL.path) {
+            try? data.write(to: fileURL, options: .atomic)
+            return
+        }
+
+        guard let handle = try? FileHandle(forWritingTo: fileURL) else { return }
+        defer { try? handle.close() }
+        do {
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+        } catch {
+            try? data.write(to: fileURL, options: .atomic)
+        }
+    }
+
+    private static func timestamp() -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: Date())
+    }
+}
+
 // MARK: - Notification Manager
 
 @MainActor
 final class NotificationManager: NSObject, ObservableObject {
 
+    private static let apnsTokenDefaultsKey = "NotificationManager.apnsTokenHex"
+
     @Published var pendingDeepLink: NotificationDeepLink?
     @Published private(set) var apnsToken: Data?
+
+    var registeredAPNSTokenString: String? {
+        if let apnsToken {
+            return apnsToken.map { String(format: "%02x", $0) }.joined()
+        }
+        return UserDefaults.standard.string(forKey: Self.apnsTokenDefaultsKey)
+    }
 
     /// Set to the task ID currently visible in detail view so that
     /// foreground banners for that task are suppressed.
@@ -75,7 +141,7 @@ final class NotificationManager: NSObject, ObservableObject {
                 registerForRemoteNotifications()
             }
         } catch {
-            print("[NotificationManager] Permission request failed: \(error.localizedDescription)")
+            VoIPDiagnosticsLog.log("[NotificationManager] Permission request failed: \(error.localizedDescription)")
         }
     }
 
@@ -169,12 +235,13 @@ final class NotificationManager: NSObject, ObservableObject {
     func didRegisterForRemoteNotifications(deviceToken: Data) {
         apnsToken = deviceToken
         let tokenString = deviceToken.map { String(format: "%02x", $0) }.joined()
-        print("[NotificationManager] APNs token: \(tokenString)")
+        UserDefaults.standard.set(tokenString, forKey: Self.apnsTokenDefaultsKey)
+        VoIPDiagnosticsLog.log("[NotificationManager] APNs token: \(tokenString)")
         sendTokenToServer(tokenString)
     }
 
     func didFailToRegisterForRemoteNotifications(error: Error) {
-        print("[NotificationManager] APNs registration failed: \(error.localizedDescription)")
+        VoIPDiagnosticsLog.log("[NotificationManager] APNs registration failed: \(error.localizedDescription)")
     }
 
     private func sendTokenToServer(_ token: String) {

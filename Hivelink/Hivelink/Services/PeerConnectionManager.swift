@@ -34,6 +34,10 @@ final class PeerConnectionManager: ObservableObject {
 
     /// Question IDs that already triggered a notification, to avoid repeating.
     private var notifiedQuestionIds: Set<String> = []
+    /// Permission IDs that already triggered an incoming call locally, to avoid repeating.
+    private var notifiedPermissionIds: Set<String> = []
+    /// Most recent permission ID per task so repeat permission prompts on the same task can ring again.
+    private var currentPermissionIds: [String: String] = [:]
 
     init(remoteTaskIndex: RemoteTaskIndex, clusterCoordinator: HivelinkClusterCoordinator) {
         self.remoteTaskIndex = remoteTaskIndex
@@ -96,6 +100,8 @@ final class PeerConnectionManager: ObservableObject {
         taskEvents[taskId] = nil
         taskScreenshots[taskId] = nil
         taskPendingQuestions[taskId] = nil
+        currentPermissionIds.removeValue(forKey: taskId)
+        incomingCallManager?.clearHandledCall(taskId: taskId, trigger: .permission)
     }
 
     func stopAll() {
@@ -171,6 +177,7 @@ final class PeerConnectionManager: ObservableObject {
         var list = taskEvents[canonicalTaskId] ?? []
         list.append(contentsOf: events)
         taskEvents[canonicalTaskId] = list
+        handlePermissionEvents(events, for: canonicalTaskId)
     }
 
     fileprivate func setScreenshot(_ image: UIImage?, for canonicalTaskId: String) {
@@ -183,6 +190,9 @@ final class PeerConnectionManager: ObservableObject {
         taskPendingQuestions[canonicalTaskId] = question
 
         if let question, notifiedQuestionIds.insert(question.id).inserted {
+            if incomingCallManager?.hasHandledCall(taskId: canonicalTaskId, trigger: .question) == true {
+                return
+            }
             let monitor = monitors[canonicalTaskId]
             let context = IncomingCallContext(
                 trigger: .question,
@@ -191,6 +201,38 @@ final class PeerConnectionManager: ObservableObject {
                 summary: question.question,
                 peerId: monitor?.peerUrl ?? ""
             )
+            VoIPDiagnosticsLog.log("[PeerConnectionManager] Local question trigger: task=\(canonicalTaskId) questionId=\(question.id)")
+            incomingCallManager?.offerCall(context: context)
+        } else if question == nil {
+            VoIPDiagnosticsLog.log("[PeerConnectionManager] Question cleared for task=\(canonicalTaskId)")
+            incomingCallManager?.clearHandledCall(taskId: canonicalTaskId, trigger: .question)
+        }
+    }
+
+    private func handlePermissionEvents(_ events: [APITaskEvent], for canonicalTaskId: String) {
+        for event in events where event.type == .permissionRequest {
+            guard let permissionId = event.data["id"]?.stringValue else { continue }
+
+            if let currentPermissionId = currentPermissionIds[canonicalTaskId],
+               currentPermissionId != permissionId {
+                incomingCallManager?.clearHandledCall(taskId: canonicalTaskId, trigger: .permission)
+            }
+            currentPermissionIds[canonicalTaskId] = permissionId
+
+            guard notifiedPermissionIds.insert(permissionId).inserted else { continue }
+            if incomingCallManager?.hasHandledCall(taskId: canonicalTaskId, trigger: .permission) == true {
+                continue
+            }
+
+            let monitor = monitors[canonicalTaskId]
+            let context = IncomingCallContext(
+                trigger: .permission,
+                taskId: canonicalTaskId,
+                workerName: "Worker",
+                summary: event.data["details"]?.stringValue ?? "A worker needs permission to continue.",
+                peerId: monitor?.peerUrl ?? ""
+            )
+            VoIPDiagnosticsLog.log("[PeerConnectionManager] Local permission trigger: task=\(canonicalTaskId) permissionId=\(permissionId)")
             incomingCallManager?.offerCall(context: context)
         }
     }

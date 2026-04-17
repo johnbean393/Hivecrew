@@ -42,20 +42,63 @@ struct IncomingCallContext: Sendable {
 
     /// Parse from a VoIP push payload dictionary.
     static func from(payload: [AnyHashable: Any]) -> IncomingCallContext? {
-        guard let triggerRaw = payload["trigger"] as? String,
-              let trigger = TriggerEvent(rawValue: triggerRaw),
-              let taskId = payload["taskId"] as? String,
-              let workerName = payload["workerName"] as? String,
-              let summary = payload["summary"] as? String,
-              let peerId = payload["peerId"] as? String else {
-            return nil
+        for candidate in candidatePayloads(from: payload) {
+            guard let triggerRaw = stringValue(in: candidate, keys: ["trigger", "event", "reason"]),
+                  let trigger = TriggerEvent(rawValue: triggerRaw),
+                  let taskId = stringValue(in: candidate, keys: ["taskId", "task_id"]) else {
+                continue
+            }
+
+            let workerName = stringValue(in: candidate, keys: ["workerName", "worker_name"])
+                ?? "Worker"
+            let summary = stringValue(in: candidate, keys: ["summary", "message", "body"])
+                ?? "A task update is ready."
+            let peerId = stringValue(in: candidate, keys: ["peerId", "peer_id"]) ?? ""
+
+            return IncomingCallContext(
+                trigger: trigger,
+                taskId: taskId,
+                workerName: workerName,
+                summary: summary,
+                peerId: peerId
+            )
         }
-        return IncomingCallContext(
-            trigger: trigger,
-            taskId: taskId,
-            workerName: workerName,
-            summary: summary,
-            peerId: peerId
-        )
+        return nil
+    }
+
+    private static func candidatePayloads(from payload: [AnyHashable: Any]) -> [[AnyHashable: Any]] {
+        var candidates: [[AnyHashable: Any]] = [payload]
+
+        for key in ["data", "payload", "hivecrew", "context"] {
+            if let nested = payload[key] as? [AnyHashable: Any] {
+                candidates.append(nested)
+            }
+            if let nested = payload[key] as? [String: Any] {
+                candidates.append(Dictionary(uniqueKeysWithValues: nested.map { ($0.key as AnyHashable, $0.value) }))
+            }
+            if let json = payload[key] as? String,
+               let data = json.data(using: .utf8),
+               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                candidates.append(Dictionary(uniqueKeysWithValues: object.map { ($0.key as AnyHashable, $0.value) }))
+            }
+        }
+
+        if let aps = payload["aps"] as? [AnyHashable: Any] {
+            candidates.append(aps)
+        }
+
+        return candidates
+    }
+
+    private static func stringValue(in payload: [AnyHashable: Any], keys: [String]) -> String? {
+        for key in keys {
+            if let value = payload[key] as? String, !value.isEmpty {
+                return value
+            }
+            if let number = payload[key] as? NSNumber {
+                return number.stringValue
+            }
+        }
+        return nil
     }
 }

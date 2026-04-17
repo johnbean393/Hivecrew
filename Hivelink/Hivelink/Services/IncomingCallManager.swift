@@ -17,6 +17,8 @@ import UIKit
 @MainActor
 final class IncomingCallManager: NSObject, ObservableObject {
 
+    private static let voipTokenDefaultsKey = "IncomingCallManager.voipTokenHex"
+
     // MARK: - Dependencies
 
     private weak var orchestrator: HivelinkVoiceOrchestrator?
@@ -64,6 +66,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
         registry.delegate = self
         registry.desiredPushTypes = [.voIP]
         self.pushRegistry = registry
+        VoIPDiagnosticsLog.log("[IncomingCallManager] PushKit configured")
     }
 
     // We store callKitProvider at init time so it's available before configure().
@@ -78,7 +81,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
     // MARK: - Suppression
 
     /// Defaults matching the @AppStorage declarations in SettingsView.
-    private static let preferenceDefaults: [String: Bool] = [
+    static let preferenceDefaults: [String: Bool] = [
         "hivelink.incomingCallsEnabled": true,
         "incomingCall_question": true,
         "incomingCall_permission": true,
@@ -88,6 +91,19 @@ final class IncomingCallManager: NSObject, ObservableObject {
         "incomingCall_writebackReview": false,
     ]
 
+    private enum SuppressionReason {
+        case incomingCallsDisabled
+        case triggerDisabled
+        case focusFilter
+        case alreadyInCall
+        case cooldown
+    }
+
+    static func registerPreferenceDefaults() {
+        UserDefaults.standard.register(defaults: preferenceDefaults)
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Registered incoming call preference defaults")
+    }
+
     private func preferenceEnabled(forKey key: String) -> Bool {
         if UserDefaults.standard.object(forKey: key) != nil {
             return UserDefaults.standard.bool(forKey: key)
@@ -95,30 +111,40 @@ final class IncomingCallManager: NSObject, ObservableObject {
         return Self.preferenceDefaults[key] ?? false
     }
 
-    private func shouldSuppress(context: IncomingCallContext) -> Bool {
+    private func suppressionReason(for context: IncomingCallContext) -> SuppressionReason? {
         guard preferenceEnabled(forKey: "hivelink.incomingCallsEnabled") else {
-            return true
+            return .incomingCallsDisabled
         }
 
         if !preferenceEnabled(forKey: context.preferenceKey) {
-            return true
+            return .triggerDisabled
         }
 
         if UserDefaults.standard.object(forKey: "focusFilter.allowIncomingCalls") != nil,
            !UserDefaults.standard.bool(forKey: "focusFilter.allowIncomingCalls") {
-            return true
+            return .focusFilter
         }
 
         if orchestrator?.isInCall == true {
-            return true
+            return .alreadyInCall
         }
 
         if let lastCall = recentCallTimestamps[context.taskId],
            Date().timeIntervalSince(lastCall) < Self.callCooldownSeconds {
-            return true
+            return .cooldown
         }
 
-        return false
+        return nil
+    }
+
+    private func describe(_ reason: SuppressionReason) -> String {
+        switch reason {
+        case .incomingCallsDisabled: return "incoming_calls_disabled"
+        case .triggerDisabled: return "trigger_disabled"
+        case .focusFilter: return "focus_filter"
+        case .alreadyInCall: return "already_in_call"
+        case .cooldown: return "cooldown"
+        }
     }
 
     private func recordCallTimestamp(for taskId: String) {
@@ -136,6 +162,12 @@ final class IncomingCallManager: NSObject, ObservableObject {
     private func recordHandledTrigger(context: IncomingCallContext) {
         let key = "\(context.taskId):\(context.trigger.rawValue)"
         guard handledTaskTriggers.insert(key).inserted else { return }
+        persistHandledTriggers()
+    }
+
+    func clearHandledCall(taskId: String, trigger: IncomingCallContext.TriggerEvent) {
+        let key = "\(taskId):\(trigger.rawValue)"
+        guard handledTaskTriggers.remove(key) != nil else { return }
         persistHandledTriggers()
     }
 
@@ -163,11 +195,14 @@ final class IncomingCallManager: NSObject, ObservableObject {
             HapticManager.agentQuestionReceived()
         }
 
-        if shouldSuppress(context: context) {
-            deliverSuppressedNotification(context: context)
+        if let reason = suppressionReason(for: context) {
+            recordHandledTrigger(context: context)
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Local call suppressed: trigger=\(context.trigger.rawValue) task=\(context.taskId) reason=\(describe(reason))")
+            handleSuppressedLocalDelivery(context: context, reason: reason)
             return
         }
 
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Offering local call: trigger=\(context.trigger.rawValue) task=\(context.taskId)")
         let uuid = UUID()
         reportIncomingCall(uuid: uuid, context: context, completion: {})
     }
@@ -181,12 +216,16 @@ final class IncomingCallManager: NSObject, ObservableObject {
             HapticManager.agentQuestionReceived()
         }
 
-        if context.trigger == .completed {
+        let suppressed = suppressionReason(for: context) != nil
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Received VoIP push: trigger=\(context.trigger.rawValue) task=\(context.taskId) suppressed=\(suppressed)")
+
+        // Completion events may be batched into notifications when call delivery is disabled
+        // or otherwise suppressed, but they should behave like real incoming calls when calls
+        // are allowed for this trigger.
+        if context.trigger == .completed && suppressed {
             handleCompletionBatching(context: context, completion: completion)
             return
         }
-
-        let suppressed = shouldSuppress(context: context)
         let uuid = UUID()
 
         if suppressed {
@@ -201,6 +240,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
     /// Delay completion notifications briefly so near-simultaneous task finishes
     /// are delivered together after the silent CallKit reports complete.
     private func handleCompletionBatching(context: IncomingCallContext, completion: @escaping () -> Void) {
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Batching completion push for task=\(context.taskId)")
         pendingCompletionContexts.append(context)
 
         if pendingCompletionContexts.count == 1 {
@@ -234,8 +274,22 @@ final class IncomingCallManager: NSObject, ObservableObject {
         guard !contexts.isEmpty else { return }
 
         for context in contexts {
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Flushing batched completion notification for task=\(context.taskId)")
             deliverSuppressedNotification(context: context)
         }
+    }
+
+    private func handleSuppressedLocalDelivery(
+        context: IncomingCallContext,
+        reason: SuppressionReason
+    ) {
+        if reason == .alreadyInCall {
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Delivering inline update for task=\(context.taskId) trigger=\(context.trigger.rawValue)")
+            orchestrator?.deliverInlineUpdate(context: context)
+            return
+        }
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Delivering suppressed local notification for task=\(context.taskId) trigger=\(context.trigger.rawValue)")
+        deliverSuppressedNotification(context: context)
     }
 
     // MARK: - Report Incoming Call (Not Suppressed)
@@ -244,6 +298,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
         recordCallTimestamp(for: context.taskId)
         recordHandledTrigger(context: context)
         pendingContexts[uuid] = context
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Reporting incoming CallKit call: trigger=\(context.trigger.rawValue) task=\(context.taskId) uuid=\(uuid.uuidString)")
 
         let update = CXCallUpdate()
         update.localizedCallerName = context.localizedCallerName
@@ -256,10 +311,12 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
         callKitProvider.reportNewIncomingCall(with: uuid, update: update) { error in
             if let error {
-                print("[IncomingCallManager] Report incoming call failed: \(error.localizedDescription)")
+                VoIPDiagnosticsLog.log("[IncomingCallManager] Report incoming call failed: \(error.localizedDescription)")
                 Task { @MainActor [weak self] in
                     self?.pendingContexts.removeValue(forKey: uuid)
                 }
+            } else {
+                VoIPDiagnosticsLog.log("[IncomingCallManager] Report incoming call succeeded: task=\(context.taskId) uuid=\(uuid.uuidString)")
             }
             completion()
         }
@@ -271,6 +328,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
         recordCallTimestamp(for: context.taskId)
         recordHandledTrigger(context: context)
         nonisolated(unsafe) let done = completion
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Reporting suppressed call then ending immediately: trigger=\(context.trigger.rawValue) task=\(context.taskId) uuid=\(uuid.uuidString)")
 
         let update = CXCallUpdate()
         update.localizedCallerName = context.localizedCallerName
@@ -282,7 +340,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
         callKitProvider.reportNewIncomingCall(with: uuid, update: update) { [weak self] error in
             if let error {
-                print("[IncomingCallManager] Suppressed report failed: \(error.localizedDescription)")
+                VoIPDiagnosticsLog.log("[IncomingCallManager] Suppressed report failed: \(error.localizedDescription)")
             }
             Task { @MainActor [weak self] in
                 guard let self else {
@@ -304,6 +362,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
     // MARK: - Suppressed / Declined Notification
 
     private func deliverSuppressedNotification(context: IncomingCallContext) {
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Posting notification fallback: trigger=\(context.trigger.rawValue) task=\(context.taskId)")
         let category: String
         switch context.trigger {
         case .completed:       category = NotificationManager.categoryTaskCompleted
@@ -339,15 +398,55 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
     private func sendVoIPTokenToServer(_ token: Data) {
         let tokenString = token.map { String(format: "%02x", $0) }.joined()
-        print("[IncomingCallManager] VoIP token: \(tokenString)")
+        VoIPDiagnosticsLog.log("[IncomingCallManager] VoIP token: \(tokenString)")
         Task {
             await Self.registerPushToken(voipToken: tokenString, apnsToken: nil)
         }
     }
 
+    func syncStoredPushTokensToServer(apnsTokenString: String?) async {
+        let voipTokenString = voipToken.map { data in
+            data.map { String(format: "%02x", $0) }.joined()
+        } ?? UserDefaults.standard.string(forKey: Self.voipTokenDefaultsKey)
+
+        guard voipTokenString != nil || apnsTokenString != nil else { return }
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Syncing stored push tokens to server. voip=\(voipTokenString != nil) apns=\(apnsTokenString != nil)")
+        await Self.registerPushToken(voipToken: voipTokenString, apnsToken: apnsTokenString)
+    }
+
+    private static func ensureOwnerId() -> String {
+        if let existing = RemoteAccessKeychain.retrieveTunnelId(), !existing.isEmpty {
+            return existing
+        }
+
+        let generated = "hivelink-\(UUID().uuidString)"
+        _ = RemoteAccessKeychain.storeTunnelId(generated)
+        VoIPDiagnosticsLog.log("[IncomingCallManager] Generated synthetic owner ID: \(generated)")
+        return generated
+    }
+
+    private static func resolvedAPNsEnvironment() -> String {
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "HivelinkAPNsEnvironment") as? String {
+            let normalized = configured.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if normalized == "development" || normalized == "production" {
+                return normalized
+            }
+        }
+
+        #if DEBUG
+        return "development"
+        #else
+        return "production"
+        #endif
+    }
+
     static func registerPushToken(voipToken: String?, apnsToken: String?) async {
-        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else { return }
-        guard let ownerId = RemoteAccessKeychain.retrieveTunnelId() else { return }
+        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Skipping push token registration: missing session token")
+            return
+        }
+        let ownerId = ensureOwnerId()
+        let apnsEnvironment = resolvedAPNsEnvironment()
 
         let client = RemoteAccessAPIClient()
         do {
@@ -355,10 +454,12 @@ final class IncomingCallManager: NSObject, ObservableObject {
                 sessionToken: sessionToken,
                 ownerId: ownerId,
                 voipToken: voipToken,
-                apnsToken: apnsToken
+                apnsToken: apnsToken,
+                apnsEnvironment: apnsEnvironment
             )
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Registered push tokens with server for owner=\(ownerId). voip=\(voipToken != nil) apns=\(apnsToken != nil) env=\(apnsEnvironment)")
         } catch {
-            print("[IncomingCallManager] Device registration failed: \(error.localizedDescription)")
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Device registration failed: \(error.localizedDescription)")
         }
     }
 }
@@ -377,6 +478,8 @@ extension IncomingCallManager: PKPushRegistryDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.voipToken = tokenData
+            let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
+            UserDefaults.standard.set(tokenString, forKey: Self.voipTokenDefaultsKey)
             self.sendVoIPTokenToServer(tokenData)
         }
     }
@@ -401,7 +504,9 @@ extension IncomingCallManager: PKPushRegistryDelegate {
                 return
             }
 
+            VoIPDiagnosticsLog.log("[IncomingCallManager] PushKit payload keys: \(payloadDict.keys.map { String(describing: $0) }.sorted())")
             guard let context = IncomingCallContext.from(payload: payloadDict) else {
+                VoIPDiagnosticsLog.log("[IncomingCallManager] Failed to parse VoIP push payload")
                 let uuid = UUID()
                 let update = CXCallUpdate()
                 update.localizedCallerName = "Hivecrew"
@@ -425,6 +530,7 @@ extension IncomingCallManager: PKPushRegistryDelegate {
         guard type == .voIP else { return }
         Task { @MainActor [weak self] in
             self?.voipToken = nil
+            UserDefaults.standard.removeObject(forKey: Self.voipTokenDefaultsKey)
         }
     }
 }

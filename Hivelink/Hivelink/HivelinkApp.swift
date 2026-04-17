@@ -54,6 +54,7 @@ private final class HivelinkAppCore: ObservableObject {
     @Published var selectedTab: Int = 0
 
     init(modelContainer: ModelContainer) {
+        IncomingCallManager.registerPreferenceDefaults()
         let coordinator = HivelinkClusterCoordinator()
         let index = RemoteTaskIndex()
         let notifManager = NotificationManager()
@@ -127,6 +128,9 @@ private final class HivelinkAppCore: ObservableObject {
         }
 
         await clusterCoordinator.loadCluster()
+        await incomingCallManager.syncStoredPushTokensToServer(
+            apnsTokenString: notificationManager.registeredAPNSTokenString
+        )
         await taskService.reconcileAndRefresh()
         taskService.indexAllTasksInSpotlight()
 
@@ -179,7 +183,17 @@ struct HivelinkApp: App {
             .environmentObject(appCore.notificationManager)
             .environmentObject(appCore.incomingCallManager)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                VoIPDiagnosticsLog.log("[HivelinkApp] UIApplication.didBecomeActive")
                 appCore.notificationManager.removeAllTaskNotifications()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                VoIPDiagnosticsLog.log("[HivelinkApp] UIApplication.willResignActive")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                VoIPDiagnosticsLog.log("[HivelinkApp] UIApplication.didEnterBackground")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                VoIPDiagnosticsLog.log("[HivelinkApp] UIApplication.willEnterForeground")
             }
             .task {
                 appDelegate.notificationManager = appCore.notificationManager
@@ -188,6 +202,9 @@ struct HivelinkApp: App {
                 authManager.loadStoredCredentials()
                 if authManager.isAuthenticated {
                     await appCore.clusterCoordinator.loadCluster()
+                    await appCore.incomingCallManager.syncStoredPushTokensToServer(
+                        apnsTokenString: appCore.notificationManager.registeredAPNSTokenString
+                    )
                     await appCore.taskService.bootstrap()
                     appCore.scheduleBackgroundRefresh()
                 }
@@ -196,6 +213,9 @@ struct HivelinkApp: App {
                 if isAuthenticated {
                     Task {
                         await appCore.clusterCoordinator.loadCluster()
+                        await appCore.incomingCallManager.syncStoredPushTokensToServer(
+                            apnsTokenString: appCore.notificationManager.registeredAPNSTokenString
+                        )
                         await appCore.taskService.bootstrap()
                     }
                 } else {

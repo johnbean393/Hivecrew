@@ -124,6 +124,15 @@ extension OpenAIRealtimeProvider {
                         )
                     }
 
+                case "response.function_call_arguments.done":
+                    if let callId = event.callId, let name = event.name {
+                        self.emitToolCallIfNeeded(
+                            callId: callId,
+                            name: name,
+                            argumentsJSON: event.arguments
+                        )
+                    }
+
                 case "response.done":
                     self.handleResponseDone(event)
 
@@ -150,18 +159,11 @@ extension OpenAIRealtimeProvider {
         if let output = event.response?.output {
             for item in output where item.type == "function_call" {
                 guard let callId = item.callId, let name = item.name else { continue }
-
-                var args: [String: String] = [:]
-                if let argsJSON = item.arguments,
-                   let argsData = argsJSON.data(using: .utf8),
-                   let parsed = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] {
-                    for (key, value) in parsed {
-                        args[key] = "\(value)"
-                    }
-                }
-
-                let toolCall = VoiceToolCall(id: callId, name: name, arguments: args)
-                self.onToolCall?(toolCall)
+                emitToolCallIfNeeded(
+                    callId: callId,
+                    name: name,
+                    argumentsJSON: item.arguments
+                )
             }
         }
 
@@ -174,5 +176,25 @@ extension OpenAIRealtimeProvider {
         self.isModelSpeaking = false
         self.currentOutputTranscript = ""
         self.onTurnComplete?()
+    }
+
+    private func emitToolCallIfNeeded(
+        callId: String,
+        name: String,
+        argumentsJSON: String?
+    ) {
+        guard deliveredToolCallIDs.insert(callId).inserted else { return }
+
+        var args: [String: String] = [:]
+        if let argumentsJSON,
+           let argsData = argumentsJSON.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: argsData) as? [String: Any] {
+            for (key, value) in parsed {
+                args[key] = "\(value)"
+            }
+        }
+
+        let toolCall = VoiceToolCall(id: callId, name: name, arguments: args)
+        onToolCall?(toolCall)
     }
 }

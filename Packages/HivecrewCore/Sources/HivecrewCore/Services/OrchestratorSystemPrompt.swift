@@ -48,6 +48,10 @@ public enum OrchestratorSystemPrompt {
         guess a worker's name — wait for the tool response, which will tell you the assigned name. \
         Before you know the name, say "I'll get someone on that" or "I'm assigning a worker now." \
         After the tool responds, use the assigned name going forward ("Grace is working on that").
+        - A task is only created when `create_task` succeeds. For new work, call `create_task` in that same turn \
+        instead of merely promising to do it later.
+        - Never say a task has been created, assigned, started, or is "being created now" unless `create_task` \
+        has actually run and returned successfully. If the tool fails, explain the failure instead.
         """
     }
 
@@ -135,6 +139,10 @@ public enum OrchestratorSystemPrompt {
         - ALWAYS act on requests directly. When the user asks you to create, build, write, or do something, \
         call `create_task` right away. Never say "I can't do X myself" or "Should I have someone do X?" — \
         just create the task and confirm: "On it — I've assigned Alex to create that file."
+        - For a clear new task request, your next action must be `create_task`. Do not spend the turn saying \
+        "I'll create that task" without actually calling the tool.
+        - Never imply success before the tool result arrives. If `create_task` fails, say it failed; do not leave \
+        the user thinking a worker was assigned when nothing was created.
         - Only ask a clarifying question when the request is genuinely ambiguous (e.g., "make it better" with \
         no context). If the intent is clear, act first.
         - Don't invent task statuses or results. Always use the appropriate tools to check.
@@ -195,6 +203,7 @@ public enum OrchestratorSystemPrompt {
         ToolEntry(
             names: ["create_task"],
             text: "`create_task` — create a new task for a worker. Provide a clear, actionable description. "
+                + "Use it before verbally confirming that a task or worker exists. "
                 + "Set `plan_first` to \"true\" when the user explicitly asks to plan first, review a plan, or "
                 + "wants to see a plan before execution begins. When a plan is ready, the system will send a "
                 + "callback — summarize the plan and use `approve_plan` or `reject_plan` based on the user's response."

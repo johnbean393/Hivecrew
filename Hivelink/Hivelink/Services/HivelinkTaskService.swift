@@ -709,6 +709,17 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             let previous = previousStatuses[task.id]
             let current = task.status
 
+            if previous != current {
+                if previous == .planReview {
+                    callTriggeredTaskIds.remove(task.id + ":\(TaskStatus.planReview.rawValue)")
+                    incomingCallManager.clearHandledCall(taskId: task.id, trigger: .planReady)
+                }
+                if previous == .writebackReview {
+                    callTriggeredTaskIds.remove(task.id + ":\(TaskStatus.writebackReview.rawValue)")
+                    incomingCallManager.clearHandledCall(taskId: task.id, trigger: .writebackReady)
+                }
+            }
+
             guard previous != current,
                   Self.callTriggerStatuses.contains(current),
                   callTriggeredTaskIds.insert(task.id + ":\(current.rawValue)").inserted
@@ -747,6 +758,7 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 summary: summary,
                 peerId: task.clusterPeerId ?? ""
             )
+            VoIPDiagnosticsLog.log("[HivelinkTaskService] Local state trigger: task=\(task.id) trigger=\(trigger.rawValue) status=\(current.rawValue)")
             incomingCallManager.offerCall(context: context)
         }
 

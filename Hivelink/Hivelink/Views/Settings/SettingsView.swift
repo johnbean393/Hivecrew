@@ -41,7 +41,7 @@ struct SettingsView: View {
     @AppStorage("incomingCall_permission") private var callPermission = true
     @AppStorage("incomingCall_completed") private var callCompleted = false
     @AppStorage("incomingCall_failed") private var callFailed = true
-    @AppStorage("incomingCall_planReview") private var callPlanReview = false
+    @AppStorage("incomingCall_planReview") private var callPlanReview = true
     @AppStorage("incomingCall_writebackReview") private var callWritebackReview = false
 
     // MARK: - Storage
@@ -53,6 +53,7 @@ struct SettingsView: View {
     @State private var showModelPicker = false
     @State private var showDeleteAccountConfirmation = false
     @State private var showDeleteAccountError = false
+    @State private var diagnosticsVersion = 0
 
     private var onlinePeerCount: Int {
         coordinator.peers.filter { $0.status == .online }.count
@@ -70,6 +71,7 @@ struct SettingsView: View {
             notificationsSection
             incomingCallsSection
             storageSection
+            diagnosticsSection
             aboutSection
         }
         .task {
@@ -293,6 +295,35 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Diagnostics
+
+    private var diagnosticsSection: some View {
+        Section {
+            if hasVoIPDiagnosticsLog {
+                ShareLink(item: VoIPDiagnosticsLog.fileURL) {
+                    Label("Export VoIP Diagnostics", systemImage: "square.and.arrow.up")
+                }
+            } else {
+                LabeledContent("VoIP Diagnostics") {
+                    Text("No log yet")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Button(role: .destructive) {
+                VoIPDiagnosticsLog.clear()
+                diagnosticsVersion += 1
+            } label: {
+                Text("Clear VoIP Diagnostics")
+            }
+            .disabled(!hasVoIPDiagnosticsLog)
+        } header: {
+            Text("Diagnostics")
+        } footer: {
+            Text("Use the VoIP diagnostics log to inspect PushKit and CallKit behavior when Hivelink is not attached to Xcode.")
+        }
+    }
+
     private var formattedCacheSize: String {
         ByteCountFormatter.string(fromByteCount: cacheSize, countStyle: .file)
     }
@@ -353,6 +384,11 @@ struct SettingsView: View {
             total += Int64(size)
         }
         return total
+    }
+
+    private var hasVoIPDiagnosticsLog: Bool {
+        _ = diagnosticsVersion
+        return FileManager.default.fileExists(atPath: VoIPDiagnosticsLog.fileURL.path)
     }
 }
 

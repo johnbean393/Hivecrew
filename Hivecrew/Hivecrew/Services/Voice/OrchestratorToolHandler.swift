@@ -57,6 +57,7 @@ enum OrchestratorToolHandler {
             return await handleCreateTask(
                 description: args["description"] ?? "",
                 attachments: args["attachments"] ?? "",
+                planFirst: args["plan_first"]?.lowercased() == "true",
                 taskService: taskService,
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
@@ -166,6 +167,7 @@ enum OrchestratorToolHandler {
     private static func handleCreateTask(
         description: String,
         attachments: String,
+        planFirst: Bool,
         taskService: TaskService,
         workerRegistry: WorkerRegistry,
         orchestrator: VoiceOrchestrator
@@ -216,7 +218,7 @@ enum OrchestratorToolHandler {
                 retrievalModeOverrides: [:],
                 clusterReferenceContextBlocks: [],
                 clusterReferenceFiles: [],
-                planFirstEnabled: false,
+                planFirstEnabled: planFirst,
                 planMarkdown: nil,
                 planSelectedSkillNames: nil,
                 localAccessGrants: [],
@@ -238,12 +240,16 @@ enum OrchestratorToolHandler {
                     providerId: providerId,
                     modelId: modelId,
                     executionTarget: .automatic,
-                    attachedFilePaths: filePaths
+                    attachedFilePaths: filePaths,
+                    planFirstEnabled: planFirst
                 )
             }
             let worker = workerRegistry.assignName(for: task.id, taskTitle: task.title)
             orchestrator.addRelevantTask(task.id)
             var result = "Task created. Worker \(worker.displayName) is on it — \"\(task.title)\". Task ID: \(task.id)"
+            if planFirst {
+                result += " (plan-first mode — will create a plan for review before executing)"
+            }
             if !filePaths.isEmpty {
                 result += " (\(filePaths.count) file\(filePaths.count == 1 ? "" : "s") attached)"
             }

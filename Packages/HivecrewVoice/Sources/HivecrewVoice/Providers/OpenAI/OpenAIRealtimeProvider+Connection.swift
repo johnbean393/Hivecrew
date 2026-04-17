@@ -17,6 +17,7 @@ extension OpenAIRealtimeProvider {
         currentSessionConfig = config
         isManualDisconnect = false
         isReceiving = false
+        deliveredToolCallIDs.removeAll()
 
         totalTokenCount = 0
 
@@ -32,6 +33,7 @@ extension OpenAIRealtimeProvider {
         connectionState = .disconnected
         isModelSpeaking = false
         currentOutputTranscript = ""
+        deliveredToolCallIDs.removeAll()
 
         connectionContinuation?.resume(throwing: OpenAIRealtimeError.connectionFailed)
         connectionContinuation = nil
