@@ -12,11 +12,24 @@ public actor RemoteAccessAPIClient {
 
     /// Default base URL for the coordination Worker
     private static let defaultBaseURL = "https://remoteaccessauthapi.hivecrew.org"
+    private static let legacyWorkerHosts: Set<String> = [
+        "hivecrew-tunnel.gpttestmail.workers.dev"
+    ]
 
     /// Base URL for the coordination Worker, configurable via UserDefaults
     public static var baseURL: String {
-        let stored = UserDefaults.standard.string(forKey: "remoteAccessWorkerURL")
-        return (stored?.isEmpty == false) ? stored! : defaultBaseURL
+        let defaults = UserDefaults.standard
+        let stored = defaults.string(forKey: "remoteAccessWorkerURL")
+
+        guard let normalized = normalizedBaseURL(from: stored) else {
+            return defaultBaseURL
+        }
+
+        if normalized != stored {
+            defaults.set(normalized, forKey: "remoteAccessWorkerURL")
+        }
+
+        return normalized
     }
 
     private let session: URLSession
@@ -202,6 +215,27 @@ public actor RemoteAccessAPIClient {
         }
 
         return try JSONDecoder().decode(R.self, from: data)
+    }
+
+    private static func normalizedBaseURL(from stored: String?) -> String? {
+        guard let stored else { return nil }
+
+        let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        guard let url = URL(string: trimmed), let host = url.host?.lowercased() else {
+            return trimmed
+        }
+
+        if legacyWorkerHosts.contains(host) {
+            return defaultBaseURL
+        }
+
+        if host == URL(string: defaultBaseURL)?.host?.lowercased() {
+            return defaultBaseURL
+        }
+
+        return trimmed
     }
 }
 
