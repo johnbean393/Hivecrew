@@ -21396,48 +21396,48 @@
         }
       }
     },
-    "Maximum duration for agent tasks (2-480 min)" : {
+    "Maximum duration for agent tasks (1-480 min)" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximale Dauer für Agent-Aufgaben (2-480 min)"
+            "value" : "Maximale Dauer für Agent-Aufgaben (1-480 min)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Duración máxima para tareas del agente (2-480 min)"
+            "value" : "Duración máxima para tareas del agente (1-480 min)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durée maximale pour les tâches de l'agent (2-480 min)"
+            "value" : "Durée maximale pour les tâches de l'agent (1-480 min)"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durata massima per le attività degli agenti (2-480 min)"
+            "value" : "Durata massima per le attività degli agenti (1-480 min)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "エージェントタスクの最大実行時間 (2-480 分)"
+            "value" : "エージェントタスクの最大実行時間 (1-480 分)"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "에이전트 작업 최대 지속 시간 (2-480분)"
+            "value" : "에이전트 작업 최대 지속 시간 (1-480분)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "代理任务最大持续时间 (2-480 分钟)"
+            "value" : "代理任务最大持续时间 (1-480 分钟)"
           }
         }
       }

@@ -114,12 +114,12 @@ struct TaskDefaultsSettingsView: View {
                             .frame(width: 60)
                             .multilineTextAlignment(.trailing)
                             .onChange(of: defaultTaskTimeoutMinutes) { _, newValue in
-                                defaultTaskTimeoutMinutes = min(max(newValue, 2), 480)
+                                defaultTaskTimeoutMinutes = min(max(newValue, 1), 480)
                             }
                         Text("min")
                             .foregroundStyle(.secondary)
                     }
-                    Text("Maximum duration for agent tasks (2-480 min)")
+                    Text("Maximum duration for agent tasks (1-480 min)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
