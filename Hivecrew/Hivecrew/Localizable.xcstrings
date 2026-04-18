@@ -6293,6 +6293,9 @@
         }
       }
     },
+    "Bring Window Forward" : {
+
+    },
     "Browse..." : {
       "localizations" : {
         "de" : {
@@ -25732,6 +25735,9 @@
         }
       }
     },
+    "Open VM and Agent Trace in New Window" : {
+
+    },
     "Open VM Folder in Finder" : {
       "localizations" : {
         "de" : {
@@ -33298,6 +33304,9 @@
         }
       }
     },
+    "Select a running task from the Environments tab to open its VM and agent trace here." : {
+
+    },
     "Select a skill to view details" : {
       "localizations" : {
         "de" : {
@@ -35003,6 +35012,12 @@
         }
       }
     },
+    "Show VM and Agent Trace Window" : {
+
+    },
+    "Shown in New Window" : {
+
+    },
     "Sign in with %@" : {
 
     },
@@ -36345,6 +36360,9 @@
         }
       }
     },
+    "Stop" : {
+
+    },
     "Stop sharing" : {
       "localizations" : {
         "de" : {
@@ -36390,6 +36408,9 @@
           }
         }
       }
+    },
+    "Stop the task" : {
+
     },
     "Stop the VM before deleting" : {
       "localizations" : {
@@ -37453,6 +37474,9 @@
         }
       }
     },
+    "Task Environment" : {
+
+    },
     "Task Failed" : {
       "localizations" : {
         "de" : {
@@ -37636,6 +37660,9 @@
           }
         }
       }
+    },
+    "Task Unavailable" : {
+
     },
     "Tasks" : {
       "localizations" : {
@@ -38835,6 +38862,9 @@
           }
         }
       }
+    },
+    "This task is no longer running in the Environments tab." : {
+
     },
     "This will delete your tunnel and remote URL." : {
       "localizations" : {
@@ -41187,6 +41217,9 @@
           }
         }
       }
+    },
+    "VM and agent trace are visible in a new window." : {
+
     },
     "VM Configuration" : {
       "localizations" : {

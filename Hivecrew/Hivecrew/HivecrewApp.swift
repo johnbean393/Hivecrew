@@ -45,6 +45,7 @@ struct HivecrewApp: App {
     @StateObject private var downloadService = TemplateDownloadService.shared
     @StateObject private var voiceOrchestrator = VoiceOrchestrator()
     @StateObject private var compactCallManager = CompactCallManager()
+    @StateObject private var detachedTaskWindowStore = DetachedTaskWindowStore()
     
     /// Whether to show the startup sheet for queued tasks
     @State private var showStartupSheet = false
@@ -74,6 +75,7 @@ struct HivecrewApp: App {
                 .environmentObject(schedulerService)
                 .environmentObject(voiceOrchestrator)
                 .environmentObject(compactCallManager)
+                .environmentObject(detachedTaskWindowStore)
                 .onAppear {
                     self.onStartup()
                 }
@@ -163,6 +165,23 @@ struct HivecrewApp: App {
             RetrievalIndexWindow()
         }
         .defaultSize(width: 760, height: 560)
+
+        WindowGroup("Task Environment", id: DetachedTaskEnvironmentWindowScene.id, for: DetachedTaskEnvironmentWindowValue.self) { value in
+            if let taskId = value.wrappedValue?.taskId {
+                DetachedTaskEnvironmentWindow(taskId: taskId)
+                    .environmentObject(vmService)
+                    .environmentObject(taskService)
+                    .environmentObject(detachedTaskWindowStore)
+            } else {
+                ContentUnavailableView {
+                    Label("Task Unavailable", systemImage: "desktopcomputer.trianglebadge.exclamationmark")
+                } description: {
+                    Text("Select a running task from the Environments tab to open its VM and agent trace here.")
+                }
+            }
+        }
+        .defaultSize(width: 1400, height: 900)
+        .restorationBehavior(.disabled)
         
     }
     

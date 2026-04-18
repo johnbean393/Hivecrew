@@ -14,6 +14,36 @@ import HivecrewAPI
 import HivecrewShared
 import HivecrewCore
 
+enum DetachedTaskEnvironmentWindowScene {
+    static let id = "detached-task-environment-window"
+}
+
+struct DetachedTaskEnvironmentWindowValue: Codable, Hashable {
+    let taskId: String
+}
+
+@MainActor
+final class DetachedTaskWindowStore: ObservableObject {
+    @Published private var detachedWindowCounts: [String: Int] = [:]
+
+    func register(taskId: String) {
+        detachedWindowCounts[taskId, default: 0] += 1
+    }
+
+    func unregister(taskId: String) {
+        guard let count = detachedWindowCounts[taskId] else { return }
+        if count <= 1 {
+            detachedWindowCounts.removeValue(forKey: taskId)
+        } else {
+            detachedWindowCounts[taskId] = count - 1
+        }
+    }
+
+    func isDetached(_ taskId: String) -> Bool {
+        detachedWindowCounts[taskId, default: 0] > 0
+    }
+}
+
 /// Represents an item in the environments sidebar (either a task or a developer VM)
 enum EnvironmentItem: Hashable {
     case task(String)      // Task ID
@@ -31,6 +61,8 @@ enum EnvironmentItem: Hashable {
 struct AgentEnvironmentsView: View {
     @EnvironmentObject var vmService: VMServiceClient
     @EnvironmentObject var taskService: TaskService
+    @EnvironmentObject var detachedTaskWindowStore: DetachedTaskWindowStore
+    @SwiftUI.Environment(\.openWindow) private var openWindow
     @ObservedObject private var vmRuntime = AppVMRuntime.shared
     
     @AppStorage("developerVMIds") private var developerVMIdsData: Data = Data()
@@ -72,6 +104,9 @@ struct AgentEnvironmentsView: View {
             // Sync with selectedTaskId for compatibility
             if case .task(let taskId) = newValue {
                 selectedTaskId = taskId
+                if detachedTaskWindowStore.isDetached(taskId) {
+                    focusDetachedTaskWindow(taskId)
+                }
             } else {
                 selectedTaskId = nil
             }
@@ -194,7 +229,7 @@ struct AgentEnvironmentsView: View {
         switch selectedItem {
         case .task(let taskId):
             if let task = activeTasksWithVMs.first(where: { $0.id == taskId }) {
-                taskDetailView(for: task)
+                taskDetailContainer(for: task)
             } else {
                 emptyDetailView
             }
@@ -209,7 +244,7 @@ struct AgentEnvironmentsView: View {
         case nil:
             // Auto-select first available item
             if let firstTask = activeTasksWithVMs.first {
-                taskDetailView(for: firstTask)
+                taskDetailContainer(for: firstTask)
                     .onAppear { selectedItem = .task(firstTask.id) }
             } else if let firstDevVM = runningDeveloperVMs.first {
                 VMDetailView(vm: firstDevVM, showTracePanel: $showLocalTracePanel)
@@ -234,6 +269,15 @@ struct AgentEnvironmentsView: View {
             selectedItem = .task(taskId)
         }
     }
+
+    @ViewBuilder
+    private func taskDetailContainer(for task: TaskRecord) -> some View {
+        if detachedTaskWindowStore.isDetached(task.id) {
+            DetachedTaskNoticeView(taskId: task.id)
+        } else {
+            taskDetailView(for: task)
+        }
+    }
     
     @ViewBuilder
     private func taskDetailView(for task: TaskRecord) -> some View {
@@ -256,6 +300,11 @@ struct AgentEnvironmentsView: View {
     private var selectedTaskRecord: TaskRecord? {
         guard case .task(let taskId) = selectedItem else { return nil }
         return activeTasksWithVMs.first(where: { $0.id == taskId })
+    }
+
+    private var isSelectedTaskDetached: Bool {
+        guard let task = selectedTaskRecord else { return false }
+        return detachedTaskWindowStore.isDetached(task.id)
     }
     
     private var selectedLocalTask: TaskRecord? {
@@ -289,11 +338,13 @@ struct AgentEnvironmentsView: View {
     
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            if selectedRemoteTask != nil {
-                remoteToolbarButtons
-            } else {
-                localToolbarButtons
+        if !isSelectedTaskDetached {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if selectedRemoteTask != nil {
+                    remoteToolbarButtons
+                } else {
+                    localToolbarButtons
+                }
             }
         }
     }
@@ -419,6 +470,47 @@ struct AgentEnvironmentsView: View {
         case .planReview: return .planReview
         case .planFailed: return .planFailed
         case .writebackReview: return .writebackReview
+        }
+    }
+
+    @MainActor
+    private func focusDetachedTaskWindow(_ taskId: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        Task {
+            try? await openWindow(
+                id: DetachedTaskEnvironmentWindowScene.id,
+                value: DetachedTaskEnvironmentWindowValue(taskId: taskId),
+                sharingBehavior: SwiftUI.OpenWindowAction.SharingBehavior.requested
+            )
+        }
+    }
+}
+
+private struct DetachedTaskNoticeView: View {
+    let taskId: String
+    @SwiftUI.Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Shown in New Window", systemImage: "macwindow.on.rectangle")
+        } description: {
+            Text("VM and agent trace are visible in a new window.")
+        } actions: {
+            Button("Bring Window Forward") {
+                focusDetachedTaskWindow()
+            }
+        }
+    }
+
+    @MainActor
+    private func focusDetachedTaskWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        Task {
+            try? await openWindow(
+                id: DetachedTaskEnvironmentWindowScene.id,
+                value: DetachedTaskEnvironmentWindowValue(taskId: taskId),
+                sharingBehavior: SwiftUI.OpenWindowAction.SharingBehavior.requested
+            )
         }
     }
 }
@@ -648,6 +740,263 @@ private struct RemoteTaskDetailView: View {
             summary: event.summaryText,
             details: event.detailsText
         )
+    }
+}
+
+struct DetachedTaskEnvironmentWindow: View {
+    let taskId: String
+
+    @EnvironmentObject var vmService: VMServiceClient
+    @EnvironmentObject var taskService: TaskService
+    @EnvironmentObject var detachedTaskWindowStore: DetachedTaskWindowStore
+
+    @State private var remoteCurrentTask: APITask?
+    @State private var isPerformingRemoteAction = false
+    @State private var hasRegisteredWindow = false
+
+    private var activeTask: TaskRecord? {
+        taskService.tasks.first { task in
+            task.id == taskId && taskService.isTaskEffectivelyActive(task)
+        }
+    }
+
+    private var localTask: TaskRecord? {
+        guard let task = activeTask, !task.isExecutingRemotely else { return nil }
+        return task
+    }
+
+    private var localStatePublisher: AgentStatePublisher? {
+        guard let task = localTask else { return nil }
+        return taskService.statePublisher(for: task.id)
+    }
+
+    private var remoteTask: TaskRecord? {
+        guard let task = activeTask, task.isExecutingRemotely else { return nil }
+        return task
+    }
+
+    private var remoteStatus: APITaskStatus? {
+        if let remoteCurrentTask {
+            return remoteCurrentTask.status
+        }
+        guard let task = remoteTask else { return nil }
+        return apiStatus(for: task.status)
+    }
+
+    private var windowTitle: String {
+        activeTask?.title ?? "Task Environment"
+    }
+
+    var body: some View {
+        Group {
+            if let task = activeTask {
+                detailView(for: task)
+            } else {
+                unavailableView
+            }
+        }
+        .background(
+            DetachedTaskWindowBridge(
+                taskId: taskId,
+                shouldClose: activeTask == nil
+            )
+        )
+        .toolbar { toolbarContent }
+        .navigationTitle(windowTitle)
+        .onAppear {
+            guard !hasRegisteredWindow else { return }
+            detachedTaskWindowStore.register(taskId: taskId)
+            hasRegisteredWindow = true
+        }
+        .onDisappear {
+            guard hasRegisteredWindow else { return }
+            detachedTaskWindowStore.unregister(taskId: taskId)
+            hasRegisteredWindow = false
+        }
+    }
+
+    @ViewBuilder
+    private func detailView(for task: TaskRecord) -> some View {
+        if task.isExecutingRemotely {
+            RemoteTaskDetailView(
+                task: task,
+                currentTask: $remoteCurrentTask,
+                showTracePanel: .constant(true),
+                isPerformingAction: $isPerformingRemoteAction
+            )
+        } else if let vmId = task.assignedVMId,
+                  let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
+            VMDetailView(vm: vmInfo, showTracePanel: .constant(true))
+        } else {
+            unavailableView
+        }
+    }
+
+    private var unavailableView: some View {
+        ContentUnavailableView {
+            Label("Task Unavailable", systemImage: "desktopcomputer.trianglebadge.exclamationmark")
+        } description: {
+            Text("This task is no longer running in the Environments tab.")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            if let task = localTask {
+                localToolbarButtons(task: task, publisher: localStatePublisher)
+            } else {
+                remoteToolbarButtons
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func localToolbarButtons(task: TaskRecord, publisher: AgentStatePublisher?) -> some View {
+        if publisher?.status == .running {
+            Button(action: { taskService.pauseTask(task) }) {
+                Label("Pause", systemImage: "pause.fill")
+            }
+            .help("Pause the agent to take over manually")
+        } else if publisher?.status == .paused {
+            Button(action: { taskService.resumeTask(task) }) {
+                Label("Resume", systemImage: "play.fill")
+            }
+            .tint(.green)
+            .help("Resume the agent")
+        }
+
+        if task.status.isActive {
+            Button {
+                Task {
+                    await taskService.cancelTask(task)
+                }
+            } label: {
+                Label("Stop", systemImage: "xmark.circle")
+            }
+            .tint(.red)
+            .help("Stop the task")
+        }
+    }
+
+    @ViewBuilder
+    private var remoteToolbarButtons: some View {
+        if remoteStatus == .running {
+            Button(action: pauseRemoteTask) {
+                Label("Pause", systemImage: "pause.fill")
+            }
+            .disabled(isPerformingRemoteAction)
+        } else if remoteStatus == .paused {
+            Button(action: resumeRemoteTask) {
+                Label("Resume", systemImage: "play.fill")
+            }
+            .tint(.green)
+            .disabled(isPerformingRemoteAction)
+        }
+
+        if let status = remoteStatus, status.isActive {
+            Button(action: stopRemoteTask) {
+                Label("Stop", systemImage: "xmark.circle")
+            }
+            .tint(.red)
+            .disabled(isPerformingRemoteAction)
+        }
+    }
+
+    @MainActor
+    private func pauseRemoteTask() {
+        performRemoteAction(.pause)
+    }
+
+    @MainActor
+    private func resumeRemoteTask() {
+        performRemoteAction(.resume)
+    }
+
+    @MainActor
+    private func stopRemoteTask() {
+        performRemoteAction(.cancel)
+    }
+
+    @MainActor
+    private func performRemoteAction(_ action: APITaskAction, instructions: String? = nil) {
+        guard let task = remoteTask else { return }
+
+        isPerformingRemoteAction = true
+        Task { @MainActor in
+            defer { isPerformingRemoteAction = false }
+            guard let provider = APIServerManager.shared.federatedProvider else { return }
+            if let updatedTask = try? await provider.performTaskAction(id: task.id, action: action, instructions: instructions) {
+                remoteCurrentTask = updatedTask
+            }
+        }
+    }
+
+    private func apiStatus(for status: TaskStatus) -> APITaskStatus {
+        switch status {
+        case .queued: return .queued
+        case .waitingForVM: return .waitingForVM
+        case .running: return .running
+        case .paused: return .paused
+        case .completed: return .completed
+        case .failed: return .failed
+        case .cancelled: return .cancelled
+        case .timedOut: return .timedOut
+        case .maxIterations: return .maxIterations
+        case .planning: return .planning
+        case .planReview: return .planReview
+        case .planFailed: return .planFailed
+        case .writebackReview: return .writebackReview
+        }
+    }
+}
+
+private struct DetachedTaskWindowBridge: NSViewRepresentable {
+    let taskId: String
+    let shouldClose: Bool
+
+    func makeNSView(context: Context) -> TrackingView {
+        let view = TrackingView()
+        view.taskId = taskId
+        view.shouldClose = shouldClose
+        return view
+    }
+
+    func updateNSView(_ nsView: TrackingView, context: Context) {
+        nsView.taskId = taskId
+        nsView.shouldClose = shouldClose
+        nsView.applyWindowPreferences()
+    }
+
+    final class TrackingView: NSView {
+        var taskId: String = ""
+        var shouldClose = false
+        private var hasRequestedClose = false
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            super.viewWillMove(toWindow: newWindow)
+            applyPreferences(to: newWindow)
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyWindowPreferences()
+        }
+
+        func applyWindowPreferences() {
+            applyPreferences(to: window)
+        }
+
+        private func applyPreferences(to window: NSWindow?) {
+            guard let window else { return }
+            window.tabbingMode = .disallowed
+            window.tabbingIdentifier = "detached-task-\(taskId)"
+            guard shouldClose, !hasRequestedClose else { return }
+            hasRequestedClose = true
+            DispatchQueue.main.async { [weak window] in
+                window?.performClose(nil)
+            }
+        }
     }
 }
 
@@ -1073,4 +1422,5 @@ private extension Dictionary where Key == String, Value == JSONValue {
     AgentEnvironmentsView(selectedTaskId: $selectedTaskId)
         .environmentObject(VMServiceClient.shared)
         .environmentObject(TaskService())
+        .environmentObject(DetachedTaskWindowStore())
 }

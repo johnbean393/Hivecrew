@@ -48,6 +48,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 try? await Task.sleep(for: .seconds(1))
                 guard let self else { return }
                 await self.reconcileRemoteTasks()
+                await self.retryQueuedTasks()
             }
         }
 
@@ -87,10 +88,21 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     
     /// Move locally queued tasks to peers that just became available.
     private func drainQueuedTasksToPeers() async {
+        await retryQueuedTasks()
+    }
+
+    /// Re-attempt dispatch for queued tasks whose initial cluster dispatch did not stick.
+    /// This keeps automatic and remote-first work moving even if peers were already online
+    /// and no fresh availability notification arrives after the first failed dispatch.
+    private func retryQueuedTasks() async {
         guard let taskService = APIServerManager.shared.taskServiceRef else { return }
         
         let queuedTasks = taskService.tasks
-            .filter { $0.status == .queued && $0.clusterExecutionState == .none }
+            .filter {
+                $0.status == .queued &&
+                $0.clusterExecutionState == .none &&
+                !$0.isPinnedToLocalExecution
+            }
             .sorted { $0.createdAt < $1.createdAt }
         
         guard !queuedTasks.isEmpty else { return }
@@ -218,6 +230,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     private func bootstrapRemoteReconciliation() async {
         await restorePersistedRemoteTasks()
         await reconcileRemoteTasks()
+        await retryQueuedTasks()
     }
 
     func restorePersistedRemoteTasks() async {

@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
+import AppKit
 import HivecrewCore
 
 /// Row displaying an active task in the sidebar
 struct ActiveTaskRow: View {
     let task: TaskRecord
     @EnvironmentObject var taskService: TaskService
+    @EnvironmentObject var detachedTaskWindowStore: DetachedTaskWindowStore
+    @Environment(\.openWindow) private var openWindow
     @ObservedObject private var clusterStatus = ClusterStatus.shared
     
     private var statePublisher: AgentStatePublisher? {
@@ -39,6 +42,20 @@ struct ActiveTaskRow: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        .contextMenu {
+            Button {
+                openDetachedTaskWindow()
+            } label: {
+                Label(
+                    detachedTaskWindowStore.isDetached(task.id)
+                        ? "Show VM and Agent Trace Window"
+                        : "Open VM and Agent Trace in New Window",
+                    systemImage: detachedTaskWindowStore.isDetached(task.id)
+                        ? "macwindow.on.rectangle"
+                        : "macwindow.badge.plus"
+                )
+            }
+        }
     }
 
     private var statusText: String {
@@ -70,6 +87,18 @@ struct ActiveTaskRow: View {
             ?? task.clusterOwnerNodeId.map { $0.count <= 8 ? $0 : String($0.prefix(8)) }
         guard let ownerName else { return "Leased Task" }
         return "From \(ownerName)"
+    }
+
+    @MainActor
+    private func openDetachedTaskWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        Task {
+            try? await openWindow(
+                id: DetachedTaskEnvironmentWindowScene.id,
+                value: DetachedTaskEnvironmentWindowValue(taskId: task.id),
+                sharingBehavior: SwiftUI.OpenWindowAction.SharingBehavior.requested
+            )
+        }
     }
     
     @ViewBuilder

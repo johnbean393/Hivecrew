@@ -213,5 +213,6 @@ struct ContentView: View {
         .environmentObject(SchedulerService.shared)
         .environmentObject(VoiceOrchestrator())
         .environmentObject(CompactCallManager())
+        .environmentObject(DetachedTaskWindowStore())
         .modelContainer(for: [VMRecord.self, TaskRecord.self, ScheduledTask.self], inMemory: true)
 }
