@@ -10,12 +10,16 @@ import SwiftUI
 struct ClusterStatusView: View {
     @EnvironmentObject private var coordinator: HivelinkClusterCoordinator
 
+    private var onlinePeers: [DiscoveredClusterPeer] {
+        coordinator.peers.filter { $0.status == .online }
+    }
+
     private var totalAvailableSlots: Int {
-        coordinator.peers.reduce(0) { $0 + $1.availableSlots }
+        onlinePeers.reduce(0) { $0 + $1.availableSlots }
     }
 
     private var totalRunningTasks: Int {
-        coordinator.peers.reduce(0) { $0 + $1.runningTasks }
+        onlinePeers.reduce(0) { $0 + $1.runningTasks }
     }
 
     private var peerCount: Int {
@@ -23,7 +27,7 @@ struct ClusterStatusView: View {
     }
 
     private var onlinePeerCount: Int {
-        coordinator.peers.filter { $0.status == .online }.count
+        onlinePeers.count
     }
 
     var body: some View {

@@ -651,8 +651,9 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         if let coordinator = clusterCoordinator {
             let peers = coordinator.peers
             let onlineCount = peers.filter { $0.status == .online }.count
-            let totalSlots = peers.reduce(0) { $0 + $1.availableSlots }
-            let totalRunning = peers.reduce(0) { $0 + $1.runningTasks }
+            let onlinePeers = peers.filter { $0.status == .online }
+            let totalSlots = onlinePeers.reduce(0) { $0 + $1.availableSlots }
+            let totalRunning = onlinePeers.reduce(0) { $0 + $1.runningTasks }
             let cluster = SharedClusterStatus(
                 peerCount: peers.count,
                 onlinePeerCount: onlineCount,

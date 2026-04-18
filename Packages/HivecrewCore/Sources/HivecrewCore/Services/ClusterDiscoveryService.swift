@@ -228,7 +228,7 @@ public final class ClusterDiscoveryService: ObservableObject {
             peerById[peer.tunnelId] = DiscoveredClusterPeer(
                 id: peer.tunnelId,
                 subdomain: peer.subdomain,
-                name: peer.name,
+                name: peer.name ?? existing?.name,
                 tunnelUrl: peer.url,
                 status: existing?.status ?? .offline,
                 availableSlots: existing?.availableSlots ?? 0,
@@ -267,7 +267,7 @@ public final class ClusterDiscoveryService: ObservableObject {
             peerById[peer.tunnelId] = DiscoveredClusterPeer(
                 id: peer.tunnelId,
                 subdomain: peer.subdomain,
-                name: peer.name,
+                name: peer.name ?? existing?.name,
                 tunnelUrl: peer.url,
                 status: .online,
                 availableSlots: availableSlots,
@@ -289,15 +289,16 @@ public final class ClusterDiscoveryService: ObservableObject {
             }
         } catch {
             let existing = peerById[peer.tunnelId]
+            let reachable = await client.health()
             peerById[peer.tunnelId] = DiscoveredClusterPeer(
                 id: peer.tunnelId,
                 subdomain: peer.subdomain,
-                name: peer.name,
+                name: peer.name ?? existing?.name,
                 tunnelUrl: peer.url,
-                status: .offline,
-                availableSlots: 0,
-                runningTasks: 0,
-                queuedTasks: 0,
+                status: reachable ? .online : .offline,
+                availableSlots: reachable ? (existing?.availableSlots ?? 0) : 0,
+                runningTasks: reachable ? (existing?.runningTasks ?? 0) : 0,
+                queuedTasks: reachable ? (existing?.queuedTasks ?? 0) : 0,
                 lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
                 providers: existing?.providers ?? []
             )
@@ -318,6 +319,18 @@ public final class ClusterDiscoveryService: ObservableObject {
         } catch {
             print("ClusterDiscoveryService: Failed to fetch capabilities from peer \(peerId): \(error)")
         }
+    }
+
+    private func refreshPeerFromCurrentSnapshot(peerId: String, clusterToken: String) async {
+        guard let peer = peerById[peerId] else { return }
+        let snapshot = ClusterPeerInfo(
+            tunnelId: peer.id,
+            subdomain: peer.subdomain,
+            name: peer.name,
+            url: peer.tunnelUrl,
+            lastHeartbeat: peer.lastSeen.timeIntervalSince1970 * 1000
+        )
+        await refreshPeerFromDirectory(snapshot, clusterToken: clusterToken)
     }
 
     private static func heartbeatDate(_ lastHeartbeat: Double) -> Date {
@@ -417,7 +430,7 @@ public final class ClusterDiscoveryService: ObservableObject {
         }
 
         var stateChanged = false
-        var peersToRefreshCapabilities: [(id: String, url: String)] = []
+        var peersToRefreshSnapshots: [String] = []
 
         for (id, reachable) in results {
             guard var peer = peerById[id] else { continue }
@@ -430,7 +443,7 @@ public final class ClusterDiscoveryService: ObservableObject {
                 stateChanged = true
                 print("ClusterDiscoveryService: Health probe passed for \(peer.name ?? id), marking online")
                 if wasOffline {
-                    peersToRefreshCapabilities.append((id: id, url: peer.tunnelUrl))
+                    peersToRefreshSnapshots.append(id)
                 }
             } else if !reachable {
                 let failureCount = (peerProbeFailureCounts[id] ?? 0) + 1
@@ -450,8 +463,8 @@ public final class ClusterDiscoveryService: ObservableObject {
             }
         }
 
-        for peer in peersToRefreshCapabilities {
-            await fetchPeerCapabilities(peerId: peer.id, baseURL: peer.url, clusterToken: token)
+        for peerId in peersToRefreshSnapshots {
+            await refreshPeerFromCurrentSnapshot(peerId: peerId, clusterToken: token)
         }
 
         if stateChanged {

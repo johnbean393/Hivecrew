@@ -79,6 +79,7 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
     ) async -> RemoteClusterPeer? {
         let candidates = discoveryService.peers.filter { peer in
             guard peer.status == .online else { return false }
+            guard peer.availableSlots > 0 else { return false }
             guard !excluding.contains(peer.id) else { return false }
             return Self.peerSupports(peer: peer, providerName: providerName, modelId: modelId)
         }

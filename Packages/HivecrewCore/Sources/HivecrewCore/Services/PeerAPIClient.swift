@@ -89,10 +89,6 @@ public actor PeerAPIClient {
             return clusterStatus.localProviders
         }
 
-        guard clusterStatus.role != "member" else {
-            return []
-        }
-
         let providersResponse: APIProviderListResponse = try await get("/api/v1/providers")
         var summaries: [PeerProviderSummary] = []
 
