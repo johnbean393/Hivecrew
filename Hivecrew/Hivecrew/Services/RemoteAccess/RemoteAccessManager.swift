@@ -65,6 +65,13 @@ actor RemoteAccessManager {
     
     static let shared = RemoteAccessManager()
 
+    private struct PendingTunnelDeletion: Codable, Equatable {
+        let tunnelId: String
+        let email: String?
+        let subdomain: String?
+        let queuedAt: Date
+    }
+
     private struct RemoteReconnectSnapshot {
         let enabled: Bool
         let isConfigured: Bool
@@ -75,6 +82,8 @@ actor RemoteAccessManager {
     
     private let apiClient = RemoteAccessAPIClient()
     private let cloudflaredManager = CloudflaredManager()
+
+    private let pendingTunnelDeletionDefaultsKey = "remoteAccessPendingTunnelDeletions"
     
     private var heartbeatTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
@@ -105,6 +114,8 @@ actor RemoteAccessManager {
             // Store session token and email in Keychain
             RemoteAccessKeychain.storeSessionToken(sessionToken)
             RemoteAccessKeychain.storeEmail(email)
+
+            await retryPendingTunnelDeletions(sessionToken: sessionToken, email: email)
             
             // Proceed to create tunnel
             await createTunnel(sessionToken: sessionToken)
@@ -232,6 +243,11 @@ actor RemoteAccessManager {
             do {
                 try await apiClient.deleteTunnel(tunnelId: tunnelId, sessionToken: sessionToken)
             } catch {
+                queuePendingTunnelDeletion(
+                    tunnelId: tunnelId,
+                    email: RemoteAccessKeychain.retrieveEmail(),
+                    subdomain: RemoteAccessKeychain.retrieveSubdomain()
+                )
                 print("RemoteAccessManager: Failed to delete tunnel on server: \(error)")
             }
         }
@@ -368,6 +384,64 @@ actor RemoteAccessManager {
     private func resetStatus() async {
         await MainActor.run {
             RemoteAccessStatus.shared.reset()
+        }
+    }
+
+    // MARK: - Pending tunnel deletion recovery
+
+    private func queuePendingTunnelDeletion(tunnelId: String, email: String?, subdomain: String?) {
+        let entry = PendingTunnelDeletion(
+            tunnelId: tunnelId,
+            email: email,
+            subdomain: subdomain,
+            queuedAt: Date()
+        )
+        var pending = loadPendingTunnelDeletions()
+        if !pending.contains(where: { $0.tunnelId == tunnelId }) {
+            pending.append(entry)
+            savePendingTunnelDeletions(pending)
+        }
+    }
+
+    private func retryPendingTunnelDeletions(sessionToken: String, email: String) async {
+        let pending = loadPendingTunnelDeletions()
+        guard !pending.isEmpty else { return }
+
+        var retained: [PendingTunnelDeletion] = []
+        for entry in pending {
+            if let entryEmail = entry.email,
+               entryEmail.caseInsensitiveCompare(email) != .orderedSame {
+                retained.append(entry)
+                continue
+            }
+
+            do {
+                try await apiClient.deleteTunnel(tunnelId: entry.tunnelId, sessionToken: sessionToken)
+                print("RemoteAccessManager: Deleted previously orphaned tunnel \(entry.tunnelId)")
+            } catch {
+                retained.append(entry)
+                print("RemoteAccessManager: Retry delete failed for orphaned tunnel \(entry.tunnelId): \(error)")
+            }
+        }
+
+        savePendingTunnelDeletions(retained)
+    }
+
+    private func loadPendingTunnelDeletions() -> [PendingTunnelDeletion] {
+        guard let data = UserDefaults.standard.data(forKey: pendingTunnelDeletionDefaultsKey),
+              let decoded = try? JSONDecoder().decode([PendingTunnelDeletion].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    private func savePendingTunnelDeletions(_ deletions: [PendingTunnelDeletion]) {
+        if deletions.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingTunnelDeletionDefaultsKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(deletions) {
+            UserDefaults.standard.set(data, forKey: pendingTunnelDeletionDefaultsKey)
         }
     }
 }
