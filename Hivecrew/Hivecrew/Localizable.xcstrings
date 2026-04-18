@@ -21535,48 +21535,48 @@
         }
       }
     },
-    "Maximum number of observe-decide-execute cycles (10-500)" : {
+    "Maximum number of observe-decide-execute cycles (10-2000)" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maximale Anzahl der Beobachtung-Entscheidung-Ausführung-Zyklen (10-500)"
+            "value" : "Maximale Anzahl der Beobachtung-Entscheidung-Ausführung-Zyklen (10-2000)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Número máximo de ciclos observe-decide-execute (10-500)"
+            "value" : "Número máximo de ciclos observe-decide-execute (10-2000)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nombre maximal de cycles observe-decide-execute (10-500)"
+            "value" : "Nombre maximal de cycles observe-decide-execute (10-2000)"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Numero massimo di cicli osserva-decidi-esegui (10-500)"
+            "value" : "Numero massimo di cicli osserva-decidi-esegui (10-2000)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最大観察-判断-実行サイクル数 (10-500)"
+            "value" : "最大観察-判断-実行サイクル数 (10-2000)"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "최대 observe-decide-execute 사이클 수 (10-500)"
+            "value" : "최대 observe-decide-execute 사이클 수 (10-2000)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最大循环次数（10-500）"
+            "value" : "最大循环次数（10-2000）"
           }
         }
       }

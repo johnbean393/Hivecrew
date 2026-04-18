@@ -134,10 +134,10 @@ struct TaskDefaultsSettingsView: View {
                             .frame(width: 60)
                             .multilineTextAlignment(.trailing)
                             .onChange(of: defaultMaxIterations) { _, newValue in
-                                defaultMaxIterations = min(max(newValue, 10), 500)
+                                defaultMaxIterations = min(max(newValue, 10), 2_000)
                             }
                     }
-                    Text("Maximum number of observe-decide-execute cycles (10-500)")
+                    Text("Maximum number of observe-decide-execute cycles (10-2000)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
