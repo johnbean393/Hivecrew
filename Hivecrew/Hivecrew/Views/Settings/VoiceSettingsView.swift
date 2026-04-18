@@ -79,7 +79,7 @@ struct VoiceSettingsView: View {
                 controller: isolationController,
                 audioManager: audioManager,
                 inputDeviceIDRaw: $inputDeviceIDRaw,
-                primaryActionTitle: isolationController.hasProfile ? "Re-enroll Voice" : "Set Up Voice Isolation",
+                primaryActionTitle: isolationController.hasProfile ? String(localized: "Re-enroll Voice") : String(localized: "Set Up Voice Isolation"),
                 showDeleteButton: true,
                 showMicrophonePicker: false
             )
@@ -167,16 +167,16 @@ struct VoiceSettingsView: View {
     private var geminiConfigStatus: some View {
         providerConfigStatus(
             isConfigured: hasGeminiProvider,
-            configuredMessage: "Using Google AI Studio provider from Providers settings",
-            missingMessage: "No Google AI Studio provider configured. Add one in the Providers tab."
+            configuredMessage: String(localized: "Using Google AI Studio provider from Providers settings"),
+            missingMessage: String(localized: "No Google AI Studio provider configured. Add one in the Providers tab.")
         )
     }
 
     private var openAIConfigStatus: some View {
         providerConfigStatus(
             isConfigured: hasOpenAIProvider,
-            configuredMessage: "Using OpenAI provider from Providers settings",
-            missingMessage: "No OpenAI provider configured. Add one in the Providers tab."
+            configuredMessage: String(localized: "Using OpenAI provider from Providers settings"),
+            missingMessage: String(localized: "No OpenAI provider configured. Add one in the Providers tab.")
         )
     }
 
@@ -256,13 +256,13 @@ struct VoiceInputControlsSection: View {
     private func deviceRowLabel(for device: AudioInputDevice) -> String {
         switch device.kind {
         case .builtIn:
-            return "\(device.name) (Built-in)"
+            return String(localized: "\(device.name) (Built-in)")
         case .external:
-            return "\(device.name) (External)"
+            return String(localized: "\(device.name) (External)")
         case .aggregate:
-            return "\(device.name) (Aggregate)"
+            return String(localized: "\(device.name) (Aggregate)")
         case .virtual:
-            return "\(device.name) (Virtual)"
+            return String(localized: "\(device.name) (Virtual)")
         case .unknown:
             return device.name
         }
@@ -301,7 +301,7 @@ struct VoiceEnrollmentSetupView: View {
                         controller: controller,
                         audioManager: audioManager,
                         inputDeviceIDRaw: $inputDeviceIDRaw,
-                        primaryActionTitle: controller.hasProfile ? "Re-enroll Voice" : "Start Voice Enrollment",
+                        primaryActionTitle: controller.hasProfile ? String(localized: "Re-enroll Voice") : String(localized: "Start Voice Enrollment"),
                         showDeleteButton: true,
                         showMicrophonePicker: true
                     )
@@ -378,7 +378,7 @@ struct VoiceEnrollmentSetupCard: View {
             case .preparing:
                 HStack(spacing: 8) {
                     ProgressView().scaleEffect(0.8)
-                    Text("Preparing microphone…")
+                    Text(String(localized: "Preparing microphone…"))
                         .foregroundStyle(.secondary)
                 }
 
@@ -388,7 +388,7 @@ struct VoiceEnrollmentSetupCard: View {
             case .processing:
                 HStack(spacing: 8) {
                     ProgressView().scaleEffect(0.8)
-                    Text("Building voice profile…")
+                    Text(String(localized: "Building voice profile…"))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -425,7 +425,7 @@ struct VoiceEnrollmentSetupCard: View {
             }
         }
 
-        Text("Record in a quiet room and read each prompt at your own pace.")
+        Text(String(localized: "Record in a quiet room and read each prompt at your own pace."))
             .font(.caption)
             .foregroundStyle(.secondary)
     }
@@ -447,7 +447,7 @@ struct VoiceEnrollmentSetupCard: View {
         }
 
         VStack(alignment: .leading, spacing: 6) {
-            Text("Read this aloud:")
+            Text(String(localized: "Read this aloud:"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(controller.currentPrompt ?? "")
@@ -468,15 +468,15 @@ struct VoiceEnrollmentSetupCard: View {
                 }
 
             if controller.isRecording {
-                Text("Release to finish")
+                Text(String(localized: "Release to finish"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if controller.tooShortHint {
-                Text("Hold for at least 1 second")
+                Text(String(localized: "Hold for at least 1 second"))
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
-                Text("Press and hold, or hold **Space**")
+                Text(String(localized: "Press and hold, or hold **Space**"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -503,11 +503,16 @@ struct VoiceEnrollmentSetupCard: View {
                 Circle()
                     .fill(.red)
                     .frame(width: 10, height: 10)
-                Text(String(format: "Recording… %.1fs", controller.recordingSeconds))
+                Text(
+                    String(
+                        format: String(localized: "Recording… %.1fs"),
+                        controller.recordingSeconds
+                    )
+                )
                     .monospacedDigit()
             } else {
                 Image(systemName: "mic.fill")
-                Text("Hold to Record")
+                Text(String(localized: "Hold to Record"))
             }
         }
         .font(.headline)
@@ -536,8 +541,8 @@ struct VoiceEnrollmentSetupCard: View {
                     controller.stopRecording()
                 }
         )
-        .accessibilityLabel(recording ? "Recording" : "Hold to record")
-        .accessibilityHint("Press and hold to record your voice for this prompt")
+        .accessibilityLabel(recording ? String(localized: "Recording") : String(localized: "Hold to record"))
+        .accessibilityHint(String(localized: "Press and hold to record your voice for this prompt"))
     }
 
     private func handleSpaceKey(phase: KeyPress.Phases) {
@@ -574,9 +579,9 @@ final class VoiceIsolationSettingsController: ObservableObject {
     @Published var tooShortHint = false
 
     private let prompts = [
-        "Hivecrew keeps my voice isolated so the assistant hears only me.",
-        "Background conversations should not become instructions for the voice agent.",
-        "Today I am testing reliable voice control in a noisy environment."
+        String(localized: "Hivecrew keeps my voice isolated so the assistant hears only me."),
+        String(localized: "Background conversations should not become instructions for the voice agent."),
+        String(localized: "Today I am testing reliable voice control in a noisy environment.")
     ]
 
     private let minimumRecordingDuration: TimeInterval = 1.0
@@ -607,13 +612,13 @@ final class VoiceIsolationSettingsController: ObservableObject {
     var statusTitle: String {
         switch phase {
         case .idle:
-            return hasProfile ? "Voice profile ready" : "Voice profile required"
+            return hasProfile ? String(localized: "Voice profile ready") : String(localized: "Voice profile required")
         case .preparing:
-            return "Preparing…"
+            return String(localized: "Preparing…")
         case .awaitingRecording, .recording:
-            return "Recording voice sample"
+            return String(localized: "Recording voice sample")
         case .processing:
-            return "Building voice profile"
+            return String(localized: "Building voice profile")
         }
     }
 
@@ -621,16 +626,16 @@ final class VoiceIsolationSettingsController: ObservableObject {
         switch phase {
         case .idle:
             return hasProfile
-                ? "Voice calls will use your saved profile for speaker isolation."
-                : "Complete setup before starting voice mode."
+                ? String(localized: "Voice calls will use your saved profile for speaker isolation.")
+                : String(localized: "Complete setup before starting voice mode.")
         case .preparing:
-            return "Setting up microphone…"
+            return String(localized: "Setting up microphone…")
         case .awaitingRecording(let i):
-            return "Hold the button and read prompt \(i + 1) of \(prompts.count) aloud."
+            return String(localized: "Hold the button and read prompt \(i + 1) of \(prompts.count) aloud.")
         case .recording(let i):
-            return "Recording prompt \(i + 1) of \(prompts.count)…"
+            return String(localized: "Recording prompt \(i + 1) of \(prompts.count)…")
         case .processing:
-            return "Analyzing voice samples…"
+            return String(localized: "Analyzing voice samples…")
         }
     }
 
@@ -752,7 +757,7 @@ final class VoiceIsolationSettingsController: ObservableObject {
         do {
             guard let capturedAudio = await collector?.snapshot(), !capturedAudio.isEmpty else {
                 throw NSError(domain: "Enrollment", code: 1, userInfo: [
-                    NSLocalizedDescriptionKey: "No audio was captured. Please try again."
+                    NSLocalizedDescriptionKey: String(localized: "No audio was captured. Please try again.")
                 ])
             }
 

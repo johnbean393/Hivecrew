@@ -35,26 +35,26 @@ struct OnboardingWelcomeStep: View {
             VStack(alignment: .leading, spacing: 16) {
                 FeatureRow(
                     icon: "brain.head.profile",
-                    title: "Dispatch Tasks",
-                    description: "Describe what you need done and let AI agents work autonomously"
+                    title: String(localized: "Dispatch Tasks"),
+                    description: String(localized: "Describe what you need done and let AI agents work autonomously")
                 )
                 
                 FeatureRow(
                     icon: "desktopcomputer",
-                    title: "Isolated Environments",
-                    description: "Each agent runs in its own secure macOS virtual machine"
+                    title: String(localized: "Isolated Environments"),
+                    description: String(localized: "Each agent runs in its own secure macOS virtual machine")
                 )
                 
                 FeatureRow(
                     icon: "eye",
-                    title: "Watch & Intervene",
-                    description: "Monitor agents in real-time and step in when needed"
+                    title: String(localized: "Watch & Intervene"),
+                    description: String(localized: "Monitor agents in real-time and step in when needed")
                 )
                 
                 FeatureRow(
                     icon: "shield.lefthalf.filled",
-                    title: "Safe by Default",
-                    description: "Timeouts and permissions for peace of mind"
+                    title: String(localized: "Safe by Default"),
+                    description: String(localized: "Timeouts and permissions for peace of mind")
                 )
             }
             .padding(.horizontal, 40)

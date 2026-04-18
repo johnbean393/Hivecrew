@@ -50,7 +50,7 @@ struct AgentQuestionSheet: View {
                 .font(.system(size: 40))
                 .foregroundStyle(question.isIntervention ? Color.orange : Color.accentColor)
             
-            Text(question.isIntervention ? "Action Required" : "Agent Question")
+            Text(question.isIntervention ? String(localized: "Action Required") : String(localized: "Agent Question"))
                 .font(.headline)
         }
         .popoverTip(agentQuestionsTip, arrowEdge: .bottom)
@@ -78,12 +78,12 @@ struct AgentQuestionSheet: View {
     private func interventionInputView(_ request: AgentInterventionRequest) -> some View {
         VStack(spacing: 12) {
             if let service = request.service {
-                Text("Service: \(service)")
+                Text(String(localized: "Service: \(service)"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             
-            Text("Please complete the action above, then click Done")
+            Text(String(localized: "Please complete the action above, then click Done"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -95,7 +95,7 @@ struct AgentQuestionSheet: View {
     
     private var textQuestionInput: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Your answer:")
+            Text(String(localized: "Your answer:"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
@@ -131,7 +131,7 @@ struct AgentQuestionSheet: View {
                 .buttonStyle(.borderedProminent)
             } else {
                 Button("Skip") {
-                    onAnswer("(User skipped this question)")
+                    onAnswer(String(localized: "(User skipped this question)"))
                     onDismiss()
                 }
                 .buttonStyle(.bordered)
@@ -187,7 +187,7 @@ struct MultipleChoiceInputView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Select an option:")
+            Text(String(localized: "Select an option:"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             

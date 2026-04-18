@@ -326,9 +326,9 @@ struct HivecrewApp: App {
         await MainActor.run {
             let alert = NSAlert()
             alert.alertStyle = .informational
-            alert.messageText = "No Template Updates Found"
-            alert.informativeText = "You're already on the latest compatible VM template."
-            alert.addButton(withTitle: "OK")
+            alert.messageText = String(localized: "No Template Updates Found")
+            alert.informativeText = String(localized: "You're already on the latest compatible VM template.")
+            alert.addButton(withTitle: String(localized: "OK"))
             alert.runModal()
         }
     }

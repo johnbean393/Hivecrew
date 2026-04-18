@@ -90,9 +90,9 @@ struct WritebackReviewWindow: View {
 
     private var summaryBar: some View {
         HStack(spacing: 20) {
-            summaryMetric("\(review.items.count)", label: "changes")
-            summaryMetric("\(groupedSections.folderSectionCount)", label: "folders affected")
-            summaryMetric("\(groupedSections.deleteTargetCount)", label: "originals removed after apply")
+            summaryMetric("\(review.items.count)", label: LocalizedStringResource("changes"))
+            summaryMetric("\(groupedSections.folderSectionCount)", label: LocalizedStringResource("folders affected"))
+            summaryMetric("\(groupedSections.deleteTargetCount)", label: LocalizedStringResource("originals removed after apply"))
 
             Spacer()
 
@@ -107,7 +107,7 @@ struct WritebackReviewWindow: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private func summaryMetric(_ value: String, label: String) -> some View {
+    private func summaryMetric(_ value: String, label: LocalizedStringResource) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.headline)
@@ -138,7 +138,7 @@ struct WritebackReviewWindow: View {
                                 .tag(row.id)
                         }
                     } header: {
-                        sectionHeader("Conflicts", count: groupedSections.conflicts.count, isWarning: true)
+                        sectionHeader(String(localized: "Conflicts"), count: groupedSections.conflicts.count, isWarning: true)
                     }
                 }
 
@@ -227,9 +227,12 @@ struct WritebackReviewWindow: View {
                     selectedItemHeader(selectedItem)
 
                     HStack(spacing: 12) {
-                        detailBadge(title: "Operation", value: operationLabel(selectedItem.operation.operationType))
-                        detailBadge(title: "Source", value: selectedItem.operation.sourceFileName)
-                        detailBadge(title: "Destination", value: selectedItem.destinationExists ? "Existing file" : "New file")
+                        detailBadge(title: String(localized: "Operation"), value: operationLabel(selectedItem.operation.operationType))
+                        detailBadge(title: String(localized: "Source"), value: selectedItem.operation.sourceFileName)
+                        detailBadge(
+                            title: String(localized: "Destination"),
+                            value: selectedItem.destinationExists ? String(localized: "Existing file") : String(localized: "New file")
+                        )
                     }
 
                     if !selectedItem.operation.deleteOriginalTargets.isEmpty {
@@ -285,7 +288,7 @@ struct WritebackReviewWindow: View {
                 Text("Deletes After Apply")
                     .font(.subheadline.weight(.semibold))
 
-                Text("\(item.operation.deleteOriginalTargets.count) original local item(s)")
+                Text(String(localized: "\(item.operation.deleteOriginalTargets.count) original local item(s)"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
@@ -305,12 +308,12 @@ struct WritebackReviewWindow: View {
         let editedURL = URL(fileURLWithPath: item.operation.stagedArtifactPath)
 
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Original and Edited")
+            Text(String(localized: "Original and Edited"))
                 .font(.headline)
 
             HStack(alignment: .top, spacing: 14) {
                 quickLookComparisonPane(
-                    title: "Original",
+                    title: String(localized: "Original"),
                     subtitle: originalURL.lastPathComponent,
                     path: originalURL.path,
                     url: originalURL,
@@ -318,7 +321,7 @@ struct WritebackReviewWindow: View {
                 )
 
                 quickLookComparisonPane(
-                    title: "Edited",
+                    title: String(localized: "Edited"),
                     subtitle: editedURL.lastPathComponent,
                     path: editedURL.path,
                     url: editedURL,
@@ -361,7 +364,7 @@ struct WritebackReviewWindow: View {
                 quickLookFallbackCard(for: url)
             }
 
-            Button("Open \(title) in QuickLook") {
+            Button(String(localized: "Open \(title) in QuickLook")) {
                 openQuickLook(url, alongside: relatedURLs)
             }
             .buttonStyle(.bordered)
@@ -374,7 +377,7 @@ struct WritebackReviewWindow: View {
             Image(systemName: "doc.richtext")
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            Text("Inline QuickLook preview unavailable")
+            Text(String(localized: "Inline QuickLook preview unavailable"))
                 .font(.callout.weight(.medium))
             Text(url.lastPathComponent)
                 .font(.caption)
@@ -391,24 +394,24 @@ struct WritebackReviewWindow: View {
     private func metadataDetailSection(for item: WritebackReviewItem) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Preview")
+                Text(String(localized: "Preview"))
                     .font(.subheadline.weight(.semibold))
 
                 if item.destinationExists {
                     HStack(spacing: 12) {
                         previewActionCard(
-                            title: "Current Destination",
+                            title: String(localized: "Current Destination"),
                             subtitle: URL(fileURLWithPath: item.operation.destinationPath).lastPathComponent,
-                            buttonTitle: "Open Current"
+                            buttonTitle: String(localized: "Open Current")
                         ) {
                             let currentURL = URL(fileURLWithPath: item.operation.destinationPath)
                             openQuickLook(currentURL, alongside: [URL(fileURLWithPath: item.operation.stagedArtifactPath)])
                         }
 
                         previewActionCard(
-                            title: "Staged Result",
+                            title: String(localized: "Staged Result"),
                             subtitle: URL(fileURLWithPath: item.operation.stagedArtifactPath).lastPathComponent,
-                            buttonTitle: "Open Staged"
+                            buttonTitle: String(localized: "Open Staged")
                         ) {
                             let stagedURL = URL(fileURLWithPath: item.operation.stagedArtifactPath)
                             let related = item.destinationExists ? [URL(fileURLWithPath: item.operation.destinationPath)] : []
@@ -417,9 +420,9 @@ struct WritebackReviewWindow: View {
                     }
                 } else {
                     previewActionCard(
-                        title: "Staged Result",
+                        title: String(localized: "Staged Result"),
                         subtitle: URL(fileURLWithPath: item.operation.stagedArtifactPath).lastPathComponent,
-                        buttonTitle: "Open Staged"
+                        buttonTitle: String(localized: "Open Staged")
                     ) {
                         let stagedURL = URL(fileURLWithPath: item.operation.stagedArtifactPath)
                         openQuickLook(stagedURL, alongside: [])
@@ -474,10 +477,11 @@ struct WritebackReviewWindow: View {
     }
 
     private func statusPill(for item: WritebackReviewItem) -> some View {
-        Label(
-            item.hasConflict ? "Conflict" : "Ready",
-            systemImage: item.hasConflict ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
-        )
+        Label {
+            Text(item.hasConflict ? String(localized: "Conflict") : String(localized: "Ready"))
+        } icon: {
+            Image(systemName: item.hasConflict ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+        }
         .font(.caption.weight(.medium))
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -576,11 +580,11 @@ struct WritebackReviewWindow: View {
     private func operationLabel(_ operationType: WritebackOperationType) -> String {
         switch operationType {
         case .copy:
-            return "Copy"
+            return String(localized: "Copy")
         case .move:
-            return "Move"
+            return String(localized: "Move")
         case .replaceFile:
-            return "Replace"
+            return String(localized: "Replace")
         }
     }
 
@@ -659,7 +663,7 @@ private struct WritebackReviewGrouping {
             let rows = sortedItems.map { WritebackReviewRowModel(item: $0) }
             builtSections.append(
                 WritebackReviewSection(
-                    title: key.isEmpty ? "Root" : key,
+                    title: key.isEmpty ? String(localized: "Root") : key,
                     rows: rows
                 )
             )
@@ -686,15 +690,15 @@ private struct WritebackReviewRowModel: Identifiable {
 
     var id: UUID { item.id }
     var title: String { URL(fileURLWithPath: item.operation.destinationPath).lastPathComponent }
-    var subtitle: String { item.hasConflict ? (item.conflictReason ?? "Conflict") : item.operation.sourceFileName }
+    var subtitle: String { item.hasConflict ? (item.conflictReason ?? String(localized: "Conflict")) : item.operation.sourceFileName }
     var operationLabel: String {
         switch item.operation.operationType {
         case .copy:
-            return "Copy"
+            return String(localized: "Copy")
         case .move:
-            return "Move"
+            return String(localized: "Move")
         case .replaceFile:
-            return "Replace"
+            return String(localized: "Replace")
         }
     }
     var hasDeleteTargets: Bool { !item.operation.deleteOriginalTargets.isEmpty }

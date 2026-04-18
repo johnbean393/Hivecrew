@@ -69,8 +69,8 @@ struct RetrievalIndexWindow: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
-        panel.prompt = "Add Folder"
-        panel.message = "Choose a folder to include in retrieval indexing."
+        panel.prompt = String(localized: "Add Folder")
+        panel.message = String(localized: "Choose a folder to include in retrieval indexing.")
         guard panel.runModal() == .OK, let folderURL = panel.url else {
             return
         }

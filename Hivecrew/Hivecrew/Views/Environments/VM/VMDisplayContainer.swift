@@ -24,8 +24,8 @@ struct VMDisplayContainer: View {
             } else {
                 VMPlaceholderView(
                     icon: "questionmark.circle",
-                    title: "VM Not Found",
-                    subtitle: "This VM may have been deleted"
+                    title: String(localized: "VM Not Found"),
+                    subtitle: String(localized: "This VM may have been deleted")
                 )
             }
         }
@@ -57,8 +57,8 @@ struct VMDisplayContainer: View {
     private var stoppedView: some View {
         VMPlaceholderView(
             icon: "desktopcomputer",
-            title: "VM Stopped",
-            subtitle: "Start the VM to see its display"
+            title: String(localized: "VM Stopped"),
+            subtitle: String(localized: "Start the VM to see its display")
         )
     }
     
@@ -66,7 +66,7 @@ struct VMDisplayContainer: View {
         VStack(spacing: 16) {
             ProgressView()
                 .scaleEffect(1.5)
-            Text("Booting VM...")
+            Text(String(localized: "Booting VM..."))
                 .font(.headline)
                 .foregroundStyle(.white)
         }
@@ -76,7 +76,7 @@ struct VMDisplayContainer: View {
         VStack(spacing: 16) {
             ProgressView()
                 .scaleEffect(1.5)
-            Text("Stopping VM...")
+            Text(String(localized: "Stopping VM..."))
                 .font(.headline)
                 .foregroundStyle(.white)
         }
@@ -85,8 +85,8 @@ struct VMDisplayContainer: View {
     private var errorView: some View {
         VMPlaceholderView(
             icon: "exclamationmark.triangle.fill",
-            title: "VM Error",
-            subtitle: "The VM encountered an error"
+            title: String(localized: "VM Error"),
+            subtitle: String(localized: "The VM encountered an error")
         )
     }
 }

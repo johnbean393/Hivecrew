@@ -58,10 +58,10 @@ struct CredentialRow: View {
                 VStack(alignment: .leading, spacing: 6) {
                     // Username is shown directly (not obfuscated) since it's not sensitive
                     if let username = CredentialManager.shared.resolveToken(credential.usernameToken.uuidString) {
-                        UsernameRow(label: "Username", username: username)
+                        UsernameRow(label: String(localized: "Username"), username: username)
                     }
                     TokenCopyRow(
-                        label: "Password",
+                        label: String(localized: "Password"),
                         token: credential.passwordToken.uuidString,
                         revealedValue: showingRealValues ? realPassword : nil,
                         isPassword: true
@@ -78,10 +78,11 @@ struct CredentialRow: View {
                                 authenticateAndReveal()
                             }
                         } label: {
-                            Label(
-                                showingRealValues ? "Hide Password" : "Reveal Password",
-                                systemImage: showingRealValues ? "eye.slash" : "eye"
-                            )
+                            Label {
+                                Text(showingRealValues ? String(localized: "Hide Password") : String(localized: "Reveal Password"))
+                            } icon: {
+                                Image(systemName: showingRealValues ? "eye.slash" : "eye")
+                            }
                             .font(.caption)
                         }
                         .buttonStyle(.bordered)
@@ -109,7 +110,7 @@ struct CredentialRow: View {
         if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
             context.evaluatePolicy(
                 .deviceOwnerAuthentication,
-                localizedReason: "Authenticate to reveal credential values"
+                localizedReason: String(localized: "Authenticate to reveal credential values")
             ) { success, authenticationError in
                 DispatchQueue.main.async {
                     if success {
@@ -121,12 +122,12 @@ struct CredentialRow: View {
                             authError = nil
                         }
                     } else {
-                        authError = authenticationError?.localizedDescription ?? "Authentication failed"
+                        authError = authenticationError?.localizedDescription ?? String(localized: "Authentication failed")
                     }
                 }
             }
         } else {
-            authError = error?.localizedDescription ?? "Authentication not available"
+            authError = error?.localizedDescription ?? String(localized: "Authentication not available")
         }
     }
     
@@ -137,4 +138,3 @@ struct CredentialRow: View {
         authError = nil
     }
 }
-

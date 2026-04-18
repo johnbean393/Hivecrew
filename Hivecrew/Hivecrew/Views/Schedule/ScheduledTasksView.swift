@@ -174,7 +174,7 @@ struct ScheduledTasksView: View {
                 .font(.system(size: 32))
                 .foregroundStyle(.tertiary)
             
-            Text(searchText.isEmpty ? "No scheduled tasks" : "No matching schedules")
+            Text(searchText.isEmpty ? String(localized: "No scheduled tasks") : String(localized: "No matching schedules"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             

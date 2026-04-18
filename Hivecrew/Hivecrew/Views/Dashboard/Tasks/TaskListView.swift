@@ -147,12 +147,12 @@ struct TaskListView: View {
                 .font(.system(size: 32))
                 .foregroundStyle(.tertiary)
             
-            Text(searchText.isEmpty ? "No tasks yet" : "No matching tasks")
+            Text(searchText.isEmpty ? String(localized: "No tasks yet") : String(localized: "No matching tasks"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             
             if searchText.isEmpty {
-                Text("Enter a task above to get started")
+                Text(String(localized: "Enter a task above to get started"))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

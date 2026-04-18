@@ -70,7 +70,7 @@ struct VoiceProviderSetupView: View {
             }
         }
         .alert(
-            "Couldn't Save Provider",
+            String(localized: "Couldn't Save Provider"),
             isPresented: Binding(
                 get: { saveErrorMessage != nil },
                 set: { isPresented in
@@ -82,7 +82,7 @@ struct VoiceProviderSetupView: View {
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(saveErrorMessage ?? "An unknown error occurred.")
+            Text(saveErrorMessage ?? String(localized: "An unknown error occurred."))
         }
     }
 
@@ -94,7 +94,7 @@ struct VoiceProviderSetupView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.purple)
 
-                Text("Configure Voice Provider")
+                Text(String(localized: "Configure Voice Provider"))
                 .font(.title2)
                 .fontWeight(.semibold)
 
@@ -242,12 +242,12 @@ struct VoiceProviderSetupView: View {
 
     private func testGeminiAPIKey(_ key: String) async -> ConnectionTestResult {
         guard var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models") else {
-            return .failure("Invalid URL")
+            return .failure(String(localized: "Invalid URL"))
         }
         components.queryItems = [URLQueryItem(name: "key", value: key)]
 
         guard let url = components.url else {
-            return .failure("Invalid URL")
+            return .failure(String(localized: "Invalid URL"))
         }
 
         var request = URLRequest(url: url)
@@ -331,8 +331,8 @@ struct VoiceSetupFlowView: View {
 
         var title: String {
             switch self {
-            case .provider: return "Voice Provider"
-            case .enrollment: return "Voice Enrollment"
+            case .provider: return String(localized: "Voice Provider")
+            case .enrollment: return String(localized: "Voice Enrollment")
             }
         }
     }

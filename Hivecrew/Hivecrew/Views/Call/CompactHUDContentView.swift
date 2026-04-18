@@ -55,7 +55,7 @@ struct CompactHUDContentView: View {
     // MARK: - Transcript Row
 
     private var transcriptRow: some View {
-        Text(lastTranscriptSnippet ?? "Start speaking to the voice agent…")
+        Text(lastTranscriptSnippet ?? String(localized: "Start speaking to the voice agent…"))
             .font(.system(size: 11))
             .foregroundColor(.white.opacity(lastTranscriptSnippet != nil ? 0.6 : 0.3))
             .italic(lastTranscriptSnippet == nil)
@@ -71,9 +71,9 @@ struct CompactHUDContentView: View {
             return orchestrator.voiceName.capitalized
         }
         if let lastEntry = orchestrator.transcript.last(where: { if case .text = $0.content { return true } else { return false } }) {
-            return lastEntry.role == .user ? "You" : orchestrator.voiceName.capitalized
+            return lastEntry.role == .user ? String(localized: "You") : orchestrator.voiceName.capitalized
         }
-        return "Listening"
+        return String(localized: "Listening")
     }
 
     private var lastTranscriptSnippet: String? {
@@ -91,6 +91,7 @@ struct CompactHUDContentView: View {
         return Group {
             if running > 0 || queued > 0 {
                 Text("\(running) running · \(queued) queued")
+                    .textSelection(.disabled)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
                     .padding(.horizontal, 6)
@@ -106,7 +107,7 @@ struct CompactHUDContentView: View {
         HStack(spacing: 0) {
             compactButton(
                 icon: orchestrator.isMuted ? "mic.slash.fill" : "mic.fill",
-                label: orchestrator.isMuted ? "Unmute" : "Mute"
+                label: orchestrator.isMuted ? String(localized: "Unmute") : String(localized: "Mute")
             ) {
                 orchestrator.isMuted.toggle()
             }
@@ -115,7 +116,7 @@ struct CompactHUDContentView: View {
 
             compactButton(
                 icon: "arrow.up.left.and.arrow.down.right",
-                label: "Expand"
+                label: String(localized: "Expand")
             ) {
                 compactCallManager.exitCompactMode()
             }
@@ -125,7 +126,7 @@ struct CompactHUDContentView: View {
 
                 compactButton(
                     icon: "rectangle.on.rectangle.slash",
-                    label: "Stop Share"
+                    label: String(localized: "Stop Share")
                 ) {
                     Task { await orchestrator.videoSourceManager.deactivate() }
                 }

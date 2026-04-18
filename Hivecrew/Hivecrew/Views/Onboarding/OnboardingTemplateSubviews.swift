@@ -68,17 +68,17 @@ struct TemplateDownloadProgressView: View {
     
     private func formatTimeRemaining(_ seconds: TimeInterval) -> String {
         if seconds < 60 {
-            return "Less than a minute remaining"
+            return String(localized: "Less than a minute remaining")
         } else if seconds < 3600 {
             let minutes = Int(seconds / 60)
-            return "\(minutes) minute\(minutes == 1 ? "" : "s") remaining"
+            return String(localized: "\(minutes) minute\(minutes == 1 ? "" : "s") remaining")
         } else {
             let hours = Int(seconds / 3600)
             let minutes = Int((seconds.truncatingRemainder(dividingBy: 3600)) / 60)
             if minutes == 0 {
-                return "\(hours) hour\(hours == 1 ? "" : "s") remaining"
+                return String(localized: "\(hours) hour\(hours == 1 ? "" : "s") remaining")
             }
-            return "\(hours)h \(minutes)m remaining"
+            return String(localized: "\(hours)h \(minutes)m remaining")
         }
     }
 }

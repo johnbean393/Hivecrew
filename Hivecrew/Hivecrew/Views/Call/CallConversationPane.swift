@@ -16,16 +16,16 @@ struct CallConversationPane: View {
 
     private var statusText: String {
         switch orchestrator.connectionState {
-        case .error(let msg): return "Error: \(msg)"
-        case .connecting: return "Connecting..."
-        case .reconnecting: return "Reconnecting..."
+        case .error(let msg): return String(localized: "Error: \(msg)")
+        case .connecting: return String(localized: "Connecting...")
+        case .reconnecting: return String(localized: "Reconnecting...")
         case .connected:
             if orchestrator.callState == .suspended {
-                return "Paused"
+                return String(localized: "Paused")
             }
-            return orchestrator.isModelSpeaking ? "Speaking" : "Listening"
+            return orchestrator.isModelSpeaking ? String(localized: "Speaking") : String(localized: "Listening")
         case .disconnected:
-            return orchestrator.callState == .suspended ? "Paused" : "Disconnected"
+            return orchestrator.callState == .suspended ? String(localized: "Paused") : String(localized: "Disconnected")
         }
     }
 
@@ -78,11 +78,11 @@ struct CallConversationPane: View {
                             Image(systemName: "moon.zzz.fill")
                                 .font(.title2)
                                 .foregroundStyle(.yellow)
-                            Text("Call paused to save costs")
-                                .font(.subheadline.weight(.medium))
+                        Text(String(localized: "Call paused to save costs"))
+                            .font(.subheadline.weight(.medium))
                         }
 
-                        Text("The session will resume when a worker needs attention, or you can wake it manually.")
+                        Text(String(localized: "The session will resume when a worker needs attention, or you can wake it manually."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -124,7 +124,7 @@ struct VoiceQuestionBanner: View {
     @State private var textAnswer = ""
 
     private var workerName: String {
-        orchestrator.workerRegistry.resolve(query: question.taskId)?.displayName ?? "Worker"
+        orchestrator.workerRegistry.resolve(query: question.taskId)?.displayName ?? String(localized: "Worker")
     }
 
     var body: some View {
@@ -134,7 +134,7 @@ struct VoiceQuestionBanner: View {
                       ? "hand.raised.fill"
                       : "questionmark.bubble.fill")
                     .foregroundStyle(question.isIntervention ? .orange : .yellow)
-                Text("\(workerName) is asking:")
+                Text(String(localized: "\(workerName) is asking:"))
                     .font(.caption.bold())
                 Spacer()
             }

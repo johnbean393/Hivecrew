@@ -142,7 +142,7 @@ struct CredentialsSettingsView: View {
             
             // Start accessing the security-scoped resource
             guard url.startAccessingSecurityScopedResource() else {
-                importError = "Unable to access the selected file"
+                importError = String(localized: "Unable to access the selected file")
                 return
             }
             
@@ -153,17 +153,17 @@ struct CredentialsSettingsView: View {
                 let parsed = parseCSV(contents)
                 
                 if parsed.isEmpty {
-                    importError = "No valid credentials found in CSV file"
+                    importError = String(localized: "No valid credentials found in CSV file")
                 } else {
                     importedCredentials = parsed
                     showingImportPreview = true
                 }
             } catch {
-                importError = "Failed to read file: \(error.localizedDescription)"
+                importError = String(localized: "Failed to read file: \(error.localizedDescription)")
             }
             
         case .failure(let error):
-            importError = "Import failed: \(error.localizedDescription)"
+            importError = String(localized: "Import failed: \(error.localizedDescription)")
         }
     }
     
@@ -193,7 +193,7 @@ struct CredentialsSettingsView: View {
             
             let values = parseCSVLine(line)
             
-            let name = nameIndex.flatMap { $0 < values.count ? values[$0] : nil } ?? "Unnamed"
+            let name = nameIndex.flatMap { $0 < values.count ? values[$0] : nil } ?? String(localized: "Unnamed")
             let username = usernameIndex.flatMap { $0 < values.count ? values[$0] : nil }
             let password = passwordIndex.flatMap { $0 < values.count ? values[$0] : nil } ?? ""
             

@@ -69,8 +69,8 @@ struct VMDetailView: View {
         } else {
             VMPlaceholderView(
                 icon: "display",
-                title: "VM is starting...",
-                subtitle: "Your VM will be ready shortly."
+                title: String(localized: "VM is starting..."),
+                subtitle: String(localized: "Your VM will be ready shortly.")
             )
         }
     }

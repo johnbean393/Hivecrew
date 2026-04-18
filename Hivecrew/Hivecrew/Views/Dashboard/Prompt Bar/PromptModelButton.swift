@@ -37,7 +37,7 @@ struct PromptModelButton: View {
     var displayText: String {
         if useMultipleModels {
             if multiModelSelections.isEmpty {
-                return "Select models"
+                return String(localized: "Select models")
             }
             if multiModelSelections.count == 1, let selection = multiModelSelections.first {
                 return selection.modelId
@@ -49,7 +49,7 @@ struct PromptModelButton: View {
         }
         
         if selectedModelId.isEmpty {
-            return selectedProvider?.displayName ?? "Select Model"
+            return selectedProvider?.displayName ?? String(localized: "Select Model")
         }
         return selectedModelId
     }

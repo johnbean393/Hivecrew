@@ -284,7 +284,7 @@ struct EnvironmentSettingsView: View {
                 defaultTemplateId = templates[0].id
             }
         } catch {
-            loadError = "Failed to load templates: \(error.localizedDescription)"
+            loadError = String(localized: "Failed to load templates: \(error.localizedDescription)")
         }
         
         isLoadingTemplates = false
@@ -321,7 +321,7 @@ struct EnvironmentSettingsView: View {
         
         guard FileManager.default.fileExists(atPath: configPath.path),
               FileManager.default.fileExists(atPath: diskPath.path) else {
-            importError = "Invalid template folder. Must contain config.json and disk.img"
+            importError = String(localized: "Invalid template folder. Must contain config.json and disk.img")
             isImporting = false
             return
         }
@@ -391,7 +391,7 @@ struct EnvironmentSettingsView: View {
             }
             
         } catch {
-            importError = "Failed to import template: \(error.localizedDescription)"
+            importError = String(localized: "Failed to import template: \(error.localizedDescription)")
         }
         
         isImporting = false
@@ -411,7 +411,7 @@ struct EnvironmentSettingsView: View {
             // Reload templates
             await loadTemplates()
         } catch {
-            loadError = "Failed to delete template: \(error.localizedDescription)"
+            loadError = String(localized: "Failed to delete template: \(error.localizedDescription)")
         }
         
         templateToDelete = nil

@@ -37,21 +37,21 @@ struct ScheduledTaskRowView: View {
     }
     
     private var nextRunText: String {
-        guard schedule.isEnabled else { return "Disabled" }
+        guard schedule.isEnabled else { return String(localized: "Disabled") }
         
         if schedule.scheduleType == .oneTime && schedule.hasExpired {
-            return "Expired"
+            return String(localized: "Expired")
         }
         
         guard let nextRun = schedule.nextRunAt else {
-            return "Not scheduled"
+            return String(localized: "Not scheduled")
         }
         
         // Calculate time remaining
         let timeInterval = nextRun.timeIntervalSince(currentDate)
         
         if timeInterval <= 0 {
-            return "Running soon..."
+            return String(localized: "Running soon...")
         }
         
         // Format as human-readable countdown
@@ -61,11 +61,11 @@ struct ScheduledTaskRowView: View {
         let seconds = totalSeconds % 60
         
         if hours > 0 {
-            return "in \(hours)h \(minutes)m"
+            return String(localized: "in \(hours)h \(minutes)m")
         } else if minutes > 0 {
-            return "in \(minutes)m \(seconds)s"
+            return String(localized: "in \(minutes)m \(seconds)s")
         } else {
-            return "in \(seconds)s"
+            return String(localized: "in \(seconds)s")
         }
     }
     
@@ -112,7 +112,7 @@ struct ScheduledTaskRowView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
                             .font(.caption2)
-                        Text("Next: \(nextRunText)")
+                        Text(String(localized: "Next: \(nextRunText)"))
                             .font(.caption)
                     }
                     .foregroundStyle(.tertiary)
@@ -140,7 +140,7 @@ struct ScheduledTaskRowView: View {
                                     .foregroundStyle(.green)
                             }
                             .buttonStyle(.plain)
-                            .help("Run now")
+                            .help(String(localized: "Run now"))
                             .popoverTip(scheduleRunNowTip, arrowEdge: .bottom)
                         }
                     }

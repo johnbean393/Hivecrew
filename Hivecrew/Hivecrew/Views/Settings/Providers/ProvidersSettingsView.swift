@@ -59,7 +59,7 @@ struct ProvidersSettingsView: View {
         var errorDescription: String? {
             switch self {
             case .missingAPIKey:
-                return "This provider has no API key configured."
+                return String(localized: "This provider has no API key configured.")
             }
         }
     }

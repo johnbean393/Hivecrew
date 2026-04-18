@@ -11,9 +11,9 @@ enum RetrievalSidebarEntry: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .overall:
-            return "Overall"
+            return String(localized: "Overall")
         case .file:
-            return "Files"
+            return String(localized: "Files")
         }
     }
 
@@ -47,17 +47,17 @@ enum RetrievalIndexStatusKind {
     var title: String {
         switch self {
         case .disabled:
-            return "Off"
+            return String(localized: "Off")
         case .unavailable:
-            return "Unavailable"
+            return String(localized: "Unavailable")
         case .notStarted:
-            return "Not Started"
+            return String(localized: "Not Started")
         case .indexing:
-            return "Indexing"
+            return String(localized: "Indexing")
         case .ready:
-            return "Ready"
+            return String(localized: "Ready")
         case .needsAttention:
-            return "Needs Attention"
+            return String(localized: "Needs Attention")
         }
     }
 
@@ -187,11 +187,11 @@ final class RetrievalIndexViewModel: ObservableObject {
         RetrievalSidebarEntry.allCases.map { entry in
             if entry == .overall {
                 let overall = overallModel(enabled: enabled)
-                let subtitle = "\(overall.totalIndexedItems.formatted()) indexed"
+                let subtitle = String(localized: "\(overall.totalIndexedItems.formatted()) indexed")
                 return RetrievalSidebarRowModel(entry: entry, status: overall.status, subtitle: subtitle)
             }
             let detail = sourceDetail(for: entry, enabled: enabled)
-            let subtitle = "\(detail.indexedItems.formatted()) indexed"
+            let subtitle = String(localized: "\(detail.indexedItems.formatted()) indexed")
             return RetrievalSidebarRowModel(entry: entry, status: detail.status, subtitle: subtitle)
         }
     }
@@ -312,7 +312,7 @@ final class RetrievalIndexViewModel: ObservableObject {
                 throw NSError(
                     domain: "RetrievalIndex",
                     code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "Retrieval state endpoint returned a non-success status."]
+                    userInfo: [NSLocalizedDescriptionKey: String(localized: "Retrieval state endpoint returned a non-success status.")]
                 )
             }
             let decoder = JSONDecoder()

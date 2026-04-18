@@ -39,15 +39,15 @@ struct OnboardingCompleteStep: View {
             VStack(alignment: .leading, spacing: 12) {
                 QuickTip(
                     number: 1,
-                    text: "Go to the Dashboard to create your first task"
+                    text: String(localized: "Go to the Dashboard to create your first task")
                 )
                 QuickTip(
                     number: 2,
-                    text: "Watch agents work in the Environments tab"
+                    text: String(localized: "Watch agents work in the Environments tab")
                 )
                 QuickTip(
                     number: 3,
-                    text: "Adjust settings anytime with Cmd+,"
+                    text: String(localized: "Adjust settings anytime with Cmd+,")
                 )
             }
             .padding(.horizontal, 80)

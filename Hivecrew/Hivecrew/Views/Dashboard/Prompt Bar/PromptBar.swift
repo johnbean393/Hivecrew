@@ -58,7 +58,7 @@ func reasoningEffortDisplayName(_ effort: String) -> String {
     let normalized = effort.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     switch normalized {
     case "xhigh":
-        return "Extra High"
+        return String(localized: "Extra High")
     default:
         return normalized
             .replacingOccurrences(of: "_", with: " ")
@@ -76,9 +76,9 @@ enum SendKeyMode: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .returnKey:
-            return "Press Return to send"
+            return String(localized: "Press Return to send")
         case .commandReturn:
-            return "Press ⌘ + Return to send"
+            return String(localized: "Press ⌘ + Return to send")
         }
     }
 }
@@ -521,12 +521,13 @@ struct PromptBar: View {
 
     private var sendButtonHelpText: String {
         if useMultipleModels && multiModelSelections.isEmpty {
-            return "Select at least one model when Use Multiple Models is enabled"
+            return String(localized: "Select at least one model when Use Multiple Models is enabled")
         }
         if !hasWorkerModelConfigured {
-            return "Configure worker provider + model in onboarding or Settings → Providers"
+            return String(localized: "Configure worker provider + model in onboarding or Settings → Providers")
         }
-        return "Send (\(useCommandReturn ? "⌘ + Return" : "Return"))"
+        let shortcut = useCommandReturn ? String(localized: "⌘ + Return") : String(localized: "Return")
+        return String(localized: "Send (\(shortcut))")
     }
 
     private var quickLookPreviewURLs: [URL] {
@@ -757,7 +758,7 @@ struct PromptReasoningButton: View {
             currentEffort: reasoningEffort
         )
         guard let effort = resolved.effort else {
-            return "Reason"
+            return String(localized: "Reason")
         }
         return reasoningEffortDisplayName(effort)
     }
@@ -780,7 +781,7 @@ struct PromptReasoningButton: View {
                 } label: {
                     capsuleLabel(
                         systemImage: "brain.head.profile",
-                        title: "Reason"
+                        title: String(localized: "Reason")
                     )
                 }
                 .buttonStyle(.plain)
@@ -1018,9 +1019,9 @@ struct PromptExecutionTargetButton: View {
         }
 
         return [
-            PromptExecutionTargetMenuOption(target: .automatic, title: "Auto", isEnabled: true, startsNewSection: false),
-            PromptExecutionTargetMenuOption(target: .remoteFirst, title: "Remote First", isEnabled: !peers.isEmpty, startsNewSection: false),
-            PromptExecutionTargetMenuOption(target: .local, title: "This Device", isEnabled: true, startsNewSection: true)
+            PromptExecutionTargetMenuOption(target: .automatic, title: String(localized: "Auto"), isEnabled: true, startsNewSection: false),
+            PromptExecutionTargetMenuOption(target: .remoteFirst, title: String(localized: "Remote First"), isEnabled: !peers.isEmpty, startsNewSection: false),
+            PromptExecutionTargetMenuOption(target: .local, title: String(localized: "This Device"), isEnabled: true, startsNewSection: true)
         ] + peerOptions
     }
 

@@ -40,17 +40,17 @@ struct RetrievalIndexSourceDetailView: View {
                 }
 
                 HStack(spacing: 12) {
-                    metricCard(title: "Indexed", value: model.indexedItems.formatted())
-                    metricCard(title: "Queued", value: model.queueDepth.formatted())
-                    metricCard(title: "In Flight", value: model.inFlightCount.formatted())
+                    metricCard(title: LocalizedStringResource("Indexed"), value: model.indexedItems.formatted())
+                    metricCard(title: LocalizedStringResource("Queued"), value: model.queueDepth.formatted())
+                    metricCard(title: LocalizedStringResource("In Flight"), value: model.inFlightCount.formatted())
                 }
 
                 GroupBox("Current Activity") {
                     VStack(alignment: .leading, spacing: 6) {
-                        activityRow(label: "Operation", value: model.currentOperation)
-                        activityRow(label: "Item", value: model.currentItemPath ?? "None")
-                        activityRow(label: "Scopes", value: model.scopeCount.formatted())
-                        activityRow(label: "Last Updated", value: formattedTimestamp(lastRefreshAt ?? model.lastUpdatedAt))
+                        activityRow(label: LocalizedStringResource("Operation"), value: model.currentOperation)
+                        activityRow(label: LocalizedStringResource("Item"), value: model.currentItemPath ?? String(localized: "None"))
+                        activityRow(label: LocalizedStringResource("Scopes"), value: model.scopeCount.formatted())
+                        activityRow(label: LocalizedStringResource("Last Updated"), value: formattedTimestamp(lastRefreshAt ?? model.lastUpdatedAt))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 4)
@@ -59,9 +59,9 @@ struct RetrievalIndexSourceDetailView: View {
                 if model.entry == .file {
                     GroupBox("File Scan Diagnostics") {
                         HStack(spacing: 12) {
-                            metricCard(title: "Candidates Seen", value: model.scanCandidatesSeen.formatted())
-                            metricCard(title: "Excluded Skips", value: model.scanCandidatesSkippedExcluded.formatted())
-                            metricCard(title: "Events Emitted", value: model.scanEventsEmitted.formatted())
+                            metricCard(title: LocalizedStringResource("Candidates Seen"), value: model.scanCandidatesSeen.formatted())
+                            metricCard(title: LocalizedStringResource("Excluded Skips"), value: model.scanCandidatesSkippedExcluded.formatted())
+                            metricCard(title: LocalizedStringResource("Events Emitted"), value: model.scanEventsEmitted.formatted())
                         }
                         .padding(.top, 4)
                     }
@@ -101,11 +101,11 @@ struct RetrievalIndexSourceDetailView: View {
 
                 GroupBox("Extraction Diagnostics") {
                     HStack(spacing: 12) {
-                        metricCard(title: "Indexed (This Run)", value: model.cumulativeProcessedCount.formatted())
-                        metricCard(title: "Partial", value: model.extractionPartialCount.formatted())
-                        metricCard(title: "Failed", value: model.extractionFailedCount.formatted())
-                        metricCard(title: "Unsupported", value: model.extractionUnsupportedCount.formatted())
-                        metricCard(title: "OCR", value: model.extractionOCRCount.formatted())
+                        metricCard(title: LocalizedStringResource("Indexed (This Run)"), value: model.cumulativeProcessedCount.formatted())
+                        metricCard(title: LocalizedStringResource("Partial"), value: model.extractionPartialCount.formatted())
+                        metricCard(title: LocalizedStringResource("Failed"), value: model.extractionFailedCount.formatted())
+                        metricCard(title: LocalizedStringResource("Unsupported"), value: model.extractionUnsupportedCount.formatted())
+                        metricCard(title: LocalizedStringResource("OCR"), value: model.extractionOCRCount.formatted())
                     }
                     .padding(.top, 4)
                 }
@@ -127,7 +127,7 @@ struct RetrievalIndexSourceDetailView: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
-    private func metricCard(title: String, value: String) -> some View {
+    private func metricCard(title: LocalizedStringResource, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
@@ -140,7 +140,7 @@ struct RetrievalIndexSourceDetailView: View {
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private func activityRow(label: String, value: String) -> some View {
+    private func activityRow(label: LocalizedStringResource, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(label)
                 .font(.caption.weight(.semibold))
@@ -164,7 +164,7 @@ struct RetrievalIndexSourceDetailView: View {
     }
 
     private func formattedTimestamp(_ date: Date?) -> String {
-        guard let date else { return "N/A" }
+        guard let date else { return String(localized: "N/A") }
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 

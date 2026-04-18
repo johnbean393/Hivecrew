@@ -46,14 +46,19 @@ struct ActiveTaskRow: View {
             Button {
                 openDetachedTaskWindow()
             } label: {
-                Label(
-                    detachedTaskWindowStore.isDetached(task.id)
-                        ? "Show VM and Agent Trace Window"
-                        : "Open VM and Agent Trace in New Window",
-                    systemImage: detachedTaskWindowStore.isDetached(task.id)
-                        ? "macwindow.on.rectangle"
-                        : "macwindow.badge.plus"
-                )
+                Label {
+                    Text(
+                        detachedTaskWindowStore.isDetached(task.id)
+                            ? String(localized: "Show VM and Agent Trace Window")
+                            : String(localized: "Open VM and Agent Trace in New Window")
+                    )
+                } icon: {
+                    Image(
+                        systemName: detachedTaskWindowStore.isDetached(task.id)
+                            ? "macwindow.on.rectangle"
+                            : "macwindow.badge.plus"
+                    )
+                }
             }
         }
     }
@@ -62,20 +67,20 @@ struct ActiveTaskRow: View {
         if task.isExecutingRemotely, let nodeName = task.remoteNodeDisplayName {
             switch task.remoteLeaseState {
             case .suspect:
-                return "Checking \(nodeName)"
+                return String(localized: "Checking \(nodeName)")
             case .recovering:
-                return "Recovering from \(nodeName)"
+                return String(localized: "Recovering from \(nodeName)")
             case .completedAwaitingImport:
-                return "Importing from \(nodeName)"
+                return String(localized: "Importing from \(nodeName)")
             default:
                 break
             }
             return task.clusterExecutionState == .recoveringRemote
-                ? "Reconnecting to \(nodeName)"
-                : "Running on \(nodeName)"
+                ? String(localized: "Reconnecting to \(nodeName)")
+                : String(localized: "Running on \(nodeName)")
         }
         if task.isInternalClusterExecution {
-            return "Serving cluster task"
+            return String(localized: "Serving cluster task")
         }
         return task.status.displayName
     }
@@ -85,8 +90,8 @@ struct ActiveTaskRow: View {
         let ownerName = task.clusterOwnerNodeName
             ?? clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
             ?? task.clusterOwnerNodeId.map { $0.count <= 8 ? $0 : String($0.prefix(8)) }
-        guard let ownerName else { return "Leased Task" }
-        return "From \(ownerName)"
+        guard let ownerName else { return String(localized: "Leased Task") }
+        return String(localized: "From \(ownerName)")
     }
 
     @MainActor

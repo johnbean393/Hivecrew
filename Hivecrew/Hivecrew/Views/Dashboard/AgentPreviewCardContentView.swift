@@ -48,20 +48,20 @@ struct AgentPreviewCardContent: View {
     
     private var activityDescription: String {
         if let question = statePublisher?.pendingQuestion {
-            let prefix = question.isIntervention ? "Intervention needed" : "Question"
-            return "\(prefix): \(question.question)"
+            let prefix = question.isIntervention ? String(localized: "Intervention needed") : String(localized: "Question")
+            return String(localized: "\(prefix): \(question.question)")
         }
         if let permission = statePublisher?.pendingPermissionRequest {
-            return "Permission required: \(permission.toolName)"
+            return String(localized: "Permission required: \(permission.toolName)")
         }
         if let ownerLabel {
             return ownerLabel
         }
         if task.status == .planReview {
-            return "Plan ready for review"
+            return String(localized: "Plan ready for review")
         }
         if let currentTool = statePublisher?.currentToolCall, !currentTool.isEmpty {
-            return "Running: \(currentTool)"
+            return String(localized: "Running: \(currentTool)")
         }
         if let lastEntry = statePublisher?.activityLog.last?.summary, !lastEntry.isEmpty {
             return lastEntry
@@ -77,60 +77,60 @@ struct AgentPreviewCardContent: View {
         let ownerName = task.clusterOwnerNodeName
             ?? clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
             ?? task.clusterOwnerNodeId.map(shortOwnerLabel(for:))
-        guard let ownerName, !ownerName.isEmpty else { return "Leased Task" }
-        return "From \(ownerName)"
+        guard let ownerName, !ownerName.isEmpty else { return String(localized: "Leased Task") }
+        return String(localized: "From \(ownerName)")
     }
     
     private var statusDescription: String {
         if let nodeName = task.remoteNodeDisplayName {
             switch task.remoteLeaseState {
             case .suspect:
-                return "Checking \(nodeName)"
+                return String(localized: "Checking \(nodeName)")
             case .recovering:
-                return "Recovering from \(nodeName)"
+                return String(localized: "Recovering from \(nodeName)")
             case .completedAwaitingImport:
-                return "Importing from \(nodeName)"
+                return String(localized: "Importing from \(nodeName)")
             default:
                 break
             }
             switch task.clusterExecutionState {
             case .dispatchingRemote:
-                return "Starting on \(nodeName)"
+                return String(localized: "Starting on \(nodeName)")
             case .recoveringRemote:
-                return "Reconnecting to \(nodeName)"
+                return String(localized: "Reconnecting to \(nodeName)")
             case .runningRemote:
-                return "Running on \(nodeName)"
+                return String(localized: "Running on \(nodeName)")
             default:
                 break
             }
         }
         switch effectiveStatus {
         case .queued:
-            return "Queued"
+            return String(localized: "Queued")
         case .waitingForVM:
-            return "Awaiting VM"
+            return String(localized: "Awaiting VM")
         case .planning:
-            return "Generating plan"
+            return String(localized: "Generating plan")
         case .planReview:
-            return "Awaiting plan review"
+            return String(localized: "Awaiting plan review")
         case .writebackReview:
-            return "Changes ready to apply"
+            return String(localized: "Changes ready to apply")
         case .running:
-            return "In progress"
+            return String(localized: "In progress")
         case .paused:
-            return "Paused"
+            return String(localized: "Paused")
         case .completed:
-            return "Completed"
+            return String(localized: "Completed")
         case .failed:
-            return "Failed"
+            return String(localized: "Failed")
         case .cancelled:
-            return "Cancelled"
+            return String(localized: "Cancelled")
         case .timedOut:
-            return "Timed out"
+            return String(localized: "Timed out")
         case .maxIterations:
-            return "Max iterations"
+            return String(localized: "Max iterations")
         case .planFailed:
-            return "Planning failed"
+            return String(localized: "Planning failed")
         }
     }
     
@@ -164,7 +164,7 @@ struct AgentPreviewCardContent: View {
                         alignment: .leading,
                         spacing: 8
                     ) {
-                        Text("Steps \(stepCount)")
+                        Text(String(localized: "Steps \(stepCount)"))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Text(activityDescription)
@@ -243,7 +243,7 @@ struct AgentPreviewCardContent: View {
                 StatusPill(text: interventionPillText, color: .orange)
             } else if task.isExecutingRemotely {
                 StatusPill(
-                    text: "Remote",
+                    text: String(localized: "Remote"),
                     color: .blue
                 )
             } else {
@@ -254,12 +254,12 @@ struct AgentPreviewCardContent: View {
     
     private var interventionPillText: String {
         if task.status == .planReview && !hasPendingQuestion && !hasPendingPermission {
-            return "Needs review"
+            return String(localized: "Needs review")
         }
         if task.status == .writebackReview && !hasPendingQuestion && !hasPendingPermission {
-            return "Review changes"
+            return String(localized: "Review changes")
         }
-        return "Needs input"
+        return String(localized: "Needs input")
     }
     
     private var statusPillColor: Color {
@@ -414,13 +414,13 @@ struct AgentPreviewCardContent: View {
     private var stopHelpText: String {
         switch effectiveStatus {
         case .queued, .waitingForVM:
-            return "Remove from queue"
+            return String(localized: "Remove from queue")
         case .planning, .planReview:
-            return "Cancel planning"
+            return String(localized: "Cancel planning")
         case .writebackReview:
-            return "Review staged changes"
+            return String(localized: "Review staged changes")
         default:
-            return "Stop agent"
+            return String(localized: "Stop agent")
         }
     }
     

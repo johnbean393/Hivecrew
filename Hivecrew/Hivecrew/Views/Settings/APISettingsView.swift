@@ -248,11 +248,11 @@ struct APISettingsView: View {
                     
                     HStack {
                         if showAPIKey {
-                            Text(apiKey.isEmpty ? "Not generated" : apiKey)
+                            Text(apiKey.isEmpty ? String(localized: "Not generated") : apiKey)
                                 .font(.system(.body, design: .monospaced))
                                 .textSelection(.enabled)
                         } else {
-                            Text(apiKey.isEmpty ? "Not generated" : maskAPIKey(apiKey))
+                            Text(apiKey.isEmpty ? String(localized: "Not generated") : maskAPIKey(apiKey))
                                 .font(.system(.body, design: .monospaced))
                                 .foregroundColor(.secondary)
                         }
@@ -265,7 +265,7 @@ struct APISettingsView: View {
                             Image(systemName: showAPIKey ? "eye.slash" : "eye")
                         }
                         .buttonStyle(.borderless)
-                        .help(showAPIKey ? "Hide API key" : "Show API key")
+                        .help(showAPIKey ? String(localized: "Hide API key") : String(localized: "Show API key"))
                         
                         Button {
                             copyAPIKeyToClipboard()

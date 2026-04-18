@@ -191,8 +191,12 @@ struct ProviderURLPickerMenu: View {
                 }
             }
         } label: {
-            Label("Select Provider", systemImage: "globe")
-                .labelStyle(.iconOnly)
+            Label {
+                Text(String(localized: "Select Provider"))
+            } icon: {
+                Image(systemName: "globe")
+            }
+            .labelStyle(.iconOnly)
         }
     }
 }
@@ -217,9 +221,9 @@ enum ProviderPersistenceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .apiKeyStoreFailed:
-            return "Hivecrew couldn't save the API key to the Keychain."
+            return String(localized: "Hivecrew couldn't save the API key to the Keychain.")
         case .apiKeyDeleteFailed:
-            return "Hivecrew couldn't remove the existing API key from the Keychain."
+            return String(localized: "Hivecrew couldn't remove the existing API key from the Keychain.")
         }
     }
 }
@@ -242,7 +246,7 @@ struct ConnectionTestResultView: View {
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                Text(style == .compact ? "Connected" : "Connection successful")
+                Text(style == .compact ? String(localized: "Connected") : String(localized: "Connection successful"))
                     .foregroundStyle(style == .compact ? .green : .secondary)
             }
             .font(style == .compact ? .callout : .body)
@@ -284,7 +288,7 @@ enum ProviderConnectionTester {
         if let oauthKind = backendMode.oauthProviderKind {
             guard let oauthProviderId,
                   hasStoredOAuthTokens(providerId: oauthProviderId, providerKind: oauthKind) else {
-                return .failure("Connect \(oauthKind.displayName) first, then test again.")
+                return .failure(String(localized: "Connect \(oauthKind.displayName) first, then test again."))
             }
 
             let config = LLMConfiguration(
@@ -328,18 +332,18 @@ enum ProviderConnectionTester {
             let (_, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
-                return .failure("Invalid response")
+                return .failure(String(localized: "Invalid response"))
             }
             
             switch httpResponse.statusCode {
             case 200:
                 return .success
             case 401:
-                return .failure("Invalid API key")
+                return .failure(String(localized: "Invalid API key"))
             case 403:
-                return .failure("Access denied")
+                return .failure(String(localized: "Access denied"))
             default:
-                return .failure("HTTP \(httpResponse.statusCode)")
+                return .failure(String(localized: "HTTP \(httpResponse.statusCode)"))
             }
         } catch {
             return .failure(error.localizedDescription)

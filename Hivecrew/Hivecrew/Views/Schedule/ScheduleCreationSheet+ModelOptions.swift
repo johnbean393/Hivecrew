@@ -245,7 +245,7 @@ extension ScheduleCreationSheet {
     func loadAvailableModels() {
         guard let provider = providers.first(where: { $0.id == selectedProviderId }) else {
             availableModels = []
-            modelLoadError = selectedProviderId.isEmpty ? nil : "Select a provider to load models."
+            modelLoadError = selectedProviderId.isEmpty ? nil : String(localized: "Select a provider to load models.")
             isLoadingModels = false
             synchronizeReasoningSelection()
             return
@@ -255,7 +255,7 @@ extension ScheduleCreationSheet {
         if provider.authMode == .apiKey {
             guard let stored = provider.retrieveAPIKey() else {
                 availableModels = []
-                modelLoadError = "No API key configured for this provider."
+                modelLoadError = String(localized: "No API key configured for this provider.")
                 isLoadingModels = false
                 synchronizeReasoningSelection()
                 return

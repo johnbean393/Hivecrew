@@ -62,7 +62,7 @@ struct TokenCopyRow: View {
                     .foregroundStyle(copied ? .green : .accentColor)
             }
             .buttonStyle(.borderless)
-            .help(isRevealed ? "Copy actual value" : "Copy token")
+            .help(isRevealed ? String(localized: "Copy actual value") : String(localized: "Copy token"))
         }
         .padding(6)
         .background(isRevealed ? Color.green.opacity(0.1) : Color(nsColor: .controlBackgroundColor))

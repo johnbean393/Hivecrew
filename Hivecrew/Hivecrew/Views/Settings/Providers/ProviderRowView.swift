@@ -52,7 +52,11 @@ struct ProviderRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else if provider.isOAuthProvider {
-                    Text(provider.isOAuthAuthenticated ? "\(provider.displayLabel) • Connected" : "\(provider.displayLabel) • Not connected")
+                    Text(
+                        provider.isOAuthAuthenticated
+                            ? String(localized: "\(provider.displayLabel) • Connected")
+                            : String(localized: "\(provider.displayLabel) • Not connected")
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

@@ -74,10 +74,10 @@ struct ToolsSettingsView: View {
                 .pickerStyle(.menu)
 
                 if searchEngine == "searchapi" {
-                    apiKeyField(label: "SearchAPI Key", key: $searchAPIKey, showKey: $showSearchAPIKey, hasKey: hasSearchAPIKey)
+                    apiKeyField(label: LocalizedStringResource("SearchAPI Key"), key: $searchAPIKey, showKey: $showSearchAPIKey, hasKey: hasSearchAPIKey)
                 }
                 if searchEngine == "serpapi" {
-                    apiKeyField(label: "SerpAPI Key", key: $serpAPIKey, showKey: $showSerpAPIKey, hasKey: hasSerpAPIKey)
+                    apiKeyField(label: LocalizedStringResource("SerpAPI Key"), key: $serpAPIKey, showKey: $showSerpAPIKey, hasKey: hasSerpAPIKey)
                 }
 
                 Divider()
@@ -100,7 +100,7 @@ struct ToolsSettingsView: View {
     }
 
     @ViewBuilder
-    private func apiKeyField(label: String, key: Binding<String>, showKey: Binding<Bool>, hasKey: Bool) -> some View {
+    private func apiKeyField(label: LocalizedStringResource, key: Binding<String>, showKey: Binding<Bool>, hasKey: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(label)
@@ -177,7 +177,11 @@ struct ToolsSettingsView: View {
             HStack(spacing: 4) {
                 Image(systemName: hasOpenRouterProvider ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(hasOpenRouterProvider ? .green : .orange)
-                Text(hasOpenRouterProvider ? "Using OpenRouter provider from Providers settings" : "No OpenRouter provider configured. Add one in the Providers tab.")
+                Text(
+                    hasOpenRouterProvider
+                        ? String(localized: "Using OpenRouter provider from Providers settings")
+                        : String(localized: "No OpenRouter provider configured. Add one in the Providers tab.")
+                )
                     .font(.caption)
                     .foregroundStyle(hasOpenRouterProvider ? Color.secondary : Color.orange)
             }
@@ -190,7 +194,11 @@ struct ToolsSettingsView: View {
             HStack(spacing: 4) {
                 Image(systemName: hasGeminiProvider ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .foregroundStyle(hasGeminiProvider ? .green : .orange)
-                Text(hasGeminiProvider ? "Using Google AI Studio provider from Providers settings" : "No Google AI Studio provider configured. Add one in the Providers tab.")
+                Text(
+                    hasGeminiProvider
+                        ? String(localized: "Using Google AI Studio provider from Providers settings")
+                        : String(localized: "No Google AI Studio provider configured. Add one in the Providers tab.")
+                )
                     .font(.caption)
                     .foregroundStyle(hasGeminiProvider ? Color.secondary : Color.orange)
             }
@@ -230,8 +238,8 @@ struct ToolsSettingsView: View {
 
     private var modelHelpText: String {
         imageGenerationProvider == "openRouter"
-            ? "e.g., google/gemini-3.1-flash-image-preview, google/gemini-3-pro-image-preview"
-            : "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview"
+            ? String(localized: "e.g., google/gemini-3.1-flash-image-preview, google/gemini-3-pro-image-preview")
+            : String(localized: "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview")
     }
 
     private var hasOpenRouterProvider: Bool {

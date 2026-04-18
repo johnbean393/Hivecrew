@@ -33,7 +33,7 @@ struct AgentStatusBar: View {
                     Circle()
                         .fill(agentStatusColor)
                         .frame(width: 8, height: 8)
-                    Text("Agent: \(statePublisher.status.rawValue.capitalized)")
+                    Text(String(localized: "Agent: \(statePublisher.status.rawValue.capitalized)"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -87,12 +87,12 @@ struct AgentStatusBar: View {
     }
     
     private var connectionText: String {
-        guard let state = connectionState else { return "No Connection" }
+        guard let state = connectionState else { return String(localized: "No Connection") }
         switch state {
-        case .disconnected: return "Disconnected"
-        case .connecting: return "Connecting..."
-        case .connected: return "Connected"
-        case .error(let msg): return "Error: \(msg)"
+        case .disconnected: return String(localized: "Disconnected")
+        case .connecting: return String(localized: "Connecting...")
+        case .connected: return String(localized: "Connected")
+        case .error(let msg): return String(localized: "Error: \(msg)")
         }
     }
     

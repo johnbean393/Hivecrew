@@ -36,14 +36,14 @@ struct OnboardingView: View {
         
         var title: String {
             switch self {
-            case .welcome: return "Welcome"
-            case .provider: return "LLM Provider"
-            case .worker: return "Models"
-            case .template: return "VM Template"
-            case .outputDirectory: return "Output"
-            case .voice: return "Voice"
-            case .voiceIsolation: return "Isolation"
-            case .complete: return "Ready"
+            case .welcome: return String(localized: "Welcome")
+            case .provider: return String(localized: "LLM Provider")
+            case .worker: return String(localized: "Models")
+            case .template: return String(localized: "VM Template")
+            case .outputDirectory: return String(localized: "Output")
+            case .voice: return String(localized: "Voice")
+            case .voiceIsolation: return String(localized: "Isolation")
+            case .complete: return String(localized: "Ready")
             }
         }
     }

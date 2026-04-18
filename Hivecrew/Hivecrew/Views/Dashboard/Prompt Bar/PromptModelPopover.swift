@@ -349,7 +349,7 @@ struct PromptModelPopover: View {
             Spacer()
             ProgressView()
                 .scaleEffect(0.8)
-            Text("Loading models...")
+            Text(String(localized: "Loading models..."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)
@@ -363,7 +363,7 @@ struct PromptModelPopover: View {
             Image(systemName: "exclamationmark.triangle")
                 .font(.title2)
                 .foregroundStyle(.orange)
-            Text("Failed to load models")
+            Text(String(localized: "Failed to load models"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(message)
@@ -383,7 +383,7 @@ struct PromptModelPopover: View {
     private var emptyView: some View {
         VStack {
             Spacer()
-            Text(searchText.isEmpty ? "No models available" : "No matching models")
+            Text(searchText.isEmpty ? String(localized: "No models available") : String(localized: "No matching models"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -454,21 +454,21 @@ struct PromptModelPopover: View {
                 if let contextLength = model.effectiveContextLength {
                     detailIconRow(
                         systemImage: "textformat.123",
-                        title: "Context length",
+                        title: String(localized: "Context length"),
                         value: "\(formattedTokenCount(contextLength)) tokens"
                     )
                 }
                 if let createdAt = model.createdAt {
                     detailIconRow(
                         systemImage: "calendar",
-                        title: "Release date",
+                        title: String(localized: "Release date"),
                         value: Self.fullDateFormatter.string(from: createdAt)
                     )
                 }
 
                 if !inputItems.isEmpty {
                     modalityIconRow(
-                        title: "Input modalities",
+                        title: String(localized: "Input modalities"),
                         symbol: "arrow.down.circle",
                         accentColor: .secondary,
                         items: inputItems
@@ -476,7 +476,7 @@ struct PromptModelPopover: View {
                 }
                 if !outputItems.isEmpty {
                     modalityIconRow(
-                        title: "Output modalities",
+                        title: String(localized: "Output modalities"),
                         symbol: "arrow.up.circle",
                         accentColor: .secondary,
                         items: outputItems
@@ -539,7 +539,7 @@ struct PromptModelPopover: View {
     }
     
     private var sectionHeader: some View {
-        Text("Models (\(filteredModels.count))")
+        Text(String(localized: "Models (\(filteredModels.count))"))
             .font(.caption)
             .fontWeight(.semibold)
             .foregroundStyle(.secondary)
@@ -1006,7 +1006,7 @@ struct PromptModelPopover: View {
         let apiKey: String
         if provider.authMode == .apiKey {
             guard let stored = provider.retrieveAPIKey() else {
-                errorMessage = "No API key configured"
+                errorMessage = String(localized: "No API key configured")
                 availableModels = []
                 isLoading = false
                 resetHoverPanelState()
@@ -1166,17 +1166,17 @@ struct PromptModelPopover: View {
     ) -> (label: String, icon: String, foregroundColor: Color, backgroundColor: Color) {
         switch normalizedName {
         case "text":
-            return ("Text", "text.alignleft", .blue, Color.blue.opacity(0.18))
+            return (String(localized: "Text"), "text.alignleft", .blue, Color.blue.opacity(0.18))
         case "image", "vision":
-            return ("Image", "photo", .purple, Color.purple.opacity(0.18))
+            return (String(localized: "Image"), "photo", .purple, Color.purple.opacity(0.18))
         case "audio", "speech", "voice":
-            return ("Audio", "waveform", .orange, Color.orange.opacity(0.18))
+            return (String(localized: "Audio"), "waveform", .orange, Color.orange.opacity(0.18))
         case "video":
-            return ("Video", "video", .red, Color.red.opacity(0.18))
+            return (String(localized: "Video"), "video", .red, Color.red.opacity(0.18))
         case "file", "document":
-            return ("File", "doc", .teal, Color.teal.opacity(0.2))
+            return (String(localized: "File"), "doc", .teal, Color.teal.opacity(0.2))
         case "code":
-            return ("Code", "chevron.left.forwardslash.chevron.right", .indigo, Color.indigo.opacity(0.2))
+            return (String(localized: "Code"), "chevron.left.forwardslash.chevron.right", .indigo, Color.indigo.opacity(0.2))
         default:
             return (
                 normalizedName.replacingOccurrences(of: "_", with: " ").capitalized,

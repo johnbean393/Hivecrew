@@ -26,7 +26,7 @@ struct PromptAttachmentButton: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("a", modifiers: [.command, .shift])
-        .help("Attach files (⌘⇧A)")
+        .help(String(localized: "Attach files (⌘⇧A)"))
         .fileImporter(
             isPresented: $showingFilePicker,
             allowedContentTypes: [.item],

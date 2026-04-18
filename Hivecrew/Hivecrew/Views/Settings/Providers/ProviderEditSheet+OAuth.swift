@@ -26,7 +26,7 @@ extension ProviderEditSheet {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.borderless)
-            .help("Refresh auth status")
+            .help(String(localized: "Refresh auth status"))
             .disabled(isAuthenticatingOAuth)
 
             if oauthAuthState == .authenticated {
@@ -54,7 +54,7 @@ extension ProviderEditSheet {
         }
 
         if !isEditing {
-            Text("You can connect now. Auth state and tokens will be retained when you click Save.")
+            Text(String(localized: "You can connect now. Auth state and tokens will be retained when you click Save."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -63,13 +63,13 @@ extension ProviderEditSheet {
     var oauthStatusText: String {
         switch oauthAuthState {
         case .unauthenticated:
-            return "Not connected"
+            return String(localized: "Not connected")
         case .pending:
-            return "Waiting for \(oauthProviderDisplayName) sign-in"
+            return String(localized: "Waiting for \(oauthProviderDisplayName) sign-in")
         case .authenticated:
-            return "Connected to \(oauthProviderDisplayName)"
+            return String(localized: "Connected to \(oauthProviderDisplayName)")
         case .failed:
-            return "Connection failed"
+            return String(localized: "Connection failed")
         }
     }
 
@@ -121,7 +121,7 @@ extension ProviderEditSheet {
                 case .kimi:
                     startResult = try await KimiOAuthCoordinator.shared.startLogin(providerId: activeProviderId)
                 case .none:
-                    throw LLMError.invalidConfiguration(message: "OAuth is not available for this provider")
+                    throw LLMError.invalidConfiguration(message: String(localized: "OAuth is not available for this provider"))
                 }
 
                 persistOAuthStateIfNeeded(

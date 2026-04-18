@@ -35,7 +35,7 @@ struct TerminationConfirmationSheet: View {
                         ActiveWorkRow(
                             icon: "play.circle.fill",
                             iconColor: .green,
-                            title: "Running Local Tasks",
+                            title: String(localized: "Running Local Tasks"),
                             count: terminationManager.activeWorkDetails.runningAgentCount,
                             items: terminationManager.activeWorkDetails.runningTaskTitles
                         )
@@ -45,7 +45,7 @@ struct TerminationConfirmationSheet: View {
                         ActiveWorkRow(
                             icon: "network",
                             iconColor: .blue,
-                            title: "Running Remote Tasks",
+                            title: String(localized: "Running Remote Tasks"),
                             count: terminationManager.activeWorkDetails.remoteTaskCount,
                             items: terminationManager.activeWorkDetails.remoteTaskTitles
                         )
@@ -55,7 +55,7 @@ struct TerminationConfirmationSheet: View {
                         ActiveWorkRow(
                             icon: "clock.fill",
                             iconColor: .yellow,
-                            title: "Queued Tasks",
+                            title: String(localized: "Queued Tasks"),
                             count: terminationManager.activeWorkDetails.queuedTaskCount,
                             items: terminationManager.activeWorkDetails.queuedTaskTitles
                         )
@@ -65,7 +65,7 @@ struct TerminationConfirmationSheet: View {
                         ActiveWorkRow(
                             icon: "desktopcomputer",
                             iconColor: .blue,
-                            title: "Running VMs",
+                            title: String(localized: "Running VMs"),
                             count: terminationManager.activeWorkDetails.totalRunningVMCount,
                             items: []
                         )
@@ -84,10 +84,10 @@ struct TerminationConfirmationSheet: View {
                     .fontWeight(.medium)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    BulletPoint("Running local tasks will be stopped and re-added to the queue")
-                    BulletPoint("Running remote tasks will keep running on their assigned nodes")
-                    BulletPoint("Queued tasks will remain in the queue")
-                    BulletPoint("Running VMs will be stopped")
+                    BulletPoint(String(localized: "Running local tasks will be stopped and re-added to the queue"))
+                    BulletPoint(String(localized: "Running remote tasks will keep running on their assigned nodes"))
+                    BulletPoint(String(localized: "Queued tasks will remain in the queue"))
+                    BulletPoint(String(localized: "Running VMs will be stopped"))
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)

@@ -286,7 +286,11 @@ struct VMProvisioningView: View {
                                     }
                                     
                                     if !provisioningService.fileInjectionSourceExists(injection) {
-                                        Text(injection.hasLiveSourceReference ? "Source file unavailable" : "File missing from assets")
+                                        Text(
+                                            injection.hasLiveSourceReference
+                                                ? String(localized: "Source file unavailable")
+                                                : String(localized: "File missing from assets")
+                                        )
                                             .font(.caption2)
                                             .foregroundStyle(.red)
                                     }
@@ -343,11 +347,11 @@ struct VMProvisioningView: View {
                 let injection = try provisioningService.createFileInjection(from: url)
                 config.fileInjections.append(injection)
             } catch {
-                importError = "Failed to import file: \(error.localizedDescription)"
+                importError = String(localized: "Failed to import file: \(error.localizedDescription)")
             }
             
         case .failure(let error):
-            importError = "File picker error: \(error.localizedDescription)"
+            importError = String(localized: "File picker error: \(error.localizedDescription)")
         }
     }
 }
