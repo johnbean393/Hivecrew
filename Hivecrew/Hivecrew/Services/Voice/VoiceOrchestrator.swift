@@ -349,10 +349,14 @@ final class VoiceOrchestrator: ObservableObject {
         switch preset {
         case .balanced:
             openAIConfig = .init(
-                turnDetection: .semantic(eagerness: .low),
+                turnDetection: .server(
+                    threshold: 0.5,
+                    prefixPaddingMs: 300,
+                    silenceDurationMs: 700
+                ),
                 createResponse: true,
                 interruptResponse: true,
-                noiseReduction: openAINoiseReduction
+                noiseReduction: openAINoiseReduction ?? .farField
             )
             geminiConfig = .init(
                 automaticActivityDetectionEnabled: true,
@@ -366,7 +370,7 @@ final class VoiceOrchestrator: ObservableObject {
         case .noisyRoom:
             openAIConfig = .init(
                 turnDetection: .server(
-                    threshold: 0.72,
+                    threshold: 0.5,
                     prefixPaddingMs: 300,
                     silenceDurationMs: 700
                 ),
