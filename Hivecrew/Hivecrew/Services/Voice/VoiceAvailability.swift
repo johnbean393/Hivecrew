@@ -247,6 +247,15 @@ enum VoiceAvailability {
             return nil
         }
 
+        if let selectedProviderId = defaults.string(forKey: "lastSelectedProviderId")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !selectedProviderId.isEmpty,
+           let selectedProvider = providers.first(where: { $0.id == selectedProviderId }),
+           providerType(for: selectedProvider) == .chatGPTOAuth,
+           hasConfiguredProvider(type: .chatGPTOAuth, providers: providers) {
+            return .chatGPTOAuth
+        }
+
         if hasConfiguredProvider(type: .gemini, providers: providers) {
             return .gemini
         }
