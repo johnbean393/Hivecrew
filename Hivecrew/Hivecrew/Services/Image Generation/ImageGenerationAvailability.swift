@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import HivecrewLLM
 
 /// Status of image generation configuration
 enum ImageGenerationStatus: Equatable {
@@ -17,6 +18,12 @@ enum ImageGenerationStatus: Equatable {
     case noModel
 }
 
+struct ImageGenerationCredentials {
+    let secret: String?
+    let baseURL: URL?
+    let providerId: String?
+}
+
 /// Helper for checking image generation availability
 enum ImageGenerationAvailability {
     private static let imageGenerationEnabledKey = "imageGenerationEnabled"
@@ -25,6 +32,7 @@ enum ImageGenerationAvailability {
     
     static let defaultOpenRouterModel = "google/gemini-3.1-flash-image-preview"
     static let defaultGeminiModel = "gemini-3.1-flash-image-preview"
+    static let defaultChatGPTOAuthModel = "gpt-5.4"
     
     static func defaultModel(for provider: ImageGenerationProvider) -> String {
         switch provider {
@@ -32,6 +40,8 @@ enum ImageGenerationAvailability {
             return defaultOpenRouterModel
         case .gemini:
             return defaultGeminiModel
+        case .chatGPTOAuth:
+            return defaultChatGPTOAuthModel
         }
     }
     
@@ -68,7 +78,7 @@ enum ImageGenerationAvailability {
     
     static func hasConfiguredProvider(type: ImageGenerationProvider, providers: [LLMProviderRecord]) -> Bool {
         providers.contains { provider in
-            providerType(for: provider) == type && hasNonEmptyAPIKey(provider)
+            providerType(for: provider) == type && hasCredentials(for: provider)
         }
     }
     
@@ -110,8 +120,8 @@ enum ImageGenerationAvailability {
     
     /// Get the credentials for the selected image generation provider
     /// - Parameter modelContext: The SwiftData model context to use for fetching providers
-    /// - Returns: Tuple of (apiKey, baseURL) if found
-    static func getCredentials(modelContext: ModelContext) -> (apiKey: String, baseURL: URL?)? {
+    /// - Returns: Credentials for the selected provider if found
+    static func getCredentials(modelContext: ModelContext) -> ImageGenerationCredentials? {
         autoConfigureIfNeeded(modelContext: modelContext)
         
         guard let selectedProviderType = selectedProviderFromDefaults() else {
@@ -123,12 +133,34 @@ enum ImageGenerationAvailability {
             return nil
         }
         
-        // Find first matching provider with API key
+        // Find first matching provider with valid credentials
         for provider in providers {
-            if providerType(for: provider) == selectedProviderType,
-               let apiKey = provider.retrieveAPIKey(),
-               !apiKey.isEmpty {
-                return (apiKey, provider.effectiveBaseURL)
+            guard providerType(for: provider) == selectedProviderType else {
+                continue
+            }
+
+            switch selectedProviderType {
+            case .openRouter, .gemini:
+                guard let apiKey = provider.retrieveAPIKey(),
+                      !apiKey.isEmpty else {
+                    continue
+                }
+
+                return ImageGenerationCredentials(
+                    secret: apiKey,
+                    baseURL: provider.effectiveBaseURL,
+                    providerId: provider.id
+                )
+            case .chatGPTOAuth:
+                guard provider.hasStoredOAuthTokens else {
+                    continue
+                }
+
+                return ImageGenerationCredentials(
+                    secret: nil,
+                    baseURL: nil,
+                    providerId: provider.id
+                )
             }
         }
         
@@ -161,11 +193,19 @@ enum ImageGenerationAvailability {
         if hasConfiguredProvider(type: .gemini, providers: providers) {
             return .gemini
         }
+
+        if hasConfiguredProvider(type: .chatGPTOAuth, providers: providers) {
+            return .chatGPTOAuth
+        }
         
         return nil
     }
     
     private static func providerType(for provider: LLMProviderRecord) -> ImageGenerationProvider? {
+        if provider.oauthProviderKind == .chatgpt || provider.backendMode == .codexOAuth {
+            return .chatGPTOAuth
+        }
+
         let baseURL = provider.effectiveBaseURL.absoluteString.lowercased()
         if baseURL.contains("openrouter.ai") {
             return .openRouter
@@ -176,11 +216,18 @@ enum ImageGenerationAvailability {
         return nil
     }
     
-    private static func hasNonEmptyAPIKey(_ provider: LLMProviderRecord) -> Bool {
-        guard let apiKey = provider.retrieveAPIKey() else {
+    private static func hasCredentials(for provider: LLMProviderRecord) -> Bool {
+        switch providerType(for: provider) {
+        case .chatGPTOAuth:
+            return provider.hasStoredOAuthTokens
+        case .openRouter, .gemini:
+            guard let apiKey = provider.retrieveAPIKey() else {
+                return false
+            }
+            return !apiKey.isEmpty
+        case .none:
             return false
         }
-        return !apiKey.isEmpty
     }
     
     private static func normalizedModel(_ model: String?) -> String {

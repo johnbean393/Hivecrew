@@ -51,19 +51,18 @@ enum SwiftDataStoreManager {
     )
 
     static func makeModelContainer(schema: Schema) throws -> ModelContainer {
-        try prepareStoreIfNeeded()
-
         do {
+            try prepareStoreIfNeeded()
             return try buildContainer(schema: schema)
         } catch {
-            logger.error("SwiftData open failed for canonical store at \(storeURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            logger.error("SwiftData initialization failed for canonical store at \(storeURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
 
-            guard try restoreLatestSnapshotIfNeeded() else {
-                throw error
+            if let recoveredContainer = try recoverFromLatestSnapshot(schema: schema) {
+                return recoveredContainer
             }
 
-            logger.notice("Recovered SwiftData store from the latest automatic snapshot")
-            return try buildContainer(schema: schema)
+            logger.error("SwiftData recovery from snapshot was unavailable or failed; rebuilding the canonical store from scratch")
+            return try rebuildPristineStore(schema: schema, reason: "failed-open")
         }
     }
 
@@ -136,6 +135,21 @@ enum SwiftDataStoreManager {
         return true
     }
 
+    private static func recoverFromLatestSnapshot(schema: Schema) throws -> ModelContainer? {
+        guard try restoreLatestSnapshotIfNeeded() else {
+            return nil
+        }
+
+        logger.notice("Recovered SwiftData store from the latest automatic snapshot")
+
+        do {
+            return try buildContainer(schema: schema)
+        } catch {
+            logger.error("SwiftData open still failed after restoring snapshot: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
     private static func pruneSnapshots(keeping maxCount: Int) throws {
         let snapshots = try FileManager.default.contentsOfDirectory(
             at: autoSnapshotDirectory,
@@ -172,6 +186,19 @@ enum SwiftDataStoreManager {
         }
     }
 
+    private static func rebuildPristineStore(schema: Schema, reason: String) throws -> ModelContainer {
+        do {
+            try archiveCurrentStore(reason: reason)
+        } catch {
+            logger.error("Failed to archive the current SwiftData store during recovery: \(String(describing: error), privacy: .public)")
+        }
+
+        try removeExistingStoreFiles(in: storeDirectory)
+        let container = try buildContainer(schema: schema)
+        logger.notice("Rebuilt the SwiftData store from scratch after recovery failure")
+        return container
+    }
+
     private static func copyStoreFiles(from sourceDirectory: URL, to destinationDirectory: URL, replaceExisting: Bool) throws {
         try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
 
@@ -201,6 +228,12 @@ enum SwiftDataStoreManager {
         storeFileNames.compactMap { fileName in
             let fileURL = directory.appendingPathComponent(fileName)
             return FileManager.default.fileExists(atPath: fileURL.path) ? fileURL : nil
+        }
+    }
+
+    private static func removeExistingStoreFiles(in directory: URL) throws {
+        for fileURL in existingStoreFiles(in: directory) {
+            try FileManager.default.removeItem(at: fileURL)
         }
     }
 

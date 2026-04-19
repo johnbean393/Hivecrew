@@ -142,13 +142,16 @@ struct ToolsSettingsView: View {
                     Picker("Provider", selection: $imageGenerationProvider) {
                         Text("OpenRouter").tag("openRouter")
                         Text("Google Gemini").tag("gemini")
+                        Text("OpenAI OAuth").tag("chatGPTOAuth")
                     }
                     .pickerStyle(.segmented)
 
                     if imageGenerationProvider == "openRouter" {
                         openRouterConfigView
-                    } else {
+                    } else if imageGenerationProvider == "gemini" {
                         geminiConfigView
+                    } else {
+                        chatGPTOAuthConfigView
                     }
 
                     Divider()
@@ -206,6 +209,23 @@ struct ToolsSettingsView: View {
         .padding(.vertical, 4)
     }
 
+    private var chatGPTOAuthConfigView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: hasChatGPTOAuthProvider ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(hasChatGPTOAuthProvider ? .green : .orange)
+                Text(
+                    hasChatGPTOAuthProvider
+                        ? String(localized: "Using ChatGPT OAuth provider from Providers settings")
+                        : "No ChatGPT OAuth provider configured. Add one in the Providers tab and connect it first."
+                )
+                    .font(.caption)
+                    .foregroundStyle(hasChatGPTOAuthProvider ? Color.secondary : Color.orange)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
     // MARK: - Skills Section
 
     private var skillsSection: some View {
@@ -237,9 +257,16 @@ struct ToolsSettingsView: View {
     // MARK: - Computed Properties
 
     private var modelHelpText: String {
-        imageGenerationProvider == "openRouter"
-            ? String(localized: "e.g., google/gemini-3.1-flash-image-preview, google/gemini-3-pro-image-preview")
-            : String(localized: "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview")
+        switch imageGenerationProvider {
+        case "openRouter":
+            return String(localized: "e.g., google/gemini-3.1-flash-image-preview, google/gemini-3-pro-image-preview")
+        case "gemini":
+            return String(localized: "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview")
+        case "chatGPTOAuth":
+            return "e.g., gpt-5.4, gpt-5.4-mini, gpt-5.2"
+        default:
+            return ""
+        }
     }
 
     private var hasOpenRouterProvider: Bool {
@@ -250,8 +277,21 @@ struct ToolsSettingsView: View {
         ImageGenerationAvailability.hasConfiguredProvider(type: .gemini, providers: providers)
     }
 
+    private var hasChatGPTOAuthProvider: Bool {
+        ImageGenerationAvailability.hasConfiguredProvider(type: .chatGPTOAuth, providers: providers)
+    }
+
     private var isProviderConfigured: Bool {
-        imageGenerationProvider == "openRouter" ? hasOpenRouterProvider : hasGeminiProvider
+        switch imageGenerationProvider {
+        case "openRouter":
+            return hasOpenRouterProvider
+        case "gemini":
+            return hasGeminiProvider
+        case "chatGPTOAuth":
+            return hasChatGPTOAuthProvider
+        default:
+            return false
+        }
     }
 
     // MARK: - Helpers

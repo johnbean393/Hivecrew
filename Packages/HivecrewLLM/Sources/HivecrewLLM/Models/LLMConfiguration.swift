@@ -70,11 +70,11 @@ public func normalizedLLMProviderBaseURLString(_ rawValue: String?) -> String? {
     return normalizedLLMProviderBaseURL(parsed)?.absoluteString ?? trimmed
 }
 
-func resolvedCodexOAuthClientVersion() -> String {
+public func resolvedCodexOAuthClientVersion() -> String {
     cachedCodexOAuthClientVersion
 }
 
-func buildCodexOAuthURL(pathComponent: String, clientVersion: String? = nil) -> URL {
+public func buildCodexOAuthURL(pathComponent: String, clientVersion: String? = nil) -> URL {
     var components = URLComponents(
         url: codexOAuthBaseURL.appendingPathComponent(pathComponent),
         resolvingAgainstBaseURL: false

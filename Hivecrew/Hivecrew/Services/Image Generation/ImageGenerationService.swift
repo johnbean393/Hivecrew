@@ -2,7 +2,7 @@
 //  ImageGenerationService.swift
 //  Hivecrew
 //
-//  Service for generating images using OpenRouter or Gemini APIs
+//  Service for generating images using OpenRouter, Gemini, or ChatGPT OAuth
 //
 
 import Foundation
@@ -14,27 +14,31 @@ import HivecrewLLM
 enum ImageGenerationProvider: String, Codable, Sendable {
     case openRouter = "openRouter"
     case gemini = "gemini"
+    case chatGPTOAuth = "chatGPTOAuth"
 }
 
 /// Configuration for image generation
 struct ImageGenerationConfiguration: Sendable {
     let provider: ImageGenerationProvider
     let model: String
-    let apiKey: String
+    let apiKey: String?
     let baseURL: URL?
+    let oauthProviderId: String?
     let aspectRatio: String?
     
     init(
         provider: ImageGenerationProvider,
         model: String,
-        apiKey: String,
+        apiKey: String? = nil,
         baseURL: URL? = nil,
+        oauthProviderId: String? = nil,
         aspectRatio: String? = nil
     ) {
         self.provider = provider
         self.model = model
         self.apiKey = apiKey
         self.baseURL = baseURL
+        self.oauthProviderId = oauthProviderId
         self.aspectRatio = aspectRatio
     }
 }
@@ -51,6 +55,7 @@ enum ImageGenerationError: Error, LocalizedError {
     case invalidResponse
     case noImageInResponse
     case failedToSaveImage
+    case authenticationFailed(String)
     case apiError(String)
     case networkError(Error)
     case failedToReadReferenceImage(String)
@@ -65,6 +70,8 @@ enum ImageGenerationError: Error, LocalizedError {
             return "No image found in API response"
         case .failedToSaveImage:
             return "Failed to save generated image"
+        case .authenticationFailed(let message):
+            return "Authentication failed: \(message)"
         case .apiError(let message):
             return "API error: \(message)"
         case .networkError(let error):
@@ -79,6 +86,7 @@ enum ImageGenerationError: Error, LocalizedError {
 
 /// Service for generating images using AI APIs
 final class ImageGenerationService: Sendable {
+    private let defaultCodexOAuthInstructions = "You are a helpful assistant."
     
     /// Output directory for generated images
     let outputDirectory: URL
@@ -120,6 +128,12 @@ final class ImageGenerationService: Sendable {
                 referenceImages: referenceImages,
                 config: config
             )
+        case .chatGPTOAuth:
+            (base64Image, description) = try await generateWithChatGPTOAuth(
+                prompt: prompt,
+                referenceImages: referenceImages,
+                config: config
+            )
         }
         
         // Save the image
@@ -135,12 +149,16 @@ final class ImageGenerationService: Sendable {
         referenceImages: [(data: String, mimeType: String)]?,
         config: ImageGenerationConfiguration
     ) async throws -> (base64: String, description: String?) {
+        guard let apiKey = config.apiKey, !apiKey.isEmpty else {
+            throw ImageGenerationError.authenticationFailed("OpenRouter API key is missing")
+        }
+
         let baseURL = config.baseURL ?? defaultLLMProviderBaseURL
         let endpoint = baseURL.appendingPathComponent("chat/completions")
         
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 120
         
@@ -218,11 +236,15 @@ final class ImageGenerationService: Sendable {
         referenceImages: [(data: String, mimeType: String)]?,
         config: ImageGenerationConfiguration
     ) async throws -> (base64: String, description: String?) {
+        guard let apiKey = config.apiKey, !apiKey.isEmpty else {
+            throw ImageGenerationError.authenticationFailed("Google AI Studio API key is missing")
+        }
+
         let endpoint = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(config.model):generateContent")!
         
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.setValue(config.apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 120
         
@@ -307,6 +329,71 @@ final class ImageGenerationService: Sendable {
         
         return (base64, textDescription)
     }
+
+    private func generateWithChatGPTOAuth(
+        prompt: String,
+        referenceImages: [(data: String, mimeType: String)]?,
+        config: ImageGenerationConfiguration,
+        forceRefresh: Bool = false
+    ) async throws -> (base64: String, description: String?) {
+        guard let providerId = config.oauthProviderId, !providerId.isEmpty else {
+            throw ImageGenerationError.authenticationFailed("ChatGPT OAuth provider is missing")
+        }
+
+        let accessToken: String
+        do {
+            accessToken = try await resolveChatGPTOAuthAccessToken(
+                providerId: providerId,
+                timeoutInterval: 120,
+                forceRefresh: forceRefresh
+            )
+        } catch let error as LLMError {
+            throw ImageGenerationError.authenticationFailed(error.localizedDescription)
+        } catch {
+            throw ImageGenerationError.authenticationFailed(error.localizedDescription)
+        }
+
+        var request = URLRequest(url: buildCodexOAuthURL(pathComponent: "responses"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 120
+
+        let body = buildCodexOAuthImageGenerationRequestBody(
+            prompt: prompt,
+            referenceImages: referenceImages,
+            model: config.model,
+            aspectRatio: config.aspectRatio
+        )
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.timeoutIntervalForRequest = 120
+        sessionConfiguration.timeoutIntervalForResource = 120
+        sessionConfiguration.waitsForConnectivity = false
+        let session = URLSession(configuration: sessionConfiguration)
+
+        let (bytes, response) = try await session.bytes(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ImageGenerationError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorBody = try await readErrorBody(from: bytes)
+            if (httpResponse.statusCode == 401 || httpResponse.statusCode == 403), !forceRefresh {
+                return try await generateWithChatGPTOAuth(
+                    prompt: prompt,
+                    referenceImages: referenceImages,
+                    config: config,
+                    forceRefresh: true
+                )
+            }
+            throw ImageGenerationError.apiError("HTTP \(httpResponse.statusCode): \(errorBody)")
+        }
+
+        return try await parseCodexOAuthImageGenerationStream(bytes)
+    }
     
     // MARK: - Helpers
     
@@ -376,5 +463,185 @@ final class ImageGenerationService: Sendable {
         }
         // If no prefix, assume it's already just base64
         return dataURL
+    }
+
+    private func buildCodexOAuthImageGenerationRequestBody(
+        prompt: String,
+        referenceImages: [(data: String, mimeType: String)]?,
+        model: String,
+        aspectRatio: String?
+    ) -> [String: Any] {
+        let effectivePrompt: String
+        if let aspectRatio, !aspectRatio.isEmpty {
+            effectivePrompt = "\(prompt)\n\nUse an aspect ratio of \(aspectRatio)."
+        } else {
+            effectivePrompt = prompt
+        }
+
+        var content: [[String: Any]] = [
+            ["type": "input_text", "text": effectivePrompt]
+        ]
+
+        if let referenceImages {
+            for image in referenceImages {
+                content.append([
+                    "type": "input_image",
+                    "image_url": "data:\(image.mimeType);base64,\(image.data)"
+                ])
+            }
+        }
+
+        return [
+            "model": model,
+            "store": false,
+            "stream": true,
+            "instructions": defaultCodexOAuthInstructions,
+            "input": [[
+                "type": "message",
+                "role": "user",
+                "content": content
+            ]],
+            "tools": [[
+                "type": "image_generation"
+            ]]
+        ]
+    }
+
+    private func parseCodexOAuthImageGenerationStream(
+        _ bytes: URLSession.AsyncBytes
+    ) async throws -> (base64: String, description: String?) {
+        var lineBuffer = Data()
+        var imageBase64: String?
+        var revisedPrompt: String?
+        var textDescription: String?
+
+        func processPayload(_ payload: String) throws {
+            guard let eventData = payload.data(using: .utf8),
+                  let event = try JSONSerialization.jsonObject(with: eventData) as? [String: Any] else {
+                return
+            }
+
+            if let error = event["error"] as? [String: Any] {
+                let message = error["message"] as? String ?? "Unknown error"
+                throw ImageGenerationError.apiError(message)
+            }
+
+            switch event["type"] as? String {
+            case "response.failed":
+                let message = (event["error"] as? [String: Any])?["message"] as? String ?? "Response failed"
+                throw ImageGenerationError.apiError(message)
+            case "response.output_text.done":
+                if let text = event["text"] as? String, !text.isEmpty {
+                    textDescription = text
+                }
+            case "response.content_part.done":
+                guard let part = event["part"] as? [String: Any] else {
+                    return
+                }
+                let partType = part["type"] as? String
+                if (partType == "output_text" || partType == "text"),
+                   let text = part["text"] as? String,
+                   !text.isEmpty {
+                    textDescription = text
+                }
+            case "response.output_item.done":
+                guard let item = event["item"] as? [String: Any] else {
+                    return
+                }
+                if let extracted = extractImageGenerationResult(from: item) {
+                    imageBase64 = extracted.base64
+                    revisedPrompt = extracted.revisedPrompt ?? revisedPrompt
+                }
+            case "response.completed":
+                guard let response = event["response"] as? [String: Any] else {
+                    return
+                }
+                if let output = response["output"] as? [[String: Any]] {
+                    for item in output {
+                        if let extracted = extractImageGenerationResult(from: item) {
+                            imageBase64 = extracted.base64
+                            revisedPrompt = extracted.revisedPrompt ?? revisedPrompt
+                        }
+
+                        guard item["type"] as? String == "message",
+                              let content = item["content"] as? [[String: Any]] else {
+                            continue
+                        }
+
+                        for contentItem in content {
+                            let contentType = contentItem["type"] as? String
+                            if (contentType == "output_text" || contentType == "text"),
+                               let text = contentItem["text"] as? String,
+                               !text.isEmpty {
+                                textDescription = text
+                            }
+                        }
+                    }
+                }
+            default:
+                return
+            }
+        }
+
+        for try await byte in bytes {
+            if byte == 0x0A {
+                guard let line = String(data: lineBuffer, encoding: .utf8) else {
+                    lineBuffer.removeAll()
+                    continue
+                }
+                lineBuffer.removeAll()
+
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, trimmed.hasPrefix("data:") else {
+                    continue
+                }
+
+                let payload = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                guard payload != "[DONE]" else {
+                    break
+                }
+
+                try processPayload(String(payload))
+            } else {
+                lineBuffer.append(byte)
+            }
+        }
+
+        if !lineBuffer.isEmpty,
+           let line = String(data: lineBuffer, encoding: .utf8) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("data:") {
+                let payload = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                if payload != "[DONE]" {
+                    try processPayload(String(payload))
+                }
+            }
+        }
+
+        guard let imageBase64, !imageBase64.isEmpty else {
+            throw ImageGenerationError.noImageInResponse
+        }
+
+        return (imageBase64, revisedPrompt ?? textDescription)
+    }
+
+    private func extractImageGenerationResult(
+        from item: [String: Any]
+    ) -> (base64: String, revisedPrompt: String?)? {
+        guard item["type"] as? String == "image_generation_call",
+              let result = item["result"] as? String,
+              !result.isEmpty else {
+            return nil
+        }
+
+        return (result, item["revised_prompt"] as? String)
+    }
+
+    private func readErrorBody(from bytes: URLSession.AsyncBytes) async throws -> String {
+        var errorData = Data()
+        for try await byte in bytes {
+            errorData.append(byte)
+        }
+        return String(data: errorData, encoding: .utf8) ?? "No response body"
     }
 }

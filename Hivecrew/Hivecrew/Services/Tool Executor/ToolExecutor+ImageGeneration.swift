@@ -114,15 +114,16 @@ extension ToolExecutor {
         }
         
         // Get credentials using the shared helper
-        guard let (apiKey, baseURL) = ImageGenerationAvailability.getCredentials(modelContext: modelContext) else {
+        guard let credentials = ImageGenerationAvailability.getCredentials(modelContext: modelContext) else {
             return nil
         }
         
         return ImageGenerationConfiguration(
             provider: provider,
             model: model,
-            apiKey: apiKey,
-            baseURL: provider == .openRouter ? baseURL : nil,
+            apiKey: credentials.secret,
+            baseURL: provider == .openRouter ? credentials.baseURL : nil,
+            oauthProviderId: provider == .chatGPTOAuth ? credentials.providerId : nil,
             aspectRatio: aspectRatio
         )
     }

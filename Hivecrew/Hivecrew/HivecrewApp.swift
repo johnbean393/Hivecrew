@@ -33,7 +33,20 @@ struct HivecrewApp: App {
         do {
             return try SwiftDataStoreManager.makeModelContainer(schema: schema)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            NSLog("Could not create on-disk ModelContainer: \(error)")
+
+            do {
+                let fallbackConfiguration = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: true
+                )
+                return try ModelContainer(
+                    for: schema,
+                    configurations: [fallbackConfiguration]
+                )
+            } catch {
+                fatalError("Could not create fallback ModelContainer: \(error)")
+            }
         }
     }()
     
