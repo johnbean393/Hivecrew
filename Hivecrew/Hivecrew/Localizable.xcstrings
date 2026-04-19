@@ -11078,6 +11078,12 @@
         }
       }
     },
+    "Choose which configured realtime provider voice mode should use." : {
+
+    },
+    "Choose which configured realtime voice provider Hivecrew should use during calls. You can adjust microphone and advanced voice options later in Settings → Voice." : {
+
+    },
     "Choose which task completion events trigger system notifications" : {
       "localizations" : {
         "de" : {
@@ -33602,6 +33608,9 @@
         }
       }
     },
+    "No voice models available for the selected provider." : {
+
+    },
     "No workers assigned yet" : {
       "localizations" : {
         "de" : {
@@ -55679,6 +55688,9 @@
         }
       }
     },
+    "Voice Model" : {
+
+    },
     "Voice profile ready" : {
       "localizations" : {
         "de" : {
@@ -55864,6 +55876,7 @@
       }
     },
     "Voice provider detected" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -57802,6 +57815,7 @@
       }
     },
     "Your existing voice provider will be used for voice mode. You can update voice settings later in Settings → Voice." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

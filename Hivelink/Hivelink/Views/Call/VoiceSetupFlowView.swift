@@ -15,12 +15,21 @@ struct VoiceSetupFlowView: View {
     @AppStorage("hivelink.voiceApiKey") private var voiceApiKey = ""
     @AppStorage("hivelink.voiceName") private var voiceName = "Leda"
 
+    @State private var editingProvider = HivelinkVoiceProvider.gemini.rawValue
     @State private var editingKey = ""
-    @State private var editingName = ""
+    @State private var editingVoiceName = "Leda"
     @State private var showingKey = false
 
     private var isValid: Bool {
         !editingKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var selectedEditingProvider: HivelinkVoiceProvider {
+        HivelinkVoiceProvider.from(editingProvider)
+    }
+
+    private var availableVoiceOptions: [RealtimeVoiceOption] {
+        HivelinkVoicePreferences.availableVoices(for: selectedEditingProvider)
     }
 
     var body: some View {
@@ -46,9 +55,25 @@ struct VoiceSetupFlowView: View {
                 .frame(height: 40)
 
             VStack(spacing: 20) {
-                Picker("Provider", selection: $voiceProvider) {
-                    Text("Gemini").tag("gemini")
-                    Text("OpenAI").tag("openai")
+                Picker(
+                    "Provider",
+                    selection: Binding(
+                        get: { editingProvider },
+                        set: { newValue in
+                            let oldProvider = selectedEditingProvider
+                            HivelinkVoicePreferences.saveVoiceName(editingVoiceName, for: oldProvider)
+
+                            editingProvider = HivelinkVoiceProvider.from(newValue).rawValue
+                            editingVoiceName = HivelinkVoicePreferences.restoredVoiceName(
+                                for: selectedEditingProvider,
+                                currentVoiceName: editingVoiceName
+                            )
+                        }
+                    )
+                ) {
+                    ForEach(HivelinkVoiceProvider.allCases) { provider in
+                        Text(provider.displayName).tag(provider.rawValue)
+                    }
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 24)
@@ -83,12 +108,31 @@ struct VoiceSetupFlowView: View {
                 .padding(.horizontal, 24)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Voice Name")
+                    Text("Voice")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
 
-                    TextField("Leda", text: $editingName)
-                        .autocorrectionDisabled()
+                    Picker(
+                        "Voice",
+                        selection: Binding(
+                            get: {
+                                HivelinkVoicePreferences.normalizedVoiceName(
+                                    editingVoiceName,
+                                    for: selectedEditingProvider
+                                )
+                            },
+                            set: { newValue in
+                                editingVoiceName = HivelinkVoicePreferences.saveVoiceName(
+                                    newValue,
+                                    for: selectedEditingProvider
+                                )
+                            }
+                        )
+                    ) {
+                        ForEach(availableVoiceOptions) { voice in
+                            Text(voice.displayName).tag(voice.id)
+                        }
+                    }
                         .padding(12)
                         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10))
                 }
@@ -98,10 +142,13 @@ struct VoiceSetupFlowView: View {
             Spacer()
 
             Button {
+                let selectedProvider = selectedEditingProvider
                 voiceApiKey = editingKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    voiceName = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
+                voiceProvider = selectedProvider.rawValue
+                voiceName = HivelinkVoicePreferences.saveVoiceName(
+                    editingVoiceName,
+                    for: selectedProvider
+                )
                 orchestrator.startCall()
             } label: {
                 Text("Save & Start Call")
@@ -116,7 +163,12 @@ struct VoiceSetupFlowView: View {
         }
         .onAppear {
             editingKey = voiceApiKey
-            editingName = voiceName
+            let normalized = HivelinkVoicePreferences.normalizeStoredSelection(
+                providerRawValue: voiceProvider,
+                voiceName: voiceName
+            )
+            editingProvider = normalized.provider.rawValue
+            editingVoiceName = normalized.voiceName
         }
     }
 }

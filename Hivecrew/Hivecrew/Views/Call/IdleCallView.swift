@@ -91,68 +91,26 @@ struct VoiceSettingsPopover: View {
 
     @EnvironmentObject var orchestrator: VoiceOrchestrator
 
-    private let geminiVoices: [(name: String, descriptor: String)] = [
-        ("Zephyr", "Bright"),
-        ("Puck", "Upbeat"),
-        ("Charon", "Informative"),
-        ("Kore", "Firm"),
-        ("Fenrir", "Excitable"),
-        ("Leda", "Youthful"),
-        ("Orus", "Firm"),
-        ("Aoede", "Breezy"),
-        ("Callirrhoe", "Easy-going"),
-        ("Autonoe", "Bright"),
-        ("Enceladus", "Breathy"),
-        ("Iapetus", "Clear"),
-        ("Umbriel", "Easy-going"),
-        ("Algieba", "Smooth"),
-        ("Despina", "Smooth"),
-        ("Erinome", "Clear"),
-        ("Algenib", "Gravelly"),
-        ("Rasalgethi", "Informative"),
-        ("Laomedeia", "Upbeat"),
-        ("Achernar", "Soft"),
-        ("Alnilam", "Firm"),
-        ("Schedar", "Even"),
-        ("Gacrux", "Mature"),
-        ("Pulcherrima", "Forward"),
-        ("Achird", "Friendly"),
-        ("Zubenelgenubi", "Casual"),
-        ("Vindemiatrix", "Gentle"),
-        ("Sadachbia", "Lively"),
-        ("Sadaltager", "Knowledgeable"),
-        ("Sulafat", "Warm"),
-    ]
-
-    private let openAIVoices: [(name: String, descriptor: String)] = [
-        ("marin", "Natural"),
-        ("cedar", "Friendly"),
-        ("alloy", "Versatile"),
-        ("ash", "Conversational"),
-        ("ballad", "Expressive"),
-        ("coral", "Warm"),
-        ("echo", "Crisp"),
-        ("sage", "Authoritative"),
-        ("shimmer", "Gentle"),
-        ("verse", "Dynamic"),
-    ]
-
     private var currentProviderType: VoiceProviderType? {
         VoiceProviderType(rawValue: orchestrator.voiceProviderTypeRaw)
     }
 
-    private var voicesForCurrentProvider: [(name: String, descriptor: String)] {
+    private var voicesForCurrentProvider: [RealtimeVoiceOption] {
         switch currentProviderType {
-        case .openAI, .chatGPTOAuth: return openAIVoices
-        default: return geminiVoices
+        case .openAI, .chatGPTOAuth:
+            return RealtimeVoiceCatalog.openAIVoices
+        default:
+            return RealtimeVoiceCatalog.geminiVoices
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Picker("Voice", selection: $orchestrator.voiceName) {
-                ForEach(voicesForCurrentProvider, id: \.name) { voice in
-                    Text("\(voice.name.capitalized) — \(voice.descriptor)").tag(voice.name)
+                ForEach(voicesForCurrentProvider) { voice in
+                    let label = voice.descriptor.map { "\(voice.displayName.capitalized) — \($0)" }
+                        ?? voice.displayName.capitalized
+                    Text(label).tag(voice.id)
                 }
             }
             .labelsHidden()

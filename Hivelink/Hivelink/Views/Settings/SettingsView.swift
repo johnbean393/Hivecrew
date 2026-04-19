@@ -6,6 +6,7 @@
 import HivecrewAPIModels
 import HivecrewCore
 import HivecrewShared
+import HivecrewVoice
 import SwiftData
 import SwiftUI
 
@@ -59,6 +60,14 @@ struct SettingsView: View {
         coordinator.peers.count
     }
 
+    private var selectedVoiceProvider: HivelinkVoiceProvider {
+        HivelinkVoiceProvider.from(voiceProvider)
+    }
+
+    private var availableVoiceOptions: [RealtimeVoiceOption] {
+        HivelinkVoicePreferences.availableVoices(for: selectedVoiceProvider)
+    }
+
     var body: some View {
         Form {
             accountSection
@@ -70,6 +79,7 @@ struct SettingsView: View {
             aboutSection
         }
         .task {
+            syncVoiceSelection()
             cacheSize = Self.computeCacheSize()
         }
     }
@@ -161,9 +171,26 @@ struct SettingsView: View {
 
     private var voiceSection: some View {
         Section {
-            Picker(String(localized: "Provider"), selection: $voiceProvider) {
-                Text("Gemini").tag("gemini")
-                Text("OpenAI").tag("openai")
+            Picker(
+                String(localized: "Provider"),
+                selection: Binding(
+                    get: { voiceProvider },
+                    set: { newValue in
+                        let oldProvider = selectedVoiceProvider
+                        HivelinkVoicePreferences.saveVoiceName(voiceName, for: oldProvider)
+
+                        let newProvider = HivelinkVoiceProvider.from(newValue)
+                        voiceProvider = newProvider.rawValue
+                        voiceName = HivelinkVoicePreferences.restoredVoiceName(
+                            for: newProvider,
+                            currentVoiceName: voiceName
+                        )
+                    }
+                )
+            ) {
+                ForEach(HivelinkVoiceProvider.allCases) { provider in
+                    Text(provider.displayName).tag(provider.rawValue)
+                }
             }
 
             LabeledContent(String(localized: "API Key")) {
@@ -171,10 +198,28 @@ struct SettingsView: View {
                     .multilineTextAlignment(.trailing)
             }
 
-            LabeledContent(String(localized: "Voice Name")) {
-                TextField(String(localized: "Voice name"), text: $voiceName)
-                    .multilineTextAlignment(.trailing)
+            Picker(
+                String(localized: "Voice"),
+                selection: Binding(
+                    get: {
+                        HivelinkVoicePreferences.normalizedVoiceName(
+                            voiceName,
+                            for: selectedVoiceProvider
+                        )
+                    },
+                    set: { newValue in
+                        voiceName = HivelinkVoicePreferences.saveVoiceName(
+                            newValue,
+                            for: selectedVoiceProvider
+                        )
+                    }
+                )
+            ) {
+                ForEach(availableVoiceOptions) { voice in
+                    Text(voice.displayName).tag(voice.id)
+                }
             }
+            .pickerStyle(.menu)
 
             Picker(String(localized: "Media Resolution"), selection: $mediaResolution) {
                 Text(String(localized: "Low")).tag("low")
@@ -191,6 +236,15 @@ struct SettingsView: View {
         } header: {
             Text(String(localized: "Voice"))
         }
+    }
+
+    private func syncVoiceSelection() {
+        let normalized = HivelinkVoicePreferences.normalizeStoredSelection(
+            providerRawValue: voiceProvider,
+            voiceName: voiceName
+        )
+        voiceProvider = normalized.provider.rawValue
+        voiceName = normalized.voiceName
     }
 
     // MARK: - Notifications

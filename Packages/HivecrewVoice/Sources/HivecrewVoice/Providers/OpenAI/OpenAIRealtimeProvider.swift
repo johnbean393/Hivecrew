@@ -50,18 +50,14 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     var model: String = "gpt-realtime-1.5"
     var activeModel: String? { model }
 
-    static let availableVoices: [(id: String, name: String, descriptor: String)] = [
-        ("marin", "Marin", "Natural"),
-        ("cedar", "Cedar", "Friendly"),
-        ("alloy", "Alloy", "Versatile"),
-        ("ash", "Ash", "Conversational"),
-        ("ballad", "Ballad", "Expressive"),
-        ("coral", "Coral", "Warm"),
-        ("echo", "Echo", "Crisp"),
-        ("sage", "Sage", "Authoritative"),
-        ("shimmer", "Shimmer", "Gentle"),
-        ("verse", "Verse", "Dynamic"),
-    ]
+    static let availableVoices: [(id: String, name: String, descriptor: String)] =
+        RealtimeVoiceCatalog.openAIVoices.map { voice in
+            (
+                id: voice.id,
+                name: voice.displayName.capitalized,
+                descriptor: voice.descriptor ?? ""
+            )
+        }
 
     var currentSessionConfig: VoiceSessionConfig?
     var isManualDisconnect = false

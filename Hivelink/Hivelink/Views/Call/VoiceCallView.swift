@@ -372,9 +372,13 @@ struct CallControlButton: View {
 
 extension HivelinkVoiceOrchestrator {
     var voiceDisplayName: String {
-        let name = UserDefaults.standard.string(forKey: "hivelink.voiceName")?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return name.isEmpty ? "Leda" : name
+        let provider = HivelinkVoiceProvider.from(
+            UserDefaults.standard.string(forKey: HivelinkVoicePreferences.providerKey) ?? "gemini"
+        )
+        return HivelinkVoicePreferences.restoredVoiceName(
+            for: provider,
+            currentVoiceName: UserDefaults.standard.string(forKey: HivelinkVoicePreferences.voiceNameKey)
+        )
     }
 }
 

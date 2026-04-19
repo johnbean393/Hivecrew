@@ -42,6 +42,104 @@ enum VoiceInputSource: String, CaseIterable, Identifiable {
     }
 }
 
+enum HivelinkVoiceProvider: String, CaseIterable, Identifiable {
+    case gemini
+    case openAI = "openai"
+
+    var id: String { rawValue }
+
+    var backend: VoiceProviderBackend {
+        switch self {
+        case .gemini:
+            return .geminiLive
+        case .openAI:
+            return .openAIRealtime
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .gemini:
+            return "Gemini"
+        case .openAI:
+            return "OpenAI"
+        }
+    }
+
+    static func from(_ rawValue: String) -> Self {
+        Self(rawValue: rawValue) ?? .gemini
+    }
+}
+
+enum HivelinkVoicePreferences {
+    static let providerKey = "hivelink.voiceProvider"
+    static let voiceNameKey = "hivelink.voiceName"
+
+    private static func perProviderVoiceKey(_ provider: HivelinkVoiceProvider) -> String {
+        "hivelink.voiceName.\(provider.rawValue)"
+    }
+
+    static func availableVoices(for provider: HivelinkVoiceProvider) -> [RealtimeVoiceOption] {
+        RealtimeVoiceCatalog.voices(for: provider.backend)
+    }
+
+    static func defaultVoiceName(for provider: HivelinkVoiceProvider) -> String {
+        RealtimeVoiceCatalog.defaultVoiceName(for: provider.backend)
+    }
+
+    static func normalizedVoiceName(_ voiceName: String, for provider: HivelinkVoiceProvider) -> String {
+        let trimmed = voiceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return defaultVoiceName(for: provider) }
+
+        if availableVoices(for: provider).contains(where: { $0.id == trimmed }) {
+            return trimmed
+        }
+
+        return defaultVoiceName(for: provider)
+    }
+
+    @discardableResult
+    static func saveVoiceName(
+        _ voiceName: String,
+        for provider: HivelinkVoiceProvider,
+        defaults: UserDefaults = .standard
+    ) -> String {
+        let normalized = normalizedVoiceName(voiceName, for: provider)
+        defaults.set(normalized, forKey: voiceNameKey)
+        defaults.set(normalized, forKey: perProviderVoiceKey(provider))
+        return normalized
+    }
+
+    @discardableResult
+    static func restoredVoiceName(
+        for provider: HivelinkVoiceProvider,
+        currentVoiceName: String? = nil,
+        defaults: UserDefaults = .standard
+    ) -> String {
+        let stored = defaults.string(forKey: perProviderVoiceKey(provider))
+            ?? currentVoiceName
+            ?? defaults.string(forKey: voiceNameKey)
+            ?? ""
+        return saveVoiceName(stored, for: provider, defaults: defaults)
+    }
+
+    @discardableResult
+    static func normalizeStoredSelection(
+        providerRawValue: String,
+        voiceName: String,
+        defaults: UserDefaults = .standard
+    ) -> (provider: HivelinkVoiceProvider, voiceName: String) {
+        let provider = HivelinkVoiceProvider.from(providerRawValue)
+        defaults.set(provider.rawValue, forKey: providerKey)
+        let normalizedVoiceName = restoredVoiceName(
+            for: provider,
+            currentVoiceName: voiceName,
+            defaults: defaults
+        )
+        return (provider, normalizedVoiceName)
+    }
+}
+
 // MARK: - Call State
 
 enum HivelinkCallState: Equatable {
@@ -329,6 +427,13 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         voiceProviderRaw == "openai" ? .openAIRealtime : .geminiLive
     }
 
+    private var resolvedVoiceName: String {
+        HivelinkVoicePreferences.normalizedVoiceName(
+            voiceName,
+            for: HivelinkVoiceProvider.from(voiceProviderRaw)
+        )
+    }
+
     private var selectedModel: String {
         backend == .openAIRealtime ? "gpt-realtime-1.5" : "gemini-3.1-flash-live-preview"
     }
@@ -528,7 +633,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
         let config = VoiceSessionConfig(
             systemPrompt: systemPrompt,
-            voiceName: voiceName,
+            voiceName: resolvedVoiceName,
             tools: HivelinkToolHandler.toolDeclarations,
             mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
             thinkingLevel: .low,
@@ -1204,7 +1309,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             let systemPrompt = makeSystemPrompt(context: nil)
             let config = VoiceSessionConfig(
                 systemPrompt: systemPrompt,
-                voiceName: voiceName,
+                voiceName: resolvedVoiceName,
                 tools: HivelinkToolHandler.toolDeclarations,
                 mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
                 thinkingLevel: .low,
