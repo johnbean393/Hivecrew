@@ -92,6 +92,7 @@ struct PromptBar: View {
         }
         .animation(.easeInOut(duration: 0.2), value: attachmentURLs.count)
         .onAppear {
+            restoreVoiceTaskLaunchSnapshotIfAvailable()
             seedDefaultsIfNeeded()
             persistVoiceTaskLaunchSnapshot()
         }
@@ -610,6 +611,30 @@ struct PromptBar: View {
         else { return }
         if storedProviderName.isEmpty { storedProviderName = first.providerName }
         if storedModelId.isEmpty { storedModelId = first.modelId }
+    }
+
+    private func restoreVoiceTaskLaunchSnapshotIfAvailable() {
+        guard let data = UserDefaults.standard.data(forKey: Self.voiceTaskLaunchSnapshotDefaultsKey),
+              let snapshot = try? JSONDecoder().decode(VoiceTaskLaunchSnapshot.self, from: data)
+        else { return }
+
+        let providerName = snapshot.providerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelId = snapshot.modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !providerName.isEmpty {
+            storedProviderName = providerName
+        }
+        if !modelId.isEmpty {
+            storedModelId = modelId
+        }
+
+        selectedExecutionTarget = snapshot.executionTarget
+        reasoningEnabled = snapshot.reasoningEnabled
+
+        if let effort = snapshot.reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !effort.isEmpty {
+            reasoningEffort = effort
+        }
     }
 
     private func providerId(forProviderName name: String) -> String {
