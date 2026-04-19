@@ -11,6 +11,7 @@ import SwiftData
 import TipKit
 import HivecrewLLM
 import HivecrewCore
+import HivecrewShared
 
 /// LLM Provider configuration step
 struct OnboardingProviderStep: View {
@@ -635,21 +636,12 @@ struct OnboardingWorkerModelStep: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            VStack(spacing: 8) {
-                Image(systemName: "bolt.circle")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.orange)
-
-                Text("Configure Main & Worker Models")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Text("Choose both the main chat model and worker model used for lightweight background tasks.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.top, 20)
+            OnboardingStepHeaderView(
+                systemImage: "bolt.circle",
+                tint: .orange,
+                title: "Configure Main & Worker Models",
+                subtitle: "Choose both the main chat model and worker model used for lightweight background tasks."
+            )
 
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {

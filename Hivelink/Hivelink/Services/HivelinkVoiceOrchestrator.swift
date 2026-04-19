@@ -11,10 +11,13 @@ import AVFoundation
 import CallKit
 import Combine
 import Foundation
+import SafariServices
 import SwiftUI
 import HivecrewAPIModels
 import HivecrewCore
+import HivecrewLLM
 import HivecrewVoice
+import UIKit
 
 // MARK: - Input Source
 
@@ -67,24 +70,181 @@ enum HivelinkVoiceProvider: String, CaseIterable, Identifiable {
     }
 
     static func from(_ rawValue: String) -> Self {
-        Self(rawValue: rawValue) ?? .gemini
+        if rawValue == "openai_oauth" {
+            return .openAI
+        }
+        return Self(rawValue: rawValue) ?? .gemini
     }
+}
+
+enum HivelinkOpenAIAuthenticationMode: String {
+    case apiKey = "api_key"
+    case chatGPTOAuth = "chatgpt_oauth"
+}
+
+@MainActor
+final class HivelinkChatGPTOAuthController: ObservableObject {
+    static let providerId = "hivelink.voice.openai_oauth"
+
+    @Published private(set) var authState: CodexOAuthAuthState = .unauthenticated
+    @Published private(set) var authMessage: String?
+    @Published private(set) var isAuthenticating = false
+    @Published private(set) var presentedAuthorizationURL: URL?
+
+    private var pollingTask: Task<Void, Never>?
+    private var loginId: String?
+
+    init() {
+        refreshStatus()
+    }
+
+    var isConnected: Bool {
+        authState == .authenticated
+    }
+
+    var isFailed: Bool {
+        authState == .failed
+    }
+
+    var statusText: String {
+        switch authState {
+        case .unauthenticated:
+            return "Not connected"
+        case .pending:
+            return "Waiting for sign-in"
+        case .authenticated:
+            return "Connected"
+        case .failed:
+            return "Connection failed"
+        }
+    }
+
+    func refreshStatus() {
+        let snapshot = CodexOAuthCoordinator.shared.status(providerId: Self.providerId, loginId: loginId)
+        authState = snapshot.status
+        authMessage = snapshot.message
+    }
+
+    func connect() {
+        do {
+            let startResult = try CodexOAuthCoordinator.shared.startLogin(providerId: Self.providerId)
+            loginId = startResult.loginId
+            authState = .pending
+            authMessage = startResult.message
+            isAuthenticating = true
+            presentedAuthorizationURL = startResult.authURL
+            startPollingStatus()
+        } catch {
+            isAuthenticating = false
+            authState = .failed
+            authMessage = error.localizedDescription
+            presentedAuthorizationURL = nil
+            pollingTask?.cancel()
+            pollingTask = nil
+        }
+    }
+
+    func disconnect() {
+        presentedAuthorizationURL = nil
+        pollingTask?.cancel()
+        pollingTask = nil
+        isAuthenticating = false
+        loginId = nil
+        CodexOAuthCoordinator.shared.logout(providerId: Self.providerId)
+        refreshStatus()
+    }
+
+    func dismissBrowser() {
+        presentedAuthorizationURL = nil
+        refreshStatus()
+    }
+
+    private func startPollingStatus() {
+        pollingTask?.cancel()
+        pollingTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.pollingTask = nil
+            }
+
+            while !Task.isCancelled {
+                let snapshot = CodexOAuthCoordinator.shared.status(providerId: Self.providerId, loginId: self.loginId)
+                self.authState = snapshot.status
+                self.authMessage = snapshot.message
+
+                if snapshot.status == .authenticated || snapshot.status == .failed {
+                    self.isAuthenticating = false
+                    self.presentedAuthorizationURL = nil
+                    return
+                }
+
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+    }
+}
+
+struct HivelinkOAuthSafariSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let controller = SFSafariViewController(url: url)
+        controller.dismissButtonStyle = .close
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
 enum HivelinkVoicePreferences {
     static let providerKey = "hivelink.voiceProvider"
+    static let modelIDKey = "hivelink.voiceModel"
     static let voiceNameKey = "hivelink.voiceName"
+    static let apiKeyKey = "hivelink.voiceApiKey"
+    static let openAIAuthenticationModeKey = "hivelink.openAIAuthenticationMode"
 
     private static func perProviderVoiceKey(_ provider: HivelinkVoiceProvider) -> String {
         "hivelink.voiceName.\(provider.rawValue)"
+    }
+
+    private static func perProviderModelKey(_ provider: HivelinkVoiceProvider) -> String {
+        "hivelink.voiceModel.\(provider.rawValue)"
+    }
+
+    private static func perProviderAPIKey(_ provider: HivelinkVoiceProvider) -> String {
+        "hivelink.voiceApiKey.\(provider.rawValue)"
     }
 
     static func availableVoices(for provider: HivelinkVoiceProvider) -> [RealtimeVoiceOption] {
         RealtimeVoiceCatalog.voices(for: provider.backend)
     }
 
+    static func availableModels(for provider: HivelinkVoiceProvider) -> [RealtimeVoiceModelOption] {
+        RealtimeVoiceCatalog.models(for: provider.backend)
+    }
+
     static func defaultVoiceName(for provider: HivelinkVoiceProvider) -> String {
         RealtimeVoiceCatalog.defaultVoiceName(for: provider.backend)
+    }
+
+    static func defaultModelID(for provider: HivelinkVoiceProvider) -> String {
+        RealtimeVoiceCatalog.defaultModelID(for: provider.backend)
+    }
+
+    static func normalizedProvider(
+        _ providerRawValue: String,
+        defaults: UserDefaults = .standard
+    ) -> HivelinkVoiceProvider {
+        _ = defaults
+        return HivelinkVoiceProvider.from(providerRawValue)
+    }
+
+    static func normalizedOpenAIAuthenticationMode(
+        _ rawValue: String,
+        defaults: UserDefaults = .standard
+    ) -> HivelinkOpenAIAuthenticationMode {
+        _ = defaults
+        return HivelinkOpenAIAuthenticationMode(rawValue: rawValue) ?? .apiKey
     }
 
     static func normalizedVoiceName(_ voiceName: String, for provider: HivelinkVoiceProvider) -> String {
@@ -96,6 +256,17 @@ enum HivelinkVoicePreferences {
         }
 
         return defaultVoiceName(for: provider)
+    }
+
+    static func normalizedModelID(_ modelID: String, for provider: HivelinkVoiceProvider) -> String {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return defaultModelID(for: provider) }
+
+        if availableModels(for: provider).contains(where: { $0.id == trimmed }) {
+            return trimmed
+        }
+
+        return defaultModelID(for: provider)
     }
 
     @discardableResult
@@ -111,6 +282,30 @@ enum HivelinkVoicePreferences {
     }
 
     @discardableResult
+    static func saveModelID(
+        _ modelID: String,
+        for provider: HivelinkVoiceProvider,
+        defaults: UserDefaults = .standard
+    ) -> String {
+        let normalized = normalizedModelID(modelID, for: provider)
+        defaults.set(normalized, forKey: modelIDKey)
+        defaults.set(normalized, forKey: perProviderModelKey(provider))
+        return normalized
+    }
+
+    @discardableResult
+    static func saveAPIKey(
+        _ apiKey: String,
+        for provider: HivelinkVoiceProvider,
+        defaults: UserDefaults = .standard
+    ) -> String {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        defaults.set(trimmed, forKey: apiKeyKey)
+        defaults.set(trimmed, forKey: perProviderAPIKey(provider))
+        return trimmed
+    }
+
+    @discardableResult
     static func restoredVoiceName(
         for provider: HivelinkVoiceProvider,
         currentVoiceName: String? = nil,
@@ -120,23 +315,62 @@ enum HivelinkVoicePreferences {
             ?? currentVoiceName
             ?? defaults.string(forKey: voiceNameKey)
             ?? ""
-        return saveVoiceName(stored, for: provider, defaults: defaults)
+        return normalizedVoiceName(stored, for: provider)
+    }
+
+    @discardableResult
+    static func restoredModelID(
+        for provider: HivelinkVoiceProvider,
+        currentModelID: String? = nil,
+        defaults: UserDefaults = .standard
+    ) -> String {
+        let stored = defaults.string(forKey: perProviderModelKey(provider))
+            ?? currentModelID
+            ?? defaults.string(forKey: modelIDKey)
+            ?? ""
+        return normalizedModelID(stored, for: provider)
+    }
+
+    @discardableResult
+    static func restoredAPIKey(
+        for provider: HivelinkVoiceProvider,
+        currentAPIKey: String? = nil,
+        defaults: UserDefaults = .standard
+    ) -> String {
+        let stored = defaults.string(forKey: perProviderAPIKey(provider))
+            ?? currentAPIKey
+            ?? defaults.string(forKey: apiKeyKey)
+            ?? ""
+        return stored.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @discardableResult
     static func normalizeStoredSelection(
         providerRawValue: String,
+        modelID: String,
         voiceName: String,
         defaults: UserDefaults = .standard
-    ) -> (provider: HivelinkVoiceProvider, voiceName: String) {
-        let provider = HivelinkVoiceProvider.from(providerRawValue)
+    ) -> (provider: HivelinkVoiceProvider, modelID: String, voiceName: String) {
+        let provider = normalizedProvider(providerRawValue, defaults: defaults)
         defaults.set(provider.rawValue, forKey: providerKey)
+        if providerRawValue == "openai_oauth" {
+            defaults.set(HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue, forKey: openAIAuthenticationModeKey)
+        }
+
+        let normalizedModelID = restoredModelID(
+            for: provider,
+            currentModelID: modelID,
+            defaults: defaults
+        )
         let normalizedVoiceName = restoredVoiceName(
             for: provider,
             currentVoiceName: voiceName,
             defaults: defaults
         )
-        return (provider, normalizedVoiceName)
+        _ = saveModelID(normalizedModelID, for: provider, defaults: defaults)
+        _ = saveVoiceName(normalizedVoiceName, for: provider, defaults: defaults)
+        _ = saveAPIKey(restoredAPIKey(for: provider, defaults: defaults), for: provider, defaults: defaults)
+        return (provider, normalizedModelID, normalizedVoiceName)
     }
 }
 
@@ -413,29 +647,67 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     // MARK: - Settings
 
-    @AppStorage("hivelink.voiceProvider") private var voiceProviderRaw = "gemini"
+    @AppStorage("hivelink.voiceProvider") private var voiceProviderRaw = HivelinkVoiceProvider.openAI.rawValue
     @AppStorage("hivelink.voiceApiKey") private var voiceApiKey = ""
-    @AppStorage("hivelink.voiceName") private var voiceName = "Leda"
+    @AppStorage("hivelink.voiceModel") private var voiceModelID = "gpt-realtime-1.5"
+    @AppStorage("hivelink.voiceName") private var voiceName = "marin"
+    @AppStorage("hivelink.openAIAuthenticationMode")
+    private var openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue
     @AppStorage("hivelink.mediaResolution") private var mediaResolutionRaw = "medium"
     @AppStorage("hivelink.reasoningEffort") private var reasoningEffortRaw = "high"
 
+    @Published private(set) var voiceConfigurationVersion = 0
+
+    private var selectedVoiceProvider: HivelinkVoiceProvider {
+        HivelinkVoicePreferences.normalizedProvider(voiceProviderRaw)
+    }
+
+    private var selectedOpenAIAuthenticationMode: HivelinkOpenAIAuthenticationMode {
+        HivelinkVoicePreferences.normalizedOpenAIAuthenticationMode(openAIAuthenticationModeRaw)
+    }
+
     var isVoiceConfigured: Bool {
-        !voiceApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch selectedVoiceProvider {
+        case .gemini:
+            return !selectedAPIKey.isEmpty
+        case .openAI:
+            switch selectedOpenAIAuthenticationMode {
+            case .apiKey:
+                return !selectedAPIKey.isEmpty
+            case .chatGPTOAuth:
+                return CodexOAuthTokenStore.retrieve(providerId: HivelinkChatGPTOAuthController.providerId) != nil
+            }
+        }
     }
 
     var backend: VoiceProviderBackend {
-        voiceProviderRaw == "openai" ? .openAIRealtime : .geminiLive
+        selectedVoiceProvider.backend
     }
 
     private var resolvedVoiceName: String {
-        HivelinkVoicePreferences.normalizedVoiceName(
-            voiceName,
-            for: HivelinkVoiceProvider.from(voiceProviderRaw)
+        HivelinkVoicePreferences.restoredVoiceName(
+            for: selectedVoiceProvider,
+            currentVoiceName: voiceName
         )
     }
 
     private var selectedModel: String {
-        backend == .openAIRealtime ? "gpt-realtime-1.5" : "gemini-3.1-flash-live-preview"
+        HivelinkVoicePreferences.restoredModelID(
+            for: selectedVoiceProvider,
+            currentModelID: voiceModelID
+        )
+    }
+
+    private var selectedAPIKey: String {
+        HivelinkVoicePreferences.restoredAPIKey(
+            for: selectedVoiceProvider,
+            currentAPIKey: voiceApiKey
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func notifyVoiceConfigurationChanged() {
+        voiceConfigurationVersion += 1
     }
 
     // MARK: - Internal
@@ -611,10 +883,31 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     func startSession(context: IncomingCallContext? = nil) async {
         guard callState == .idle else { return }
 
-        let apiKey = voiceApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apiKey.isEmpty else {
-            connectionState = .error("No voice API key configured. Add one in Settings → Voice.")
-            return
+        let authentication: VoiceProviderAuthentication
+        switch selectedVoiceProvider {
+        case .gemini:
+            guard !selectedAPIKey.isEmpty else {
+                connectionState = .error("No Gemini API key configured. Add one in Settings → Voice.")
+                return
+            }
+            authentication = .apiKey(selectedAPIKey)
+        case .openAI:
+            switch selectedOpenAIAuthenticationMode {
+            case .apiKey:
+                guard !selectedAPIKey.isEmpty else {
+                    connectionState = .error("No OpenAI API key configured. Add one in Settings → Voice.")
+                    return
+                }
+                authentication = .apiKey(selectedAPIKey)
+            case .chatGPTOAuth:
+                guard CodexOAuthTokenStore.retrieve(providerId: HivelinkChatGPTOAuthController.providerId) != nil else {
+                    connectionState = .error("No ChatGPT OAuth connection configured. Sign in from Settings → Voice.")
+                    return
+                }
+                authentication = .bearerToken {
+                    try await resolveChatGPTOAuthAccessToken(providerId: HivelinkChatGPTOAuthController.providerId)
+                }
+            }
         }
 
         clearSession()
@@ -623,7 +916,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
         let provider = RealtimeVoiceService.shared.createProvider(
             backend: backend,
-            apiKey: apiKey,
+            authentication: authentication,
             model: selectedModel
         )
         self.provider = provider
@@ -1291,16 +1584,37 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         callState = priorCallState == .suspended ? .suspended : .active
         isModelSpeaking = false
 
-        let apiKey = voiceApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apiKey.isEmpty else {
-            failCallTerminal(reason: "No voice API key configured.")
-            return
-        }
-
         do {
+            let authentication: VoiceProviderAuthentication
+            switch selectedVoiceProvider {
+            case .gemini:
+                guard !selectedAPIKey.isEmpty else {
+                    failCallTerminal(reason: "No Gemini API key configured.")
+                    return
+                }
+                authentication = .apiKey(selectedAPIKey)
+            case .openAI:
+                switch selectedOpenAIAuthenticationMode {
+                case .apiKey:
+                    guard !selectedAPIKey.isEmpty else {
+                        failCallTerminal(reason: "No OpenAI API key configured.")
+                        return
+                    }
+                    authentication = .apiKey(selectedAPIKey)
+                case .chatGPTOAuth:
+                    guard CodexOAuthTokenStore.retrieve(providerId: HivelinkChatGPTOAuthController.providerId) != nil else {
+                        failCallTerminal(reason: "No ChatGPT OAuth connection configured.")
+                        return
+                    }
+                    authentication = .bearerToken {
+                        try await resolveChatGPTOAuthAccessToken(providerId: HivelinkChatGPTOAuthController.providerId)
+                    }
+                }
+            }
+
             let newProvider = RealtimeVoiceService.shared.createProvider(
                 backend: backend,
-                apiKey: apiKey,
+                authentication: authentication,
                 model: selectedModel
             )
             self.provider = newProvider

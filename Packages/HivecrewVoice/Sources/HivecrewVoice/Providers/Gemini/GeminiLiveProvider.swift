@@ -46,11 +46,11 @@ final class GeminiLiveProvider: NSObject, RealtimeVoiceProvider, ObservableObjec
     var heartbeatTask: Task<Void, Never>?
     var lastTrafficAt = Date.distantPast
 
-    static let availableModels = ["gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-preview-12-2025"]
-    static let defaultModel = "gemini-3.1-flash-live-preview"
+    static let availableModels = RealtimeVoiceCatalog.geminiModels.map(\.id)
+    static let defaultModel = RealtimeVoiceCatalog.defaultModelID(for: .geminiLive)
     static let maxReconnectAttempts = 2
     static let heartbeatInterval: Duration = .seconds(15)
-    var model: String = "gemini-3.1-flash-live-preview"
+    var model: String = RealtimeVoiceCatalog.defaultModelID(for: .geminiLive)
     var activeModel: String? { model }
     let apiVersion: String = "v1beta"
 

@@ -7,6 +7,7 @@ import BackgroundTasks
 import Combine
 import CoreSpotlight
 import HivecrewCore
+import HivecrewLLM
 import SwiftData
 import SwiftUI
 import UIKit
@@ -145,6 +146,7 @@ struct HivelinkApp: App {
     @UIApplicationDelegateAdaptor(HivelinkAppDelegate.self) private var appDelegate
     @StateObject private var authManager = RemoteAccessAuthManager()
     @StateObject private var appCore: HivelinkAppCore
+    @AppStorage("hivelink.hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     private static let sharedModelContainer: ModelContainer = {
         let schema = Schema([TaskRecord.self])
@@ -166,7 +168,7 @@ struct HivelinkApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if authManager.isAuthenticated {
+                if authManager.isAuthenticated && hasCompletedOnboarding {
                     ContentView(tabSelection: Binding(
                         get: { appCore.selectedTab },
                         set: { appCore.selectedTab = $0 }
@@ -202,6 +204,7 @@ struct HivelinkApp: App {
                 await appCore.notificationManager.requestPermissions()
 
                 authManager.loadStoredCredentials()
+                bootstrapOnboardingStateIfNeeded()
                 if authManager.isAuthenticated {
                     await appCore.clusterCoordinator.loadCluster()
                     await appCore.incomingCallManager.syncStoredPushTokensToServer(
@@ -212,6 +215,7 @@ struct HivelinkApp: App {
                 }
             }
             .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
+                bootstrapOnboardingStateIfNeeded()
                 if isAuthenticated {
                     Task {
                         await appCore.clusterCoordinator.loadCluster()
@@ -245,5 +249,50 @@ struct HivelinkApp: App {
             }
         }
         .modelContainer(Self.sharedModelContainer)
+    }
+
+    private func bootstrapOnboardingStateIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: "hivelink.hasCompletedOnboarding") == nil else { return }
+
+        let providerName = defaults.string(forKey: "hivelink.lastProviderName")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let modelId = defaults.string(forKey: "hivelink.lastModelId")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hasModelSelection = !providerName.isEmpty && !modelId.isEmpty
+
+        let voiceProvider = HivelinkVoiceProvider.from(
+            defaults.string(forKey: HivelinkVoicePreferences.providerKey) ?? HivelinkVoiceProvider.gemini.rawValue
+        )
+        let hasVoiceConfiguration: Bool
+        switch voiceProvider {
+        case .gemini:
+            let apiKey = HivelinkVoicePreferences.restoredAPIKey(
+                for: .gemini,
+                currentAPIKey: defaults.string(forKey: HivelinkVoicePreferences.apiKeyKey),
+                defaults: defaults
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            hasVoiceConfiguration = !apiKey.isEmpty
+        case .openAI:
+            let authMode = HivelinkVoicePreferences.normalizedOpenAIAuthenticationMode(
+                defaults.string(forKey: HivelinkVoicePreferences.openAIAuthenticationModeKey)
+                    ?? HivelinkOpenAIAuthenticationMode.apiKey.rawValue,
+                defaults: defaults
+            )
+            switch authMode {
+            case .apiKey:
+                let apiKey = HivelinkVoicePreferences.restoredAPIKey(
+                    for: .openAI,
+                    currentAPIKey: defaults.string(forKey: HivelinkVoicePreferences.apiKeyKey),
+                    defaults: defaults
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                hasVoiceConfiguration = !apiKey.isEmpty
+            case .chatGPTOAuth:
+                hasVoiceConfiguration =
+                    CodexOAuthTokenStore.retrieve(providerId: HivelinkChatGPTOAuthController.providerId) != nil
+            }
+        }
+
+        hasCompletedOnboarding = authManager.isAuthenticated && hasModelSelection && hasVoiceConfiguration
     }
 }

@@ -19,21 +19,33 @@ public struct RealtimeVoiceOption: Sendable, Hashable, Identifiable {
     }
 }
 
+public struct RealtimeVoiceModelOption: Sendable, Hashable, Identifiable {
+    public let id: String
+    public let displayName: String
+    public let descriptor: String?
+
+    public init(id: String, displayName: String, descriptor: String? = nil) {
+        self.id = id
+        self.displayName = displayName
+        self.descriptor = descriptor
+    }
+}
+
 public enum RealtimeVoiceCatalog {
     public static let openAIVoices: [RealtimeVoiceOption] = [
-        .init(id: "alloy", displayName: "alloy", descriptor: "Versatile"),
-        .init(id: "echo", displayName: "echo", descriptor: "Crisp"),
-        .init(id: "fable", displayName: "fable"),
-        .init(id: "onyx", displayName: "onyx"),
-        .init(id: "nova", displayName: "nova"),
-        .init(id: "shimmer", displayName: "shimmer", descriptor: "Gentle"),
-        .init(id: "coral", displayName: "coral", descriptor: "Warm"),
-        .init(id: "verse", displayName: "verse", descriptor: "Dynamic"),
-        .init(id: "ballad", displayName: "ballad", descriptor: "Expressive"),
-        .init(id: "ash", displayName: "ash", descriptor: "Conversational"),
-        .init(id: "sage", displayName: "sage", descriptor: "Authoritative"),
-        .init(id: "marin", displayName: "marin", descriptor: "Natural"),
-        .init(id: "cedar", displayName: "cedar", descriptor: "Friendly"),
+        .init(id: "alloy", displayName: "Alloy", descriptor: "Versatile"),
+        .init(id: "echo", displayName: "Echo", descriptor: "Crisp"),
+        .init(id: "fable", displayName: "Fable"),
+        .init(id: "onyx", displayName: "Onyx"),
+        .init(id: "nova", displayName: "Nova"),
+        .init(id: "shimmer", displayName: "Shimmer", descriptor: "Gentle"),
+        .init(id: "coral", displayName: "Coral", descriptor: "Warm"),
+        .init(id: "verse", displayName: "Verse", descriptor: "Dynamic"),
+        .init(id: "ballad", displayName: "Ballad", descriptor: "Expressive"),
+        .init(id: "ash", displayName: "Ash", descriptor: "Conversational"),
+        .init(id: "sage", displayName: "Sage", descriptor: "Authoritative"),
+        .init(id: "marin", displayName: "Marin", descriptor: "Natural"),
+        .init(id: "cedar", displayName: "Cedar", descriptor: "Friendly"),
     ]
 
     public static let geminiVoices: [RealtimeVoiceOption] = [
@@ -69,6 +81,24 @@ public enum RealtimeVoiceCatalog {
         .init(id: "Sulafat", displayName: "Sulafat", descriptor: "Warm"),
     ]
 
+    public static let openAIModels: [RealtimeVoiceModelOption] = [
+        .init(id: "gpt-realtime-1.5", displayName: "gpt-realtime-1.5", descriptor: "Flagship realtime"),
+        .init(id: "gpt-realtime-mini", displayName: "gpt-realtime-mini", descriptor: "Lower latency")
+    ]
+
+    public static let geminiModels: [RealtimeVoiceModelOption] = [
+        .init(
+            id: "gemini-3.1-flash-live-preview",
+            displayName: "gemini-3.1-flash-live-preview",
+            descriptor: "Recommended"
+        ),
+        .init(
+            id: "gemini-2.5-flash-native-audio-preview-12-2025",
+            displayName: "gemini-2.5-flash-native-audio-preview-12-2025",
+            descriptor: "Native audio"
+        )
+    ]
+
     public static func voices(for backend: VoiceProviderBackend) -> [RealtimeVoiceOption] {
         switch backend {
         case .geminiLive:
@@ -78,12 +108,30 @@ public enum RealtimeVoiceCatalog {
         }
     }
 
+    public static func models(for backend: VoiceProviderBackend) -> [RealtimeVoiceModelOption] {
+        switch backend {
+        case .geminiLive:
+            return geminiModels
+        case .openAIRealtime:
+            return openAIModels
+        }
+    }
+
     public static func defaultVoiceName(for backend: VoiceProviderBackend) -> String {
         switch backend {
         case .geminiLive:
             return "Leda"
         case .openAIRealtime:
             return "marin"
+        }
+    }
+
+    public static func defaultModelID(for backend: VoiceProviderBackend) -> String {
+        switch backend {
+        case .geminiLive:
+            return "gemini-3.1-flash-live-preview"
+        case .openAIRealtime:
+            return "gpt-realtime-1.5"
         }
     }
 }

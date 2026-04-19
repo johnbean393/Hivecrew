@@ -10,6 +10,7 @@
 import SwiftUI
 import SwiftData
 import HivecrewLLM
+import HivecrewShared
 import HivecrewVoice
 
 struct VoiceProviderSetupView: View {
@@ -113,25 +114,14 @@ struct VoiceProviderSetupView: View {
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "waveform.circle")
-                .font(.system(size: 48))
-                .foregroundStyle(.purple)
-
-                Text(String(localized: "Configure Voice Provider"))
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text(
-                hasConfiguredVoiceProvider
-                    ? "Choose which configured realtime provider voice mode should use."
-                    : "Add a voice-capable provider to enable real-time voice conversations."
-            )
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.top, 20)
+        OnboardingStepHeaderView(
+            systemImage: "waveform.circle",
+            tint: .purple,
+            title: "Configure Voice Provider",
+            subtitle: hasConfiguredVoiceProvider
+                ? "Choose which configured realtime provider voice mode should use."
+                : "Add a voice-capable provider to enable real-time voice conversations."
+        )
     }
 
     // MARK: - Already Configured

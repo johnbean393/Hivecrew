@@ -45,9 +45,9 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     var isReceiving = false
     var lastTrafficAt = Date.distantPast
 
-    static let availableModels = ["gpt-realtime-1.5", "gpt-realtime-mini"]
-    static let defaultModel = "gpt-realtime-1.5"
-    var model: String = "gpt-realtime-1.5"
+    static let availableModels = RealtimeVoiceCatalog.openAIModels.map(\.id)
+    static let defaultModel = RealtimeVoiceCatalog.defaultModelID(for: .openAIRealtime)
+    var model: String = RealtimeVoiceCatalog.defaultModelID(for: .openAIRealtime)
     var activeModel: String? { model }
 
     static let availableVoices: [(id: String, name: String, descriptor: String)] =

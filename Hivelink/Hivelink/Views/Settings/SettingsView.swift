@@ -5,6 +5,7 @@
 
 import HivecrewAPIModels
 import HivecrewCore
+import HivecrewLLM
 import HivecrewShared
 import HivecrewVoice
 import SwiftData
@@ -15,12 +16,25 @@ struct SettingsView: View {
     @EnvironmentObject private var coordinator: HivelinkClusterCoordinator
     @EnvironmentObject private var artifactCoordinator: ArtifactImportCoordinator
     @EnvironmentObject private var taskService: HivelinkTaskService
+    @EnvironmentObject private var voiceOrchestrator: HivelinkVoiceOrchestrator
+    @StateObject private var openAIOAuth = HivelinkChatGPTOAuthController()
+
+    @AppStorage("hivelink.hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hivelink.lastProviderName") private var lastProviderName = ""
+    @AppStorage("hivelink.lastModelId") private var lastModelId = ""
 
     // MARK: - Voice
 
-    @AppStorage("hivelink.voiceProvider") private var voiceProvider = "gemini"
-    @AppStorage("hivelink.voiceApiKey") private var voiceApiKey = ""
-    @AppStorage("hivelink.voiceName") private var voiceName = "Leda"
+    @AppStorage(HivelinkVoicePreferences.providerKey)
+    private var voiceProvider = HivelinkVoiceProvider.openAI.rawValue
+    @AppStorage(HivelinkVoicePreferences.apiKeyKey)
+    private var voiceApiKey = ""
+    @AppStorage(HivelinkVoicePreferences.modelIDKey)
+    private var voiceModelID = "gpt-realtime-1.5"
+    @AppStorage(HivelinkVoicePreferences.voiceNameKey)
+    private var voiceName = "marin"
+    @AppStorage(HivelinkVoicePreferences.openAIAuthenticationModeKey)
+    private var openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue
     @AppStorage("hivelink.mediaResolution") private var mediaResolution = "medium"
     @AppStorage("hivelink.reasoningEffort") private var reasoningEffort = "low"
 
@@ -61,11 +75,34 @@ struct SettingsView: View {
     }
 
     private var selectedVoiceProvider: HivelinkVoiceProvider {
-        HivelinkVoiceProvider.from(voiceProvider)
+        HivelinkVoicePreferences.normalizedProvider(voiceProvider)
+    }
+
+    private var openAIAuthenticationMode: HivelinkOpenAIAuthenticationMode {
+        HivelinkVoicePreferences.normalizedOpenAIAuthenticationMode(openAIAuthenticationModeRaw)
     }
 
     private var availableVoiceOptions: [RealtimeVoiceOption] {
         HivelinkVoicePreferences.availableVoices(for: selectedVoiceProvider)
+    }
+
+    private var availableModelOptions: [RealtimeVoiceModelOption] {
+        HivelinkVoicePreferences.availableModels(for: selectedVoiceProvider)
+    }
+
+    private var showsOpenAIApiKeyMethod: Bool {
+        selectedVoiceProvider == .gemini || !(openAIAuthenticationMode == .chatGPTOAuth && openAIOAuth.isConnected)
+    }
+
+    private var openAIConfigurationSummary: String {
+        switch openAIAuthenticationMode {
+        case .apiKey:
+            return "Authentication: OpenAI API key"
+        case .chatGPTOAuth:
+            return openAIOAuth.isConnected
+                ? "Authentication: ChatGPT OAuth"
+                : "Authentication: Choose OpenAI API key or ChatGPT OAuth"
+        }
     }
 
     var body: some View {
@@ -81,6 +118,21 @@ struct SettingsView: View {
         .task {
             syncVoiceSelection()
             cacheSize = Self.computeCacheSize()
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { openAIOAuth.presentedAuthorizationURL != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        openAIOAuth.dismissBrowser()
+                    }
+                }
+            )
+        ) {
+            if let url = openAIOAuth.presentedAuthorizationURL {
+                HivelinkOAuthSafariSheet(url: url)
+                    .ignoresSafeArea()
+            }
         }
     }
 
@@ -177,14 +229,25 @@ struct SettingsView: View {
                     get: { voiceProvider },
                     set: { newValue in
                         let oldProvider = selectedVoiceProvider
+                        HivelinkVoicePreferences.saveAPIKey(voiceApiKey, for: oldProvider)
+                        HivelinkVoicePreferences.saveModelID(voiceModelID, for: oldProvider)
                         HivelinkVoicePreferences.saveVoiceName(voiceName, for: oldProvider)
 
                         let newProvider = HivelinkVoiceProvider.from(newValue)
                         voiceProvider = newProvider.rawValue
+                        voiceApiKey = HivelinkVoicePreferences.restoredAPIKey(
+                            for: newProvider,
+                            currentAPIKey: voiceApiKey
+                        )
+                        voiceModelID = HivelinkVoicePreferences.restoredModelID(
+                            for: newProvider,
+                            currentModelID: voiceModelID
+                        )
                         voiceName = HivelinkVoicePreferences.restoredVoiceName(
                             for: newProvider,
                             currentVoiceName: voiceName
                         )
+                        voiceOrchestrator.notifyVoiceConfigurationChanged()
                     }
                 )
             ) {
@@ -192,11 +255,60 @@ struct SettingsView: View {
                     Text(provider.displayName).tag(provider.rawValue)
                 }
             }
+            .pickerStyle(.menu)
 
-            LabeledContent(String(localized: "API Key")) {
-                SecureField(String(localized: "Enter API key"), text: $voiceApiKey)
-                    .multilineTextAlignment(.trailing)
+            if selectedVoiceProvider == .openAI {
+                Text(openAIConfigurationSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+
+            if showsOpenAIApiKeyMethod {
+                LabeledContent(selectedVoiceProvider == .gemini ? "Gemini API Key" : "OpenAI API Key") {
+                    SecureField(
+                        String(localized: "Enter API key"),
+                        text: Binding(
+                            get: { voiceApiKey },
+                            set: { newValue in
+                                voiceApiKey = HivelinkVoicePreferences.saveAPIKey(
+                                    newValue,
+                                    for: selectedVoiceProvider
+                                )
+                                if selectedVoiceProvider == .openAI,
+                                   !voiceApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.apiKey.rawValue
+                                }
+                                voiceOrchestrator.notifyVoiceConfigurationChanged()
+                            }
+                        )
+                    )
+                    .multilineTextAlignment(.trailing)
+                }
+            }
+
+            Picker(
+                String(localized: "Model"),
+                selection: Binding(
+                    get: {
+                        HivelinkVoicePreferences.normalizedModelID(
+                            voiceModelID,
+                            for: selectedVoiceProvider
+                        )
+                    },
+                    set: { newValue in
+                        voiceModelID = HivelinkVoicePreferences.saveModelID(
+                            newValue,
+                            for: selectedVoiceProvider
+                        )
+                        voiceOrchestrator.notifyVoiceConfigurationChanged()
+                    }
+                )
+            ) {
+                ForEach(availableModelOptions) { model in
+                    Text(model.displayName).tag(model.id)
+                }
+            }
+            .pickerStyle(.menu)
 
             Picker(
                 String(localized: "Voice"),
@@ -212,6 +324,7 @@ struct SettingsView: View {
                             newValue,
                             for: selectedVoiceProvider
                         )
+                        voiceOrchestrator.notifyVoiceConfigurationChanged()
                     }
                 )
             ) {
@@ -220,6 +333,68 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.menu)
+
+            if selectedVoiceProvider == .openAI {
+                if showsOpenAIApiKeyMethod {
+                    HStack(spacing: 12) {
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.25))
+                            .frame(height: 1)
+                        Text("or")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.25))
+                            .frame(height: 1)
+                    }
+
+                    Button {
+                        voiceProvider = HivelinkVoiceProvider.openAI.rawValue
+                        openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue
+                        voiceApiKey = HivelinkVoicePreferences.restoredAPIKey(
+                            for: .openAI,
+                            currentAPIKey: voiceApiKey
+                        )
+                        voiceModelID = HivelinkVoicePreferences.restoredModelID(
+                            for: .openAI,
+                            currentModelID: voiceModelID
+                        )
+                        voiceName = HivelinkVoicePreferences.restoredVoiceName(
+                            for: .openAI,
+                            currentVoiceName: voiceName
+                        )
+                        voiceOrchestrator.notifyVoiceConfigurationChanged()
+                        openAIOAuth.connect()
+                    } label: {
+                        Label {
+                            Text("Sign in with ChatGPT")
+                        } icon: {
+                            Image("OpenAILogo")
+                                .renderingMode(.template)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 18, height: 18)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(openAIOAuth.isAuthenticating)
+
+                    if let authMessage = openAIOAuth.authMessage, !authMessage.isEmpty {
+                        Text(authMessage)
+                            .font(.caption)
+                            .foregroundStyle(openAIOAuth.isFailed ? .red : .secondary)
+                    }
+                } else {
+                    Button("Disconnect ChatGPT", role: .destructive) {
+                        openAIOAuth.disconnect()
+                        if !voiceApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.apiKey.rawValue
+                        }
+                        voiceOrchestrator.notifyVoiceConfigurationChanged()
+                    }
+                }
+            }
 
             Picker(String(localized: "Media Resolution"), selection: $mediaResolution) {
                 Text(String(localized: "Low")).tag("low")
@@ -236,15 +411,35 @@ struct SettingsView: View {
         } header: {
             Text(String(localized: "Voice"))
         }
+        .onAppear {
+            openAIOAuth.refreshStatus()
+        }
+        .onChange(of: openAIOAuth.authState) { _, newState in
+            if newState == .authenticated {
+                voiceProvider = HivelinkVoiceProvider.openAI.rawValue
+                openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue
+            } else if newState == .unauthenticated,
+                      openAIAuthenticationMode == .chatGPTOAuth,
+                      !voiceApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.apiKey.rawValue
+            }
+            voiceOrchestrator.notifyVoiceConfigurationChanged()
+        }
     }
 
     private func syncVoiceSelection() {
         let normalized = HivelinkVoicePreferences.normalizeStoredSelection(
             providerRawValue: voiceProvider,
+            modelID: voiceModelID,
             voiceName: voiceName
         )
         voiceProvider = normalized.provider.rawValue
+        voiceModelID = normalized.modelID
         voiceName = normalized.voiceName
+        voiceApiKey = HivelinkVoicePreferences.restoredAPIKey(
+            for: normalized.provider,
+            currentAPIKey: voiceApiKey
+        )
     }
 
     // MARK: - Notifications
@@ -327,11 +522,6 @@ struct SettingsView: View {
                 ShareLink(item: VoIPDiagnosticsLog.fileURL) {
                     Label("Export VoIP Diagnostics", systemImage: "square.and.arrow.up")
                 }
-            } else {
-                LabeledContent("VoIP Diagnostics") {
-                    Text("No log yet")
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Button(role: .destructive) {
@@ -341,10 +531,18 @@ struct SettingsView: View {
                 Text("Clear VoIP Diagnostics")
             }
             .disabled(!hasVoIPDiagnosticsLog)
+
+            Button("Show Onboarding Wizard") {
+                hasCompletedOnboarding = false
+            }
+
+            Button(role: .destructive) {
+                clearOnboardingData()
+            } label: {
+                Text("Clear Onboarding Data")
+            }
         } header: {
-            Text("Diagnostics")
-        } footer: {
-            Text("Use the VoIP diagnostics log to inspect PushKit and CallKit behavior when Hivelink is not attached to Xcode.")
+            Text("Debug")
         }
     }
 
@@ -413,6 +611,30 @@ struct SettingsView: View {
     private var hasVoIPDiagnosticsLog: Bool {
         _ = diagnosticsVersion
         return FileManager.default.fileExists(atPath: VoIPDiagnosticsLog.fileURL.path)
+    }
+
+    private func clearOnboardingData() {
+        hasCompletedOnboarding = false
+        lastProviderName = ""
+        lastModelId = ""
+
+        voiceProvider = HivelinkVoiceProvider.openAI.rawValue
+        voiceApiKey = ""
+        voiceModelID = HivelinkVoicePreferences.defaultModelID(for: .openAI)
+        voiceName = HivelinkVoicePreferences.defaultVoiceName(for: .openAI)
+        openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue
+
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "hivelink.voiceApiKey.\(HivelinkVoiceProvider.gemini.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceApiKey.\(HivelinkVoiceProvider.openAI.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceModel.\(HivelinkVoiceProvider.gemini.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceModel.\(HivelinkVoiceProvider.openAI.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceName.\(HivelinkVoiceProvider.gemini.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceName.\(HivelinkVoiceProvider.openAI.rawValue)")
+
+        CodexOAuthCoordinator.shared.logout(providerId: HivelinkChatGPTOAuthController.providerId)
+        openAIOAuth.refreshStatus()
+        voiceOrchestrator.notifyVoiceConfigurationChanged()
     }
 }
 
