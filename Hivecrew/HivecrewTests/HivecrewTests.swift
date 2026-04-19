@@ -7,6 +7,7 @@
 
 import Foundation
 import HivecrewAPI
+import HivecrewCore
 import HivecrewLLM
 import HivecrewShared
 import SwiftData
@@ -115,6 +116,59 @@ struct HivecrewTests {
         
         #expect(remoteTask.requiresRemoteClusterExecution)
         #expect(!localTask.requiresRemoteClusterExecution)
+    }
+
+    @Test
+    @MainActor
+    func internalClusterExecutionsRemainVisibleDuringStartupAndShortlyAfterCompletion() {
+        let now = Date()
+        let service = TaskService()
+        let staleCompletionOffset = TaskService.internalClusterExecutionVisibilityGraceInterval + 10
+
+        let waitingTask = TaskRecord(
+            title: "Leased waiting task",
+            taskDescription: "Waiting for VM",
+            status: .waitingForVM,
+            createdAt: now.addingTimeInterval(-30),
+            providerId: "provider",
+            modelId: "model",
+            clusterOwnerTaskId: "canonical-owner-task"
+        )
+
+        let recentCompletedTask = TaskRecord(
+            title: "Leased completed task",
+            taskDescription: "Completed recently",
+            status: .completed,
+            createdAt: now.addingTimeInterval(-120),
+            startedAt: now.addingTimeInterval(-90),
+            completedAt: now.addingTimeInterval(-30),
+            providerId: "provider",
+            modelId: "model",
+            clusterOwnerTaskId: "canonical-owner-task-2"
+        )
+
+        let staleCompletedTask = TaskRecord(
+            title: "Old leased completed task",
+            taskDescription: "Completed a while ago",
+            status: .completed,
+            createdAt: now.addingTimeInterval(-600),
+            startedAt: now.addingTimeInterval(-580),
+            completedAt: now.addingTimeInterval(-staleCompletionOffset),
+            providerId: "provider",
+            modelId: "model",
+            clusterOwnerTaskId: "canonical-owner-task-3"
+        )
+
+        #expect(service.shouldShowInAgentEnvironments(waitingTask, now: now))
+        #expect(service.shouldShowInAgentPreview(waitingTask, now: now))
+
+        #expect(service.shouldKeepInternalClusterExecutionVisible(recentCompletedTask, now: now))
+        #expect(service.shouldShowInAgentEnvironments(recentCompletedTask, now: now))
+        #expect(service.shouldShowInAgentPreview(recentCompletedTask, now: now))
+
+        #expect(!service.shouldKeepInternalClusterExecutionVisible(staleCompletedTask, now: now))
+        #expect(!service.shouldShowInAgentEnvironments(staleCompletedTask, now: now))
+        #expect(!service.shouldShowInAgentPreview(staleCompletedTask, now: now))
     }
     
     @Test

@@ -19,6 +19,7 @@ typealias TaskCreationRequest = HivecrewCore.TaskCreationRequest
 /// Service for managing tasks and agent execution
 @MainActor
 class TaskService: ObservableObject {
+    static let internalClusterExecutionVisibilityGraceInterval: TimeInterval = 120
     
     // MARK: - Published State
     
@@ -595,6 +596,36 @@ class TaskService: ObservableObject {
     /// True when the task is effectively active based on runtime state.
     func isTaskEffectivelyActive(_ task: TaskRecord) -> Bool {
         effectiveStatus(for: task).isActive
+    }
+
+    /// Keep worker-side cluster executions briefly visible after they finish so
+    /// short leased tasks do not disappear before the user can notice them.
+    func shouldKeepInternalClusterExecutionVisible(_ task: TaskRecord, now: Date = Date()) -> Bool {
+        guard task.isInternalClusterExecution else { return false }
+
+        switch task.status {
+        case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed:
+            let terminalDate = task.completedAt ?? task.startedAt ?? task.createdAt
+            return now.timeIntervalSince(terminalDate) <= Self.internalClusterExecutionVisibilityGraceInterval
+        case .queued, .waitingForVM, .running, .paused, .planning, .planReview, .writebackReview:
+            return false
+        }
+    }
+
+    func shouldShowInAgentPreview(_ task: TaskRecord, now: Date = Date()) -> Bool {
+        if task.isInternalClusterExecution {
+            return task.status.isActive || shouldKeepInternalClusterExecutionVisible(task, now: now)
+        }
+        return isTaskEffectivelyActive(task)
+    }
+
+    func shouldShowInAgentEnvironments(_ task: TaskRecord, now: Date = Date()) -> Bool {
+        if task.isInternalClusterExecution {
+            return task.status.isActive || shouldKeepInternalClusterExecutionVisible(task, now: now)
+        }
+
+        return (task.assignedVMId != nil || task.isExecutingRemotely) &&
+            isTaskEffectivelyActive(task)
     }
     
     /// Get the state publisher for a task

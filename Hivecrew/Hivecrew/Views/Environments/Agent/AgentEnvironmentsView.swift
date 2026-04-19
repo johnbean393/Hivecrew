@@ -74,6 +74,8 @@ struct AgentEnvironmentsView: View {
     @State private var showRemoteTracePanel = true
     @State private var remoteCurrentTask: APITask?
     @State private var isPerformingRemoteAction = false
+    @State private var visibilityNow = Date()
+    private let visibilityRefreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     
     // Tips
     private let takeControlTip = TakeControlTip()
@@ -144,15 +146,17 @@ struct AgentEnvironmentsView: View {
                 TipStore.shared.donateEnvironmentViewed()
             }
         }
+        .onReceive(visibilityRefreshTimer) { now in
+            visibilityNow = now
+        }
     }
     
     // MARK: - Active Tasks
     
-    /// Tasks that have an assigned VM (running or recently completed)
+    /// Tasks that should remain visible in the environments UI.
     private var activeTasksWithVMs: [TaskRecord] {
         taskService.tasks.filter { task in
-            (task.assignedVMId != nil || task.isExecutingRemotely) &&
-                taskService.isTaskEffectivelyActive(task)
+            taskService.shouldShowInAgentEnvironments(task, now: visibilityNow)
         }.sorted { $0.createdAt > $1.createdAt }
     }
     
@@ -292,8 +296,82 @@ struct AgentEnvironmentsView: View {
                   let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
             VMDetailView(vm: vmInfo, showTracePanel: $showLocalTracePanel)
                 .popoverTip(takeControlTip, arrowEdge: .bottom)
+        } else if task.isInternalClusterExecution {
+            leasedTaskPlaceholder(for: task)
         } else {
             emptyDetailView
+        }
+    }
+
+    @ViewBuilder
+    private func leasedTaskPlaceholder(for task: TaskRecord) -> some View {
+        let ownerName = task.clusterOwnerNodeName
+            ?? ClusterStatus.shared.displayName(forPeerId: task.clusterOwnerNodeId)
+            ?? String(localized: "your iPhone")
+
+        ContentUnavailableView {
+            Label(leasedTaskPlaceholderTitle(for: task), systemImage: leasedTaskPlaceholderIcon(for: task))
+        } description: {
+            Text(leasedTaskPlaceholderMessage(for: task, ownerName: ownerName))
+        }
+    }
+
+    private func leasedTaskPlaceholderTitle(for task: TaskRecord) -> String {
+        switch task.status {
+        case .queued, .waitingForVM:
+            return String(localized: "Preparing Leased Task")
+        case .completed:
+            return String(localized: "Leased Task Finished")
+        case .failed:
+            return String(localized: "Leased Task Failed")
+        case .cancelled:
+            return String(localized: "Leased Task Cancelled")
+        case .timedOut:
+            return String(localized: "Leased Task Timed Out")
+        case .maxIterations:
+            return String(localized: "Leased Task Hit Max Steps")
+        case .planFailed:
+            return String(localized: "Leased Task Planning Failed")
+        case .running, .paused, .planning, .planReview, .writebackReview:
+            return String(localized: "Leased Task Active")
+        }
+    }
+
+    private func leasedTaskPlaceholderIcon(for task: TaskRecord) -> String {
+        switch task.status {
+        case .queued, .waitingForVM:
+            return "hourglass"
+        case .completed:
+            return "checkmark.circle"
+        case .failed, .planFailed:
+            return "xmark.circle"
+        case .cancelled:
+            return "xmark.circle"
+        case .timedOut, .maxIterations:
+            return "clock.badge.exclamationmark"
+        case .running, .paused, .planning, .planReview, .writebackReview:
+            return "desktopcomputer"
+        }
+    }
+
+    private func leasedTaskPlaceholderMessage(for task: TaskRecord, ownerName: String) -> String {
+        switch task.status {
+        case .queued, .waitingForVM:
+            return String(localized: "Accepted from \(ownerName). This task will appear here once its VM finishes starting.")
+        case .completed:
+            return String(localized: "This leased task finished on this Mac. Its VM may already be cleaned up.")
+        case .failed:
+            return String(localized: "This leased task failed on this Mac. Its VM may already be cleaned up.")
+        case .cancelled:
+            return String(localized: "This leased task was cancelled before its environment remained available.")
+        case .timedOut:
+            return String(localized: "This leased task timed out on this Mac. Its VM may already be cleaned up.")
+        case .maxIterations:
+            return String(localized: "This leased task stopped after hitting its step limit. Its VM may already be cleaned up.")
+        case .planFailed:
+            return String(localized: "This leased task failed during planning. Its environment is no longer available.")
+        case .running, .paused, .planning, .planReview, .writebackReview:
+            return String(localized: "This leased task is active on this Mac, but its VM display is not ready yet.")
         }
     }
     

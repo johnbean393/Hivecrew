@@ -12,10 +12,12 @@ import HivecrewCore
 struct AgentPreviewStripView: View {
     @EnvironmentObject var taskService: TaskService
     @State private var sortEpoch: Int = 0
+    @State private var visibilityNow = Date()
     
     private let cardWidth: CGFloat = 320
     private let cardHeight: CGFloat = 280
     private let previewHeight: CGFloat = 120
+    private let visibilityRefreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     
     var body: some View {
         let items = sortedItems()
@@ -56,13 +58,15 @@ struct AgentPreviewStripView: View {
                     sortEpoch += 1
                 }
             }
+            .onReceive(visibilityRefreshTimer) { now in
+                visibilityNow = now
+            }
         }
     }
     
     private func sortedItems() -> [AgentPreviewItem] {
         let activeTasks = taskService.tasks.filter {
-            taskService.isTaskEffectivelyActive($0) ||
-                ($0.isInternalClusterExecution && $0.status.isActive)
+            taskService.shouldShowInAgentPreview($0, now: visibilityNow)
         }
         let items = activeTasks.map { task in
             let publisher = taskService.statePublishers[task.id]
@@ -92,7 +96,10 @@ struct AgentPreviewStripView: View {
         }
         
         if item.task.isInternalClusterExecution {
-            return (1, item.task.startedAt ?? item.task.createdAt)
+            if item.task.status.isActive {
+                return (1, item.task.startedAt ?? item.task.createdAt)
+            }
+            return (4, item.task.completedAt ?? item.task.startedAt ?? item.task.createdAt)
         }
 
         let effectiveStatus = taskService.effectiveStatus(for: item.task)
