@@ -41,7 +41,7 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
 
     var webSocket: URLSessionWebSocketTask?
     var urlSession: URLSession!
-    var apiKey: String = ""
+    var authentication: VoiceProviderAuthentication = .apiKey("")
     var isReceiving = false
     var lastTrafficAt = Date.distantPast
 
@@ -70,6 +70,11 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     var setupContinuation: CheckedContinuation<Void, Error>?
 
     var currentOutputTranscript: String = ""
+    var currentOutputTranscriptItemId: String?
+    var lastDeliveredOutputTranscript: String = ""
+    var deferredOutputTranscript: String?
+    var awaitingInputTranscriptAfterCommit = false
+    var interruptedOutputTranscriptItemIds = Set<String>()
     var hasBufferedInputAudio = false
     var deliveredToolCallIDs = Set<String>()
 
@@ -79,8 +84,8 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
         super.init()
     }
 
-    func configure(apiKey: String, model: String? = nil) {
-        self.apiKey = apiKey
+    func configure(authentication: VoiceProviderAuthentication, model: String? = nil) {
+        self.authentication = authentication
         if let model, OpenAIRealtimeProvider.availableModels.contains(model) {
             self.model = model
         }
@@ -88,6 +93,111 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300
         self.urlSession = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+    }
+
+    func configure(apiKey: String, model: String? = nil) {
+        configure(authentication: .apiKey(apiKey), model: model)
+    }
+
+    func beginOutputTranscriptStreamIfNeeded(itemId: String?) -> Bool {
+        if let itemId, interruptedOutputTranscriptItemIds.contains(itemId) {
+            return false
+        }
+
+        if let itemId {
+            if currentOutputTranscriptItemId != itemId {
+                currentOutputTranscript = ""
+                lastDeliveredOutputTranscript = ""
+                currentOutputTranscriptItemId = itemId
+            }
+        } else if currentOutputTranscriptItemId == nil {
+            lastDeliveredOutputTranscript = ""
+        }
+
+        return true
+    }
+
+    func updateOutputTranscript(delta: String, itemId: String?) {
+        guard beginOutputTranscriptStreamIfNeeded(itemId: itemId) else { return }
+        currentOutputTranscript += delta
+        queueOrDeliverOutputTranscript(currentOutputTranscript)
+    }
+
+    func finalizeOutputTranscript(_ transcript: String, itemId: String?) {
+        guard beginOutputTranscriptStreamIfNeeded(itemId: itemId) else { return }
+        currentOutputTranscript = transcript
+        queueOrDeliverOutputTranscript(transcript)
+    }
+
+    func handleCompletedInputTranscript(_ transcript: String) {
+        awaitingInputTranscriptAfterCommit = false
+
+        guard !transcript.isEmpty else {
+            flushDeferredOutputTranscriptIfNeeded()
+            return
+        }
+
+        onTranscription?(VoiceTranscription(source: .input, text: transcript))
+        flushDeferredOutputTranscriptIfNeeded()
+    }
+
+    func queueOrDeliverOutputTranscript(_ transcript: String) {
+        guard !transcript.isEmpty else { return }
+
+        if awaitingInputTranscriptAfterCommit {
+            deferredOutputTranscript = transcript
+            return
+        }
+
+        guard transcript != lastDeliveredOutputTranscript else { return }
+        lastDeliveredOutputTranscript = transcript
+        deferredOutputTranscript = nil
+        onTranscription?(VoiceTranscription(source: .output, text: transcript))
+    }
+
+    func flushDeferredOutputTranscriptIfNeeded() {
+        guard !awaitingInputTranscriptAfterCommit,
+              let deferredOutputTranscript,
+              !deferredOutputTranscript.isEmpty else {
+            return
+        }
+
+        self.deferredOutputTranscript = nil
+        queueOrDeliverOutputTranscript(deferredOutputTranscript)
+    }
+
+    func markCurrentOutputTranscriptInterrupted() {
+        if let currentOutputTranscriptItemId {
+            interruptedOutputTranscriptItemIds.insert(currentOutputTranscriptItemId)
+        }
+        resetOutputTranscriptState(clearDeferred: true)
+    }
+
+    func preserveDeferredOutputTranscriptForTurnCompletion() {
+        if awaitingInputTranscriptAfterCommit,
+           deferredOutputTranscript == nil,
+           !currentOutputTranscript.isEmpty {
+            deferredOutputTranscript = currentOutputTranscript
+        }
+        resetOutputTranscriptState(clearDeferred: false)
+    }
+
+    func resetOutputTranscriptState(clearDeferred: Bool) {
+        currentOutputTranscript = ""
+        currentOutputTranscriptItemId = nil
+        lastDeliveredOutputTranscript = ""
+        if clearDeferred {
+            deferredOutputTranscript = nil
+        }
+    }
+
+    func clearCompletedInterruptedOutputItems(from output: [OpenAIServerEvent.OutputItem]?) {
+        guard let output else { return }
+        for item in output {
+            if let id = item.id {
+                interruptedOutputTranscriptItemIds.remove(id)
+            }
+        }
     }
 
     // MARK: - Protocol: Send Methods

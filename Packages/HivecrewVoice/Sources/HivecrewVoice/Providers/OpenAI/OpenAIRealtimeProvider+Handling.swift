@@ -83,7 +83,7 @@ extension OpenAIRealtimeProvider {
                         VoiceInputActivityEvent(kind: .speechStarted, offsetMs: event.audioStartMs)
                     )
                     self.isModelSpeaking = false
-                    self.currentOutputTranscript = ""
+                    self.markCurrentOutputTranscriptInterrupted()
                     self.onInterrupted?()
 
                 case "input_audio_buffer.speech_stopped":
@@ -93,6 +93,7 @@ extension OpenAIRealtimeProvider {
 
                 case "input_audio_buffer.committed":
                     self.hasBufferedInputAudio = false
+                    self.awaitingInputTranscriptAfterCommit = true
                     self.onInputActivity?(VoiceInputActivityEvent(kind: .streamCommitted))
 
                 case "response.output_audio.delta":
@@ -104,24 +105,17 @@ extension OpenAIRealtimeProvider {
 
                 case "response.output_audio_transcript.delta":
                     if let textDelta = event.delta {
-                        self.currentOutputTranscript += textDelta
-                        self.onTranscription?(
-                            VoiceTranscription(source: .output, text: self.currentOutputTranscript)
-                        )
+                        self.updateOutputTranscript(delta: textDelta, itemId: event.itemId)
                     }
 
                 case "response.output_audio_transcript.done":
                     if let transcript = event.transcript {
-                        self.onTranscription?(
-                            VoiceTranscription(source: .output, text: transcript)
-                        )
+                        self.finalizeOutputTranscript(transcript, itemId: event.itemId)
                     }
 
                 case "conversation.item.input_audio_transcription.completed":
                     if let transcript = event.transcript {
-                        self.onTranscription?(
-                            VoiceTranscription(source: .input, text: transcript)
-                        )
+                        self.handleCompletedInputTranscript(transcript)
                     }
 
                 case "response.function_call_arguments.done":
@@ -174,7 +168,8 @@ extension OpenAIRealtimeProvider {
         }
 
         self.isModelSpeaking = false
-        self.currentOutputTranscript = ""
+        self.clearCompletedInterruptedOutputItems(from: event.response?.output)
+        self.preserveDeferredOutputTranscriptForTurnCompletion()
         self.onTurnComplete?()
     }
 

@@ -28,9 +28,37 @@ struct VoiceProviderSetupView: View {
     @State private var testResult: ConnectionTestResult?
     @State private var hasSaved = false
     @State private var saveErrorMessage: String?
+    @AppStorage(VoiceAvailability.voiceProviderTypeKey) private var voiceProviderTypeRaw: String = ""
+    @AppStorage(VoiceAvailability.voiceModelKey) private var selectedVoiceModel: String = ""
 
     private var hasConfiguredVoiceProvider: Bool {
         VoiceAvailability.isConfigured(modelContext: modelContext)
+    }
+
+    private var configuredVoiceProviderTypes: [VoiceProviderType] {
+        [.gemini, .openAI, .chatGPTOAuth].filter { type in
+            VoiceAvailability.hasConfiguredProvider(type: type, providers: providers)
+        }
+    }
+
+    private var selectedVoiceProviderType: VoiceProviderType? {
+        let trimmed = voiceProviderTypeRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let selected = VoiceProviderType(rawValue: trimmed),
+           configuredVoiceProviderTypes.contains(selected) {
+            return selected
+        }
+        return configuredVoiceProviderTypes.first
+    }
+
+    private var availableVoiceModels: [String] {
+        switch selectedVoiceProviderType {
+        case .openAI, .chatGPTOAuth:
+            return ["gpt-realtime-1.5", "gpt-realtime-mini"]
+        case .gemini:
+            return ["gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-preview-12-2025"]
+        case .none:
+            return []
+        }
     }
 
     private var canSaveProvider: Bool {
@@ -60,14 +88,10 @@ struct VoiceProviderSetupView: View {
         }
         .padding(.horizontal)
         .onAppear {
-            isConfigured = hasConfiguredVoiceProvider
+            syncConfigurationState()
         }
         .onChange(of: providers.count) { _, _ in
-            let configured = hasConfiguredVoiceProvider
-            isConfigured = configured
-            if configured {
-                VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
-            }
+            syncConfigurationState()
         }
         .alert(
             String(localized: "Couldn't Save Provider"),
@@ -98,7 +122,11 @@ struct VoiceProviderSetupView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("Add a voice-capable provider to enable real-time voice conversations.")
+            Text(
+                hasConfiguredVoiceProvider
+                    ? "Choose which configured realtime provider voice mode should use."
+                    : "Add a voice-capable provider to enable real-time voice conversations."
+            )
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -109,22 +137,80 @@ struct VoiceProviderSetupView: View {
     // MARK: - Already Configured
 
     private var alreadyConfiguredSection: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.title3)
-                Text("Voice provider detected")
-                    .font(.callout)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Voice Provider")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker(
+                    "Voice Provider",
+                    selection: Binding(
+                        get: { selectedVoiceProviderType?.rawValue ?? "" },
+                        set: { newValue in
+                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard let newType = VoiceProviderType(rawValue: trimmed) else { return }
+
+                            if let oldType = selectedVoiceProviderType, oldType != newType {
+                                VoiceAvailability.savePerProviderPreferences(for: oldType)
+                            }
+
+                            voiceProviderTypeRaw = newType.rawValue
+                            VoiceAvailability.restorePerProviderPreferences(for: newType)
+
+                            let restoredModel = UserDefaults.standard.string(forKey: VoiceAvailability.voiceModelKey)?
+                                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                            selectedVoiceModel = restoredModel.isEmpty
+                                ? VoiceAvailability.defaultModel(for: newType)
+                                : restoredModel
+
+                            syncConfigurationState()
+                        }
+                    )
+                ) {
+                    ForEach(configuredVoiceProviderTypes, id: \.rawValue) { providerType in
+                        Text(voiceProviderDisplayName(for: providerType)).tag(providerType.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
             }
 
-            Text("Your existing voice provider will be used for voice mode. You can update voice settings later in Settings → Voice.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Voice Model")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if availableVoiceModels.isEmpty {
+                    Text("No voice models available for the selected provider.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker(
+                        "Voice Model",
+                        selection: Binding(
+                            get: {
+                                if availableVoiceModels.contains(selectedVoiceModel) {
+                                    return selectedVoiceModel
+                                }
+                                return availableVoiceModels.first ?? ""
+                            },
+                            set: { newValue in
+                                selectedVoiceModel = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        )
+                    ) {
+                        ForEach(availableVoiceModels, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+
+            Text("Choose which configured realtime voice provider Hivecrew should use during calls. You can adjust microphone and advanced voice options later in Settings → Voice.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 20)
+        .padding(.horizontal, 60)
     }
 
     // MARK: - Form
@@ -310,6 +396,42 @@ struct VoiceProviderSetupView: View {
         } catch {
             provider.deleteAPIKey()
             saveErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func syncConfigurationState() {
+        let configured = hasConfiguredVoiceProvider
+        isConfigured = configured
+
+        guard configured else { return }
+
+        VoiceAvailability.autoConfigureIfNeeded(modelContext: modelContext)
+
+        guard let providerType = selectedVoiceProviderType else { return }
+
+        if voiceProviderTypeRaw != providerType.rawValue {
+            voiceProviderTypeRaw = providerType.rawValue
+            VoiceAvailability.restorePerProviderPreferences(for: providerType)
+        }
+
+        let normalizedModel = selectedVoiceModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedModel.isEmpty || !availableVoiceModels.contains(normalizedModel) {
+            let restoredModel = UserDefaults.standard.string(forKey: VoiceAvailability.voiceModelKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            selectedVoiceModel = restoredModel.isEmpty
+                ? VoiceAvailability.defaultModel(for: providerType)
+                : restoredModel
+        }
+    }
+
+    private func voiceProviderDisplayName(for providerType: VoiceProviderType) -> String {
+        switch providerType {
+        case .gemini:
+            return "Google Gemini"
+        case .openAI:
+            return "OpenAI API"
+        case .chatGPTOAuth:
+            return "OpenAI OAuth"
         }
     }
 }

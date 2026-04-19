@@ -143,7 +143,7 @@ struct VoiceSettingsPopover: View {
 
     private var voicesForCurrentProvider: [(name: String, descriptor: String)] {
         switch currentProviderType {
-        case .openAI: return openAIVoices
+        case .openAI, .chatGPTOAuth: return openAIVoices
         default: return geminiVoices
         }
     }

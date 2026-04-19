@@ -10,14 +10,17 @@ extension OpenAIRealtimeProvider {
     // MARK: - Protocol: Connect / Disconnect
 
     func connect(config: VoiceSessionConfig) async throws {
-        guard !apiKey.isEmpty else {
-            throw OpenAIRealtimeError.missingAPIKey
+        guard authentication.isConfigured else {
+            throw OpenAIRealtimeError.missingAuthentication
         }
 
         currentSessionConfig = config
         isManualDisconnect = false
         isReceiving = false
         deliveredToolCallIDs.removeAll()
+        awaitingInputTranscriptAfterCommit = false
+        interruptedOutputTranscriptItemIds.removeAll()
+        resetOutputTranscriptState(clearDeferred: true)
 
         totalTokenCount = 0
 
@@ -32,7 +35,9 @@ extension OpenAIRealtimeProvider {
         webSocket = nil
         connectionState = .disconnected
         isModelSpeaking = false
-        currentOutputTranscript = ""
+        awaitingInputTranscriptAfterCommit = false
+        interruptedOutputTranscriptItemIds.removeAll()
+        resetOutputTranscriptState(clearDeferred: true)
         deliveredToolCallIDs.removeAll()
 
         connectionContinuation?.resume(throwing: OpenAIRealtimeError.connectionFailed)
@@ -45,6 +50,7 @@ extension OpenAIRealtimeProvider {
 
     private func establishConnection(config: VoiceSessionConfig) async throws {
         connectionState = .connecting
+        let bearerToken = try await authentication.resolveCredential()
 
         let urlString = "wss://api.openai.com/v1/realtime?model=\(model)"
 
@@ -55,7 +61,7 @@ extension OpenAIRealtimeProvider {
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
 
         webSocket = urlSession.webSocketTask(with: request)
         webSocket?.resume()

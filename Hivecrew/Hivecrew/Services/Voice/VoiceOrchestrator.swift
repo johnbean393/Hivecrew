@@ -13,6 +13,7 @@ import SwiftData
 import Combine
 import ScreenCaptureKit
 import HivecrewCore
+import HivecrewLLM
 import HivecrewVoice
 import HivecrewShared
 
@@ -615,9 +616,33 @@ final class VoiceOrchestrator: ObservableObject {
         }
 
         let startedAt = Date()
+        let authentication: VoiceProviderAuthentication
+        switch VoiceProviderType(rawValue: voiceProviderTypeRaw) {
+        case .chatGPTOAuth:
+            guard let providerId = credentials.providerId else {
+                connectionState = .error("OpenAI OAuth is not connected. Reconnect it in Settings → Providers.")
+                throw NSError(domain: "VoiceOrchestrator", code: 4, userInfo: [
+                    NSLocalizedDescriptionKey: "OpenAI OAuth is not connected. Reconnect it in Settings → Providers."
+                ])
+            }
+
+            authentication = .bearerToken {
+                try await resolveChatGPTOAuthAccessToken(providerId: providerId)
+            }
+        case .gemini, .openAI, .none:
+            guard let apiKey = credentials.secret, !apiKey.isEmpty else {
+                connectionState = .error("No voice provider configured. Add a provider in Settings → Providers.")
+                throw NSError(domain: "VoiceOrchestrator", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: "No voice provider configured. Add a provider in Settings → Providers."
+                ])
+            }
+
+            authentication = .apiKey(apiKey)
+        }
+
         let provider = RealtimeVoiceService.shared.createProvider(
             backend: backend,
-            apiKey: credentials.apiKey,
+            authentication: authentication,
             model: selectedModel
         )
 

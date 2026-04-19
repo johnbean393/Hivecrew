@@ -32,6 +32,10 @@ struct VoiceSettingsView: View {
         VoiceAvailability.hasConfiguredProvider(type: .openAI, providers: providers)
     }
 
+    private var hasChatGPTOAuthProvider: Bool {
+        VoiceAvailability.hasConfiguredProvider(type: .chatGPTOAuth, providers: providers)
+    }
+
     private var selectedProviderType: VoiceProviderType? {
         VoiceProviderType(rawValue: voiceProviderType)
     }
@@ -110,7 +114,8 @@ struct VoiceSettingsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("Provider", selection: $voiceProviderType) {
                     Text("Google Gemini").tag(VoiceProviderType.gemini.rawValue)
-                    Text("OpenAI").tag(VoiceProviderType.openAI.rawValue)
+                    Text("OpenAI API").tag(VoiceProviderType.openAI.rawValue)
+                    Text("OpenAI OAuth").tag(VoiceProviderType.chatGPTOAuth.rawValue)
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: voiceProviderType) { oldValue, newValue in
@@ -127,6 +132,8 @@ struct VoiceSettingsView: View {
                 switch selectedProviderType {
                 case .openAI:
                     openAIConfigStatus
+                case .chatGPTOAuth:
+                    chatGPTOAuthConfigStatus
                 default:
                     geminiConfigStatus
                 }
@@ -141,7 +148,7 @@ struct VoiceSettingsView: View {
     private var modelPicker: some View {
         VStack(alignment: .leading, spacing: 4) {
             switch selectedProviderType {
-            case .openAI:
+            case .openAI, .chatGPTOAuth:
                 Picker("Model", selection: $selectedModel) {
                     Text("gpt-realtime-1.5").tag("gpt-realtime-1.5")
                     Text("gpt-realtime-mini").tag("gpt-realtime-mini")
@@ -175,8 +182,16 @@ struct VoiceSettingsView: View {
     private var openAIConfigStatus: some View {
         providerConfigStatus(
             isConfigured: hasOpenAIProvider,
-            configuredMessage: String(localized: "Using OpenAI provider from Providers settings"),
-            missingMessage: String(localized: "No OpenAI provider configured. Add one in the Providers tab.")
+            configuredMessage: String(localized: "Using OpenAI API key provider from Providers settings"),
+            missingMessage: String(localized: "No OpenAI API key provider configured. Add one in the Providers tab.")
+        )
+    }
+
+    private var chatGPTOAuthConfigStatus: some View {
+        providerConfigStatus(
+            isConfigured: hasChatGPTOAuthProvider,
+            configuredMessage: String(localized: "Using OpenAI OAuth provider from Providers settings"),
+            missingMessage: String(localized: "No OpenAI OAuth provider configured. Add a ChatGPT OAuth provider in the Providers tab.")
         )
     }
 

@@ -15,18 +15,31 @@ public final class RealtimeVoiceService: Sendable {
     @MainActor
     public func createProvider(
         backend: VoiceProviderBackend,
-        apiKey: String,
+        authentication: VoiceProviderAuthentication,
         model: String? = nil
     ) -> any RealtimeVoiceProvider {
         switch backend {
         case .geminiLive:
             let provider = GeminiLiveProvider()
-            provider.configure(apiKey: apiKey, model: model)
+            provider.configure(apiKey: authentication.apiKey ?? "", model: model)
             return provider
         case .openAIRealtime:
             let provider = OpenAIRealtimeProvider()
-            provider.configure(apiKey: apiKey, model: model)
+            provider.configure(authentication: authentication, model: model)
             return provider
         }
+    }
+
+    @MainActor
+    public func createProvider(
+        backend: VoiceProviderBackend,
+        apiKey: String,
+        model: String? = nil
+    ) -> any RealtimeVoiceProvider {
+        createProvider(
+            backend: backend,
+            authentication: .apiKey(apiKey),
+            model: model
+        )
     }
 }

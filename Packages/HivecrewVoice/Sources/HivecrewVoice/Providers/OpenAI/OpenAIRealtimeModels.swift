@@ -267,7 +267,7 @@ struct OpenAIServerEvent: Decodable {
 // MARK: - Errors
 
 enum OpenAIRealtimeError: LocalizedError {
-    case missingAPIKey
+    case missingAuthentication
     case invalidURL
     case encodingError
     case connectionFailed
@@ -276,7 +276,7 @@ enum OpenAIRealtimeError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .missingAPIKey: return "API key is required"
+        case .missingAuthentication: return "Authentication is required"
         case .invalidURL: return "Invalid WebSocket URL"
         case .encodingError: return "Failed to encode message"
         case .connectionFailed: return "Failed to connect to OpenAI Realtime"

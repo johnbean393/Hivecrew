@@ -10,11 +10,13 @@
 import Foundation
 import SwiftData
 import Security
+import HivecrewLLM
 import HivecrewVoice
 
 enum VoiceProviderType: String, Sendable {
     case gemini = "gemini"
     case openAI = "openai"
+    case chatGPTOAuth = "chatgpt_oauth"
 }
 
 enum VoiceConfigurationStatus: Equatable {
@@ -38,7 +40,7 @@ enum VoiceAvailability {
         switch provider {
         case .gemini:
             return defaultGeminiModel
-        case .openAI:
+        case .openAI, .chatGPTOAuth:
             return defaultOpenAIModel
         }
     }
@@ -46,8 +48,14 @@ enum VoiceAvailability {
     static func defaultVoice(for provider: VoiceProviderType) -> String {
         switch provider {
         case .gemini: return "Leda"
-        case .openAI: return "marin"
+        case .openAI, .chatGPTOAuth: return "marin"
         }
+    }
+
+    struct Credentials {
+        let secret: String?
+        let baseURL: URL?
+        let providerId: String?
     }
 
     // MARK: - Per-Provider Preference Persistence
@@ -86,7 +94,7 @@ enum VoiceAvailability {
         switch type {
         case .gemini:
             return .geminiLive
-        case .openAI:
+        case .openAI, .chatGPTOAuth:
             return .openAIRealtime
         }
     }
@@ -149,7 +157,7 @@ enum VoiceAvailability {
 
     // MARK: - Credentials
 
-    static func getCredentials(modelContext: ModelContext) -> (apiKey: String, baseURL: URL?)? {
+    static func getCredentials(modelContext: ModelContext) -> Credentials? {
         autoConfigureIfNeeded(modelContext: modelContext)
 
         guard let selectedType = selectedProviderFromDefaults() else {
@@ -162,10 +170,32 @@ enum VoiceAvailability {
         }
 
         for provider in providers {
-            if providerType(for: provider) == selectedType,
-               let apiKey = provider.retrieveAPIKey(),
-               !apiKey.isEmpty {
-                return (apiKey, provider.effectiveBaseURL)
+            guard providerType(for: provider) == selectedType else {
+                continue
+            }
+
+            switch selectedType {
+            case .gemini, .openAI:
+                guard let apiKey = provider.retrieveAPIKey(),
+                      !apiKey.isEmpty else {
+                    continue
+                }
+
+                return Credentials(
+                    secret: apiKey,
+                    baseURL: provider.effectiveBaseURL,
+                    providerId: provider.id
+                )
+            case .chatGPTOAuth:
+                guard provider.hasStoredOAuthTokens else {
+                    continue
+                }
+
+                return Credentials(
+                    secret: nil,
+                    baseURL: nil,
+                    providerId: provider.id
+                )
             }
         }
 
@@ -176,11 +206,15 @@ enum VoiceAvailability {
 
     static func hasConfiguredProvider(type: VoiceProviderType, providers: [LLMProviderRecord]) -> Bool {
         providers.contains { provider in
-            providerType(for: provider) == type && hasNonEmptyAPIKey(provider)
+            providerType(for: provider) == type && hasCredentials(for: provider)
         }
     }
 
     static func providerType(for provider: LLMProviderRecord) -> VoiceProviderType? {
+        if provider.oauthProviderKind == .chatgpt || provider.backendMode == .codexOAuth {
+            return .chatGPTOAuth
+        }
+
         let baseURL = provider.effectiveBaseURL.absoluteString.lowercased()
         if baseURL.contains("generativelanguage.googleapis.com") {
             return .gemini
@@ -221,12 +255,23 @@ enum VoiceAvailability {
             return .openAI
         }
 
+        if hasConfiguredProvider(type: .chatGPTOAuth, providers: providers) {
+            return .chatGPTOAuth
+        }
+
         return nil
     }
 
-    private static func hasNonEmptyAPIKey(_ provider: LLMProviderRecord) -> Bool {
-        guard let apiKey = provider.retrieveAPIKey() else { return false }
-        return !apiKey.isEmpty
+    private static func hasCredentials(for provider: LLMProviderRecord) -> Bool {
+        switch providerType(for: provider) {
+        case .gemini, .openAI:
+            guard let apiKey = provider.retrieveAPIKey() else { return false }
+            return !apiKey.isEmpty
+        case .chatGPTOAuth:
+            return provider.hasStoredOAuthTokens
+        case .none:
+            return false
+        }
     }
 
     private static func normalizedString(_ value: String?) -> String {

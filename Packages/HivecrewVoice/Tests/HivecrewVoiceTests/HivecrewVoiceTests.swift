@@ -14,6 +14,18 @@ actor VoiceToolCallSink {
     }
 }
 
+actor VoiceTranscriptionSink {
+    private var transcriptions: [VoiceTranscription] = []
+
+    func record(_ transcription: VoiceTranscription) {
+        transcriptions.append(transcription)
+    }
+
+    func snapshot() -> [VoiceTranscription] {
+        transcriptions
+    }
+}
+
 @MainActor
 @Test func openAISessionUpdateEncodesProviderOwnedVADPolicy() async throws {
     let provider = OpenAIRealtimeProvider()
@@ -263,6 +275,135 @@ actor VoiceToolCallSink {
     #expect(calls.count == 1)
     #expect(calls.first?.id == "call_456")
     #expect(calls.first?.arguments["description"] == "Prepare the launch email")
+}
+
+@MainActor
+@Test func openAIOutputTranscriptWaitsForInputTranscriptionAndDeduplicatesDone() async throws {
+    let provider = OpenAIRealtimeProvider()
+    provider.configure(apiKey: "test")
+
+    let sink = VoiceTranscriptionSink()
+    provider.onTranscription = { transcription in
+        Task { await sink.record(transcription) }
+    }
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "input_audio_buffer.committed"
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.output_audio_transcript.delta",
+          "item_id": "msg_1",
+          "delta": "Loud and clear"
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "conversation.item.input_audio_transcription.completed",
+          "item_id": "user_1",
+          "transcript": "Hey there, can you hear me?"
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.output_audio_transcript.delta",
+          "item_id": "msg_1",
+          "delta": "! How's it going?"
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.output_audio_transcript.done",
+          "item_id": "msg_1",
+          "transcript": "Loud and clear! How's it going?"
+        }
+        """#
+    )
+
+    try await Task.sleep(for: .milliseconds(20))
+    let transcriptions = await sink.snapshot()
+
+    #expect(transcriptions.count == 3)
+    #expect(transcriptions[0].source == .input)
+    #expect(transcriptions[0].text == "Hey there, can you hear me?")
+    #expect(transcriptions[1].source == .output)
+    #expect(transcriptions[1].text == "Loud and clear")
+    #expect(transcriptions[2].source == .output)
+    #expect(transcriptions[2].text == "Loud and clear! How's it going?")
+}
+
+@MainActor
+@Test func openAIInterruptedOutputTranscriptIgnoresStaleDone() async throws {
+    let provider = OpenAIRealtimeProvider()
+    provider.configure(apiKey: "test")
+
+    let sink = VoiceTranscriptionSink()
+    provider.onTranscription = { transcription in
+        Task { await sink.record(transcription) }
+    }
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.output_audio_transcript.delta",
+          "item_id": "msg_2",
+          "delta": "Great! I'll keep you posted when Victor"
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "input_audio_buffer.speech_started",
+          "audio_start_ms": 120
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "response.output_audio_transcript.done",
+          "item_id": "msg_2",
+          "transcript": "Great! I'll keep you posted when Victor finishes."
+        }
+        """#
+    )
+
+    await provider.parseServerEvent(
+        #"""
+        {
+          "type": "conversation.item.input_audio_transcription.completed",
+          "item_id": "user_2",
+          "transcript": "Got it."
+        }
+        """#
+    )
+
+    try await Task.sleep(for: .milliseconds(20))
+    let transcriptions = await sink.snapshot()
+
+    #expect(transcriptions.count == 2)
+    #expect(transcriptions[0].source == .output)
+    #expect(transcriptions[0].text == "Great! I'll keep you posted when Victor")
+    #expect(transcriptions[1].source == .input)
+    #expect(transcriptions[1].text == "Got it.")
 }
 
 @MainActor

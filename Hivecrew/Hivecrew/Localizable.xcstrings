@@ -32490,7 +32490,14 @@
         }
       }
     },
+    "No OpenAI API key provider configured. Add one in the Providers tab." : {
+
+    },
+    "No OpenAI OAuth provider configured. Add a ChatGPT OAuth provider in the Providers tab." : {
+
+    },
     "No OpenAI provider configured. Add one in the Providers tab." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -34837,9 +34844,6 @@
           }
         }
       }
-    },
-    "OpenAI" : {
-      "shouldTranslate" : false
     },
     "OpenAI API" : {
       "localizations" : {
@@ -54288,7 +54292,14 @@
         }
       }
     },
+    "Using OpenAI API key provider from Providers settings" : {
+
+    },
+    "Using OpenAI OAuth provider from Providers settings" : {
+
+    },
     "Using OpenAI provider from Providers settings" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
