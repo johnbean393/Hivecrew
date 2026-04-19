@@ -105,7 +105,7 @@ private final class HivelinkAppCore: ObservableObject {
     func registerBackgroundRefresh() {
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.backgroundTaskIdentifier,
-            using: nil
+            using: DispatchQueue.main
         ) { [weak self] task in
             guard let bgTask = task as? BGAppRefreshTask else { return }
             Task { @MainActor [weak self] in
@@ -124,7 +124,9 @@ private final class HivelinkAppCore: ObservableObject {
         scheduleBackgroundRefresh()
 
         task.expirationHandler = { [weak self] in
-            self?.taskService.stopReconciliation()
+            Task { @MainActor [weak self] in
+                self?.taskService.stopReconciliation()
+            }
         }
 
         await clusterCoordinator.loadCluster()
