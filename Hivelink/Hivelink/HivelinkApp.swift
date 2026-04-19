@@ -147,6 +147,7 @@ struct HivelinkApp: App {
     @StateObject private var authManager = RemoteAccessAuthManager()
     @StateObject private var appCore: HivelinkAppCore
     @AppStorage("hivelink.hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var hasResolvedInitialRoute = false
 
     private static let sharedModelContainer: ModelContainer = {
         let schema = Schema([TaskRecord.self])
@@ -168,7 +169,9 @@ struct HivelinkApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if authManager.isAuthenticated && hasCompletedOnboarding {
+                if !hasResolvedInitialRoute {
+                    launchPlaceholder
+                } else if authManager.isAuthenticated && hasCompletedOnboarding {
                     ContentView(tabSelection: Binding(
                         get: { appCore.selectedTab },
                         set: { appCore.selectedTab = $0 }
@@ -205,6 +208,7 @@ struct HivelinkApp: App {
 
                 authManager.loadStoredCredentials()
                 bootstrapOnboardingStateIfNeeded()
+                hasResolvedInitialRoute = true
                 if authManager.isAuthenticated {
                     await appCore.clusterCoordinator.loadCluster()
                     await appCore.incomingCallManager.syncStoredPushTokensToServer(
@@ -249,6 +253,14 @@ struct HivelinkApp: App {
             }
         }
         .modelContainer(Self.sharedModelContainer)
+    }
+
+    private var launchPlaceholder: some View {
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
+            ProgressView()
+        }
     }
 
     private func bootstrapOnboardingStateIfNeeded() {

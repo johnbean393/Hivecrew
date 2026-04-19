@@ -706,6 +706,37 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private func makeAudioPolicy() -> VoiceSessionConfig.AudioPolicy {
+        let openAIConfig = VoiceSessionConfig.AudioPolicy.OpenAI(
+            turnDetection: .server(
+                threshold: 0.5,
+                prefixPaddingMs: 300,
+                silenceDurationMs: 700
+            ),
+            createResponse: true,
+            interruptResponse: true,
+            noiseReduction: .farField
+        )
+
+        let geminiConfig = VoiceSessionConfig.AudioPolicy.Gemini(
+            automaticActivityDetectionEnabled: true,
+            startOfSpeechSensitivity: .low,
+            endOfSpeechSensitivity: .low,
+            prefixPaddingMs: 180,
+            silenceDurationMs: 700,
+            activityHandling: .startOfActivityInterrupts,
+            turnCoverage: nil
+        )
+
+        return VoiceSessionConfig.AudioPolicy(
+            preset: .noisyRoom,
+            streamEndBehavior: .init(sendOnMute: true, sendOnSuspend: true, sendOnCallEnd: true),
+            localSpeakerIsolation: .init(enabled: false),
+            openAI: openAIConfig,
+            gemini: geminiConfig
+        )
+    }
+
     func notifyVoiceConfigurationChanged() {
         voiceConfigurationVersion += 1
     }
@@ -932,10 +963,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             thinkingLevel: .low,
             includeThoughts: true,
             webSearchEnabled: true,
-            audioPolicy: VoiceSessionConfig.AudioPolicy(
-                preset: .balanced,
-                localSpeakerIsolation: .init(enabled: false)
-            )
+            audioPolicy: makeAudioPolicy()
         )
 
         audioManager.configure(
@@ -1629,10 +1657,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 thinkingLevel: .low,
                 includeThoughts: true,
                 webSearchEnabled: true,
-                audioPolicy: VoiceSessionConfig.AudioPolicy(
-                    preset: .balanced,
-                    localSpeakerIsolation: .init(enabled: false)
-                )
+                audioPolicy: makeAudioPolicy()
             )
 
             audioManager.configure(
