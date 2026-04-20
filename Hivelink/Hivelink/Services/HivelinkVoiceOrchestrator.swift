@@ -11,6 +11,7 @@ import AVFoundation
 import CallKit
 import Combine
 import Foundation
+import MediaPlayer
 import SafariServices
 import SwiftUI
 import HivecrewAPIModels
@@ -621,10 +622,48 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         self.incomingCallManager = incomingCallManager
     }
 
+    // MARK: - Haptics
+
+    let voiceHapticsEngine = VoiceHapticsEngine()
+    private var hapticLevelCancellable: AnyCancellable?
+
     // MARK: - Published State
 
-    @Published var callState: HivelinkCallState = .idle
-    @Published var connectionState: VoiceConnectionState = .disconnected
+    @Published var callState: HivelinkCallState = .idle {
+        didSet {
+            switch callState {
+            case .active where oldValue == .idle:
+                voiceHapticsEngine.connectStarted()
+                updateNowPlaying(state: .playing)
+            case .active where oldValue == .suspended:
+                updateNowPlaying(state: .playing)
+            case .suspended:
+                voiceHapticsEngine.suspended()
+                updateNowPlaying(state: .paused)
+            case .idle where oldValue != .idle:
+                voiceHapticsEngine.ended()
+                stopHapticLevelForwarding()
+                clearNowPlaying()
+            default:
+                break
+            }
+        }
+    }
+    @Published var connectionState: VoiceConnectionState = .disconnected {
+        didSet {
+            switch connectionState {
+            case .connected where oldValue != .connected:
+                voiceHapticsEngine.connected()
+                startHapticLevelForwarding()
+            case .error:
+                voiceHapticsEngine.error()
+            case .disconnected where oldValue == .connected:
+                stopHapticLevelForwarding()
+            default:
+                break
+            }
+        }
+    }
     @Published var transcript: [TranscriptEntry] = []
     @Published var isMuted = false {
         didSet { audioManager.isMuted = isMuted }
@@ -975,7 +1014,6 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             try await audioManager.prepareAudioSession()
             try await provider.connect(config: config)
             connectionState = .connected
-            HapticManager.voiceSessionConnected()
             startIdleTimer()
             subscribeToInputLevel()
             subscribeToTaskEvents()
@@ -1865,6 +1903,59 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     private func unsubscribeFromInputLevel() {
         inputLevelCancellable?.cancel()
         inputLevelCancellable = nil
+    }
+
+    // MARK: - Now Playing
+
+    private func updateNowPlaying(state: NowPlayingState) {
+        let center = MPNowPlayingInfoCenter.default()
+
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: "Hivelink",
+            MPMediaItemPropertyArtist: voiceDisplayName,
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+        ]
+
+        if let iconImage = UIImage(named: "AppIcon") ?? UIImage(named: "hivecrew-icon") {
+            let artwork = MPMediaItemArtwork(boundsSize: iconImage.size) { _ in iconImage }
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+
+        center.nowPlayingInfo = info
+        center.playbackState = state == .playing ? .playing : .paused
+    }
+
+    private func clearNowPlaying() {
+        let center = MPNowPlayingInfoCenter.default()
+        center.nowPlayingInfo = nil
+        center.playbackState = .stopped
+    }
+
+    private enum NowPlayingState {
+        case playing, paused
+    }
+
+    // MARK: - Haptic Level Forwarding
+
+    private func startHapticLevelForwarding() {
+        hapticLevelCancellable?.cancel()
+        hapticLevelCancellable = $inputLevel
+            .merge(with: $outputLevel)
+            .throttle(for: .milliseconds(100), scheduler: RunLoop.main, latest: true)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.isModelSpeaking {
+                    self.voiceHapticsEngine.modelSpeakingTick(level: self.outputLevel)
+                } else if !self.isMuted {
+                    self.voiceHapticsEngine.listeningPulse(level: self.inputLevel)
+                }
+            }
+    }
+
+    private func stopHapticLevelForwarding() {
+        hapticLevelCancellable?.cancel()
+        hapticLevelCancellable = nil
+        voiceHapticsEngine.stop()
     }
 }
 

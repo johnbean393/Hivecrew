@@ -71,6 +71,15 @@
 		21FC00012FC0010100200001 /* PlanMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21FC00022FC0010200200002 /* PlanMarkdownView.swift */; };
 		22A100012FD0010100000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 22A100112FD0011100000011 /* PrivacyInfo.xcprivacy */; };
 		22A100022FD0010200000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 22A100122FD0011200000012 /* PrivacyInfo.xcprivacy */; };
+		23A200012FE0020100000001 /* OpenNewTaskIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100012FE0010100000001 /* OpenNewTaskIntent.swift */; };
+		23A200022FE0020200000002 /* SetIncomingCallsAllowedIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100022FE0010200000002 /* SetIncomingCallsAllowedIntent.swift */; };
+		23A200032FE0020300000003 /* LiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100032FE0010300000003 /* LiveActivityIntents.swift */; };
+		23A200042FE0020400000004 /* FocusFilterPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100042FE0010400000004 /* FocusFilterPreferences.swift */; };
+		23A200052FE0020500000005 /* VoiceHapticsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100052FE0010500000005 /* VoiceHapticsEngine.swift */; };
+		23A200062FE0020600000006 /* RoutePickerButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100062FE0010600000006 /* RoutePickerButton.swift */; };
+		23A200072FE0020700000007 /* HivelinkControlWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100072FE0010700000007 /* HivelinkControlWidgets.swift */; };
+		23A200082FE0020800000008 /* LiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100082FE0010800000008 /* LiveActivityIntents.swift */; };
+		23A200092FE0020900000009 /* FocusFilterPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100092FE0010900000009 /* FocusFilterPreferences.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -189,6 +198,15 @@
 		21FC00022FC0010200200002 /* PlanMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanMarkdownView.swift; sourceTree = "<group>"; };
 		22A100112FD0011100000011 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		22A100122FD0011200000012 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		23A100012FE0010100000001 /* OpenNewTaskIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenNewTaskIntent.swift; sourceTree = "<group>"; };
+		23A100022FE0010200000002 /* SetIncomingCallsAllowedIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetIncomingCallsAllowedIntent.swift; sourceTree = "<group>"; };
+		23A100032FE0010300000003 /* LiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityIntents.swift; sourceTree = "<group>"; };
+		23A100042FE0010400000004 /* FocusFilterPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusFilterPreferences.swift; sourceTree = "<group>"; };
+		23A100052FE0010500000005 /* VoiceHapticsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceHapticsEngine.swift; sourceTree = "<group>"; };
+		23A100062FE0010600000006 /* RoutePickerButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePickerButton.swift; sourceTree = "<group>"; };
+		23A100072FE0010700000007 /* HivelinkControlWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkControlWidgets.swift; sourceTree = "<group>"; };
+		23A100082FE0010800000008 /* LiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityIntents.swift; sourceTree = "<group>"; };
+		23A100092FE0010900000009 /* FocusFilterPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusFilterPreferences.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -288,7 +306,6 @@
 				21F102022F900C0200000C02 /* Services */,
 				21F102032F900C0300000C03 /* Views */,
 				21F102092F900C0900000C09 /* Intents */,
-				21F1020A2F900C0A00000C0A /* Widgets */,
 				21F1020B2F900C0B00000C0B /* LiveActivity */,
 				20C4394F2F8EA82300558698 /* Assets.xcassets */,
 			);
@@ -306,6 +323,7 @@
 		21F102012F900C0100000C01 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				23A100042FE0010400000004 /* FocusFilterPreferences.swift */,
 				21FB00262FB0012600100026 /* IncomingCallContext.swift */,
 				21FA00012FA0010100000001 /* SharedWidgetData.swift */,
 			);
@@ -324,6 +342,7 @@
 				21FB00242FB0012400100024 /* IncomingCallManager.swift */,
 				21FB00252FB0012500100025 /* NotificationManager.swift */,
 				21F4D1012F90310100004001 /* PeerConnectionManager.swift */,
+				23A100052FE0010500000005 /* VoiceHapticsEngine.swift */,
 				21FB00212FB0012100100021 /* iOSScreenBroadcastReceiver.swift */,
 			);
 			path = Services;
@@ -372,6 +391,7 @@
 			isa = PBXGroup;
 			children = (
 				21F7A10C2F90610C0000700C /* InputSourcePickerView.swift */,
+				23A100062FE0010600000006 /* RoutePickerButton.swift */,
 				21F7A1082F90610800007008 /* TranscriptView.swift */,
 				21F7A1042F90610400007004 /* VoiceCallView.swift */,
 				21F7A1062F90610600007006 /* VoiceOrbView.swift */,
@@ -405,16 +425,12 @@
 				21FA00062FA0010600000006 /* GetTaskStatusIntent.swift */,
 				21FB00232FB0012300100023 /* HivelinkFocusFilter.swift */,
 				21FA00072FA0010700000007 /* HivelinkShortcuts.swift */,
+				23A100032FE0010300000003 /* LiveActivityIntents.swift */,
+				23A100012FE0010100000001 /* OpenNewTaskIntent.swift */,
+				23A100022FE0010200000002 /* SetIncomingCallsAllowedIntent.swift */,
 				21FA00052FA0010500000005 /* StartVoiceSessionIntent.swift */,
 			);
 			path = Intents;
-			sourceTree = "<group>";
-		};
-		21F1020A2F900C0A00000C0A /* Widgets */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Widgets;
 			sourceTree = "<group>";
 		};
 		21F1020B2F900C0B00000C0B /* LiveActivity */ = {
@@ -441,7 +457,10 @@
 				21FA000B2FA0010B0000000B /* ActiveTasksWidget.swift */,
 				21FA000D2FA0010D0000000D /* ActiveTaskCountAccessoryWidget.swift */,
 				21FA000C2FA0010C0000000C /* ClusterStatusWidget.swift */,
+				23A100092FE0010900000009 /* FocusFilterPreferences.swift */,
+				23A100072FE0010700000007 /* HivelinkControlWidgets.swift */,
 				21F140022F90020200000202 /* HivelinkWidgetsBundle.swift */,
+				23A100082FE0010800000008 /* LiveActivityIntents.swift */,
 				21FA00082FA0010800000008 /* SharedWidgetData.swift */,
 				21FA00092FA0010900000009 /* TaskActivityAttributes.swift */,
 				21FA000A2FA0010A0000000A /* TaskLiveActivityView.swift */,
@@ -708,6 +727,12 @@
 				21FB00352FB0013500100035 /* NotificationManager.swift in Sources */,
 				21FB00362FB0013600100036 /* IncomingCallContext.swift in Sources */,
 				21FC00012FC0010100200001 /* PlanMarkdownView.swift in Sources */,
+				23A200012FE0020100000001 /* OpenNewTaskIntent.swift in Sources */,
+				23A200022FE0020200000002 /* SetIncomingCallsAllowedIntent.swift in Sources */,
+				23A200032FE0020300000003 /* LiveActivityIntents.swift in Sources */,
+				23A200042FE0020400000004 /* FocusFilterPreferences.swift in Sources */,
+				23A200052FE0020500000005 /* VoiceHapticsEngine.swift in Sources */,
+				23A200062FE0020600000006 /* RoutePickerButton.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -747,6 +772,9 @@
 				21FA00242FA0012400000024 /* ActiveTasksWidget.swift in Sources */,
 				21FA00252FA0012500000025 /* ClusterStatusWidget.swift in Sources */,
 				21FA00262FA0012600000026 /* ActiveTaskCountAccessoryWidget.swift in Sources */,
+				23A200072FE0020700000007 /* HivelinkControlWidgets.swift in Sources */,
+				23A200082FE0020800000008 /* LiveActivityIntents.swift in Sources */,
+				23A200092FE0020900000009 /* FocusFilterPreferences.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

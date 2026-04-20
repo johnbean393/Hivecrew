@@ -6,6 +6,7 @@
 //
 
 import ActivityKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -49,15 +50,9 @@ struct TaskLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if context.state.needsAttention, let msg = context.state.attentionMessage {
-                        HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                            Text(msg)
-                                .font(.caption)
-                                .lineLimit(1)
-                        }
-                        .padding(.top, 4)
+                    if context.state.needsAttention {
+                        attentionActionRow(context: context)
+                            .padding(.top, 4)
                     }
                 }
             } compactLeading: {
@@ -79,34 +74,149 @@ struct TaskLiveActivity: Widget {
     // MARK: - Lock Screen banner
 
     private func lockScreenView(context: ActivityViewContext<TaskActivityAttributes>) -> some View {
-        HStack(spacing: 12) {
-            statusIndicator(for: context.state.status)
-                .font(.title2)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                statusIndicator(for: context.state.status)
+                    .font(.title2)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(context.attributes.taskTitle)
-                    .font(.headline)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(context.attributes.taskTitle)
+                        .font(.headline)
+                        .lineLimit(1)
 
-                HStack(spacing: 8) {
-                    statusPill(context.state.status)
+                    HStack(spacing: 8) {
+                        statusPill(context.state.status)
 
-                    if !context.attributes.peerName.isEmpty {
-                        Label(context.attributes.peerName, systemImage: "desktopcomputer")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                        if !context.attributes.peerName.isEmpty {
+                            Label(context.attributes.peerName, systemImage: "desktopcomputer")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
+                }
+
+                Spacer()
+
+                if let pct = context.state.completionPercent {
+                    completionRing(percent: pct)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, context.state.needsAttention ? 8 : 16)
+
+            if context.state.needsAttention {
+                attentionActionRow(context: context)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
+        }
+    }
+
+    // MARK: - Attention Action Row
+
+    @ViewBuilder
+    private func attentionActionRow(context: ActivityViewContext<TaskActivityAttributes>) -> some View {
+        let taskId = context.attributes.taskId
+
+        switch context.state.attentionKind {
+        case .permission:
+            let actionId = context.state.attentionActionId ?? ""
+            HStack(spacing: 8) {
+                if let msg = context.state.attentionMessage {
+                    Text(msg)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(intent: approvePermissionIntent(taskId: taskId, permissionId: actionId)) {
+                    Text("Approve")
+                        .font(.caption.bold())
+                }
+                .tint(.green)
+                Button(intent: denyPermissionIntent(taskId: taskId, permissionId: actionId)) {
+                    Text("Deny")
+                        .font(.caption.bold())
+                }
+                .tint(.red)
+            }
+
+        case .question:
+            let actionId = context.state.attentionActionId ?? ""
+            VStack(spacing: 6) {
+                if let msg = context.state.attentionMessage {
+                    Text(msg)
+                        .font(.caption)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                HStack(spacing: 6) {
+                    if let replies = context.state.suggestedReplies {
+                        ForEach(replies, id: \.self) { reply in
+                            Button(intent: answerQuestionIntent(taskId: taskId, questionId: actionId, answer: reply)) {
+                                Text(reply)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                            }
+                            .tint(.orange)
+                        }
+                    }
+                    Spacer()
                 }
             }
 
-            Spacer()
+        case .plan, .writeback:
+            HStack(spacing: 8) {
+                if let msg = context.state.attentionMessage {
+                    Text(msg)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                Text("Open to Review")
+                    .font(.caption.bold())
+                    .foregroundStyle(.blue)
+            }
 
-            if let pct = context.state.completionPercent {
-                completionRing(percent: pct)
+        case .none, nil:
+            if let msg = context.state.attentionMessage {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(msg)
+                        .font(.caption)
+                        .lineLimit(1)
+                }
             }
         }
-        .padding(16)
+    }
+
+    private func approvePermissionIntent(taskId: String, permissionId: String) -> ApproveToolPermissionIntent {
+        var intent = ApproveToolPermissionIntent()
+        intent.taskId = taskId
+        intent.permissionId = permissionId
+        return intent
+    }
+
+    private func denyPermissionIntent(taskId: String, permissionId: String) -> DenyToolPermissionIntent {
+        var intent = DenyToolPermissionIntent()
+        intent.taskId = taskId
+        intent.permissionId = permissionId
+        return intent
+    }
+
+    private func answerQuestionIntent(taskId: String, questionId: String, answer: String) -> AnswerAgentQuestionIntent {
+        var intent = AnswerAgentQuestionIntent()
+        intent.taskId = taskId
+        intent.questionId = questionId
+        intent.answer = answer
+        return intent
     }
 
     // MARK: - Helpers

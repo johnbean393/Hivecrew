@@ -577,15 +577,41 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
         )
 
         for task in tasks {
-            let needsAttention = task.status == .paused || task.status == .planReview || task.status == .writebackReview
-            let attentionMessage: String? = needsAttention ? task.status.displayName : nil
+            let pendingQuestion = peerConnectionManager?.pendingQuestion(for: task.id)
+            let needsAttention = task.status == .paused || task.status == .planReview || task.status == .writebackReview || pendingQuestion != nil
+            let attentionMessage: String? = needsAttention ? (pendingQuestion?.question ?? task.status.displayName) : nil
+
+            let attentionKind: AttentionKind?
+            let attentionActionId: String?
+            var suggestedReplies: [String]?
+
+            if let question = pendingQuestion {
+                attentionKind = .question
+                attentionActionId = question.id
+                suggestedReplies = Array((question.suggestedAnswers ?? []).prefix(2))
+            } else {
+                switch task.status {
+                case .planReview:
+                    attentionKind = .plan
+                    attentionActionId = nil
+                case .writebackReview:
+                    attentionKind = .writeback
+                    attentionActionId = nil
+                default:
+                    attentionKind = nil
+                    attentionActionId = nil
+                }
+            }
 
             let contentState = TaskActivityAttributes.ContentState(
                 status: task.status.displayName,
                 completionPercent: todoCompletionPercent(for: task),
                 stepCount: nil,
                 needsAttention: needsAttention,
-                attentionMessage: attentionMessage
+                attentionMessage: attentionMessage,
+                attentionKind: attentionKind,
+                attentionActionId: attentionActionId,
+                suggestedReplies: suggestedReplies
             )
 
             if wantActiveIds.contains(task.id) {
@@ -624,7 +650,10 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                 completionPercent: nil,
                 stepCount: nil,
                 needsAttention: false,
-                attentionMessage: nil
+                attentionMessage: nil,
+                attentionKind: nil,
+                attentionActionId: nil,
+                suggestedReplies: nil
             )
             let finalContent = ActivityContent(state: endState, staleDate: nil)
             nonisolated(unsafe) let sendableActivity = activity
@@ -642,7 +671,10 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
                     completionPercent: nil,
                     stepCount: nil,
                     needsAttention: false,
-                    attentionMessage: nil
+                    attentionMessage: nil,
+                    attentionKind: nil,
+                    attentionActionId: nil,
+                    suggestedReplies: nil
                 )
                 let finalContent = ActivityContent(state: endState, staleDate: nil)
                 Task { await sendableActivity.end(finalContent, dismissalPolicy: .immediate) }

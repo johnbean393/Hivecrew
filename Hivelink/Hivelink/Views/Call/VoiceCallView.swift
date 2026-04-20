@@ -261,6 +261,32 @@ struct VoiceCallView: View {
                     .environmentObject(orchestrator)
             }
 
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.9),
+                                Color.black,
+                                Color.black.mix(with: .black, by: 0.25)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 52, height: 52)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+
+                RoutePickerButton()
+                    .frame(width: 22, height: 22)
+            }
+            .frame(width: 52, height: 52)
+
             CallControlButton(
                 icon: "xmark",
                 color: Color(red: 0.96, green: 0.26, blue: 0.21)

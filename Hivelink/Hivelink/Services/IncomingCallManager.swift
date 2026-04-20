@@ -120,8 +120,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
             return .triggerDisabled
         }
 
-        if UserDefaults.standard.object(forKey: "focusFilter.allowIncomingCalls") != nil,
-           !UserDefaults.standard.bool(forKey: "focusFilter.allowIncomingCalls") {
+        if !FocusFilterPreferences.allowIncomingCalls {
             return .focusFilter
         }
 

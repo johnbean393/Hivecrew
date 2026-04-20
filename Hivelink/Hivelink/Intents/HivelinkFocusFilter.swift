@@ -23,9 +23,12 @@ struct HivelinkFocusFilter: SetFocusFilterIntent {
     var allowIncomingCalls: Bool
 
     func perform() async throws -> some IntentResult {
-        let defaults = UserDefaults.standard
-        defaults.set(allowNotifications, forKey: "focusFilter.allowNotifications")
-        defaults.set(allowIncomingCalls, forKey: "focusFilter.allowIncomingCalls")
+        await FocusFilterPreferences.setAllowNotifications(
+            allowNotifications
+        )
+        await FocusFilterPreferences.setAllowIncomingCalls(
+            allowIncomingCalls
+        )
         return .result()
     }
 }

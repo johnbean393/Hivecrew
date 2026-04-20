@@ -109,6 +109,46 @@ struct PromptBar: View {
     }
 
     var body: some View {
+        coreContent
+            .sheet(isPresented: $showModelPicker) {
+                ModelPickerSheet(
+                    selectedProviderName: $storedProviderName,
+                    selectedModelId: $storedModelId,
+                    isPresented: $showModelPicker,
+                    peers: clusterCoordinator.peers
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showExecutionTargetPicker) {
+                executionTargetSheet
+            }
+            .fileImporter(
+                isPresented: $showFileImporter,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: true
+            ) { result in
+                if case .success(let urls) = result {
+                    for url in urls {
+                        if let copied = copyImportToTemporary(url) {
+                            attachmentURLs.append(copied)
+                        }
+                    }
+                }
+            }
+            .alert(String(localized: "Couldn't create task"), isPresented: Binding(
+                get: { sendError != nil },
+                set: { if !$0 { sendError = nil } }
+            )) {
+                Button(String(localized: "OK"), role: .cancel) { sendError = nil }
+            } message: {
+                if let sendError {
+                    Text(sendError)
+                }
+            }
+    }
+
+    private var coreContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showMentionSuggestions {
                 mentionSuggestionsView
@@ -135,6 +175,10 @@ struct PromptBar: View {
             persistVoiceTaskLaunchSnapshot()
             mentionProvider.updateAttachments(attachmentURLs)
             mentionProvider.updateTasks(finishedTasksForMentions)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .focusPromptBar)) { _ in
+            mentionInsertionController.focusTextView()
+            fieldFocused = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .loadTaskIntoPromptBar)) { notification in
             guard let taskId = notification.userInfo?["taskId"] as? String,
@@ -172,42 +216,6 @@ struct PromptBar: View {
         }
         .onChange(of: taskService.tasks) { _, _ in
             mentionProvider.updateTasks(finishedTasksForMentions)
-        }
-        .sheet(isPresented: $showModelPicker) {
-            ModelPickerSheet(
-                selectedProviderName: $storedProviderName,
-                selectedModelId: $storedModelId,
-                isPresented: $showModelPicker,
-                peers: clusterCoordinator.peers
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showExecutionTargetPicker) {
-            executionTargetSheet
-        }
-        .fileImporter(
-            isPresented: $showFileImporter,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: true
-        ) { result in
-            if case .success(let urls) = result {
-                for url in urls {
-                    if let copied = copyImportToTemporary(url) {
-                        attachmentURLs.append(copied)
-                    }
-                }
-            }
-        }
-        .alert(String(localized: "Couldn't create task"), isPresented: Binding(
-            get: { sendError != nil },
-            set: { if !$0 { sendError = nil } }
-        )) {
-            Button(String(localized: "OK"), role: .cancel) { sendError = nil }
-        } message: {
-            if let sendError {
-                Text(sendError)
-            }
         }
     }
 

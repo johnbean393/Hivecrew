@@ -324,6 +324,7 @@ struct TaskDetailPlaceholderView: View {
 extension Notification.Name {
     static let continueFromTask = Notification.Name("continueFromTask")
     static let loadTaskIntoPromptBar = Notification.Name("loadTaskIntoPromptBar")
+    static let focusPromptBar = Notification.Name("hivelink.focusPromptBar")
 }
 
 #Preview {

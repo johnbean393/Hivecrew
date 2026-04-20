@@ -301,8 +301,7 @@ final class NotificationManager: NSObject, ObservableObject {
         userInfo: [AnyHashable: Any] = [:]
     ) {
         if let category = categoryIdentifier,
-           UserDefaults.standard.object(forKey: "focusFilter.allowNotifications") != nil,
-           !UserDefaults.standard.bool(forKey: "focusFilter.allowNotifications"),
+           !FocusFilterPreferences.allowNotifications,
            !Self.criticalCategories.contains(category) {
             return
         }

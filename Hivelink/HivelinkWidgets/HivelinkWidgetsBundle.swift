@@ -13,5 +13,8 @@ struct HivelinkWidgetsBundle: WidgetBundle {
         ClusterStatusWidget()
         ActiveTaskCountAccessoryWidget()
         TaskLiveActivity()
+        StartCallControlWidget()
+        CreateTaskControlWidget()
+        PauseIncomingCallsControlWidget()
     }
 }

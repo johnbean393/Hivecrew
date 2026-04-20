@@ -37,6 +37,7 @@ struct SettingsView: View {
     private var openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue
     @AppStorage("hivelink.mediaResolution") private var mediaResolution = "medium"
     @AppStorage("hivelink.reasoningEffort") private var reasoningEffort = "low"
+    @AppStorage("hivelink.haptics.enabled") private var hapticsEnabled = true
 
     // MARK: - Notifications
 
@@ -408,6 +409,8 @@ struct SettingsView: View {
                 Text(String(localized: "Medium")).tag("medium")
                 Text(String(localized: "High")).tag("high")
             }
+
+            Toggle(String(localized: "Haptics During Calls"), isOn: $hapticsEnabled)
         } header: {
             Text(String(localized: "Voice"))
         }
