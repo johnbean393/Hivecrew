@@ -282,41 +282,11 @@ struct TaskListView: View {
     }
 
     private func continueTask(_ task: TaskRecord) {
-        let request = TaskCreationRequest(
-            description: task.taskDescription,
-            providerId: task.providerId,
-            modelId: task.modelId,
-            executionTarget: task.executionTarget,
-            reasoningEnabled: task.reasoningEnabled,
-            reasoningEffort: task.reasoningEffort,
-            serviceTier: task.serviceTier,
-            attachedFilePaths: task.attachedFilePaths,
-            attachmentInfos: task.attachmentInfos.isEmpty ? nil : task.attachmentInfos,
-            mentionedSkillNames: task.mentionedSkillNames ?? [],
-            referencedTaskIds: task.referencedTaskIds ?? [],
-            continuationSourceTaskId: task.id,
-            retrievalContextPackId: task.retrievalContextPackId,
-            retrievalInlineContextBlocks: task.retrievalInlineContextBlocks,
-            retrievalContextAttachmentPaths: task.retrievalContextAttachmentPaths ?? [],
-            retrievalSelectedSuggestionIds: task.retrievalSelectedSuggestionIds ?? [],
-            retrievalModeOverrides: task.retrievalModeOverrides,
-            clusterReferenceContextBlocks: task.clusterReferenceContextBlocks,
-            clusterReferenceFiles: task.clusterReferenceFiles,
-            planFirstEnabled: task.planFirstEnabled,
-            planMarkdown: task.planMarkdown,
-            planSelectedSkillNames: task.planSelectedSkillNames,
-            localAccessGrants: task.localAccessGrants,
-            clusterOwnerTaskId: nil,
-            clusterExecutionAttempt: 0,
-            clusterLeaseId: nil
+        NotificationCenter.default.post(
+            name: .continueFromTask,
+            object: nil,
+            userInfo: ["taskId": task.id]
         )
-        Task {
-            do {
-                _ = try await taskService.createTasks([request])
-            } catch {
-                sendError = error.localizedDescription
-            }
-        }
     }
 }
 
@@ -352,6 +322,7 @@ struct TaskDetailPlaceholderView: View {
 // MARK: - Notification Names
 
 extension Notification.Name {
+    static let continueFromTask = Notification.Name("continueFromTask")
     static let loadTaskIntoPromptBar = Notification.Name("loadTaskIntoPromptBar")
 }
 

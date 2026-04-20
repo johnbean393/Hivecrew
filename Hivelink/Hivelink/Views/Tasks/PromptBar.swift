@@ -8,6 +8,8 @@ import HivecrewCore
 import PhotosUI
 import SwiftData
 import SwiftUI
+import Combine
+import UIKit
 import UniformTypeIdentifiers
 
 struct PromptBar: View {
@@ -41,8 +43,12 @@ struct PromptBar: View {
     @State private var planFirstEnabled = false
     @State private var reasoningCapability = APIReasoningCapability()
     @State private var reasoningEnabled: Bool? = nil
+    @State private var editorHeight: CGFloat = 22
+    @State private var mentionQuery: HivelinkMentionQuery?
+    @StateObject private var mentionProvider = HivelinkMentionSuggestionsProvider()
+    @StateObject private var mentionInsertionController = HivelinkMentionInsertionController()
 
-    @FocusState private var fieldFocused: Bool
+    @State private var fieldFocused = false
 
     @State private var selectedExecutionTarget: TaskExecutionTarget = .automatic
 
@@ -70,6 +76,31 @@ struct PromptBar: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var canSubmit: Bool {
+        hasText || mentionInsertionController.hasMentions
+    }
+
+    private var showsSendButton: Bool {
+        canSubmit
+    }
+
+    private var finishedTasksForMentions: [TaskRecord] {
+        taskService.tasks
+            .filter { !$0.status.isActive }
+            .sorted { lhs, rhs in
+                let lhsDate = lhs.completedAt ?? lhs.createdAt
+                let rhsDate = rhs.completedAt ?? rhs.createdAt
+                if lhsDate == rhsDate {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhsDate > rhsDate
+            }
+    }
+
+    private var showMentionSuggestions: Bool {
+        mentionQuery != nil && !mentionProvider.suggestions.isEmpty
+    }
+
     /// Re-fires whenever the selected model changes OR peers come online,
     /// so reasoning capability loads correctly at app launch.
     private var reasoningCapabilityTaskID: String {
@@ -79,6 +110,13 @@ struct PromptBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if showMentionSuggestions {
+                mentionSuggestionsView
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             if !attachmentURLs.isEmpty {
                 attachmentChips
                     .padding(.horizontal, 16)
@@ -95,11 +133,18 @@ struct PromptBar: View {
             restoreVoiceTaskLaunchSnapshotIfAvailable()
             seedDefaultsIfNeeded()
             persistVoiceTaskLaunchSnapshot()
+            mentionProvider.updateAttachments(attachmentURLs)
+            mentionProvider.updateTasks(finishedTasksForMentions)
         }
         .onReceive(NotificationCenter.default.publisher(for: .loadTaskIntoPromptBar)) { notification in
             guard let taskId = notification.userInfo?["taskId"] as? String,
                   let task = taskService.getTask(byId: taskId) else { return }
             loadTaskIntoPromptBar(task)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .continueFromTask)) { notification in
+            guard let taskId = notification.userInfo?["taskId"] as? String,
+                  let task = taskService.getTask(byId: taskId) else { return }
+            loadContinuationSource(task)
         }
         .task(id: reasoningCapabilityTaskID) {
             await loadReasoningCapability()
@@ -121,6 +166,12 @@ struct PromptBar: View {
         }
         .onChange(of: photoPickerItems) { _, newValue in
             Task { await ingestPhotoItems(newValue) }
+        }
+        .onChange(of: attachmentURLs) { _, newValue in
+            mentionProvider.updateAttachments(newValue)
+        }
+        .onChange(of: taskService.tasks) { _, _ in
+            mentionProvider.updateTasks(finishedTasksForMentions)
         }
         .sheet(isPresented: $showModelPicker) {
             ModelPickerSheet(
@@ -169,15 +220,21 @@ struct PromptBar: View {
                 .padding(.leading, 8)
 
             VStack(alignment: .leading, spacing: 6) {
-                TextField(
-                    String(localized: "Describe a task…"),
+                HivelinkPromptTextEditor(
                     text: $text,
-                    axis: .vertical
+                    measuredHeight: $editorHeight,
+                    placeholder: String(localized: "Describe a task…"),
+                    onMentionQuery: { query in
+                        mentionQuery = query
+                        mentionProvider.updateQuery(query?.query)
+                    },
+                    mentionInsertionController: mentionInsertionController,
+                    onFocusChanged: { isFocused in
+                        fieldFocused = isFocused
+                    }
                 )
-                .lineLimit(1...6)
-                .textFieldStyle(.plain)
-                .focused($fieldFocused)
                 .padding(.leading, 6)
+                .frame(minHeight: 22, idealHeight: editorHeight, maxHeight: max(22, editorHeight))
 
                 controlsRow
             }
@@ -186,7 +243,7 @@ struct PromptBar: View {
             Spacer(minLength: 8)
 
             Group {
-                if hasText {
+                if showsSendButton {
                     sendButton
                         .transition(.scale.combined(with: .opacity))
                 } else {
@@ -195,7 +252,7 @@ struct PromptBar: View {
                 }
             }
             .padding(.trailing, 8)
-            .animation(.easeInOut(duration: 0.25), value: hasText)
+            .animation(.easeInOut(duration: 0.25), value: showsSendButton)
         }
         .background(Color(.systemBackground))
         .clipShape(rect)
@@ -490,7 +547,7 @@ struct PromptBar: View {
                     .foregroundStyle(.tint)
             }
         }
-        .disabled(isSending || effectiveProviderName.isEmpty || effectiveModelId.isEmpty)
+        .disabled(isSending || effectiveProviderName.isEmpty || effectiveModelId.isEmpty || !canSubmit)
         .accessibilityLabel(String(localized: "Send task"))
     }
 
@@ -535,6 +592,84 @@ struct PromptBar: View {
                 }
             }
         }
+    }
+
+    private var mentionSuggestionsView: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                if mentionProvider.suggestions.contains(where: { $0.type == .attachment }) {
+                    mentionSectionHeader("Attachments")
+                    ForEach(mentionProvider.suggestions.filter { $0.type == .attachment }) { suggestion in
+                        mentionSuggestionRow(suggestion)
+                    }
+                }
+
+                if mentionProvider.suggestions.contains(where: { $0.type == .deliverable }) {
+                    mentionSectionHeader("Deliverables")
+                    ForEach(mentionProvider.suggestions.filter { $0.type == .deliverable }) { suggestion in
+                        mentionSuggestionRow(suggestion)
+                    }
+                }
+
+                if mentionProvider.suggestions.contains(where: { $0.type == .task }) {
+                    mentionSectionHeader("Finished Tasks")
+                    ForEach(mentionProvider.suggestions.filter { $0.type == .task }) { suggestion in
+                        mentionSuggestionRow(suggestion)
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 280)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func mentionSectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
+    }
+
+    private func mentionSuggestionRow(_ suggestion: HivelinkMentionSuggestion) -> some View {
+        Button {
+            insertMentionSuggestion(suggestion)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: suggestion.iconName)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(suggestion.displayName)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if let detail = suggestion.detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Execution Target Sheet
@@ -605,6 +740,19 @@ struct PromptBar: View {
         return nil
     }
 
+    private func insertMentionSuggestion(_ suggestion: HivelinkMentionSuggestion) {
+        mentionInsertionController.insertSuggestion(suggestion)
+        if let url = suggestion.fileURL,
+           (suggestion.type == .attachment || suggestion.type == .deliverable),
+           !attachmentURLs.contains(where: { $0.path == url.path }) {
+            attachmentURLs.append(url)
+        }
+        mentionQuery = nil
+        mentionProvider.updateQuery(nil)
+        mentionInsertionController.focusTextView()
+        fieldFocused = true
+    }
+
     private func seedDefaultsIfNeeded() {
         guard storedProviderName.isEmpty || storedModelId.isEmpty,
               let first = firstAvailableChoice()
@@ -668,8 +816,9 @@ struct PromptBar: View {
     }
 
     private func sendTask() async {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        let resolvedText = mentionInsertionController.getResolvedText(fallbackText: text)
+        let trimmed = resolvedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard canSubmit else { return }
         guard !effectiveProviderName.isEmpty, !effectiveModelId.isEmpty else { return }
 
         isSending = true
@@ -690,6 +839,8 @@ struct PromptBar: View {
         }
 
         let paths = attachmentURLs.map(\.path)
+        let referencedTaskIds = mentionInsertionController.getReferencedTaskIDs()
+        let continuationSourceTaskId = mentionInsertionController.getPrimaryContinuationTaskID()
         let request = TaskCreationRequest(
             description: trimmed,
             providerId: providerId(forProviderName: effectiveProviderName),
@@ -698,6 +849,8 @@ struct PromptBar: View {
             reasoningEnabled: resolvedReasoningEnabled,
             reasoningEffort: resolvedReasoningEffort,
             attachedFilePaths: paths,
+            referencedTaskIds: referencedTaskIds,
+            continuationSourceTaskId: continuationSourceTaskId,
             planFirstEnabled: planFirstEnabled
         )
 
@@ -708,6 +861,9 @@ struct PromptBar: View {
             text = ""
             attachmentURLs = []
             photoPickerItems = []
+            mentionQuery = nil
+            mentionProvider.updateQuery(nil)
+            mentionInsertionController.clearTextView()
             fieldFocused = false
         } catch {
             sendError = error.localizedDescription
@@ -743,10 +899,33 @@ struct PromptBar: View {
         }
 
         photoPickerItems = []
+        mentionInsertionController.setPlainText(task.taskDescription)
+        mentionQuery = nil
+        mentionProvider.updateQuery(nil)
+
+        if let continuationTaskId = task.continuationSourceTaskId,
+           let continuationTask = taskService.getTask(byId: continuationTaskId) {
+            mentionInsertionController.insertTaskSuggestion(
+                HivelinkMentionSuggestion(task: continuationTask),
+                isPrimaryContinuation: true
+            )
+        }
 
         DispatchQueue.main.async {
+            mentionInsertionController.focusTextView()
             fieldFocused = true
         }
+    }
+
+    private func loadContinuationSource(_ task: TaskRecord) {
+        mentionInsertionController.insertTaskSuggestion(
+            HivelinkMentionSuggestion(task: task),
+            isPrimaryContinuation: true
+        )
+        mentionQuery = nil
+        mentionProvider.updateQuery(nil)
+        mentionInsertionController.focusTextView()
+        fieldFocused = true
     }
 
     private func copyImportToTemporary(_ url: URL) -> URL? {
@@ -804,6 +983,709 @@ struct PromptBar: View {
         }
 
         UserDefaults.standard.set(data, forKey: Self.voiceTaskLaunchSnapshotDefaultsKey)
+    }
+}
+
+// MARK: - Inline Mention Editing
+
+private struct HivelinkMentionQuery {
+    let query: String
+    let range: NSRange
+}
+
+private struct HivelinkMentionSuggestion: Identifiable, Equatable {
+    enum SuggestionType {
+        case attachment
+        case deliverable
+        case task
+    }
+
+    let id: String
+    let displayName: String
+    let detail: String?
+    let type: SuggestionType
+    let fileURL: URL?
+    let taskId: String?
+
+    var iconName: String {
+        switch type {
+        case .attachment: return "paperclip"
+        case .deliverable: return "doc.on.doc"
+        case .task: return "arrow.turn.down.right"
+        }
+    }
+
+    init(attachmentURL: URL) {
+        id = "attachment:\(attachmentURL.path)"
+        displayName = attachmentURL.lastPathComponent
+        detail = "Current attachment"
+        type = .attachment
+        fileURL = attachmentURL
+        taskId = nil
+    }
+
+    init(deliverableURL: URL, taskTitle: String) {
+        id = "deliverable:\(deliverableURL.path)"
+        displayName = deliverableURL.lastPathComponent
+        detail = taskTitle
+        type = .deliverable
+        fileURL = deliverableURL
+        taskId = nil
+    }
+
+    init(task: TaskRecord) {
+        id = "task:\(task.id)"
+        displayName = task.title
+        detail = "\(task.status.displayName) • \((task.completedAt ?? task.createdAt).formatted(date: .abbreviated, time: .omitted))"
+        type = .task
+        fileURL = nil
+        taskId = task.id
+    }
+}
+
+@MainActor
+private final class HivelinkMentionSuggestionsProvider: ObservableObject {
+    @Published private(set) var suggestions: [HivelinkMentionSuggestion] = []
+
+    private var attachmentSuggestions: [HivelinkMentionSuggestion] = []
+    private var deliverableSuggestions: [HivelinkMentionSuggestion] = []
+    private var taskSuggestions: [HivelinkMentionSuggestion] = []
+    private var lastQuery: String?
+
+    func updateAttachments(_ urls: [URL]) {
+        attachmentSuggestions = urls.map { HivelinkMentionSuggestion(attachmentURL: $0) }
+        updateQuery(lastQuery)
+    }
+
+    func updateTasks(_ tasks: [TaskRecord]) {
+        taskSuggestions = tasks.map { HivelinkMentionSuggestion(task: $0) }
+        deliverableSuggestions = tasks
+            .flatMap { task in
+                (task.outputFilePaths ?? [])
+                    .filter { FileManager.default.fileExists(atPath: $0) }
+                    .map {
+                        HivelinkMentionSuggestion(
+                            deliverableURL: URL(fileURLWithPath: $0),
+                            taskTitle: task.title
+                        )
+                    }
+            }
+        updateQuery(lastQuery)
+    }
+
+    func updateQuery(_ query: String?) {
+        lastQuery = query
+        let trimmed = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else {
+            suggestions = []
+            return
+        }
+
+        let attachments = rankedSuggestions(in: attachmentSuggestions, query: trimmed)
+        let filteredDeliverables = deliverableSuggestions.filter { deliverable in
+            guard let url = deliverable.fileURL else { return true }
+            return !attachmentSuggestions.contains { $0.fileURL?.path == url.path }
+        }
+        let deliverables = rankedSuggestions(in: filteredDeliverables, query: trimmed)
+        let tasks = rankedSuggestions(in: taskSuggestions, query: trimmed)
+        suggestions = Array(attachments.prefix(4)) + Array(deliverables.prefix(6)) + Array(tasks.prefix(6))
+    }
+
+    private func rankedSuggestions(
+        in source: [HivelinkMentionSuggestion],
+        query: String
+    ) -> [HivelinkMentionSuggestion] {
+        source
+            .compactMap { suggestion -> (Int, HivelinkMentionSuggestion)? in
+                let haystack = "\(suggestion.displayName) \(suggestion.detail ?? "")".lowercased()
+                if haystack.hasPrefix(query) { return (0, suggestion) }
+                if haystack.contains(query) { return (1, suggestion) }
+                return nil
+            }
+            .sorted { lhs, rhs in
+                if lhs.0 == rhs.0 {
+                    return lhs.1.displayName.localizedCaseInsensitiveCompare(rhs.1.displayName) == .orderedAscending
+                }
+                return lhs.0 < rhs.0
+            }
+            .map(\.1)
+    }
+}
+
+private enum HivelinkMentionType {
+    case attachment
+    case deliverable
+    case task
+}
+
+private struct HivelinkMentionMetadata {
+    let displayName: String
+    let mentionType: HivelinkMentionType
+    let fileURL: URL?
+    let taskId: String?
+    let isPrimaryContinuation: Bool
+}
+
+private extension NSAttributedString.Key {
+    static let hivelinkMentionMetadata = NSAttributedString.Key("hivelinkMentionMetadata")
+}
+
+private func makeMentionAttachmentString(_ metadata: HivelinkMentionMetadata) -> NSAttributedString {
+    let fontSize = UIFont.systemFontSize - 3
+    let font = UIFont.systemFont(ofSize: fontSize, weight: .medium)
+    let iconFont = UIFont.systemFont(ofSize: fontSize - 2, weight: .medium)
+    let horizontalPadding: CGFloat = 4
+    let verticalPadding: CGFloat = 2
+    let iconSpacing: CGFloat = 4
+    let cornerRadius: CGFloat = 5
+    let maxTextWidth: CGFloat = 220
+
+    let textColor = UIColor.label
+    let backgroundColor: UIColor
+    let iconName: String
+
+    switch metadata.mentionType {
+    case .attachment:
+        backgroundColor = UIColor.systemBlue.withAlphaComponent(0.4)
+        iconName = "paperclip"
+    case .deliverable:
+        backgroundColor = UIColor.systemBlue.withAlphaComponent(0.4)
+        iconName = "doc.on.doc"
+    case .task:
+        backgroundColor = UIColor.systemTeal.withAlphaComponent(0.4)
+        iconName = "clock.arrow.trianglehead.counterclockwise.rotate.90"
+    }
+
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.lineBreakMode = .byTruncatingTail
+    let textAttributes: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: textColor,
+        .paragraphStyle: paragraph,
+    ]
+    let constrainedSize = CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude)
+    let textRect = (metadata.displayName as NSString).boundingRect(
+        with: constrainedSize,
+        options: [.usesLineFragmentOrigin, .usesFontLeading],
+        attributes: textAttributes,
+        context: nil
+    )
+
+    let iconImage = UIImage(systemName: iconName, withConfiguration: UIImage.SymbolConfiguration(font: iconFont))
+    let iconWidth = iconImage?.size.width ?? 0
+    let iconHeight = iconImage?.size.height ?? 0
+    let totalWidth = horizontalPadding + iconWidth + iconSpacing + ceil(textRect.width) + horizontalPadding
+    let totalHeight = max(ceil(textRect.height), iconHeight) + verticalPadding * 2
+    let size = CGSize(width: totalWidth, height: totalHeight)
+
+    let image = UIGraphicsImageRenderer(size: size).image { context in
+        let rect = CGRect(origin: .zero, size: size)
+        let path = UIBezierPath(roundedRect: rect, cornerRadius: cornerRadius)
+        backgroundColor.setFill()
+        path.fill()
+
+        if let iconImage {
+            let iconY = (size.height - iconHeight) / 2
+            iconImage.withTintColor(textColor, renderingMode: .alwaysOriginal)
+                .draw(at: CGPoint(x: horizontalPadding, y: iconY))
+        }
+
+        let drawRect = CGRect(
+            x: horizontalPadding + iconWidth + iconSpacing,
+            y: (size.height - ceil(textRect.height)) / 2,
+            width: ceil(textRect.width),
+            height: ceil(textRect.height)
+        )
+        (metadata.displayName as NSString).draw(in: drawRect, withAttributes: textAttributes)
+    }
+
+    let attachment = NSTextAttachment()
+    attachment.image = image
+    attachment.bounds = CGRect(x: 0, y: -4, width: image.size.width, height: image.size.height)
+    let attributed = NSMutableAttributedString(attachment: attachment)
+    attributed.addAttribute(.hivelinkMentionMetadata, value: metadata, range: NSRange(location: 0, length: attributed.length))
+    return attributed
+}
+
+@MainActor
+private final class HivelinkMentionInsertionController: ObservableObject {
+    private enum PendingInsertion {
+        case suggestion(HivelinkMentionSuggestion, Bool)
+    }
+
+    weak var textView: UITextView?
+    weak var coordinator: HivelinkPromptTextEditor.Coordinator?
+
+    private var pendingPlainText: String?
+    private var pendingInsertions: [PendingInsertion] = []
+
+    var hasMentions: Bool {
+        guard let textStorage = textView?.textStorage else { return false }
+        var found = false
+        textStorage.enumerateAttribute(.hivelinkMentionMetadata, in: NSRange(location: 0, length: textStorage.length)) { value, _, stop in
+            if value is HivelinkMentionMetadata {
+                found = true
+                stop.pointee = true
+            }
+        }
+        return found
+    }
+
+    func attach(textView: UITextView, coordinator: HivelinkPromptTextEditor.Coordinator) {
+        self.textView = textView
+        self.coordinator = coordinator
+
+        if let pendingPlainText {
+            self.pendingPlainText = nil
+            setPlainText(pendingPlainText)
+        }
+
+        if !pendingInsertions.isEmpty {
+            let insertions = pendingInsertions
+            pendingInsertions.removeAll()
+            for insertion in insertions {
+                switch insertion {
+                case .suggestion(let suggestion, let isPrimaryContinuation):
+                    insertSuggestion(suggestion, isPrimaryContinuation: isPrimaryContinuation)
+                }
+            }
+        }
+    }
+
+    func insertSuggestion(_ suggestion: HivelinkMentionSuggestion, isPrimaryContinuation: Bool = false) {
+        guard let textView, let coordinator else {
+            pendingInsertions.append(.suggestion(suggestion, isPrimaryContinuation))
+            return
+        }
+        coordinator.insertSuggestion(suggestion, isPrimaryContinuation: isPrimaryContinuation, in: textView)
+    }
+
+    func insertTaskSuggestion(_ suggestion: HivelinkMentionSuggestion, isPrimaryContinuation: Bool) {
+        insertSuggestion(suggestion, isPrimaryContinuation: isPrimaryContinuation)
+    }
+
+    func focusTextView() {
+        textView?.becomeFirstResponder()
+    }
+
+    func clearTextView() {
+        guard let textView else {
+            pendingPlainText = ""
+            pendingInsertions.removeAll()
+            return
+        }
+        textView.attributedText = NSAttributedString(string: "")
+        textView.selectedRange = NSRange(location: 0, length: 0)
+        textView.setNeedsLayout()
+    }
+
+    func setPlainText(_ text: String) {
+        guard let textView else {
+            pendingPlainText = text
+            return
+        }
+        let attributed = NSAttributedString(
+            string: text,
+            attributes: HivelinkPromptTextEditor.defaultTypingAttributes
+        )
+        textView.attributedText = attributed
+        textView.selectedRange = NSRange(location: attributed.length, length: 0)
+        textView.typingAttributes = HivelinkPromptTextEditor.defaultTypingAttributes
+        textView.textColor = .label
+        textView.setNeedsLayout()
+    }
+
+    func getResolvedText(fallbackText: String) -> String {
+        guard let textStorage = textView?.textStorage else { return fallbackText }
+
+        var resolvedText = ""
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, range, _ in
+            if let metadata = attributes[.hivelinkMentionMetadata] as? HivelinkMentionMetadata {
+                switch metadata.mentionType {
+                case .attachment:
+                    if let fileURL = metadata.fileURL {
+                        resolvedText += "\"/Users/hivecrew/Desktop/inbox/\(fileURL.lastPathComponent)\""
+                    }
+                case .deliverable:
+                    if let fileURL = metadata.fileURL {
+                        resolvedText += "\"/Users/hivecrew/Desktop/inbox/\(fileURL.lastPathComponent)\""
+                    }
+                case .task:
+                    resolvedText += "Continue from previous task \"\(metadata.displayName)\""
+                }
+            } else {
+                resolvedText += textStorage.attributedSubstring(from: range).string
+            }
+        }
+
+        return resolvedText
+    }
+
+    func getReferencedTaskIDs() -> [String] {
+        guard let textStorage = textView?.textStorage else { return [] }
+
+        var taskIDs: [String] = []
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, _, _ in
+            guard let metadata = attributes[.hivelinkMentionMetadata] as? HivelinkMentionMetadata,
+                  metadata.mentionType == .task,
+                  let taskId = metadata.taskId,
+                  !taskIDs.contains(taskId) else {
+                return
+            }
+            taskIDs.append(taskId)
+        }
+        return taskIDs
+    }
+
+    func getPrimaryContinuationTaskID() -> String? {
+        guard let textStorage = textView?.textStorage else { return nil }
+
+        var continuationTaskID: String?
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, _, stop in
+            guard let metadata = attributes[.hivelinkMentionMetadata] as? HivelinkMentionMetadata,
+                  metadata.mentionType == .task,
+                  metadata.isPrimaryContinuation,
+                  let taskId = metadata.taskId else {
+                return
+            }
+            continuationTaskID = taskId
+            stop.pointee = true
+        }
+        return continuationTaskID
+    }
+}
+
+private final class HivelinkPromptTextView: UITextView {
+    var placeholder: String = ""
+    var onFocusChanged: ((Bool) -> Void)?
+    private let placeholderLabel = UILabel()
+    private let minimumEditorHeight: CGFloat = 22
+    private let maximumEditorHeight: CGFloat = 120
+
+    private var placeholderFont: UIFont {
+        font ?? UIFont.preferredFont(forTextStyle: .body)
+    }
+
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        configurePlaceholderLabel()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configurePlaceholderLabel()
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let fittingWidth = bounds.width > 0 ? bounds.width : UIScreen.main.bounds.width
+        let fittedSize = sizeThatFits(CGSize(width: fittingWidth, height: .greatestFiniteMagnitude))
+        let clampedHeight = min(max(fittedSize.height, minimumEditorHeight), maximumEditorHeight)
+        return CGSize(width: UIView.noIntrinsicMetric, height: clampedHeight)
+    }
+
+    override var contentSize: CGSize {
+        didSet {
+            if oldValue != contentSize {
+                invalidateIntrinsicContentSize()
+                setNeedsLayout()
+            }
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        updatePlaceholderAppearance()
+        invalidateIntrinsicContentSize()
+    }
+
+    private func configurePlaceholderLabel() {
+        placeholderLabel.isUserInteractionEnabled = false
+        placeholderLabel.numberOfLines = 1
+        placeholderLabel.lineBreakMode = .byTruncatingTail
+        placeholderLabel.adjustsFontForContentSizeCategory = true
+        addSubview(placeholderLabel)
+        updatePlaceholderAppearance()
+    }
+
+    func updatePlaceholderAppearance() {
+        let font = placeholderFont
+        placeholderLabel.text = placeholder
+        placeholderLabel.font = font
+        placeholderLabel.textColor = UIColor.secondaryLabel
+        placeholderLabel.isHidden = attributedText.length > 0
+
+        let lineHeight = ceil(font.lineHeight)
+        let horizontalInset = textContainerInset.left + textContainer.lineFragmentPadding
+        let availableWidth = bounds.width - horizontalInset - textContainerInset.right - textContainer.lineFragmentPadding
+        let originY = max(0, (bounds.height - lineHeight) / 2)
+        placeholderLabel.frame = CGRect(
+            x: horizontalInset,
+            y: originY,
+            width: max(0, availableWidth),
+            height: lineHeight
+        )
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let becameFirstResponder = super.becomeFirstResponder()
+        onFocusChanged?(becameFirstResponder)
+        return becameFirstResponder
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned {
+            onFocusChanged?(false)
+        }
+        return resigned
+    }
+}
+
+private struct HivelinkPromptTextEditor: UIViewRepresentable {
+    static let defaultTypingAttributes: [NSAttributedString.Key: Any] = [
+        .font: UIFont.preferredFont(forTextStyle: .body),
+        .foregroundColor: UIColor.label,
+    ]
+
+    @Binding var text: String
+    @Binding var measuredHeight: CGFloat
+    let placeholder: String
+    let onMentionQuery: (HivelinkMentionQuery?) -> Void
+    let mentionInsertionController: HivelinkMentionInsertionController
+    let onFocusChanged: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> HivelinkPromptTextView {
+        let textView = HivelinkPromptTextView()
+        textView.delegate = context.coordinator
+        textView.placeholder = placeholder
+        textView.font = UIFont.preferredFont(forTextStyle: .body)
+        textView.adjustsFontForContentSizeCategory = true
+        textView.backgroundColor = .clear
+        textView.textColor = .label
+        textView.tintColor = .systemBlue
+        textView.isScrollEnabled = false
+        textView.textContainer.lineFragmentPadding = 0
+        textView.textContainerInset = UIEdgeInsets(top: 2, left: 0, bottom: 2, right: 0)
+        textView.typingAttributes = Self.defaultTypingAttributes
+        textView.onFocusChanged = onFocusChanged
+        mentionInsertionController.attach(textView: textView, coordinator: context.coordinator)
+        return textView
+    }
+
+    func updateUIView(_ uiView: HivelinkPromptTextView, context: Context) {
+        uiView.placeholder = placeholder
+        uiView.onFocusChanged = onFocusChanged
+        mentionInsertionController.attach(textView: uiView, coordinator: context.coordinator)
+        context.coordinator.parent = self
+
+        if !context.coordinator.isProgrammaticUpdate,
+           uiView.attributedText.length == 0,
+           !text.isEmpty {
+            uiView.attributedText = NSAttributedString(string: text, attributes: Self.defaultTypingAttributes)
+        }
+
+        DispatchQueue.main.async {
+            measuredHeight = context.coordinator.measuredHeight(for: uiView)
+        }
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: HivelinkPromptTextEditor
+        var isProgrammaticUpdate = false
+        private var currentMentionRange: NSRange?
+
+        init(_ parent: HivelinkPromptTextEditor) {
+            self.parent = parent
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            if isProgrammaticUpdate {
+                isProgrammaticUpdate = false
+                return
+            }
+
+            applyDefaultTypingAttributes(to: textView)
+            parent.text = plainText(from: textView)
+            textView.invalidateIntrinsicContentSize()
+            parent.measuredHeight = measuredHeight(for: textView)
+            checkForMentionQuery(in: textView)
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            if isProgrammaticUpdate {
+                isProgrammaticUpdate = false
+                return
+            }
+            applyDefaultTypingAttributes(to: textView)
+            checkForMentionQuery(in: textView)
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            applyDefaultTypingAttributes(to: textView)
+        }
+
+        func insertSuggestion(
+            _ suggestion: HivelinkMentionSuggestion,
+            isPrimaryContinuation: Bool,
+            in textView: UITextView
+        ) {
+            let textStorage = textView.textStorage
+
+            if isPrimaryContinuation {
+                removePrimaryContinuationMention(in: textView)
+            }
+
+            let replacementRange = currentMentionRange ?? textView.selectedRange
+            let metadata: HivelinkMentionMetadata
+
+            switch suggestion.type {
+            case .attachment:
+                guard let fileURL = suggestion.fileURL else { return }
+                metadata = HivelinkMentionMetadata(
+                    displayName: fileURL.lastPathComponent,
+                    mentionType: .attachment,
+                    fileURL: fileURL,
+                    taskId: nil,
+                    isPrimaryContinuation: false
+                )
+            case .deliverable:
+                guard let fileURL = suggestion.fileURL else { return }
+                metadata = HivelinkMentionMetadata(
+                    displayName: fileURL.lastPathComponent,
+                    mentionType: .deliverable,
+                    fileURL: fileURL,
+                    taskId: nil,
+                    isPrimaryContinuation: false
+                )
+            case .task:
+                guard let taskId = suggestion.taskId else { return }
+                metadata = HivelinkMentionMetadata(
+                    displayName: suggestion.displayName,
+                    mentionType: .task,
+                    fileURL: nil,
+                    taskId: taskId,
+                    isPrimaryContinuation: isPrimaryContinuation
+                )
+            }
+
+            isProgrammaticUpdate = true
+
+            let combined = NSMutableAttributedString()
+            combined.append(makeMentionAttachmentString(metadata))
+            combined.append(NSAttributedString(string: " ", attributes: HivelinkPromptTextEditor.defaultTypingAttributes))
+            textStorage.replaceCharacters(in: replacementRange, with: combined)
+
+            let newCursor = replacementRange.location + combined.length
+            textView.selectedRange = NSRange(location: newCursor, length: 0)
+            applyDefaultTypingAttributes(to: textView)
+
+            parent.text = plainText(from: textView)
+            textView.invalidateIntrinsicContentSize()
+            parent.measuredHeight = measuredHeight(for: textView)
+            currentMentionRange = nil
+            parent.onMentionQuery(nil)
+            textView.setNeedsLayout()
+        }
+
+        private func removePrimaryContinuationMention(in textView: UITextView) {
+            let textStorage = textView.textStorage
+
+            let fullRange = NSRange(location: 0, length: textStorage.length)
+            var rangesToDelete: [NSRange] = []
+
+            textStorage.enumerateAttribute(.hivelinkMentionMetadata, in: fullRange, options: []) { value, range, _ in
+                guard let metadata = value as? HivelinkMentionMetadata,
+                      metadata.mentionType == .task,
+                      metadata.isPrimaryContinuation else {
+                    return
+                }
+
+                var deletionRange = range
+                if NSMaxRange(range) < textStorage.length {
+                    let trailingChar = textStorage.attributedSubstring(from: NSRange(location: NSMaxRange(range), length: 1)).string
+                    if trailingChar == " " {
+                        deletionRange.length += 1
+                    }
+                }
+                rangesToDelete.append(deletionRange)
+            }
+
+            for range in rangesToDelete.reversed() {
+                textStorage.deleteCharacters(in: range)
+            }
+        }
+
+        private func plainText(from textView: UITextView) -> String {
+            let textStorage = textView.textStorage
+
+            var result = ""
+            let fullRange = NSRange(location: 0, length: textStorage.length)
+            textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, range, _ in
+                if attributes[.hivelinkMentionMetadata] is HivelinkMentionMetadata {
+                    return
+                }
+                result += textStorage.attributedSubstring(from: range).string
+            }
+            return result
+        }
+
+        private func applyDefaultTypingAttributes(to textView: UITextView) {
+            textView.typingAttributes = HivelinkPromptTextEditor.defaultTypingAttributes
+            textView.textColor = .label
+        }
+
+        func measuredHeight(for textView: UITextView) -> CGFloat {
+            let fittingWidth = textView.bounds.width > 0 ? textView.bounds.width : UIScreen.main.bounds.width
+            let fittedSize = textView.sizeThatFits(CGSize(width: fittingWidth, height: .greatestFiniteMagnitude))
+            return min(max(fittedSize.height, 22), 120)
+        }
+
+        private func checkForMentionQuery(in textView: UITextView) {
+            let text = textView.attributedText.string
+            let cursorLocation = textView.selectedRange.location
+
+            guard cursorLocation > 0, cursorLocation <= text.count else {
+                currentMentionRange = nil
+                parent.onMentionQuery(nil)
+                return
+            }
+
+            let textBeforeCursor = String(text.prefix(cursorLocation))
+            guard let atIndex = textBeforeCursor.lastIndex(of: "@") else {
+                currentMentionRange = nil
+                parent.onMentionQuery(nil)
+                return
+            }
+
+            if atIndex > textBeforeCursor.startIndex {
+                let characterBeforeAt = textBeforeCursor[textBeforeCursor.index(before: atIndex)]
+                if !characterBeforeAt.isWhitespace && !characterBeforeAt.isNewline {
+                    currentMentionRange = nil
+                    parent.onMentionQuery(nil)
+                    return
+                }
+            }
+
+            let queryStartIndex = textBeforeCursor.index(after: atIndex)
+            let queryText = String(textBeforeCursor[queryStartIndex...])
+            if queryText.isEmpty || queryText.contains(where: { $0.isWhitespace || $0.isNewline || $0 == "\u{FFFC}" }) {
+                currentMentionRange = nil
+                parent.onMentionQuery(nil)
+                return
+            }
+
+            let atPosition = textBeforeCursor.distance(from: textBeforeCursor.startIndex, to: atIndex)
+            let mentionRange = NSRange(location: atPosition, length: queryText.count + 1)
+            currentMentionRange = mentionRange
+            parent.onMentionQuery(HivelinkMentionQuery(query: queryText, range: mentionRange))
+        }
     }
 }
 

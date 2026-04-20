@@ -1482,5 +1482,6 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             || relativePath == "plan_state.json"
             || relativePath.hasPrefix("screenshots/")
             || relativePath.hasPrefix("subagents/")
+            || relativePath.hasPrefix("workspace/")
     }
 }
