@@ -158,23 +158,74 @@ extension TemplateDownloadService {
     /// Get the current installed version by inspecting installed templates,
     /// falling back to stored UserDefaults if needed
     private func getCurrentInstalledVersion() -> String? {
-        let versions = collectInstalledVersionCandidates()
-        
-        // Return the highest version found
-        let sorted = versions.sorted { v1, v2 in
-            compareSemanticVersions(v1, v2) == .orderedDescending
+        let candidates = sortedInstalledTemplateCandidates()
+
+        if let highest = candidates.first {
+            lastKnownCompatibleId = highest.id
+            lastKnownCompatibleVersion = highest.version
+            return highest.version
         }
-        
-        if let highestVersion = sorted.first {
-            // Update UserDefaults so we don't need to scan again
-            lastKnownCompatibleVersion = highestVersion
-            return highestVersion
+
+        let storedId = lastKnownCompatibleId
+        let storedVersion = lastKnownCompatibleVersion
+        if let storedId,
+           FileManager.default.fileExists(atPath: AppPaths.templateBundlePath(id: storedId).path) {
+            return storedVersion
         }
-        
-        return lastKnownCompatibleVersion
+
+        lastKnownCompatibleId = nil
+        lastKnownCompatibleVersion = nil
+        return nil
     }
     
     private func collectInstalledVersionCandidates() -> [String] {
+        collectInstalledTemplateCandidates().compactMap(\.version)
+    }
+
+    func currentInstalledTemplateId() -> String? {
+        let candidates = sortedInstalledTemplateCandidates()
+
+        if let highest = candidates.first {
+            lastKnownCompatibleId = highest.id
+            lastKnownCompatibleVersion = highest.version
+            return highest.id
+        }
+
+        if let storedId = lastKnownCompatibleId,
+           FileManager.default.fileExists(atPath: AppPaths.templateBundlePath(id: storedId).path) {
+            return storedId
+        }
+
+        lastKnownCompatibleId = nil
+        lastKnownCompatibleVersion = nil
+        return nil
+    }
+
+    func refreshLastKnownCompatibleTemplate() {
+        let _ = getCurrentInstalledVersion()
+    }
+
+    private func sortedInstalledTemplateCandidates() -> [InstalledTemplateCandidate] {
+        collectInstalledTemplateCandidates().sorted { lhs, rhs in
+            switch (lhs.version, rhs.version) {
+            case let (leftVersion?, rightVersion?):
+                let comparison = compareSemanticVersions(leftVersion, rightVersion)
+                if comparison != .orderedSame {
+                    return comparison == .orderedDescending
+                }
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                break
+            }
+
+            return lhs.id.localizedStandardCompare(rhs.id) == .orderedAscending
+        }
+    }
+
+    private func collectInstalledTemplateCandidates() -> [InstalledTemplateCandidate] {
         let templatesDir = AppPaths.templatesDirectory
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: templatesDir,
@@ -182,8 +233,8 @@ extension TemplateDownloadService {
         ) else {
             return []
         }
-        
-        return contents.compactMap { url -> String? in
+
+        return contents.compactMap { url -> InstalledTemplateCandidate? in
             guard url.hasDirectoryPath else { return nil }
             let configPath = url.appendingPathComponent("config.json")
             let config: [String: Any]? = {
@@ -193,23 +244,21 @@ extension TemplateDownloadService {
                 }
                 return parsed
             }()
-            
-            if let version = config?["version"] as? String,
-               let normalized = normalizeVersionString(version) {
-                return normalized
-            }
-            
-            if let configId = config?["id"] as? String,
-               let normalized = normalizeVersionString(configId) {
-                return normalized
-            }
-            
-            if let configName = config?["name"] as? String,
-               let normalized = normalizeVersionString(configName) {
-                return normalized
-            }
-            
-            return normalizeVersionString(url.lastPathComponent)
+
+            let templateId = (config?["id"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedId = {
+                guard let templateId, !templateId.isEmpty else { return url.lastPathComponent }
+                return templateId
+            }()
+
+            let version =
+                (config?["version"] as? String).flatMap(normalizeVersionString)
+                ?? (config?["id"] as? String).flatMap(normalizeVersionString)
+                ?? (config?["name"] as? String).flatMap(normalizeVersionString)
+                ?? normalizeVersionString(url.lastPathComponent)
+
+            return InstalledTemplateCandidate(id: normalizedId, version: version)
         }
     }
     
@@ -250,4 +299,9 @@ extension TemplateDownloadService {
         )
         #endif
     }
+}
+
+private struct InstalledTemplateCandidate {
+    let id: String
+    let version: String?
 }

@@ -127,11 +127,11 @@ public class TemplateDownloadService: ObservableObject {
     }
     
     public func updateTemplate(_ template: RemoteTemplate, removingOld oldTemplateId: String?) async throws -> String {
-        let newTemplateId = try await downloadTemplate(template, replacingTemplateId: oldTemplateId)
-        if let oldId = oldTemplateId, oldId != newTemplateId {
-            let oldTemplatePath = AppPaths.templatesDirectory.appendingPathComponent(oldId)
-            try? fileManager.removeItem(at: oldTemplatePath)
+        if let replacementId = resolveTemplateIdToReplace(explicitOldTemplateId: oldTemplateId) {
+            try removeTemplateBeforeUpdate(id: replacementId)
         }
+
+        let newTemplateId = try await downloadTemplate(template)
         clearSkippedVersion()
         clearAskLaterPreference()
         return newTemplateId
@@ -298,6 +298,41 @@ public class TemplateDownloadService: ObservableObject {
     public func cancelAndDeleteDownload() {
         cancelDownload()
         clearPartialDownload()
+    }
+
+    private func resolveTemplateIdToReplace(explicitOldTemplateId: String?) -> String? {
+        if let explicitOldTemplateId,
+           !explicitOldTemplateId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return explicitOldTemplateId
+        }
+
+        if let defaultTemplateId = UserDefaults.standard.string(forKey: "defaultTemplateId"),
+           !defaultTemplateId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return defaultTemplateId
+        }
+
+        return currentInstalledTemplateId()
+    }
+
+    private func removeTemplateBeforeUpdate(id templateId: String) throws {
+        let templatePath = AppPaths.templateBundlePath(id: templateId)
+
+        if fileManager.fileExists(atPath: templatePath.path) {
+            do {
+                try fileManager.removeItem(at: templatePath)
+            } catch {
+                throw TemplateDownloadError.fileSystemError(
+                    "Failed to delete existing template '\(templateId)': \(error.localizedDescription)"
+                )
+            }
+        }
+
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: "defaultTemplateId") == templateId {
+            defaults.removeObject(forKey: "defaultTemplateId")
+        }
+
+        refreshLastKnownCompatibleTemplate()
     }
     
     // MARK: - Archive Download

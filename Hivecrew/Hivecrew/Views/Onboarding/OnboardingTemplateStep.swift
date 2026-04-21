@@ -259,7 +259,11 @@ struct OnboardingTemplateStep: View {
         downloadError = nil
         
         do {
-            let templateId = try await downloadService.downloadTemplate(update)
+            let replacementTemplateId = defaultTemplateId.isEmpty ? nil : defaultTemplateId
+            let templateId = try await downloadService.updateTemplate(
+                update,
+                removingOld: replacementTemplateId
+            )
             defaultTemplateId = templateId
             await loadTemplates()
         } catch {
