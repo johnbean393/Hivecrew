@@ -128,6 +128,7 @@ enum ImageGenerationError: Error, LocalizedError {
 /// Service for generating images using AI APIs
 final class ImageGenerationService: Sendable {
     private let defaultCodexOAuthInstructions = "You are a helpful assistant."
+    private let requestTimeout: TimeInterval = 300
     
     /// Output directory for generated images
     let outputDirectory: URL
@@ -201,7 +202,7 @@ final class ImageGenerationService: Sendable {
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 120
+        request.timeoutInterval = requestTimeout
         
         // Build message content
         var contentParts: [[String: Any]] = [
@@ -287,7 +288,7 @@ final class ImageGenerationService: Sendable {
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 120
+        request.timeoutInterval = requestTimeout
         
         // Build parts array
         var parts: [[String: Any]] = [
@@ -385,7 +386,7 @@ final class ImageGenerationService: Sendable {
         do {
             accessToken = try await resolveChatGPTOAuthAccessToken(
                 providerId: providerId,
-                timeoutInterval: 120,
+                timeoutInterval: requestTimeout,
                 forceRefresh: forceRefresh
             )
         } catch let error as LLMError {
@@ -399,7 +400,7 @@ final class ImageGenerationService: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 120
+        request.timeoutInterval = requestTimeout
 
         let body = buildCodexOAuthImageGenerationRequestBody(
             prompt: prompt,
@@ -410,8 +411,8 @@ final class ImageGenerationService: Sendable {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let sessionConfiguration = URLSessionConfiguration.ephemeral
-        sessionConfiguration.timeoutIntervalForRequest = 120
-        sessionConfiguration.timeoutIntervalForResource = 120
+        sessionConfiguration.timeoutIntervalForRequest = requestTimeout
+        sessionConfiguration.timeoutIntervalForResource = requestTimeout
         sessionConfiguration.waitsForConnectivity = false
         let session = URLSession(configuration: sessionConfiguration)
 
