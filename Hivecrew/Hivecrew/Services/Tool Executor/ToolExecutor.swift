@@ -152,12 +152,6 @@ class ToolExecutor {
     
     private func executeToolInternal(name: String, args: [String: Any], toolCallId: String) async throws -> InternalToolResult {
         switch name {
-        case "traverse_accessibility_tree":
-            let pid = (args["pid"] as? Int).map { Int32($0) }
-            let onlyVisibleElements = args["onlyVisibleElements"] as? Bool ?? true
-            let result = try await connection.traverseAccessibilityTree(pid: pid, onlyVisibleElements: onlyVisibleElements)
-            return .text("Traversed accessibility tree for \(result.appName): \(result.elements.count) elements found")
-            
         case "open_app":
             let bundleId = args["bundleId"] as? String
             let appName = args["appName"] as? String

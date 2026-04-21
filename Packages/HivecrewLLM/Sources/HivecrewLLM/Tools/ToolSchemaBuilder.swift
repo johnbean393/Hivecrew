@@ -10,6 +10,9 @@ import HivecrewAgentProtocol
 
 /// Builds OpenAI-compatible tool definitions from AgentMethod enum
 public final class ToolSchemaBuilder: Sendable {
+    private static let disabledModelTools: Set<AgentMethod> = [
+        .traverseAccessibilityTree
+    ]
     
     public init() {}
     
@@ -18,7 +21,7 @@ public final class ToolSchemaBuilder: Sendable {
     /// used by the agent loop, not called by the LLM.
     public func buildCUATools() -> [LLMToolDefinition] {
         AgentMethod.allCases
-            .filter { !$0.isInternalTool }
+            .filter { !$0.isInternalTool && Self.isEnabledForModelUse($0) }
             .map { buildToolDefinition(for: $0) }
     }
     
@@ -26,13 +29,19 @@ public final class ToolSchemaBuilder: Sendable {
     /// - Parameter excluding: Methods to exclude from the tool list
     public func buildCUATools(excluding: Set<AgentMethod>) -> [LLMToolDefinition] {
         AgentMethod.allCases
-            .filter { !$0.isInternalTool && !excluding.contains($0) }
+            .filter {
+                !$0.isInternalTool &&
+                !excluding.contains($0) &&
+                Self.isEnabledForModelUse($0)
+            }
             .map { buildToolDefinition(for: $0) }
     }
     
     /// Build tool definitions for a subset of methods
     public func buildTools(for methods: [AgentMethod]) -> [LLMToolDefinition] {
-        methods.map { buildToolDefinition(for: $0) }
+        methods
+            .filter(Self.isEnabledForModelUse)
+            .map { buildToolDefinition(for: $0) }
     }
     
     /// Build CUA tools merged with additional tools (e.g., MCP tools)
@@ -64,5 +73,9 @@ public final class ToolSchemaBuilder: Sendable {
             description: description,
             parameters: parameters
         )
+    }
+
+    private static func isEnabledForModelUse(_ method: AgentMethod) -> Bool {
+        !disabledModelTools.contains(method)
     }
 }

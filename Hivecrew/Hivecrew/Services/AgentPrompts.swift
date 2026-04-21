@@ -117,7 +117,6 @@ enum AgentPrompts {
             - scroll: Scroll at screen position (values in lines, use 3-5 for small scrolls, 10-20 for larger)
             - keyboard_type: Type text by simulating keyboard input for each character
             - keyboard_key: Press a key with optional modifiers (command, control, option, shift, function)
-            - traverse_accessibility_tree: Traverse an app's accessibility tree to discover UI elements with roles, text, and positions
             - run_shell: Execute a shell command and return its output
             - wait: Wait for the specified number of seconds before continuing
             - ask_text_question: Ask the user an open-ended question when you need clarification

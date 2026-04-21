@@ -31,6 +31,21 @@ final class ToolCallingTests: XCTestCase {
         XCTAssertTrue(toolNames.contains("mouse_click"))
         XCTAssertTrue(toolNames.contains("keyboard_type"))
     }
+
+    func testBuildToolsForSubsetExcludesDisabledTools() {
+        let methods: [AgentMethod] = [.mouseClick, .traverseAccessibilityTree]
+        let tools = toolSchemaBuilder.buildTools(for: methods)
+
+        XCTAssertEqual(tools.count, 1)
+        XCTAssertEqual(tools.first?.function.name, "mouse_click")
+    }
+
+    func testBuildCUAToolsExcludesTraverseAccessibilityTree() {
+        let tools = toolSchemaBuilder.buildCUATools()
+        let toolNames = tools.map(\.function.name)
+
+        XCTAssertFalse(toolNames.contains("traverse_accessibility_tree"))
+    }
     
     func testScreenshotToolDefinition() {
         let tool = toolSchemaBuilder.buildToolDefinition(for: .screenshot)

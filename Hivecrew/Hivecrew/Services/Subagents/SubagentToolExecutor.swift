@@ -68,8 +68,6 @@ final class SubagentToolExecutor {
             return try await executeScreenshot()
         case "health_check":
             return try await executeHealthCheck()
-        case "traverse_accessibility_tree":
-            return try await executeTraverseAccessibilityTree(args: args)
         case "open_app":
             return try await executeOpenApp(args: args)
         case "open_file":
@@ -183,15 +181,6 @@ final class SubagentToolExecutor {
         if let path = result.sharedFolderPath { output += "\nShared folder path: \(path)" }
         output += "\nAgent version: \(result.agentVersion)"
         return .text(output)
-    }
-    
-    private func executeTraverseAccessibilityTree(args: [String: Any]) async throws -> ToolResult {
-        let pid = (args["pid"] as? Int).map { Int32($0) }
-        let onlyVisibleElements = args["onlyVisibleElements"] as? Bool ?? true
-        let result = try await vmScheduler.run {
-            try await self.connection.traverseAccessibilityTree(pid: pid, onlyVisibleElements: onlyVisibleElements)
-        }
-        return .text("Traversed accessibility tree for \(result.appName): \(result.elements.count) elements found")
     }
     
     private func executeOpenApp(args: [String: Any]) async throws -> ToolResult {
