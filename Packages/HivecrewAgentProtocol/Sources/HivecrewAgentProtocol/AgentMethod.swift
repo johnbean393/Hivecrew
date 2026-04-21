@@ -66,6 +66,15 @@ public enum AgentMethod: String, CaseIterable, Sendable {
         }
     }
 
+    public var isParallelizableHostSideTool: Bool {
+        switch self {
+        case .generateImage:
+            return true
+        default:
+            return false
+        }
+    }
+
     public var isVisionDependentTool: Bool {
         switch self {
         case .screenshot,

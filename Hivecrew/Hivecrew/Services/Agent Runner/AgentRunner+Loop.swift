@@ -13,6 +13,7 @@ import HivecrewAgentProtocol
 // MARK: - Main Loop
 
 extension AgentRunner {
+    private static let maxConcurrentParallelHostToolCalls = 4
     
     func runLoop() async throws -> AgentResult {
         let maxConsecutiveLLMFailures = 3
@@ -516,50 +517,146 @@ extension AgentRunner {
     /// Execute tool calls with timeout checking
     func execute(toolCalls: [LLMToolCall]) async throws -> [ToolExecutionResult] {
         var results: [ToolExecutionResult] = []
-        
-        for toolCall in toolCalls {
-            // Check for timeout/cancel/pause before starting each tool
+
+        var index = 0
+        while index < toolCalls.count {
+            let toolCall = toolCalls[index]
+
+            if shouldExecuteToolCallInParallel(toolCall) {
+                let batchStart = index
+                while index < toolCalls.count && shouldExecuteToolCallInParallel(toolCalls[index]) {
+                    index += 1
+                }
+                let batch = Array(toolCalls[batchStart..<index])
+
+                if isPaused {
+                    results.append(makeToolExecutionAbortResult(for: batch[0]))
+                    break
+                }
+                if isTimedOut || isCancelled {
+                    results.append(contentsOf: batch.map(makeToolExecutionAbortResult))
+                    continue
+                }
+
+                let batchResults = await executeParallelToolCalls(batch)
+                results.append(contentsOf: batchResults)
+
+                for result in batchResults {
+                    try await logToolExecutionResult(result)
+                }
+
+                continue
+            }
+
+            index += 1
+
             if isTimedOut || isCancelled || isPaused {
-                let reason = isTimedOut ? "timed out" : (isCancelled ? "cancelled" : "paused")
-                let result = ToolExecutionResult.failure(
-                    toolCallId: toolCall.id,
-                    toolName: toolCall.function.name,
-                    error: "Agent was \(reason) before tool could execute",
-                    durationMs: 0
-                )
+                let result = makeToolExecutionAbortResult(for: toolCall)
                 results.append(result)
-                // For pause, we want to break immediately so the loop can handle it
                 if isPaused { break }
                 continue
             }
-            
-            // Log tool call start
+
             statePublisher.logToolCallStart(toolName: toolCall.function.name)
             try await tracer.logToolCall(toolCall)
-            
-            // Execute the tool with timeout/cancel monitoring
+
             let result = await executeWithTimeoutCheck(toolCall: toolCall)
             results.append(result)
-            
-            // Log tool result
-            statePublisher.logToolCallResult(
-                toolName: toolCall.function.name,
-                success: result.success,
-                result: result.success ? result.result : (result.errorMessage ?? "Unknown error"),
-                durationMs: result.durationMs
-            )
-            
-            try await tracer.logToolResult(
-                toolCallId: result.toolCallId,
-                toolName: result.toolName,
-                success: result.success,
-                result: result.result,
-                errorMessage: result.errorMessage,
-                latencyMs: result.durationMs
-            )
+            try await logToolExecutionResult(result)
         }
-        
+
         return results
+    }
+
+    private func shouldExecuteToolCallInParallel(_ toolCall: LLMToolCall) -> Bool {
+        guard let method = AgentMethod(rawValue: toolCall.function.name) else {
+            return false
+        }
+        return method.isParallelizableHostSideTool
+    }
+
+    private func makeToolExecutionAbortResult(for toolCall: LLMToolCall) -> ToolExecutionResult {
+        let reason = isTimedOut ? "timed out" : (isCancelled ? "cancelled" : "paused")
+        return .failure(
+            toolCallId: toolCall.id,
+            toolName: toolCall.function.name,
+            error: "Agent was \(reason) before tool could execute",
+            durationMs: 0
+        )
+    }
+
+    private func executeParallelToolCalls(_ toolCalls: [LLMToolCall]) async -> [ToolExecutionResult] {
+        let maxConcurrent = min(Self.maxConcurrentParallelHostToolCalls, toolCalls.count)
+        guard maxConcurrent > 0 else { return [] }
+
+        return await withTaskGroup(of: (Int, ToolExecutionResult).self, returning: [ToolExecutionResult].self) { group in
+            var nextIndexToLaunch = 0
+
+            func launchNextToolCallIfPossible() async {
+                guard nextIndexToLaunch < toolCalls.count else { return }
+
+                let currentIndex = nextIndexToLaunch
+                nextIndexToLaunch += 1
+                let toolCall = toolCalls[currentIndex]
+
+                await MainActor.run {
+                    self.statePublisher.logToolCallStart(toolName: toolCall.function.name)
+                }
+                try? await self.tracer.logToolCall(toolCall)
+
+                group.addTask {
+                    let result = await self.executeWithTimeoutCheck(toolCall: toolCall)
+                    return (currentIndex, result)
+                }
+            }
+
+            for _ in 0..<maxConcurrent {
+                await launchNextToolCallIfPossible()
+            }
+
+            var orderedResults = Array<ToolExecutionResult?>(repeating: nil, count: toolCalls.count)
+            for await (index, result) in group {
+                orderedResults[index] = result
+
+                if self.isTimedOut || self.isCancelled || self.isPaused {
+                    while nextIndexToLaunch < toolCalls.count {
+                        let skippedIndex = nextIndexToLaunch
+                        nextIndexToLaunch += 1
+                        orderedResults[skippedIndex] = self.makeToolExecutionAbortResult(for: toolCalls[skippedIndex])
+                    }
+                    continue
+                }
+
+                await launchNextToolCallIfPossible()
+            }
+
+            return orderedResults.enumerated().map { index, result in
+                result ?? .failure(
+                    toolCallId: toolCalls[index].id,
+                    toolName: toolCalls[index].function.name,
+                    error: "Parallel tool execution did not return a result",
+                    durationMs: 0
+                )
+            }
+        }
+    }
+
+    private func logToolExecutionResult(_ result: ToolExecutionResult) async throws {
+        statePublisher.logToolCallResult(
+            toolName: result.toolName,
+            success: result.success,
+            result: result.success ? result.result : (result.errorMessage ?? "Unknown error"),
+            durationMs: result.durationMs
+        )
+
+        try await tracer.logToolResult(
+            toolCallId: result.toolCallId,
+            toolName: result.toolName,
+            success: result.success,
+            result: result.result,
+            errorMessage: result.errorMessage,
+            latencyMs: result.durationMs
+        )
     }
     
     /// Execute a single tool call while monitoring for timeout/cancellation

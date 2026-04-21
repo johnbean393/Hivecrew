@@ -218,6 +218,15 @@ extension TaskService {
         var llmClientTask: Task<any LLMClientProtocol, Error>?
         var vmCreationTask: Task<String?, Error>?
         var taskReferenceContextBlocks: [String] = []
+
+        // Snapshot SwiftData-backed task fields before launching child tasks.
+        let taskProviderId = task.providerId
+        let taskModelId = task.modelId
+        let taskReasoningEnabled = task.reasoningEnabled
+        let taskReasoningEffort = task.reasoningEffort
+        let taskServiceTier = task.serviceTier
+        let taskMentionedSkillNames = task.mentionedSkillNames ?? []
+        let taskDescription = task.taskDescription
         
         func abortIfInactive(stage: String) async -> Bool {
             guard task.status.isActive else {
@@ -255,11 +264,11 @@ extension TaskService {
             
             llmClientTask = Task {
                 try await createLLMClient(
-                    providerId: task.providerId,
-                    modelId: task.modelId,
-                    reasoningEnabled: task.reasoningEnabled,
-                    reasoningEffort: task.reasoningEffort,
-                    serviceTier: task.serviceTier
+                    providerId: taskProviderId,
+                    modelId: taskModelId,
+                    reasoningEnabled: taskReasoningEnabled,
+                    reasoningEffort: taskReasoningEffort,
+                    serviceTier: taskServiceTier
                 )
             }
             
@@ -270,8 +279,8 @@ extension TaskService {
                 let allSkills = skillManager.skills
                 
                 // First, add explicitly mentioned skills (user typed @skill-name)
-                if let mentionedNames = task.mentionedSkillNames, !mentionedNames.isEmpty {
-                    let mentionedSkills = allSkills.filter { mentionedNames.contains($0.name) }
+                if !taskMentionedSkillNames.isEmpty {
+                    let mentionedSkills = allSkills.filter { taskMentionedSkillNames.contains($0.name) }
                     if !mentionedSkills.isEmpty {
                         skillsToUse.append(contentsOf: mentionedSkills)
                         print("TaskService: Using \(mentionedSkills.count) mentioned skill(s): \(mentionedSkills.map { $0.name }.joined(separator: ", "))")
@@ -281,7 +290,7 @@ extension TaskService {
                 // Then, auto-match additional skills from enabled skills
                 // Only auto-match if the setting is enabled AND the user did not explicitly mention any skills
                 let automaticSkillMatching = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
-                let hasMentionedSkills = !(task.mentionedSkillNames ?? []).isEmpty
+                let hasMentionedSkills = !taskMentionedSkillNames.isEmpty
                 
                 if automaticSkillMatching && !hasMentionedSkills {
                     let enabledSkills = skillManager.enabledSkills
@@ -297,7 +306,7 @@ extension TaskService {
                             print("TaskService: Matching skills for task (concurrent with VM boot)...")
                             let skillMatcher = SkillMatcher(llmClient: llmClient, embeddingService: skillManager.embeddingService)
                             let matchedSkills = try await skillMatcher.matchSkills(
-                                forTask: task.taskDescription,
+                                forTask: taskDescription,
                                 availableSkills: availableForMatching
                             )
                             if !matchedSkills.isEmpty {

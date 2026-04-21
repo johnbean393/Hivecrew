@@ -7,6 +7,7 @@
 
 import Foundation
 import HivecrewAPI
+import HivecrewAgentProtocol
 import HivecrewCore
 import HivecrewLLM
 import HivecrewShared
@@ -129,6 +130,15 @@ struct HivecrewTests {
         #expect(codexOAuthImageSize(for: "9:16") == "720x1280")
         #expect(codexOAuthImageSize(for: "16:9") == "1280x720")
         #expect(codexOAuthImageSize(for: "21:9") == "1680x720")
+    }
+
+    @Test
+    func onlyGenerateImageIsMarkedParallelizableAmongHostSideTools() {
+        #expect(AgentMethod.generateImage.isHostSideTool)
+        #expect(AgentMethod.generateImage.isParallelizableHostSideTool)
+        #expect(AgentMethod.webSearch.isHostSideTool)
+        #expect(!AgentMethod.webSearch.isParallelizableHostSideTool)
+        #expect(!AgentMethod.runShell.isParallelizableHostSideTool)
     }
     
     @Test
