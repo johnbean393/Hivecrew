@@ -227,6 +227,8 @@ extension SkillParser {
         public var isImported: Bool
         public var sourceTaskId: String?
         public var createdAt: Date
+        /// Stable identifier for the upstream source backing a tracked GitHub skill
+        public var sourceIdentifier: String?
         /// Latest upstream Git commit SHA for default GitHub-backed skills
         public var sourceCommit: String?
         /// Cached sentence embedding vector (512-dim from NLEmbedding)
@@ -239,6 +241,7 @@ extension SkillParser {
             isImported: Bool = false,
             sourceTaskId: String? = nil,
             createdAt: Date = Date(),
+            sourceIdentifier: String? = nil,
             sourceCommit: String? = nil,
             embedding: [Double]? = nil,
             embeddingText: String? = nil
@@ -247,6 +250,7 @@ extension SkillParser {
             self.isImported = isImported
             self.sourceTaskId = sourceTaskId
             self.createdAt = createdAt
+            self.sourceIdentifier = sourceIdentifier
             self.sourceCommit = sourceCommit
             self.embedding = embedding
             self.embeddingText = embeddingText

@@ -18,6 +18,10 @@ public class SkillManager: ObservableObject {
         let repo: String
         let branch: String
         let skillPath: String
+        
+        var identifier: String {
+            [owner, repo, branch, skillPath].joined(separator: "|")
+        }
     }
     
     private struct GitHubCommitResponse: Decodable {
@@ -53,10 +57,8 @@ public class SkillManager: ObservableObject {
     /// upstream skill directory has a newer commit than the locally stored one.
     public static let defaultAnthropicSkills = [
         "skill-creator",
-        "docx",
         "frontend-design",
-        "webapp-testing",
-        "xlsx"
+        "webapp-testing"
     ]
     
     /// Default community skills from various GitHub repositories to import alongside Anthropic skills.
@@ -67,11 +69,13 @@ public class SkillManager: ObservableObject {
         ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/analyzing-financial-statements", "analyzing-financial-statements", false),
         ("https://github.com/anthropics/claude-cookbooks/tree/main/skills/custom_skills/creating-financial-models", "creating-financial-models", false),
         ("https://github.com/johnbean393/hivecrew-skills/tree/main/create-3d-model", "create-3d-model", false),
+        ("https://github.com/johnbean393/hivecrew-skills/tree/main/docx", "docx", true),
         ("https://github.com/johnbean393/hivecrew-skills/tree/main/infographics", "infographics", false),
         ("https://github.com/johnbean393/hivecrew-skills/tree/main/market-research-reports", "market-research-reports", true),
         ("https://github.com/johnbean393/hivecrew-skills/tree/main/pdf", "pdf", true),
         ("https://github.com/johnbean393/hivecrew-skills/tree/main/pptx", "pptx", true),
         ("https://github.com/johnbean393/hivecrew-skills/tree/main/research-report", "research-report", false),
+        ("https://github.com/johnbean393/hivecrew-skills/tree/main/xlsx", "xlsx", true),
     ]
     
     // MARK: - Initialization
@@ -158,6 +162,7 @@ public class SkillManager: ObservableObject {
                     isImported: skill.isImported,
                     sourceTaskId: skill.sourceTaskId,
                     createdAt: skill.createdAt,
+                    sourceIdentifier: nil,
                     sourceCommit: nil
                 )
                 let updatedMetadata = embeddingService.ensureEmbedding(
@@ -254,6 +259,7 @@ public class SkillManager: ObservableObject {
             isImported: skill.isImported,
             sourceTaskId: skill.sourceTaskId,
             createdAt: skill.createdAt,
+            sourceIdentifier: existingMetadata?.sourceIdentifier,
             sourceCommit: existingMetadata?.sourceCommit,
             embedding: existingMetadata?.embedding,
             embeddingText: existingMetadata?.embeddingText
@@ -316,6 +322,7 @@ public class SkillManager: ObservableObject {
                 isImported: skill.isImported,
                 sourceTaskId: skill.sourceTaskId,
                 createdAt: skill.createdAt,
+                sourceIdentifier: existingMetadata?.sourceIdentifier,
                 sourceCommit: existingMetadata?.sourceCommit,
                 embedding: existingMetadata?.embedding,
                 embeddingText: existingMetadata?.embeddingText
@@ -359,6 +366,7 @@ public class SkillManager: ObservableObject {
             isImported: true,
             sourceTaskId: nil,
             createdAt: Date(),
+            sourceIdentifier: nil,
             sourceCommit: nil
         )
         try SkillParser.saveLocalMetadata(localMetadata, for: skill.name)
@@ -396,6 +404,7 @@ public class SkillManager: ObservableObject {
             isImported: true,
             sourceTaskId: nil,
             createdAt: Date(),
+            sourceIdentifier: nil,
             sourceCommit: nil
         )
         try SkillParser.saveLocalMetadata(localMetadata, for: skill.name)
@@ -571,6 +580,12 @@ public class SkillManager: ObservableObject {
             isImported: true,
             sourceTaskId: nil,
             createdAt: existingMetadata?.createdAt ?? Date(),
+            sourceIdentifier: githubSourceIdentifier(
+                owner: owner,
+                repo: repo,
+                branch: branch,
+                skillPath: skillPath
+            ),
             sourceCommit: sourceCommit ?? existingMetadata?.sourceCommit
         )
         try SkillParser.saveLocalMetadata(localMetadata, for: skillName)
@@ -798,6 +813,7 @@ public class SkillManager: ObservableObject {
             let isInstalled = FileManager.default.fileExists(atPath: skillPath.path)
             let localMetadata = SkillParser.loadLocalMetadata(for: source.name)
             let latestCommit = await latestCommitSHA(for: source)
+            let sourceChanged = localMetadata?.sourceIdentifier != source.identifier
             
             if !isInstalled {
                 do {
@@ -810,6 +826,22 @@ public class SkillManager: ObservableObject {
                     successCount += 1
                 } catch {
                     print("SkillManager: Failed to install default skill '\(source.name)': \(error.localizedDescription)")
+                    failedSkills.append(source.name)
+                }
+                continue
+            }
+            
+            if sourceChanged {
+                do {
+                    _ = try await importDefaultSkill(
+                        from: source,
+                        replaceExisting: true,
+                        sourceCommit: latestCommit
+                    )
+                    print("SkillManager: Replaced default skill '\(source.name)' because its tracked source changed")
+                    successCount += 1
+                } catch {
+                    print("SkillManager: Failed to replace default skill '\(source.name)' after source change: \(error.localizedDescription)")
                     failedSkills.append(source.name)
                 }
                 continue
@@ -997,6 +1029,15 @@ public class SkillManager: ObservableObject {
             replaceExisting: replaceExisting,
             sourceCommit: sourceCommit
         )
+    }
+    
+    private func githubSourceIdentifier(
+        owner: String,
+        repo: String,
+        branch: String,
+        skillPath: String
+    ) -> String {
+        [owner, repo, branch, skillPath].joined(separator: "|")
     }
     
     private func latestCommitSHA(for source: GitHubSkillSource) async -> String? {
