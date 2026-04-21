@@ -42,6 +42,15 @@ DispatchQueue.global(qos: .userInitiated).async {
     agent.start()
 }
 
+// Bring up the persistent pointer overlay once the main event loop is running.
+// The overlay must live on the main thread and stay visible for the lifetime
+// of the agent — even between tool calls that don't drive the cursor.
+DispatchQueue.main.async {
+    Task { @MainActor in
+        InputPointerOverlayController.shared.start()
+    }
+}
+
 // Run the NSApplication event loop on the main thread.
 // This keeps the process alive and responsive to macOS system events.
 app.run()
