@@ -934,7 +934,6 @@ struct OnboardingWorkerModelStep: View {
                         workerModelId = firstModel.id
                         refreshConfiguredState()
                     } else {
-                        workerModelId = nil
                         refreshConfiguredState()
                     }
                 }
@@ -943,7 +942,6 @@ struct OnboardingWorkerModelStep: View {
                     availableWorkerModels = []
                     isLoadingWorkerModels = false
                     workerModelErrorMessage = error.localizedDescription
-                    workerModelId = nil
                     refreshConfiguredState()
                 }
             }

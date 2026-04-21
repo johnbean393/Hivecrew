@@ -445,7 +445,9 @@ struct ProvidersSettingsView: View {
                         return
                     }
 
-                    workerModelId = models.first?.id
+                    if let firstModel = models.first {
+                        workerModelId = firstModel.id
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -453,7 +455,6 @@ struct ProvidersSettingsView: View {
                     availableWorkerModels = []
                     isLoadingWorkerModels = false
                     workerModelErrorMessage = error.localizedDescription
-                    workerModelId = nil
                 }
             }
         }
