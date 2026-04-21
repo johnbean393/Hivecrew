@@ -527,17 +527,16 @@ final class SubagentToolExecutor {
     
     private func executeGenerateImage(args: [String: Any]) async throws -> ToolResult {
         let prompt = args["prompt"] as? String ?? ""
-        let referenceImagePaths = (args["referenceImagePaths"] as? [String]) ?? (args["reference_image_paths"] as? [String])
-        let aspectRatio = (args["aspectRatio"] as? String) ?? (args["aspect_ratio"] as? String)
+        let options = ImageGenerationRequestOptions.fromToolArgs(args)
         
-        guard let config = try await getImageGenerationConfig(aspectRatio: aspectRatio) else {
+        guard let config = try await getImageGenerationConfig(options: options) else {
             return .text("Error: Image generation is not configured. Enable it in Settings > Tasks.")
         }
         
         let outputDirectory = AppPaths.vmInboxDirectory(id: vmId).appendingPathComponent("images", isDirectory: true)
         
         var referenceImages: [(data: String, mimeType: String)]?
-        if let paths = referenceImagePaths, !paths.isEmpty {
+        if let paths = options.referenceImagePaths, !paths.isEmpty {
             referenceImages = []
             for (index, path) in paths.enumerated() {
                 if let imageData = try? await loadReferenceImage(path: path) {
@@ -586,7 +585,7 @@ final class SubagentToolExecutor {
         return .text(response)
     }
     
-    private func getImageGenerationConfig(aspectRatio: String?) async throws -> ImageGenerationConfiguration? {
+    private func getImageGenerationConfig(options: ImageGenerationRequestOptions) async throws -> ImageGenerationConfiguration? {
         guard let modelContext = self.modelContext else {
             return nil
         }
@@ -600,13 +599,13 @@ final class SubagentToolExecutor {
         let providerString = UserDefaults.standard.string(forKey: "imageGenerationProvider") ?? "openRouter"
         let provider = ImageGenerationProvider(rawValue: providerString) ?? .openRouter
         
-        let configuredModel = (UserDefaults.standard.string(forKey: "imageGenerationModel") ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let model = configuredModel.isEmpty
-            ? ImageGenerationAvailability.defaultModel(for: provider)
-            : configuredModel
-        
-        if configuredModel.isEmpty {
+        let configuredModel = UserDefaults.standard.string(forKey: "imageGenerationModel")
+        let model = ImageGenerationAvailability.resolvedModel(
+            for: provider,
+            configuredModel: configuredModel
+        )
+
+        if ImageGenerationAvailability.resolvedModel(for: provider, configuredModel: configuredModel) != configuredModel?.trimmingCharacters(in: .whitespacesAndNewlines) {
             UserDefaults.standard.set(model, forKey: "imageGenerationModel")
         }
         
@@ -620,7 +619,7 @@ final class SubagentToolExecutor {
             apiKey: credentials.secret,
             baseURL: provider == .openRouter ? credentials.baseURL : nil,
             oauthProviderId: provider == .chatGPTOAuth ? credentials.providerId : nil,
-            aspectRatio: aspectRatio
+            options: options
         )
     }
     

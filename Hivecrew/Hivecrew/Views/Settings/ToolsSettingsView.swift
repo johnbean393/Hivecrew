@@ -263,7 +263,7 @@ struct ToolsSettingsView: View {
         case "gemini":
             return String(localized: "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview")
         case "chatGPTOAuth":
-            return "e.g., gpt-5.4, gpt-5.4-mini, gpt-5.2"
+            return "Use a mainline model such as gpt-5.4, gpt-5.4-mini, or gpt-5.2. Codex runs GPT Image models like gpt-image-2 behind the hosted image_generation tool."
         default:
             return ""
         }
@@ -324,9 +324,15 @@ struct ToolsSettingsView: View {
             return
         }
 
+        let resolvedModel = ImageGenerationAvailability.resolvedModel(
+            for: provider,
+            configuredModel: imageGenerationModel
+        )
         let normalizedModel = imageGenerationModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if forceModelReset || normalizedModel.isEmpty {
-            imageGenerationModel = ImageGenerationAvailability.defaultModel(for: provider)
+        if forceModelReset || normalizedModel.isEmpty || normalizedModel != resolvedModel {
+            imageGenerationModel = forceModelReset
+                ? ImageGenerationAvailability.defaultModel(for: provider)
+                : resolvedModel
         }
 
         let hasExplicitEnablePreference = UserDefaults.standard.object(forKey: "imageGenerationEnabled") != nil

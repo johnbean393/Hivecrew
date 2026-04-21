@@ -44,6 +44,26 @@ enum ImageGenerationAvailability {
             return defaultChatGPTOAuthModel
         }
     }
+
+    static func resolvedModel(for provider: ImageGenerationProvider, configuredModel: String?) -> String {
+        let trimmed = normalizedModel(configuredModel)
+        let fallback = defaultModel(for: provider)
+
+        guard !trimmed.isEmpty else {
+            return fallback
+        }
+
+        guard provider == .chatGPTOAuth else {
+            return trimmed
+        }
+
+        let lowercased = trimmed.lowercased()
+        if lowercased.hasPrefix("gpt-image-") || lowercased == "chatgpt-image-latest" {
+            return fallback
+        }
+
+        return trimmed
+    }
     
     /// Auto-configure image generation defaults when a supported provider is available.
     /// This allows provider setup to automatically enable image generation with a sane model default.
@@ -70,9 +90,13 @@ enum ImageGenerationAvailability {
             defaults.set(true, forKey: imageGenerationEnabledKey)
         }
         
+        let resolvedModel = resolvedModel(
+            for: providerToUse,
+            configuredModel: defaults.string(forKey: imageGenerationModelKey)
+        )
         let currentModel = normalizedModel(defaults.string(forKey: imageGenerationModelKey))
-        if currentModel.isEmpty || didSwitchProvider {
-            defaults.set(defaultModel(for: providerToUse), forKey: imageGenerationModelKey)
+        if didSwitchProvider || currentModel != resolvedModel {
+            defaults.set(resolvedModel, forKey: imageGenerationModelKey)
         }
     }
     
@@ -98,8 +122,15 @@ enum ImageGenerationAvailability {
             return .disabled
         }
         
+        guard let provider = selectedProviderFromDefaults() else {
+            return .noProvider
+        }
+
         // Check if model is configured
-        let model = normalizedModel(UserDefaults.standard.string(forKey: imageGenerationModelKey))
+        let model = resolvedModel(
+            for: provider,
+            configuredModel: UserDefaults.standard.string(forKey: imageGenerationModelKey)
+        )
         guard !model.isEmpty else {
             return .noModel
         }
@@ -107,11 +138,6 @@ enum ImageGenerationAvailability {
         // Fetch providers from the provided context
         let descriptor = FetchDescriptor<LLMProviderRecord>()
         guard let providers = try? modelContext.fetch(descriptor) else {
-            return .noProvider
-        }
-        
-        // Check provider configuration
-        guard let provider = selectedProviderFromDefaults() else {
             return .noProvider
         }
         

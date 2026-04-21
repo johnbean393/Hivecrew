@@ -98,6 +98,38 @@ struct HivecrewTests {
         #expect(orderedIDs == ["tie-breaker", "first", "later"])
         #expect(nextProviderSortOrder(in: [later, first, tieBreaker]) == 3)
     }
+
+    @Test
+    func imageGenerationRequestOptionsParseCamelAndSnakeCase() {
+        let camelCase = ImageGenerationRequestOptions.fromToolArgs([
+            "referenceImagePaths": ["/tmp/a.png"],
+            "aspectRatio": "16:9"
+        ])
+        #expect(camelCase.referenceImagePaths == ["/tmp/a.png"])
+        #expect(camelCase.aspectRatio == "16:9")
+
+        let snakeCase = ImageGenerationRequestOptions.fromToolArgs([
+            "reference_image_paths": ["/tmp/b.png"],
+            "aspect_ratio": "4:5"
+        ])
+        #expect(snakeCase.referenceImagePaths == ["/tmp/b.png"])
+        #expect(snakeCase.aspectRatio == "4:5")
+    }
+
+    @Test
+    func codexOAuthImageSizeMapsSupportedAspectRatios() {
+        #expect(codexOAuthImageSize(for: nil) == nil)
+        #expect(codexOAuthImageSize(for: "1:1") == "1024x1024")
+        #expect(codexOAuthImageSize(for: "2:3") == "1024x1536")
+        #expect(codexOAuthImageSize(for: "3:2") == "1536x1024")
+        #expect(codexOAuthImageSize(for: "3:4") == "768x1024")
+        #expect(codexOAuthImageSize(for: "4:3") == "1024x768")
+        #expect(codexOAuthImageSize(for: "4:5") == "1024x1280")
+        #expect(codexOAuthImageSize(for: "5:4") == "1280x1024")
+        #expect(codexOAuthImageSize(for: "9:16") == "720x1280")
+        #expect(codexOAuthImageSize(for: "16:9") == "1280x720")
+        #expect(codexOAuthImageSize(for: "21:9") == "1680x720")
+    }
     
     @Test
     func taskRecordRecognizesRemoteOnlyProviderPrefix() {

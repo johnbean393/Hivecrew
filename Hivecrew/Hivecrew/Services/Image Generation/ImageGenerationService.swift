@@ -17,6 +17,47 @@ enum ImageGenerationProvider: String, Codable, Sendable {
     case chatGPTOAuth = "chatGPTOAuth"
 }
 
+struct ImageGenerationRequestOptions: Sendable, Equatable {
+    let referenceImagePaths: [String]?
+    let aspectRatio: String?
+
+    static func fromToolArgs(_ args: [String: Any]) -> Self {
+        Self(
+            referenceImagePaths: (args["referenceImagePaths"] as? [String]) ?? (args["reference_image_paths"] as? [String]),
+            aspectRatio: (args["aspectRatio"] as? String) ?? (args["aspect_ratio"] as? String)
+        )
+    }
+}
+
+func codexOAuthImageSize(for aspectRatio: String?) -> String? {
+    switch aspectRatio?.trimmingCharacters(in: .whitespacesAndNewlines) {
+    case nil, "":
+        return nil
+    case "1:1":
+        return "1024x1024"
+    case "2:3":
+        return "1024x1536"
+    case "3:2":
+        return "1536x1024"
+    case "3:4":
+        return "768x1024"
+    case "4:3":
+        return "1024x768"
+    case "4:5":
+        return "1024x1280"
+    case "5:4":
+        return "1280x1024"
+    case "9:16":
+        return "720x1280"
+    case "16:9":
+        return "1280x720"
+    case "21:9":
+        return "1680x720"
+    case let custom?:
+        return custom
+    }
+}
+
 /// Configuration for image generation
 struct ImageGenerationConfiguration: Sendable {
     let provider: ImageGenerationProvider
@@ -24,7 +65,7 @@ struct ImageGenerationConfiguration: Sendable {
     let apiKey: String?
     let baseURL: URL?
     let oauthProviderId: String?
-    let aspectRatio: String?
+    let options: ImageGenerationRequestOptions
     
     init(
         provider: ImageGenerationProvider,
@@ -32,14 +73,14 @@ struct ImageGenerationConfiguration: Sendable {
         apiKey: String? = nil,
         baseURL: URL? = nil,
         oauthProviderId: String? = nil,
-        aspectRatio: String? = nil
+        options: ImageGenerationRequestOptions = .init(referenceImagePaths: nil, aspectRatio: nil)
     ) {
         self.provider = provider
         self.model = model
         self.apiKey = apiKey
         self.baseURL = baseURL
         self.oauthProviderId = oauthProviderId
-        self.aspectRatio = aspectRatio
+        self.options = options
     }
 }
 
@@ -187,7 +228,7 @@ final class ImageGenerationService: Sendable {
         ]
         
         // Add aspect ratio configuration if specified
-        if let aspectRatio = config.aspectRatio {
+        if let aspectRatio = config.options.aspectRatio {
             body["image_config"] = ["aspect_ratio": aspectRatio]
         }
         
@@ -276,7 +317,7 @@ final class ImageGenerationService: Sendable {
         ]
         
         // Add image config if aspect ratio specified
-        if let aspectRatio = config.aspectRatio {
+        if let aspectRatio = config.options.aspectRatio {
             var generationConfig = body["generationConfig"] as? [String: Any] ?? [:]
             generationConfig["imageConfig"] = ["aspectRatio": aspectRatio]
             body["generationConfig"] = generationConfig
@@ -364,7 +405,7 @@ final class ImageGenerationService: Sendable {
             prompt: prompt,
             referenceImages: referenceImages,
             model: config.model,
-            aspectRatio: config.aspectRatio
+            options: config.options
         )
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -469,17 +510,10 @@ final class ImageGenerationService: Sendable {
         prompt: String,
         referenceImages: [(data: String, mimeType: String)]?,
         model: String,
-        aspectRatio: String?
+        options: ImageGenerationRequestOptions
     ) -> [String: Any] {
-        let effectivePrompt: String
-        if let aspectRatio, !aspectRatio.isEmpty {
-            effectivePrompt = "\(prompt)\n\nUse an aspect ratio of \(aspectRatio)."
-        } else {
-            effectivePrompt = prompt
-        }
-
         var content: [[String: Any]] = [
-            ["type": "input_text", "text": effectivePrompt]
+            ["type": "input_text", "text": prompt]
         ]
 
         if let referenceImages {
@@ -489,6 +523,13 @@ final class ImageGenerationService: Sendable {
                     "image_url": "data:\(image.mimeType);base64,\(image.data)"
                 ])
             }
+        }
+
+        var imageGenerationTool: [String: Any] = [
+            "type": "image_generation"
+        ]
+        if let size = codexOAuthImageSize(for: options.aspectRatio) {
+            imageGenerationTool["size"] = size
         }
 
         return [
@@ -501,9 +542,10 @@ final class ImageGenerationService: Sendable {
                 "role": "user",
                 "content": content
             ]],
-            "tools": [[
+            "tools": [imageGenerationTool],
+            "tool_choice": [
                 "type": "image_generation"
-            ]]
+            ]
         ]
     }
 

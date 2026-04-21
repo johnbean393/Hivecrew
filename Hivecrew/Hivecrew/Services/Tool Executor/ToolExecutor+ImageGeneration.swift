@@ -16,11 +16,10 @@ extension ToolExecutor {
     /// Execute image generation tool
     func executeGenerateImage(args: [String: Any]) async throws -> InternalToolResult {
         let prompt = args["prompt"] as? String ?? ""
-        let referenceImagePaths = (args["referenceImagePaths"] as? [String]) ?? (args["reference_image_paths"] as? [String])
-        let aspectRatio = (args["aspectRatio"] as? String) ?? (args["aspect_ratio"] as? String)
+        let options = ImageGenerationRequestOptions.fromToolArgs(args)
         
         // Get configuration
-        guard let config = try await getImageGenerationConfig(aspectRatio: aspectRatio) else {
+        guard let config = try await getImageGenerationConfig(options: options) else {
             return .text("Error: Image generation is not configured. Enable it in Settings > Tasks.")
         }
         
@@ -30,7 +29,7 @@ extension ToolExecutor {
         // Load reference images if provided
         // First image is kept at full quality, subsequent images are downscaled to reduce payload size
         var referenceImages: [(data: String, mimeType: String)]?
-        if let paths = referenceImagePaths, !paths.isEmpty {
+        if let paths = options.referenceImagePaths, !paths.isEmpty {
             referenceImages = []
             for (index, path) in paths.enumerated() {
                 if let imageData = try? await loadReferenceImage(path: path) {
@@ -87,7 +86,7 @@ extension ToolExecutor {
     
     // MARK: - Configuration
     
-    private func getImageGenerationConfig(aspectRatio: String?) async throws -> ImageGenerationConfiguration? {
+    private func getImageGenerationConfig(options: ImageGenerationRequestOptions) async throws -> ImageGenerationConfiguration? {
         // Need model context to fetch providers and auto-configure defaults
         guard let modelContext = self.modelContext else {
             return nil
@@ -103,13 +102,13 @@ extension ToolExecutor {
         let providerString = UserDefaults.standard.string(forKey: "imageGenerationProvider") ?? "openRouter"
         let provider = ImageGenerationProvider(rawValue: providerString) ?? .openRouter
         
-        let configuredModel = (UserDefaults.standard.string(forKey: "imageGenerationModel") ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let model = configuredModel.isEmpty
-            ? ImageGenerationAvailability.defaultModel(for: provider)
-            : configuredModel
-        
-        if configuredModel.isEmpty {
+        let configuredModel = UserDefaults.standard.string(forKey: "imageGenerationModel")
+        let model = ImageGenerationAvailability.resolvedModel(
+            for: provider,
+            configuredModel: configuredModel
+        )
+
+        if ImageGenerationAvailability.resolvedModel(for: provider, configuredModel: configuredModel) != configuredModel?.trimmingCharacters(in: .whitespacesAndNewlines) {
             UserDefaults.standard.set(model, forKey: "imageGenerationModel")
         }
         
@@ -124,7 +123,7 @@ extension ToolExecutor {
             apiKey: credentials.secret,
             baseURL: provider == .openRouter ? credentials.baseURL : nil,
             oauthProviderId: provider == .chatGPTOAuth ? credentials.providerId : nil,
-            aspectRatio: aspectRatio
+            options: options
         )
     }
     
