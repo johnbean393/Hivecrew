@@ -226,6 +226,7 @@ extension TaskService {
         let taskReasoningEffort = task.reasoningEffort
         let taskServiceTier = task.serviceTier
         let taskMentionedSkillNames = task.mentionedSkillNames ?? []
+        let taskPlanSelectedSkillNames = task.planSelectedSkillNames ?? []
         let taskDescription = task.taskDescription
         
         func abortIfInactive(stage: String) async -> Bool {
@@ -277,22 +278,39 @@ extension TaskService {
             skillMatchingTask = Task { () -> [Skill] in
                 var skillsToUse: [Skill] = []
                 let allSkills = skillManager.skills
+
+                func appendUniqueSkills(_ skills: [Skill]) {
+                    let existingNames = Set(skillsToUse.map(\.name))
+                    let newSkills = skills.filter { !existingNames.contains($0.name) }
+                    skillsToUse.append(contentsOf: newSkills)
+                }
                 
                 // First, add explicitly mentioned skills (user typed @skill-name)
                 if !taskMentionedSkillNames.isEmpty {
                     let mentionedSkills = allSkills.filter { taskMentionedSkillNames.contains($0.name) }
                     if !mentionedSkills.isEmpty {
-                        skillsToUse.append(contentsOf: mentionedSkills)
+                        appendUniqueSkills(mentionedSkills)
                         print("TaskService: Using \(mentionedSkills.count) mentioned skill(s): \(mentionedSkills.map { $0.name }.joined(separator: ", "))")
+                    }
+                }
+
+                // Then, honor skills selected during plan generation when executing a reviewed plan.
+                if !taskPlanSelectedSkillNames.isEmpty {
+                    let plannedSkills = allSkills.filter { taskPlanSelectedSkillNames.contains($0.name) }
+                    if !plannedSkills.isEmpty {
+                        appendUniqueSkills(plannedSkills)
+                        print("TaskService: Using \(plannedSkills.count) plan-selected skill(s): \(plannedSkills.map { $0.name }.joined(separator: ", "))")
                     }
                 }
                 
                 // Then, auto-match additional skills from enabled skills
-                // Only auto-match if the setting is enabled AND the user did not explicitly mention any skills
+                // Only auto-match if the setting is enabled and neither explicit mentions nor
+                // plan-selected skills already define the execution skill set.
                 let automaticSkillMatching = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
                 let hasMentionedSkills = !taskMentionedSkillNames.isEmpty
+                let hasPlanSelectedSkills = !taskPlanSelectedSkillNames.isEmpty
                 
-                if automaticSkillMatching && !hasMentionedSkills {
+                if automaticSkillMatching && !hasMentionedSkills && !hasPlanSelectedSkills {
                     let enabledSkills = skillManager.enabledSkills
                     let alreadyIncluded = Set(skillsToUse.map { $0.name })
                     let availableForMatching = enabledSkills.filter { !alreadyIncluded.contains($0.name) }
@@ -322,6 +340,8 @@ extension TaskService {
                     }
                 } else if hasMentionedSkills {
                     print("TaskService: Skipping auto-matching — user explicitly mentioned skill(s)")
+                } else if hasPlanSelectedSkills {
+                    print("TaskService: Skipping auto-matching — using plan-selected skill(s)")
                 }
                 
                 return skillsToUse
@@ -553,11 +573,18 @@ extension TaskService {
             // Log matched skills through the state publisher
             if !skillsToUse.isEmpty {
                 let mentionedNames = task.mentionedSkillNames ?? []
+                let plannedNames = task.planSelectedSkillNames ?? []
                 let mentionedSkills = skillsToUse.filter { mentionedNames.contains($0.name) }
-                let autoMatchedSkills = skillsToUse.filter { !mentionedNames.contains($0.name) }
+                let plannedSkills = skillsToUse.filter { plannedNames.contains($0.name) && !mentionedNames.contains($0.name) }
+                let autoMatchedSkills = skillsToUse.filter {
+                    !mentionedNames.contains($0.name) && !plannedNames.contains($0.name)
+                }
                 
                 if !mentionedSkills.isEmpty {
                     statePublisher.logInfo("Using \(mentionedSkills.count) mentioned skill(s): \(mentionedSkills.map { $0.name }.joined(separator: ", "))")
+                }
+                if !plannedSkills.isEmpty {
+                    statePublisher.logInfo("Using \(plannedSkills.count) plan-selected skill(s): \(plannedSkills.map { $0.name }.joined(separator: ", "))")
                 }
                 if !autoMatchedSkills.isEmpty {
                     statePublisher.logInfo("Auto-matched \(autoMatchedSkills.count) skill(s): \(autoMatchedSkills.map { $0.name }.joined(separator: ", "))")

@@ -19,6 +19,14 @@ struct MentionInsertionRequest {
 /// Shared controller for mention insertion that can be accessed directly
 @MainActor
 final class MentionInsertionController: ObservableObject {
+    private static let rawSkillMentionRegex: NSRegularExpression = {
+        // Match standalone @skill-name tokens while avoiding email addresses.
+        try! NSRegularExpression(
+            pattern: #"(^|[\s\(\[\{<"'`])@([a-z0-9]+(?:-[a-z0-9]+)*)\b"#,
+            options: []
+        )
+    }()
+
     weak var textView: NSTextView?
     weak var coordinator: PromptTextEditor.Coordinator?
     
@@ -129,18 +137,24 @@ final class MentionInsertionController: ObservableObject {
     
     /// Get the names of skills mentioned in the text
     func getMentionedSkillNames() -> [String] {
-        guard let textView = textView,
-              let textStorage = textView.textStorage else {
+        guard let textView = textView else {
             return []
         }
+
+        let rawText = textView.string
+        var skillNames = orderedRawSkillMentions(in: rawText)
+
+        guard let textStorage = textView.textStorage else {
+            return skillNames
+        }
         
-        var skillNames: [String] = []
         let fullRange = NSRange(location: 0, length: textStorage.length)
         
         textStorage.enumerateAttributes(in: fullRange, options: []) { attributes, _, _ in
             if let attachment = attributes[.attachment] as? MentionTextAttachment,
                attachment.mentionType == .skill,
-               let skillName = attachment.skillName {
+               let skillName = attachment.skillName,
+               !skillNames.contains(skillName) {
                 skillNames.append(skillName)
             }
         }
@@ -171,6 +185,28 @@ final class MentionInsertionController: ObservableObject {
         }
 
         return taskIDs
+    }
+
+    private func orderedRawSkillMentions(in text: String) -> [String] {
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        let matches = Self.rawSkillMentionRegex.matches(in: text, options: [], range: range)
+        var results: [String] = []
+
+        for match in matches {
+            guard
+                match.numberOfRanges > 2,
+                let matchRange = Range(match.range(at: 2), in: text)
+            else {
+                continue
+            }
+
+            let skillName = String(text[matchRange])
+            if !results.contains(skillName) {
+                results.append(skillName)
+            }
+        }
+
+        return results
     }
 }
 
