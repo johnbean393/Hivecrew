@@ -127,7 +127,13 @@ enum ImageGenerationError: Error, LocalizedError {
 
 /// Service for generating images using AI APIs
 final class ImageGenerationService: Sendable {
-    private let defaultCodexOAuthInstructions = "You are a helpful assistant."
+    private let defaultCodexOAuthInstructions = """
+    You are an image-generation assistant.
+    Use the image_generation tool to synthesize the final raster image directly.
+    Do not write, render, screenshot, or simulate HTML, CSS, SVG, JavaScript, webpages, browser windows, slide editors, PowerPoint, PDFs, or any other document/code renderer as an intermediate step.
+    Do not produce code screenshots or rendered markup unless the user explicitly asked for a screenshot of code or a browser.
+    Return only the generated image result.
+    """
     private let requestTimeout: TimeInterval = 300
     
     /// Output directory for generated images
