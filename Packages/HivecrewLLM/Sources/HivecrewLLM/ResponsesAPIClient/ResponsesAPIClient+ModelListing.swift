@@ -17,7 +17,7 @@ func parseResponsesModelsForTests(
 
     do {
         let decoded = try JSONDecoder().decode(StrictModelsResponse.self, from: data)
-        return decoded.data
+        let models = decoded.data
             .filter(\.isSupportedInAPI)
             .map { model in
                 let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
@@ -54,11 +54,17 @@ func parseResponsesModelsForTests(
                     reasoningCapability: reasoningCapability
                 )
             }
-            .map { normalizeProviderModelMetadata($0, configuration: configuration) }
-            .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
+
+        return finalizeProviderModelsMetadata(
+            models,
+            configuration: configuration
+        )
+        .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     } catch {
-        return try parseModelsResponse(data)
-            .map { normalizeProviderModelMetadata($0, configuration: configuration) }
+        return try finalizeProviderModelsMetadata(
+            parseModelsResponse(data),
+            configuration: configuration
+        )
             .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     }
 }
@@ -90,6 +96,37 @@ func normalizeProviderModelMetadata(
 ) -> LLMProviderModel {
     normalizeProviderModelMetadata(model, backendMode: configuration.backendMode)
 }
+
+func finalizeProviderModelsMetadata(
+    _ models: [LLMProviderModel],
+    configuration: LLMConfiguration
+) -> [LLMProviderModel] {
+    let normalized = models.map { normalizeProviderModelMetadata($0, configuration: configuration) }
+    guard configuration.backendMode == .codexOAuth else {
+        return normalized
+    }
+
+    return mergeProviderModels(primary: normalized, supplementary: knownCodexOAuthModels)
+}
+
+let knownCodexOAuthModels: [LLMProviderModel] = [
+    LLMProviderModel(
+        id: "gpt-5.5",
+        name: "GPT-5.5",
+        description: nil,
+        contextLength: 400_000,
+        createdAt: nil,
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"],
+        supportsVisionInput: true,
+        reasoningCapability: LLMReasoningCapability(
+            kind: .effort,
+            supportedEfforts: ["low", "medium", "high", "xhigh"],
+            defaultEffort: "medium",
+            defaultEnabled: false
+        )
+    )
+]
 
 func parseModelsResponse(_ data: Data) throws -> [LLMProviderModel] {
     let json = try JSONSerialization.jsonObject(with: data)

@@ -53,6 +53,17 @@ final class LLMProviderModelSortingTests: XCTestCase {
 
         XCTAssertEqual(sortedIDs, ["gpt-5.4", "gpt-5.2", "gpt-5.1", "gpt-5"])
     }
+
+    func testGPT55HardcodedContextLengthIsFourHundredK() {
+        XCTAssertEqual(LLMProviderModel.hardcodedContextLength(for: "gpt-5.5"), 400_000)
+        XCTAssertEqual(LLMProviderModel(id: "gpt-5.5").effectiveContextLength, 400_000)
+    }
+
+    func testHardcodedContextLengthOverridesProviderMetadata() {
+        let model = LLMProviderModel(id: "gpt-5.5", contextLength: 390_000)
+
+        XCTAssertEqual(model.effectiveContextLength, 400_000)
+    }
 }
 
 private struct MockModelListingClient: LLMClientProtocol {

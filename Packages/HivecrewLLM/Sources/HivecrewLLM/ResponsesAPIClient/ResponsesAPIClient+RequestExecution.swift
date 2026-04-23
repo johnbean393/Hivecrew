@@ -91,7 +91,7 @@ extension ResponsesAPIClient {
 
         do {
             let decoded = try JSONDecoder().decode(StrictModelsResponse.self, from: data)
-            var models = LLMProviderModel.sortByVersionDescending(
+            var models = LLMProviderModel.sortByVersionDescending(finalizeProviderModelsMetadata(
                 decoded.data
                     .filter(\.isSupportedInAPI)
                     .map { model in
@@ -128,9 +128,9 @@ extension ResponsesAPIClient {
                             supportsVisionInput: model.supportsVision,
                             reasoningCapability: reasoningCapability
                         )
-                    }
-                    .map { normalizeProviderModelMetadata($0, configuration: configuration) }
-            )
+                    },
+                configuration: configuration
+            ))
 
             if shouldTryLMStudioNativeModelsMetadata(configuration: configuration) {
                 if let nativeModels = try? await fetchLMStudioNativeModels(
@@ -144,10 +144,10 @@ extension ResponsesAPIClient {
             return models
         } catch {
             logStrictModelsDecodeFailure(error: error, data: data)
-            var models = LLMProviderModel.sortByVersionDescending(
-                try parseModelsResponse(data)
-                    .map { normalizeProviderModelMetadata($0, configuration: configuration) }
-            )
+            var models = LLMProviderModel.sortByVersionDescending(finalizeProviderModelsMetadata(
+                try parseModelsResponse(data),
+                configuration: configuration
+            ))
 
             if shouldTryLMStudioNativeModelsMetadata(configuration: configuration) {
                 if let nativeModels = try? await fetchLMStudioNativeModels(

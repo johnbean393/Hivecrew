@@ -22,7 +22,7 @@ public let xAIHostedAPIHost = "api.x.ai"
 public let legacyXAIHostedAPIHost = "api.xai.com"
 public let googleAIGenerativeLanguageHost = "generativelanguage.googleapis.com"
 let codexOAuthClientVersionQueryName = "client_version"
-private let codexOAuthFallbackClientVersion = "0.107.0"
+private let codexOAuthFallbackClientVersion = "0.124.0"
 #if os(macOS)
 private let cachedCodexOAuthClientVersion = resolveCodexOAuthClientVersion()
 #else
@@ -86,6 +86,21 @@ public func buildCodexOAuthURL(pathComponent: String, clientVersion: String? = n
     return components?.url ?? codexOAuthBaseURL.appendingPathComponent(pathComponent)
 }
 
+func newestCodexOAuthClientVersion(_ lhs: String, _ rhs: String) -> String {
+    let lhsParts = parsedVersionParts(lhs)
+    let rhsParts = parsedVersionParts(rhs)
+    let width = max(lhsParts.count, rhsParts.count)
+
+    for index in 0..<width {
+        let lhsPart = index < lhsParts.count ? lhsParts[index] : 0
+        let rhsPart = index < rhsParts.count ? rhsParts[index] : 0
+        if lhsPart > rhsPart { return lhs }
+        if rhsPart > lhsPart { return rhs }
+    }
+
+    return lhs
+}
+
 func parsedCodexCLIClientVersion(from output: String) -> String? {
     let pattern = #"\b\d+\.\d+\.\d+\b"#
     guard let regex = try? NSRegularExpression(pattern: pattern) else {
@@ -101,13 +116,22 @@ func parsedCodexCLIClientVersion(from output: String) -> String? {
     return String(output[range])
 }
 
+private func parsedVersionParts(_ value: String) -> [Int] {
+    value
+        .split(separator: ".")
+        .map { part in
+            let digits = part.prefix(while: \.isNumber)
+            return Int(digits) ?? 0
+        }
+}
+
 #if os(macOS)
 private func resolveCodexOAuthClientVersion() -> String {
     guard let executableURL = resolvedCodexCLIExecutableURL(),
           let cliVersion = codexCLIClientVersion(executableURL: executableURL) else {
         return codexOAuthFallbackClientVersion
     }
-    return cliVersion
+    return newestCodexOAuthClientVersion(cliVersion, codexOAuthFallbackClientVersion)
 }
 
 private func codexCLIClientVersion(executableURL: URL) -> String? {

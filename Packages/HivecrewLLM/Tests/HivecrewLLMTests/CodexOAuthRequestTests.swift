@@ -250,6 +250,11 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertNil(parsedCodexCLIClientVersion(from: "codex-cli dev-build"))
     }
 
+    func testNewestCodexOAuthClientVersionChoosesNewerSemanticVersion() {
+        XCTAssertEqual(newestCodexOAuthClientVersion("0.120.0", "0.124.0"), "0.124.0")
+        XCTAssertEqual(newestCodexOAuthClientVersion("0.130.0", "0.124.0"), "0.130.0")
+    }
+
     func testBuildCodexOAuthModelsURLIncludesClientVersion() {
         let url = buildCodexOAuthURL(pathComponent: "models", clientVersion: "0.107.0")
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -419,6 +424,30 @@ final class CodexOAuthRequestTests: XCTestCase {
 
         XCTAssertEqual(normalized.contextLength, 272_000)
         XCTAssertEqual(normalized.inputModalities ?? [], ["text", "image"])
+    }
+
+    func testCodexModelsIncludeKnownGPT55WhenCatalogOmitsIt() throws {
+        let data = Data(
+            """
+            {
+              "models": [
+                {
+                  "id": "gpt-5.4",
+                  "supported_in_api": true
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .codexOAuth)
+        let model = try XCTUnwrap(models.first(where: { $0.id == "gpt-5.5" }))
+
+        XCTAssertEqual(model.contextLength, 400_000)
+        XCTAssertEqual(model.effectiveContextLength, 400_000)
+        XCTAssertEqual(model.reasoningCapability.kind, .effort)
+        XCTAssertEqual(model.reasoningCapability.supportedEfforts, ["low", "medium", "high", "xhigh"])
+        XCTAssertTrue(model.isVisionCapable)
     }
 
     func testResponsesModelsPayloadWithSupportedParametersMapsToToggleCapability() throws {

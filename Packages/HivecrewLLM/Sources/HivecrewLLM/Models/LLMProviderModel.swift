@@ -111,35 +111,26 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
     }
 
     /// Context length with hardcoded overrides for known models applied on top
-    /// of the provider-supplied value.  Use this for budget calculations and
+    /// of the provider-supplied value. Use this for budget calculations and
     /// display instead of the raw ``contextLength``.
     public var effectiveContextLength: Int? {
         Self.hardcodedContextLength(for: id) ?? contextLength
     }
 
-    /// Returns a hardcoded context-window size (in tokens) for model families
-    /// whose upstream metadata is absent or unreliable.
-    ///
-    /// Matches any GPT model at version 5.4 or above (e.g. `gpt-5.4`,
-    /// `gpt-5.4-mini`, `gpt-5.5`, `gpt-6`, `gpt-6-mini`,
-    /// `openai/gpt-7`, …).
+    /// Returns a hardcoded context-window size (in tokens) for model IDs whose
+    /// upstream metadata is absent or unreliable.
     public static func hardcodedContextLength(for modelId: String) -> Int? {
         let lowered = modelId.lowercased()
         let base = lowered.split(separator: "/").last.map(String.init) ?? lowered
-        guard base.hasPrefix("gpt-") else { return nil }
 
-        let afterPrefix = base.dropFirst("gpt-".count)
-        let versionString = afterPrefix.prefix(while: { $0.isNumber || $0 == "." })
-        guard !versionString.isEmpty else { return nil }
-
-        let parts = versionString.split(separator: ".", maxSplits: 2)
-        guard let major = Int(parts[0]) else { return nil }
-        let minor = parts.count > 1 ? (Int(parts[1]) ?? 0) : 0
-
-        if major > 5 || (major == 5 && minor >= 4) {
+        switch base {
+        case "gpt-5.5":
+            return 400_000
+        case "gpt-5.4":
             return 1_000_000
+        default:
+            return nil
         }
-        return nil
     }
 
     /// Whether the model includes enough non-trivial metadata to justify a
