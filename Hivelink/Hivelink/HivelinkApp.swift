@@ -51,15 +51,18 @@ private final class HivelinkAppCore: ObservableObject {
     let voiceOrchestrator: HivelinkVoiceOrchestrator
     let notificationManager: NotificationManager
     let incomingCallManager: IncomingCallManager
+    let appStoreRegionPolicy: AppStoreRegionPolicy
 
     @Published var selectedTab: Int = 0
 
     init(modelContainer: ModelContainer) {
         IncomingCallManager.registerPreferenceDefaults()
+        let regionPolicy = AppStoreRegionPolicy.shared
         let coordinator = HivelinkClusterCoordinator()
         let index = RemoteTaskIndex()
         let notifManager = NotificationManager()
 
+        appStoreRegionPolicy = regionPolicy
         clusterCoordinator = coordinator
         remoteTaskIndex = index
         notificationManager = notifManager
@@ -80,15 +83,14 @@ private final class HivelinkAppCore: ObservableObject {
         service.notificationManager = notifManager
         taskService = service
 
-        let orchestrator = HivelinkVoiceOrchestrator()
+        let orchestrator = HivelinkVoiceOrchestrator(appStoreRegionPolicy: regionPolicy)
         orchestrator.configure(taskService: service)
         voiceOrchestrator = orchestrator
 
-        let callManager = IncomingCallManager(callKitProvider: orchestrator.callKitProvider)
+        let callManager = IncomingCallManager(appStoreRegionPolicy: regionPolicy)
         callManager.configure(
             orchestrator: orchestrator,
-            notificationManager: notifManager,
-            callKitProvider: orchestrator.callKitProvider
+            notificationManager: notifManager
         )
         orchestrator.configure(incomingCallManager: callManager)
         service.incomingCallManager = callManager
@@ -99,6 +101,12 @@ private final class HivelinkAppCore: ObservableObject {
         deps.taskService = service
         deps.voiceOrchestrator = orchestrator
         deps.setSelectedTab = { [weak self] tab in self?.selectedTab = tab }
+    }
+
+    func resolveAppStoreRegion() async {
+        await appStoreRegionPolicy.resolveInstallStorefrontIfNeeded()
+        voiceOrchestrator.refreshCallKitAvailability()
+        incomingCallManager.refreshCallKitAvailability()
     }
 
     // MARK: - Background Refresh
@@ -131,6 +139,7 @@ private final class HivelinkAppCore: ObservableObject {
         }
 
         await clusterCoordinator.loadCluster()
+        await resolveAppStoreRegion()
         await incomingCallManager.syncStoredPushTokensToServer(
             apnsTokenString: notificationManager.registeredAPNSTokenString
         )
@@ -189,6 +198,7 @@ struct HivelinkApp: App {
             .environmentObject(appCore.voiceOrchestrator)
             .environmentObject(appCore.notificationManager)
             .environmentObject(appCore.incomingCallManager)
+            .environmentObject(appCore.appStoreRegionPolicy)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                 VoIPDiagnosticsLog.log("[HivelinkApp] UIApplication.didBecomeActive")
                 appCore.notificationManager.removeAllTaskNotifications()
@@ -204,6 +214,7 @@ struct HivelinkApp: App {
             }
             .task {
                 appDelegate.notificationManager = appCore.notificationManager
+                await appCore.resolveAppStoreRegion()
                 await appCore.notificationManager.requestPermissions()
 
                 authManager.loadStoredCredentials()
@@ -211,6 +222,7 @@ struct HivelinkApp: App {
                 hasResolvedInitialRoute = true
                 if authManager.isAuthenticated {
                     await appCore.clusterCoordinator.loadCluster()
+                    await appCore.resolveAppStoreRegion()
                     await appCore.incomingCallManager.syncStoredPushTokensToServer(
                         apnsTokenString: appCore.notificationManager.registeredAPNSTokenString
                     )
@@ -223,6 +235,7 @@ struct HivelinkApp: App {
                 if isAuthenticated {
                     Task {
                         await appCore.clusterCoordinator.loadCluster()
+                        await appCore.resolveAppStoreRegion()
                         await appCore.incomingCallManager.syncStoredPushTokensToServer(
                             apnsTokenString: appCore.notificationManager.registeredAPNSTokenString
                         )

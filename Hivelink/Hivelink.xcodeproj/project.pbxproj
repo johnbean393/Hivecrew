@@ -80,6 +80,7 @@
 		23A200072FE0020700000007 /* HivelinkControlWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100072FE0010700000007 /* HivelinkControlWidgets.swift */; };
 		23A200082FE0020800000008 /* LiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100082FE0010800000008 /* LiveActivityIntents.swift */; };
 		23A200092FE0020900000009 /* FocusFilterPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A100092FE0010900000009 /* FocusFilterPreferences.swift */; };
+		23B100012FE1010100000001 /* AppStoreRegionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23B000012FE1010100000001 /* AppStoreRegionPolicy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -207,6 +208,7 @@
 		23A100072FE0010700000007 /* HivelinkControlWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HivelinkControlWidgets.swift; sourceTree = "<group>"; };
 		23A100082FE0010800000008 /* LiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityIntents.swift; sourceTree = "<group>"; };
 		23A100092FE0010900000009 /* FocusFilterPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusFilterPreferences.swift; sourceTree = "<group>"; };
+		23B000012FE1010100000001 /* AppStoreRegionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreRegionPolicy.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -333,6 +335,7 @@
 		21F102022F900C0200000C02 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				23B000012FE1010100000001 /* AppStoreRegionPolicy.swift */,
 				21F5A1012F90410100005001 /* ArtifactImportCoordinator.swift */,
 				21FB00222FB0012200100022 /* HapticManager.swift */,
 				21F2A1012F90100100001001 /* HivelinkClusterCoordinator.swift */,
@@ -733,6 +736,7 @@
 				23A200042FE0020400000004 /* FocusFilterPreferences.swift in Sources */,
 				23A200052FE0020500000005 /* VoiceHapticsEngine.swift in Sources */,
 				23A200062FE0020600000006 /* RoutePickerButton.swift in Sources */,
+				23B100012FE1010100000001 /* AppStoreRegionPolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -933,7 +937,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -974,7 +978,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Hivelink/Hivelink.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1098,7 +1102,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HivelinkBroadcast/HivelinkBroadcast.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkBroadcast/Info.plist;
@@ -1131,7 +1135,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HivelinkBroadcast/HivelinkBroadcast.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkBroadcast/Info.plist;
@@ -1165,7 +1169,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = HivelinkWidgets/HivelinkWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkWidgets/Info.plist;
@@ -1199,7 +1203,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = HivelinkWidgets/HivelinkWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkWidgets/Info.plist;

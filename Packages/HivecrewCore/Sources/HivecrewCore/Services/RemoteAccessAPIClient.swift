@@ -155,15 +155,18 @@ public actor RemoteAccessAPIClient: RemoteAccessAPIClientProtocol {
 
     // MARK: - Device Push Registration
 
-    /// Register a device's push tokens with the Worker API so the server can
-    /// send VoIP and standard APNs notifications to this device.
+    /// Register a device's push tokens and callback capabilities with the Worker API
+    /// so the server can choose VoIP or standard APNs delivery per device.
     public func registerDevice(
         sessionToken: String,
         ownerId: String,
         voipToken: String? = nil,
         apnsToken: String? = nil,
         bundleId: String? = nil,
-        apnsEnvironment: String? = nil
+        apnsEnvironment: String? = nil,
+        storefrontCountryCode: String? = nil,
+        callKitAllowed: Bool? = nil,
+        callbackDeliveryMode: String? = nil
     ) async throws {
         let body = DeviceRegistrationRequest(
             ownerId: ownerId,
@@ -171,7 +174,10 @@ public actor RemoteAccessAPIClient: RemoteAccessAPIClientProtocol {
             apnsToken: apnsToken,
             platform: "ios",
             bundleId: bundleId ?? Bundle.main.bundleIdentifier ?? "",
-            apnsEnvironment: apnsEnvironment
+            apnsEnvironment: apnsEnvironment,
+            storefrontCountryCode: storefrontCountryCode,
+            callKitAllowed: callKitAllowed,
+            callbackDeliveryMode: callbackDeliveryMode
         )
         let _: MessageResponse = try await post("/devices/register", body: body, token: sessionToken)
     }
@@ -339,6 +345,9 @@ struct DeviceRegistrationRequest: Encodable {
     let platform: String
     let bundleId: String
     let apnsEnvironment: String?
+    let storefrontCountryCode: String?
+    let callKitAllowed: Bool?
+    let callbackDeliveryMode: String?
 }
 
 public struct VoIPPushPayload: Sendable {

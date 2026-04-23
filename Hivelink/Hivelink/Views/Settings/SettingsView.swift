@@ -17,6 +17,7 @@ struct SettingsView: View {
     @EnvironmentObject private var artifactCoordinator: ArtifactImportCoordinator
     @EnvironmentObject private var taskService: HivelinkTaskService
     @EnvironmentObject private var voiceOrchestrator: HivelinkVoiceOrchestrator
+    @EnvironmentObject private var appStoreRegionPolicy: AppStoreRegionPolicy
     @StateObject private var openAIOAuth = HivelinkChatGPTOAuthController()
 
     @AppStorage("hivelink.hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -474,15 +475,22 @@ struct SettingsView: View {
 
     private var incomingCallsSection: some View {
         Section {
-            Toggle(String(localized: "Allow Incoming Calls"), isOn: $incomingCallsEnabled)
+            if appStoreRegionPolicy.isCallKitAllowed {
+                Toggle(String(localized: "Allow Incoming Calls"), isOn: $incomingCallsEnabled)
 
-            if incomingCallsEnabled {
-                Toggle(String(localized: "Agent Questions"), isOn: $callQuestion)
-                Toggle(String(localized: "Permission Requests"), isOn: $callPermission)
-                Toggle(String(localized: "Task Completions"), isOn: $callCompleted)
-                Toggle(String(localized: "Task Failures"), isOn: $callFailed)
-                Toggle(String(localized: "Plan Reviews"), isOn: $callPlanReview)
-                Toggle(String(localized: "Writeback Reviews"), isOn: $callWritebackReview)
+                if incomingCallsEnabled {
+                    Toggle(String(localized: "Agent Questions"), isOn: $callQuestion)
+                    Toggle(String(localized: "Permission Requests"), isOn: $callPermission)
+                    Toggle(String(localized: "Task Completions"), isOn: $callCompleted)
+                    Toggle(String(localized: "Task Failures"), isOn: $callFailed)
+                    Toggle(String(localized: "Plan Reviews"), isOn: $callPlanReview)
+                    Toggle(String(localized: "Writeback Reviews"), isOn: $callWritebackReview)
+                }
+            } else {
+                LabeledContent(String(localized: "Agent Callbacks")) {
+                    Text(String(localized: "Notifications"))
+                        .foregroundStyle(.secondary)
+                }
             }
         } header: {
             Text(String(localized: "Incoming Calls"))
@@ -670,5 +678,7 @@ struct SettingsView: View {
                     remoteTaskIndex: RemoteTaskIndex()
                 )
             )
+            .environmentObject(HivelinkVoiceOrchestrator())
+            .environmentObject(AppStoreRegionPolicy.shared)
     }
 }

@@ -601,9 +601,9 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     // MARK: - CallKit
 
-    let callKitProvider: CXProvider
-    private let callController = CXCallController()
-    private let callKitDelegate: CallKitDelegate
+    private(set) var callKitProvider: CXProvider?
+    private var callController: CXCallController?
+    private var callKitDelegate: CallKitDelegate?
     private var activeCallUUID: UUID?
     /// Whether a video source was requested when the call was started via CallKit.
     private var pendingVideoStart = false
@@ -611,6 +611,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     // MARK: - External Dependencies
 
+    private let appStoreRegionPolicy: AppStoreRegionPolicy
     private(set) weak var taskService: HivelinkTaskService?
     private(set) weak var incomingCallManager: IncomingCallManager?
 
@@ -790,7 +791,40 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     private var lastKnownStatuses: [String: TaskStatus] = [:]
     private static let agentPlaybackGain: Float = 0.6
 
-    init() {
+    init(appStoreRegionPolicy: AppStoreRegionPolicy = .shared) {
+        self.appStoreRegionPolicy = appStoreRegionPolicy
+        audioManager.playbackGain = Self.agentPlaybackGain
+
+        setupAudioCallbacks()
+        setupVideoCallbacks()
+        setupLifecycleObservers()
+        configureCallKitIfAllowed()
+
+        appStoreRegionPolicy.$installStorefrontCountryCode
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.refreshCallKitAvailability()
+            }
+            .store(in: &cancellables)
+
+        audioManager.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+    }
+
+    func refreshCallKitAvailability() {
+        if appStoreRegionPolicy.isCallKitAllowed {
+            configureCallKitIfAllowed()
+        } else {
+            disableCallKit()
+        }
+    }
+
+    private func configureCallKitIfAllowed() {
+        guard appStoreRegionPolicy.isCallKitAllowed else { return }
+        guard callKitProvider == nil else { return }
+
         let config = CXProviderConfiguration()
         config.supportsVideo = true
         config.supportedHandleTypes = [.generic]
@@ -799,29 +833,52 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         config.iconTemplateImageData = UIImage(named: "AppIcon")?.pngData()
 
         let provider = CXProvider(configuration: config)
-        self.callKitProvider = provider
+        callKitProvider = provider
+        callController = CXCallController()
 
         let delegate = CallKitDelegate()
-        self.callKitDelegate = delegate
-        audioManager.playbackGain = Self.agentPlaybackGain
-
-        setupAudioCallbacks()
-        setupVideoCallbacks()
-        setupLifecycleObservers()
+        callKitDelegate = delegate
 
         delegate.orchestrator = self
         provider.setDelegate(delegate, queue: nil)
+        VoIPDiagnosticsLog.log("[HivelinkVoiceOrchestrator] CallKit configured")
+    }
 
-        audioManager.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.objectWillChange.send() }
-            .store(in: &cancellables)
+    private func disableCallKit() {
+        guard callKitProvider != nil || callController != nil || callKitDelegate != nil else { return }
+        callKitProvider?.setDelegate(nil, queue: nil)
+        callKitProvider = nil
+        callController = nil
+        callKitDelegate = nil
+        activeCallUUID = nil
+        pendingVideoStart = false
+        VoIPDiagnosticsLog.log("[HivelinkVoiceOrchestrator] CallKit disabled for App Store storefront")
     }
 
     // MARK: - CallKit Call Lifecycle
 
     func startCall(video: Bool = false, context: IncomingCallContext? = nil) {
         guard callState == .idle else { return }
+
+        guard appStoreRegionPolicy.isCallKitAllowed else {
+            isInCall = true
+            pendingVideoStart = video
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.startSession(context: context)
+                if self.connectionState != .connected {
+                    self.isInCall = false
+                    self.pendingVideoStart = false
+                }
+            }
+            return
+        }
+
+        configureCallKitIfAllowed()
+        guard let callController else {
+            connectionState = .error("CallKit is unavailable.")
+            return
+        }
 
         let uuid = UUID()
         activeCallUUID = uuid
@@ -848,6 +905,11 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     }
 
     func endCall() {
+        guard appStoreRegionPolicy.isCallKitAllowed, let callController else {
+            endSession()
+            return
+        }
+
         guard let uuid = activeCallUUID else {
             endSession()
             return
@@ -880,7 +942,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         let update = CXCallUpdate()
         update.localizedCallerName = "Hivecrew"
         update.hasVideo = action.isVideo
-        callKitProvider.reportCall(with: action.callUUID, updated: update)
+        callKitProvider?.reportCall(with: action.callUUID, updated: update)
 
         await startSession(context: pendingCallContext)
         pendingCallContext = nil
@@ -933,7 +995,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         }
         try? await audioManager.startCapture(voiceProcessingEnabled: true)
 
-        if let uuid = activeCallUUID {
+        if let uuid = activeCallUUID, let callKitProvider {
             callKitProvider.reportOutgoingCall(with: uuid, connectedAt: Date())
         }
         if pendingVideoStart {
@@ -1018,9 +1080,20 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             subscribeToInputLevel()
             subscribeToTaskEvents()
 
-            // On iOS, mic capture is deferred until CallKit fires
-            // didActivate. Send a text nudge so the model starts
-            // speaking immediately instead of waiting for audio.
+            if !appStoreRegionPolicy.isCallKitAllowed {
+                if audioManager.isCapturing {
+                    audioManager.stopCapture()
+                }
+                try await audioManager.startCapture(voiceProcessingEnabled: true)
+
+                if pendingVideoStart {
+                    pendingVideoStart = false
+                    await setInputSource(.camera)
+                }
+            }
+
+            // With CallKit, mic capture is deferred until didActivate. For
+            // notification callback mode, capture starts above after connect.
             if context != nil {
                 try? await provider.sendText("[SYSTEM] The user just answered the call. Greet them and address the call reason now.")
             }
@@ -1033,10 +1106,10 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     func endSession() {
         if let uuid = activeCallUUID {
-            callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
+            callKitProvider?.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
             activeCallUUID = nil
-            isInCall = false
         }
+        isInCall = false
         UIDevice.current.isProximityMonitoringEnabled = false
         tearDownSession()
         connectionState = .disconnected
@@ -1754,10 +1827,10 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         connectionState = .error(reason)
         if callState != .idle {
             if let uuid = activeCallUUID {
-                callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
+                callKitProvider?.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
                 activeCallUUID = nil
-                isInCall = false
             }
+            isInCall = false
             UIDevice.current.isProximityMonitoringEnabled = false
             tearDownSession()
             callState = .idle

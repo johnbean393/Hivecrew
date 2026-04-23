@@ -23,7 +23,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
     private weak var orchestrator: HivelinkVoiceOrchestrator?
     private weak var notificationManager: NotificationManager?
-    private let callKitProvider: CXProvider
+    private let appStoreRegionPolicy: AppStoreRegionPolicy
 
     // MARK: - State
 
@@ -56,12 +56,21 @@ final class IncomingCallManager: NSObject, ObservableObject {
 
     func configure(
         orchestrator: HivelinkVoiceOrchestrator,
-        notificationManager: NotificationManager,
-        callKitProvider: CXProvider
+        notificationManager: NotificationManager
     ) {
         self.orchestrator = orchestrator
         self.notificationManager = notificationManager
 
+        refreshCallKitAvailability()
+    }
+
+    func refreshCallKitAvailability() {
+        guard appStoreRegionPolicy.isCallKitAllowed else {
+            disablePushKitAndStoredVoIPToken()
+            return
+        }
+
+        guard pushRegistry == nil else { return }
         let registry = PKPushRegistry(queue: .main)
         registry.delegate = self
         registry.desiredPushTypes = [.voIP]
@@ -69,13 +78,21 @@ final class IncomingCallManager: NSObject, ObservableObject {
         VoIPDiagnosticsLog.log("[IncomingCallManager] PushKit configured")
     }
 
-    // We store callKitProvider at init time so it's available before configure().
-    init(callKitProvider: CXProvider) {
-        self.callKitProvider = callKitProvider
+    init(appStoreRegionPolicy: AppStoreRegionPolicy = .shared) {
+        self.appStoreRegionPolicy = appStoreRegionPolicy
         super.init()
         if let stored = UserDefaults.standard.array(forKey: Self.handledTriggersKey) as? [String] {
             handledTaskTriggers = Set(stored)
         }
+    }
+
+    private func disablePushKitAndStoredVoIPToken() {
+        pushRegistry?.delegate = nil
+        pushRegistry?.desiredPushTypes = []
+        pushRegistry = nil
+        voipToken = nil
+        UserDefaults.standard.removeObject(forKey: Self.voipTokenDefaultsKey)
+        VoIPDiagnosticsLog.log("[IncomingCallManager] PushKit disabled for App Store storefront")
     }
 
     // MARK: - Suppression
@@ -194,6 +211,17 @@ final class IncomingCallManager: NSObject, ObservableObject {
             HapticManager.agentQuestionReceived()
         }
 
+        guard appStoreRegionPolicy.isCallKitAllowed else {
+            recordHandledTrigger(context: context)
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Routing local callback to notification mode: trigger=\(context.trigger.rawValue) task=\(context.taskId)")
+            if orchestrator?.isInCall == true {
+                orchestrator?.deliverInlineUpdate(context: context)
+            } else {
+                deliverSuppressedNotification(context: context)
+            }
+            return
+        }
+
         if let reason = suppressionReason(for: context) {
             recordHandledTrigger(context: context)
             VoIPDiagnosticsLog.log("[IncomingCallManager] Local call suppressed: trigger=\(context.trigger.rawValue) task=\(context.taskId) reason=\(describe(reason))")
@@ -213,6 +241,14 @@ final class IncomingCallManager: NSObject, ObservableObject {
     private func handleIncomingPush(context: IncomingCallContext, completion: @escaping () -> Void) {
         if context.trigger == .question {
             HapticManager.agentQuestionReceived()
+        }
+
+        guard appStoreRegionPolicy.isCallKitAllowed else {
+            recordHandledTrigger(context: context)
+            VoIPDiagnosticsLog.log("[IncomingCallManager] VoIP push received while CallKit disabled; delivering notification fallback")
+            deliverSuppressedNotification(context: context)
+            completion()
+            return
         }
 
         let suppressed = suppressionReason(for: context) != nil
@@ -294,6 +330,13 @@ final class IncomingCallManager: NSObject, ObservableObject {
     // MARK: - Report Incoming Call (Not Suppressed)
 
     private func reportIncomingCall(uuid: UUID, context: IncomingCallContext, completion: @escaping () -> Void) {
+        guard appStoreRegionPolicy.isCallKitAllowed, let callKitProvider = orchestrator?.callKitProvider else {
+            recordHandledTrigger(context: context)
+            deliverSuppressedNotification(context: context)
+            completion()
+            return
+        }
+
         recordCallTimestamp(for: context.taskId)
         recordHandledTrigger(context: context)
         pendingContexts[uuid] = context
@@ -324,6 +367,13 @@ final class IncomingCallManager: NSObject, ObservableObject {
     // MARK: - Report + Immediately End (Suppressed)
 
     private func reportAndImmediatelyEnd(uuid: UUID, context: IncomingCallContext, completion: @escaping () -> Void) {
+        guard appStoreRegionPolicy.isCallKitAllowed, let callKitProvider = orchestrator?.callKitProvider else {
+            recordHandledTrigger(context: context)
+            deliverSuppressedNotification(context: context)
+            completion()
+            return
+        }
+
         recordCallTimestamp(for: context.taskId)
         recordHandledTrigger(context: context)
         nonisolated(unsafe) let done = completion
@@ -346,7 +396,7 @@ final class IncomingCallManager: NSObject, ObservableObject {
                     done()
                     return
                 }
-                self.callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .unanswered)
+                self.orchestrator?.callKitProvider?.reportCall(with: uuid, endedAt: Date(), reason: .unanswered)
 
                 if self.orchestrator?.isInCall == true {
                     self.orchestrator?.deliverInlineUpdate(context: context)
@@ -396,6 +446,16 @@ final class IncomingCallManager: NSObject, ObservableObject {
     // MARK: - Token
 
     private func sendVoIPTokenToServer(_ token: Data) {
+        guard appStoreRegionPolicy.isCallKitAllowed else {
+            voipToken = nil
+            UserDefaults.standard.removeObject(forKey: Self.voipTokenDefaultsKey)
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Ignoring VoIP token because CallKit is disabled")
+            Task {
+                await Self.registerPushToken(voipToken: nil, apnsToken: nil)
+            }
+            return
+        }
+
         let tokenString = token.map { String(format: "%02x", $0) }.joined()
         VoIPDiagnosticsLog.log("[IncomingCallManager] VoIP token: \(tokenString)")
         Task {
@@ -404,9 +464,15 @@ final class IncomingCallManager: NSObject, ObservableObject {
     }
 
     func syncStoredPushTokensToServer(apnsTokenString: String?) async {
-        let voipTokenString = voipToken.map { data in
-            data.map { String(format: "%02x", $0) }.joined()
-        } ?? UserDefaults.standard.string(forKey: Self.voipTokenDefaultsKey)
+        let voipTokenString: String?
+        if appStoreRegionPolicy.isCallKitAllowed {
+            voipTokenString = voipToken.map { data in
+                data.map { String(format: "%02x", $0) }.joined()
+            } ?? UserDefaults.standard.string(forKey: Self.voipTokenDefaultsKey)
+        } else {
+            voipTokenString = nil
+            UserDefaults.standard.removeObject(forKey: Self.voipTokenDefaultsKey)
+        }
 
         guard voipTokenString != nil || apnsTokenString != nil else { return }
         VoIPDiagnosticsLog.log("[IncomingCallManager] Syncing stored push tokens to server. voip=\(voipTokenString != nil) apns=\(apnsTokenString != nil)")
@@ -446,17 +512,22 @@ final class IncomingCallManager: NSObject, ObservableObject {
         }
         let ownerId = ensureOwnerId()
         let apnsEnvironment = resolvedAPNsEnvironment()
+        let regionPolicy = AppStoreRegionPolicy.shared
+        let effectiveVoIPToken = regionPolicy.isCallKitAllowed ? voipToken : nil
 
         let client = RemoteAccessAPIClient()
         do {
             try await client.registerDevice(
                 sessionToken: sessionToken,
                 ownerId: ownerId,
-                voipToken: voipToken,
+                voipToken: effectiveVoIPToken,
                 apnsToken: apnsToken,
-                apnsEnvironment: apnsEnvironment
+                apnsEnvironment: apnsEnvironment,
+                storefrontCountryCode: regionPolicy.installStorefrontCountryCode,
+                callKitAllowed: regionPolicy.isCallKitAllowed,
+                callbackDeliveryMode: regionPolicy.callbackDeliveryMode
             )
-            VoIPDiagnosticsLog.log("[IncomingCallManager] Registered push tokens with server for owner=\(ownerId). voip=\(voipToken != nil) apns=\(apnsToken != nil) env=\(apnsEnvironment)")
+            VoIPDiagnosticsLog.log("[IncomingCallManager] Registered push tokens with server for owner=\(ownerId). voip=\(effectiveVoIPToken != nil) apns=\(apnsToken != nil) env=\(apnsEnvironment) storefront=\(regionPolicy.installStorefrontCountryCode ?? "unknown") mode=\(regionPolicy.callbackDeliveryMode)")
         } catch {
             VoIPDiagnosticsLog.log("[IncomingCallManager] Device registration failed: \(error.localizedDescription)")
         }
@@ -506,12 +577,16 @@ extension IncomingCallManager: PKPushRegistryDelegate {
             VoIPDiagnosticsLog.log("[IncomingCallManager] PushKit payload keys: \(payloadDict.keys.map { String(describing: $0) }.sorted())")
             guard let context = IncomingCallContext.from(payload: payloadDict) else {
                 VoIPDiagnosticsLog.log("[IncomingCallManager] Failed to parse VoIP push payload")
+                guard self.appStoreRegionPolicy.isCallKitAllowed, let callKitProvider = self.orchestrator?.callKitProvider else {
+                    done()
+                    return
+                }
                 let uuid = UUID()
                 let update = CXCallUpdate()
                 update.localizedCallerName = "Hivecrew"
-                self.callKitProvider.reportNewIncomingCall(with: uuid, update: update) { _ in
-                    Task { @MainActor in
-                        self.callKitProvider.reportCall(with: uuid, endedAt: Date(), reason: .failed)
+                callKitProvider.reportNewIncomingCall(with: uuid, update: update) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.orchestrator?.callKitProvider?.reportCall(with: uuid, endedAt: Date(), reason: .failed)
                         done()
                     }
                 }
