@@ -17,11 +17,16 @@ struct TaskListView: View {
     @State private var sendError: String?
 
     var body: some View {
-        Group {
-            if taskService.tasks.isEmpty {
-                emptyStateNoTasks
-            } else {
-                listContent
+        VStack(spacing: 0) {
+            PromptBar(tabSelection: $tabSelection)
+                .padding(.vertical, 6)
+
+            Group {
+                if taskService.tasks.isEmpty {
+                    emptyStateNoTasks
+                } else {
+                    listContent
+                }
             }
         }
         .navigationTitle("Hivelink")
@@ -38,10 +43,6 @@ struct TaskListView: View {
                         .imageScale(.medium)
                 }
             }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            PromptBar(tabSelection: $tabSelection)
-                .padding(.vertical, 6)
         }
         .alert(String(localized: "Couldn't create task"), isPresented: Binding(
             get: { sendError != nil },
@@ -196,12 +197,15 @@ struct TaskListView: View {
     }
 
     private var emptyStateNoTasks: some View {
-        ContentUnavailableView {
-            Label(String(localized: "No tasks yet"), systemImage: "list.bullet.rectangle")
-        } description: {
-            Text("Create a task with the bar above, or pull to refresh once you're online.")
+        ScrollView {
+            ContentUnavailableView {
+                Label(String(localized: "No tasks yet"), systemImage: "list.bullet.rectangle")
+            } description: {
+                Text("Create a task with the bar above, or pull to refresh once you're online.")
+            }
+            .frame(maxWidth: .infinity)
+            .containerRelativeFrame(.vertical)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .refreshable {
             await taskService.reconcileAndRefresh()
         }
