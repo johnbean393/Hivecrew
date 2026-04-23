@@ -27,6 +27,12 @@ public enum RemoteAccessStatus: Equatable, Sendable {
     case error
 }
 
+public enum RemoteAccessAccountDeletionResult: Equatable, Sendable {
+    case deleted
+    case signedOut
+    case failed
+}
+
 // MARK: - Auth Manager
 
 @MainActor
@@ -40,10 +46,15 @@ public final class RemoteAccessAuthManager: ObservableObject {
     @Published public private(set) var isAuthenticated: Bool = false
     @Published public private(set) var isSigningOut: Bool = false
     @Published public private(set) var isDeletingAccount: Bool = false
+    @Published public private(set) var accountCapabilities: RemoteAccessAccountCapabilities = .standard
 
-    private let apiClient: RemoteAccessAPIClient
+    public var deleteAccountBehavior: RemoteAccessDeleteAccountBehavior {
+        accountCapabilities.deleteAccountBehavior
+    }
 
-    public init(apiClient: RemoteAccessAPIClient = RemoteAccessAPIClient()) {
+    private let apiClient: any RemoteAccessAPIClientProtocol
+
+    public init(apiClient: any RemoteAccessAPIClientProtocol = RemoteAccessAPIClient()) {
         self.apiClient = apiClient
     }
 
@@ -54,6 +65,7 @@ public final class RemoteAccessAuthManager: ObservableObject {
 
         email = storedEmail
         isAuthenticated = token != nil
+        accountCapabilities = token != nil ? RemoteAccessKeychain.retrieveAccountCapabilities() : .standard
 
         if token != nil {
             status = .connected
@@ -85,12 +97,14 @@ public final class RemoteAccessAuthManager: ObservableObject {
         status = .verifyingOTP
 
         do {
-            let sessionToken = try await apiClient.verify(email: email, code: code)
+            let session = try await apiClient.verify(email: email, code: code)
 
-            _ = RemoteAccessKeychain.storeSessionToken(sessionToken)
+            _ = RemoteAccessKeychain.storeSessionToken(session.token)
             _ = RemoteAccessKeychain.storeEmail(email)
+            _ = RemoteAccessKeychain.storeAccountCapabilities(session.capabilities)
 
             isAuthenticated = true
+            accountCapabilities = session.capabilities
             status = .connected
         } catch {
             status = .awaitingOTP
@@ -134,14 +148,21 @@ public final class RemoteAccessAuthManager: ObservableObject {
         isAuthenticated = false
         isSigningOut = false
         isDeletingAccount = false
+        accountCapabilities = .standard
         status = .disconnected
     }
 
     /// Permanently delete the authenticated account and revoke active sessions.
-    public func deleteAccount() async {
+    @discardableResult
+    public func deleteAccount() async -> RemoteAccessAccountDeletionResult {
+        if accountCapabilities.deleteAccountBehavior == .logout {
+            await logout()
+            return errorMessage == nil ? .signedOut : .failed
+        }
+
         guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
             errorMessage = RemoteAccessError.notAuthenticated.localizedDescription
-            return
+            return .failed
         }
 
         errorMessage = nil
@@ -150,9 +171,11 @@ public final class RemoteAccessAuthManager: ObservableObject {
         do {
             try await apiClient.deleteAccount(sessionToken: sessionToken)
             clearLocalCredentials()
+            return .deleted
         } catch {
             isDeletingAccount = false
             errorMessage = error.localizedDescription
+            return .failed
         }
     }
 

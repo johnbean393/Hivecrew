@@ -21,6 +21,7 @@ public enum RemoteAccessKeychain {
     private static let subdomainKey = "subdomain"
     private static let tunnelIdKey = "tunnel-id"
     private static let clusterTokenKey = "cluster-token"
+    private static let accountCapabilitiesKey = "account-capabilities"
 
     // MARK: - Session Token (JWT)
 
@@ -62,6 +63,32 @@ public enum RemoteAccessKeychain {
 
     public static func deleteEmail() -> Bool {
         delete(key: emailKey)
+    }
+
+    // MARK: - Account Capabilities
+
+    @discardableResult
+    public static func storeAccountCapabilities(_ capabilities: RemoteAccessAccountCapabilities) -> Bool {
+        guard let data = try? JSONEncoder().encode(capabilities),
+              let value = String(data: data, encoding: .utf8) else {
+            return false
+        }
+        return store(key: accountCapabilitiesKey, value: value)
+    }
+
+    public static func retrieveAccountCapabilities() -> RemoteAccessAccountCapabilities {
+        guard let value = retrieve(key: accountCapabilitiesKey),
+              let data = value.data(using: .utf8),
+              let capabilities = try? JSONDecoder().decode(RemoteAccessAccountCapabilities.self, from: data) else {
+            return .standard
+        }
+
+        return capabilities
+    }
+
+    @discardableResult
+    public static func deleteAccountCapabilities() -> Bool {
+        delete(key: accountCapabilitiesKey)
     }
 
     // MARK: - Subdomain
@@ -114,7 +141,7 @@ public enum RemoteAccessKeychain {
     @discardableResult
     public static func clearAll() -> Bool {
         let keys = [sessionTokenKey, tunnelTokenKey, emailKey, subdomainKey, tunnelIdKey,
-                    clusterTokenKey]
+                    clusterTokenKey, accountCapabilitiesKey]
         var allSuccess = true
         for key in keys {
             if !delete(key: key) {

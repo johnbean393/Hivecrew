@@ -7,8 +7,52 @@
 
 import Foundation
 
+public protocol RemoteAccessAPIClientProtocol: Sendable {
+    func register(email: String) async throws
+    func verify(email: String, code: String) async throws -> RemoteAccessAuthSession
+    func logout(sessionToken: String, ownerId: String?) async throws
+    func deleteAccount(sessionToken: String) async throws
+}
+
+public enum RemoteAccessDeleteAccountBehavior: String, Codable, Sendable {
+    case logout
+    case delete
+}
+
+public struct RemoteAccessAccountCapabilities: Codable, Equatable, Sendable {
+    public let isProtectedAccount: Bool
+    public let canDeleteAccount: Bool
+    public let deleteAccountBehavior: RemoteAccessDeleteAccountBehavior
+
+    public init(
+        isProtectedAccount: Bool,
+        canDeleteAccount: Bool,
+        deleteAccountBehavior: RemoteAccessDeleteAccountBehavior
+    ) {
+        self.isProtectedAccount = isProtectedAccount
+        self.canDeleteAccount = canDeleteAccount
+        self.deleteAccountBehavior = deleteAccountBehavior
+    }
+
+    public static let standard = RemoteAccessAccountCapabilities(
+        isProtectedAccount: false,
+        canDeleteAccount: true,
+        deleteAccountBehavior: .delete
+    )
+}
+
+public struct RemoteAccessAuthSession: Decodable, Sendable {
+    public let token: String
+    public let capabilities: RemoteAccessAccountCapabilities
+
+    public init(token: String, capabilities: RemoteAccessAccountCapabilities) {
+        self.token = token
+        self.capabilities = capabilities
+    }
+}
+
 /// HTTP client for the Hivecrew remote access Cloudflare Worker API
-public actor RemoteAccessAPIClient {
+public actor RemoteAccessAPIClient: RemoteAccessAPIClientProtocol {
 
     /// Default base URL for the coordination Worker
     private static let defaultBaseURL = "https://remoteaccessauthapi.hivecrew.org"
@@ -50,10 +94,13 @@ public actor RemoteAccessAPIClient {
     }
 
     /// Verify an OTP code and receive a session JWT
-    public func verify(email: String, code: String) async throws -> String {
+    public func verify(email: String, code: String) async throws -> RemoteAccessAuthSession {
         let body: [String: String] = ["email": email, "code": code]
         let response: VerifyResponse = try await post("/auth/verify", body: body)
-        return response.token
+        return RemoteAccessAuthSession(
+            token: response.token,
+            capabilities: response.capabilities
+        )
     }
 
     /// Revoke the current session and unregister this device's push record when an owner ID is provided.
@@ -249,6 +296,32 @@ private struct MessageResponse: Decodable {
 
 private struct VerifyResponse: Decodable {
     let token: String
+    let capabilities: RemoteAccessAccountCapabilities
+
+    private enum CodingKeys: String, CodingKey {
+        case token
+        case isProtectedAccount
+        case canDeleteAccount
+        case deleteAccountBehavior
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        token = try container.decode(String.self, forKey: .token)
+
+        let isProtectedAccount = try container.decodeIfPresent(Bool.self, forKey: .isProtectedAccount) ?? false
+        let canDeleteAccount = try container.decodeIfPresent(Bool.self, forKey: .canDeleteAccount) ?? true
+        let deleteAccountBehavior = try container.decodeIfPresent(
+            RemoteAccessDeleteAccountBehavior.self,
+            forKey: .deleteAccountBehavior
+        ) ?? (canDeleteAccount ? .delete : .logout)
+
+        capabilities = RemoteAccessAccountCapabilities(
+            isProtectedAccount: isProtectedAccount,
+            canDeleteAccount: canDeleteAccount,
+            deleteAccountBehavior: deleteAccountBehavior
+        )
+    }
 }
 
 private struct LogoutRequest: Encodable {

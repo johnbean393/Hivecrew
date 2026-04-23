@@ -95,6 +95,18 @@ struct SettingsView: View {
         selectedVoiceProvider == .gemini || !(openAIAuthenticationMode == .chatGPTOAuth && openAIOAuth.isConnected)
     }
 
+    private var deleteAccountConfirmationTitle: String {
+        authManager.deleteAccountBehavior == .logout
+            ? String(localized: "Sign Out")
+            : String(localized: "Delete Account")
+    }
+
+    private var deleteAccountConfirmationMessage: String {
+        authManager.deleteAccountBehavior == .logout
+            ? String(localized: "This managed account cannot be deleted from this device. Continuing will sign you out.")
+            : String(localized: "This permanently deletes your account, signed-in devices, and remote access configuration. This action cannot be undone.")
+    }
+
     private var openAIConfigurationSummary: String {
         switch openAIAuthenticationMode {
         case .apiKey:
@@ -193,22 +205,22 @@ struct SettingsView: View {
             Text(authManager.errorMessage ?? String(localized: "Something went wrong while signing out."))
         }
         .alert(
-            String(localized: "Delete Account"),
+            deleteAccountConfirmationTitle,
             isPresented: $showDeleteAccountConfirmation
         ) {
             Button(String(localized: "Cancel"), role: .cancel) {}
-            Button(String(localized: "Delete"), role: .destructive) {
+            Button(deleteAccountConfirmationTitle, role: .destructive) {
                 Task {
-                    await authManager.deleteAccount()
+                    let result = await authManager.deleteAccount()
                     if authManager.errorMessage != nil {
                         showDeleteAccountError = true
-                    } else {
+                    } else if result == .deleted {
                         await taskService.wipeAllLocalData()
                     }
                 }
             }
         } message: {
-            Text(String(localized: "This permanently deletes your account, signed-in devices, and remote access configuration. This action cannot be undone."))
+            Text(deleteAccountConfirmationMessage)
         }
         .alert(
             String(localized: "Delete Account Failed"),

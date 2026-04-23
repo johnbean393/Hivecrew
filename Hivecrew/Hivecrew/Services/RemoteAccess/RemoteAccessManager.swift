@@ -109,11 +109,13 @@ actor RemoteAccessManager {
         await updateStatus(state: .authenticating)
         
         do {
-            let sessionToken = try await apiClient.verify(email: email, code: code)
+            let session = try await apiClient.verify(email: email, code: code)
+            let sessionToken = session.token
             
             // Store session token and email in Keychain
             RemoteAccessKeychain.storeSessionToken(sessionToken)
             RemoteAccessKeychain.storeEmail(email)
+            RemoteAccessKeychain.storeAccountCapabilities(session.capabilities)
 
             await retryPendingTunnelDeletions(sessionToken: sessionToken, email: email)
             
