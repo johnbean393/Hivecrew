@@ -613,15 +613,12 @@ class TaskService: ObservableObject {
     }
 
     func shouldShowInAgentPreview(_ task: TaskRecord, now: Date = Date()) -> Bool {
-        if task.isInternalClusterExecution {
-            return task.status.isActive || shouldKeepInternalClusterExecutionVisible(task, now: now)
-        }
         return isTaskEffectivelyActive(task)
     }
 
     func shouldShowInAgentEnvironments(_ task: TaskRecord, now: Date = Date()) -> Bool {
         if task.isInternalClusterExecution {
-            return task.status.isActive || shouldKeepInternalClusterExecutionVisible(task, now: now)
+            return isTaskEffectivelyActive(task) || shouldKeepInternalClusterExecutionVisible(task, now: now)
         }
 
         return (task.assignedVMId != nil || task.isExecutingRemotely) &&

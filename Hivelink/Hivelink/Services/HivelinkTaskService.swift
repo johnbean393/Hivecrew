@@ -934,7 +934,10 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             incomingCallManager.offerCall(context: context)
         }
 
-        previousStatuses = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0.status) })
+        previousStatuses = Dictionary(
+            tasks.map { ($0.id, $0.status) },
+            uniquingKeysWith: { _, latest in latest }
+        )
         persistCallTriggeredIds()
     }
 

@@ -96,7 +96,7 @@ struct AgentPreviewStripView: View {
         }
         
         if item.task.isInternalClusterExecution {
-            if item.task.status.isActive {
+            if taskService.effectiveStatus(for: item.task).isActive {
                 return (1, item.task.startedAt ?? item.task.createdAt)
             }
             return (4, item.task.completedAt ?? item.task.startedAt ?? item.task.createdAt)
@@ -138,6 +138,7 @@ struct AgentPreviewStripView: View {
             [
                 publisher.$pendingQuestion.map { _ in () }.eraseToAnyPublisher(),
                 publisher.$pendingPermissionRequest.map { _ in () }.eraseToAnyPublisher(),
+                publisher.$status.map { _ in () }.eraseToAnyPublisher(),
                 publisher.$lastScreenshot.map { _ in () }.eraseToAnyPublisher()
             ]
         }

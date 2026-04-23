@@ -78,7 +78,7 @@ struct AgentPreviewCardContent: View {
             ?? clusterStatus.displayName(forPeerId: task.clusterOwnerNodeId)
             ?? task.clusterOwnerNodeId.map(shortOwnerLabel(for:))
         guard let ownerName, !ownerName.isEmpty else { return String(localized: "Leased Task") }
-        return String(localized: "From \(ownerName)")
+        return String(localized: "From \(displayOwnerName(ownerName))")
     }
     
     private var statusDescription: String {
@@ -486,5 +486,13 @@ struct AgentPreviewCardContent: View {
             return ownerNodeId
         }
         return String(ownerNodeId.prefix(8))
+    }
+
+    private func displayOwnerName(_ ownerName: String) -> String {
+        let trimmed = ownerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "iPhone" || trimmed.hasPrefix("iPhone ") {
+            return "iPhone"
+        }
+        return trimmed
     }
 }

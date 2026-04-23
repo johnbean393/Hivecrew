@@ -1,4 +1,5 @@
 import Testing
+import HivecrewAPIModels
 @testable import HivecrewCore
 
 @Test func orchestratorPromptRequiresRealTaskCreationBeforeConfirmation() async throws {
@@ -32,6 +33,19 @@ import Testing
     #expect(calls.deleteAccount == 0)
     #expect(manager.isAuthenticated == false)
     _ = RemoteAccessKeychain.clearAll()
+}
+
+@Test func providerCapabilitiesMergeDuplicateProviderAndModelIds() async throws {
+    let summaries = PeerAPIClient.normalizedProviderCapabilities([
+        PeerProviderSummary(providerName: "OpenAI", modelIds: ["gpt-5.2", "gpt-5.2"]),
+        PeerProviderSummary(providerName: "Anthropic", modelIds: ["claude-sonnet"]),
+        PeerProviderSummary(providerName: "OpenAI", modelIds: ["gpt-5.2", "gpt-5.4"]),
+    ])
+
+    #expect(summaries == [
+        PeerProviderSummary(providerName: "OpenAI", modelIds: ["gpt-5.2", "gpt-5.4"]),
+        PeerProviderSummary(providerName: "Anthropic", modelIds: ["claude-sonnet"]),
+    ])
 }
 
 private actor FakeRemoteAccessAPIClient: RemoteAccessAPIClientProtocol {

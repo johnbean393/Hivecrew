@@ -86,7 +86,7 @@ public actor PeerAPIClient {
     public func fetchProviderCapabilities() async throws -> [PeerProviderSummary] {
         let clusterStatus = try await getClusterStatus()
         if !clusterStatus.localProviders.isEmpty {
-            return clusterStatus.localProviders
+            return Self.normalizedProviderCapabilities(clusterStatus.localProviders)
         }
 
         let providersResponse: APIProviderListResponse = try await get("/api/v1/providers")
@@ -100,7 +100,33 @@ public actor PeerAPIClient {
             ))
         }
 
-        return summaries
+        return Self.normalizedProviderCapabilities(summaries)
+    }
+
+    static func normalizedProviderCapabilities(_ summaries: [PeerProviderSummary]) -> [PeerProviderSummary] {
+        var modelIdsByProvider: [String: [String]] = [:]
+        var seenModelIdsByProvider: [String: Set<String>] = [:]
+        var orderedProviderNames: [String] = []
+        var seenProviderNames = Set<String>()
+
+        for summary in summaries {
+            let providerName = summary.providerName
+            if seenProviderNames.insert(providerName).inserted {
+                orderedProviderNames.append(providerName)
+            }
+
+            var modelIds = modelIdsByProvider[providerName] ?? []
+            var seenModelIds = seenModelIdsByProvider[providerName] ?? []
+            for modelId in summary.modelIds where seenModelIds.insert(modelId).inserted {
+                modelIds.append(modelId)
+            }
+            modelIdsByProvider[providerName] = modelIds
+            seenModelIdsByProvider[providerName] = seenModelIds
+        }
+
+        return orderedProviderNames.map { providerName in
+            PeerProviderSummary(providerName: providerName, modelIds: modelIdsByProvider[providerName] ?? [])
+        }
     }
 
     // MARK: - Tasks

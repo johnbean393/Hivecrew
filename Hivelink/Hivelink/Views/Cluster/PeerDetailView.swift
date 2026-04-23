@@ -61,14 +61,14 @@ struct PeerDetailView: View {
                     Text("No provider capabilities reported")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(peer.providers, id: \.providerName) { provider in
+                    ForEach(Array(peer.providers.enumerated()), id: \.offset) { _, provider in
                         DisclosureGroup(provider.providerName) {
                             if provider.modelIds.isEmpty {
                                 Text("No models listed")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             } else {
-                                ForEach(provider.modelIds, id: \.self) { modelId in
+                                ForEach(Array(provider.modelIds.enumerated()), id: \.offset) { _, modelId in
                                     Text(modelId)
                                         .font(.caption.monospaced())
                                 }

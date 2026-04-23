@@ -101,7 +101,7 @@ private struct PeerRowView: View {
 
             if !peer.providers.isEmpty {
                 FlowLayout(spacing: 6) {
-                    ForEach(peer.providers, id: \.providerName) { provider in
+                    ForEach(Array(peer.providers.enumerated()), id: \.offset) { _, provider in
                         Text(provider.providerName)
                             .font(.caption2)
                             .padding(.horizontal, 8)

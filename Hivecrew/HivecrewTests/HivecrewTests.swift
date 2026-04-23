@@ -162,7 +162,7 @@ struct HivecrewTests {
 
     @Test
     @MainActor
-    func internalClusterExecutionsRemainVisibleDuringStartupAndShortlyAfterCompletion() {
+    func internalClusterExecutionsRemainVisibleDuringStartupAndShortlyAfterCompletionInEnvironmentsOnly() {
         let now = Date()
         let service = TaskService()
         let staleCompletionOffset = TaskService.internalClusterExecutionVisibilityGraceInterval + 10
@@ -206,11 +206,31 @@ struct HivecrewTests {
 
         #expect(service.shouldKeepInternalClusterExecutionVisible(recentCompletedTask, now: now))
         #expect(service.shouldShowInAgentEnvironments(recentCompletedTask, now: now))
-        #expect(service.shouldShowInAgentPreview(recentCompletedTask, now: now))
+        #expect(!service.shouldShowInAgentPreview(recentCompletedTask, now: now))
 
         #expect(!service.shouldKeepInternalClusterExecutionVisible(staleCompletedTask, now: now))
         #expect(!service.shouldShowInAgentEnvironments(staleCompletedTask, now: now))
         #expect(!service.shouldShowInAgentPreview(staleCompletedTask, now: now))
+    }
+
+    @Test
+    @MainActor
+    func agentPreviewHidesInternalClusterExecutionWhenLiveStateIsTerminal() {
+        let service = TaskService()
+        let task = TaskRecord(
+            title: "Leased running task",
+            taskDescription: "Live state finished first",
+            status: .running,
+            providerId: "provider",
+            modelId: "model",
+            clusterOwnerTaskId: "canonical-owner-task"
+        )
+        let publisher = AgentStatePublisher(taskId: task.id)
+        publisher.status = .completed
+        service.statePublishers[task.id] = publisher
+
+        #expect(!service.shouldShowInAgentPreview(task))
+        #expect(!service.shouldShowInAgentEnvironments(task))
     }
     
     @Test
