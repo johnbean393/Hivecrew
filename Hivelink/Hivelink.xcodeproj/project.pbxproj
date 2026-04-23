@@ -1098,7 +1098,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HivelinkBroadcast/HivelinkBroadcast.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkBroadcast/Info.plist;
@@ -1131,7 +1131,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HivelinkBroadcast/HivelinkBroadcast.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkBroadcast/Info.plist;
@@ -1165,7 +1165,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = HivelinkWidgets/HivelinkWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkWidgets/Info.plist;
@@ -1199,7 +1199,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = HivelinkWidgets/HivelinkWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = KM2C4ZAVPJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HivelinkWidgets/Info.plist;
