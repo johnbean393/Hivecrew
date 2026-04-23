@@ -80,12 +80,21 @@ struct VoiceSetupFlowView: View {
         HivelinkVoicePreferences.availableVoices(for: selectedChoice.provider)
     }
 
+    private var hasEnteredAPIKey: Bool {
+        !editingAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasChatGPTOAuthConnection: Bool {
+        openAIOAuth.isConnected
+            || CodexOAuthTokenStore.retrieve(providerId: HivelinkChatGPTOAuthController.providerId) != nil
+    }
+
     private var configurationIsValid: Bool {
         switch selectedChoice {
         case .gemini, .openAIAPIKey:
-            return !editingAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return hasEnteredAPIKey
         case .chatGPTOAuth:
-            return openAIOAuth.isConnected
+            return hasChatGPTOAuthConnection
         }
     }
 
@@ -123,7 +132,7 @@ struct VoiceSetupFlowView: View {
             persistSelection()
         }
         .onChange(of: editingAPIKey) { _, _ in
-            if selectedChoice == .openAIAPIKey {
+            if selectedChoice != .chatGPTOAuth {
                 persistSelection()
             }
         }
