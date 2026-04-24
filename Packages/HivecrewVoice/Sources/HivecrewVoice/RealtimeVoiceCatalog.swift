@@ -81,6 +81,14 @@ public enum RealtimeVoiceCatalog {
         .init(id: "Sulafat", displayName: "Sulafat", descriptor: "Warm"),
     ]
 
+    public static let xAIVoices: [RealtimeVoiceOption] = [
+        .init(id: "eve", displayName: "Eve", descriptor: "Energetic"),
+        .init(id: "ara", displayName: "Ara", descriptor: "Warm"),
+        .init(id: "leo", displayName: "Leo", descriptor: "Authoritative"),
+        .init(id: "rex", displayName: "Rex", descriptor: "Professional"),
+        .init(id: "sal", displayName: "Sal", descriptor: "Balanced"),
+    ]
+
     public static let openAIModels: [RealtimeVoiceModelOption] = [
         .init(id: "gpt-realtime-1.5", displayName: "gpt-realtime-1.5", descriptor: "Flagship realtime"),
         .init(id: "gpt-realtime-mini", displayName: "gpt-realtime-mini", descriptor: "Lower latency")
@@ -99,12 +107,27 @@ public enum RealtimeVoiceCatalog {
         )
     ]
 
+    public static let xAIModels: [RealtimeVoiceModelOption] = [
+        .init(
+            id: "grok-voice-think-fast-1.0",
+            displayName: "grok-voice-think-fast-1.0",
+            descriptor: "Recommended"
+        ),
+        .init(
+            id: "grok-voice-fast-1.0",
+            displayName: "grok-voice-fast-1.0",
+            descriptor: "Legacy"
+        )
+    ]
+
     public static func voices(for backend: VoiceProviderBackend) -> [RealtimeVoiceOption] {
         switch backend {
         case .geminiLive:
             return geminiVoices
         case .openAIRealtime:
             return openAIVoices
+        case .xAIRealtime:
+            return xAIVoices
         }
     }
 
@@ -114,6 +137,8 @@ public enum RealtimeVoiceCatalog {
             return geminiModels
         case .openAIRealtime:
             return openAIModels
+        case .xAIRealtime:
+            return xAIModels
         }
     }
 
@@ -123,6 +148,8 @@ public enum RealtimeVoiceCatalog {
             return "Leda"
         case .openAIRealtime:
             return "marin"
+        case .xAIRealtime:
+            return "eve"
         }
     }
 
@@ -132,6 +159,8 @@ public enum RealtimeVoiceCatalog {
             return "gemini-3.1-flash-live-preview"
         case .openAIRealtime:
             return "gpt-realtime-1.5"
+        case .xAIRealtime:
+            return "grok-voice-think-fast-1.0"
         }
     }
 }

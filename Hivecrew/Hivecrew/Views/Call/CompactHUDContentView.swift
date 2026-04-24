@@ -121,7 +121,7 @@ struct CompactHUDContentView: View {
                 compactCallManager.exitCompactMode()
             }
 
-            if case .screen = orchestrator.videoSourceManager.activeSource {
+            if orchestrator.supportsVideoInput, case .screen = orchestrator.videoSourceManager.activeSource {
                 Spacer()
 
                 compactButton(

@@ -27,6 +27,10 @@ public final class RealtimeVoiceService: Sendable {
             let provider = OpenAIRealtimeProvider()
             provider.configure(authentication: authentication, model: model)
             return provider
+        case .xAIRealtime:
+            let provider = XAIRealtimeProvider()
+            provider.configure(authentication: authentication, model: model)
+            return provider
         }
     }
 

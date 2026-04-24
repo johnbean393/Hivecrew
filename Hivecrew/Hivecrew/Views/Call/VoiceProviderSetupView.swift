@@ -37,7 +37,7 @@ struct VoiceProviderSetupView: View {
     }
 
     private var configuredVoiceProviderTypes: [VoiceProviderType] {
-        [.gemini, .openAI, .chatGPTOAuth].filter { type in
+        [.gemini, .openAI, .xAI, .chatGPTOAuth].filter { type in
             VoiceAvailability.hasConfiguredProvider(type: type, providers: providers)
         }
     }
@@ -54,9 +54,11 @@ struct VoiceProviderSetupView: View {
     private var availableVoiceModels: [String] {
         switch selectedVoiceProviderType {
         case .openAI, .chatGPTOAuth:
-            return ["gpt-realtime-1.5", "gpt-realtime-mini"]
+            return RealtimeVoiceCatalog.models(for: .openAIRealtime).map(\.id)
+        case .xAI:
+            return RealtimeVoiceCatalog.models(for: .xAIRealtime).map(\.id)
         case .gemini:
-            return ["gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-preview-12-2025"]
+            return RealtimeVoiceCatalog.models(for: .geminiLive).map(\.id)
         case .none:
             return []
         }
@@ -420,6 +422,8 @@ struct VoiceProviderSetupView: View {
             return "Google Gemini"
         case .openAI:
             return "OpenAI API"
+        case .xAI:
+            return "xAI API"
         case .chatGPTOAuth:
             return "OpenAI OAuth"
         }

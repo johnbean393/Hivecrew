@@ -49,7 +49,10 @@ enum OrchestratorToolHandler {
 
     // MARK: - Tool Declarations
 
-    static var toolDeclarations: [VoiceToolDeclaration] { VoiceToolDeclaration.fromSharedToolSchemas() }
+    static func toolDeclarations(supportsVisualInput: Bool = true) -> [VoiceToolDeclaration] {
+        VoiceToolDeclaration.fromSharedToolSchemas()
+            .filter { supportsVisualInput || $0.name != "capture_reference" }
+    }
 
     // MARK: - Dispatch
 
@@ -110,7 +113,10 @@ enum OrchestratorToolHandler {
             )
 
         case "capture_reference":
-            return await handleCaptureReference(videoSourceManager: videoSourceManager)
+            return await handleCaptureReference(
+                videoSourceManager: videoSourceManager,
+                supportsVisualInput: orchestrator.supportsVideoInput
+            )
 
         case "get_deliverables":
             return handleGetDeliverables(
@@ -140,7 +146,10 @@ enum OrchestratorToolHandler {
             )
 
         case "read_file":
-            return await handleReadFile(path: args["path"] ?? "")
+            return await handleReadFile(
+                path: args["path"] ?? "",
+                supportsVisualInput: orchestrator.supportsVideoInput
+            )
 
         case "search_file_content":
             return await handleSearchFileContent(
@@ -526,8 +535,12 @@ enum OrchestratorToolHandler {
     }
 
     private static func handleCaptureReference(
-        videoSourceManager: VideoSourceManager
+        videoSourceManager: VideoSourceManager,
+        supportsVisualInput: Bool
     ) async -> ToolCallResult {
+        guard supportsVisualInput else {
+            return .textOnly("Error: The selected voice provider does not support realtime image or video input.")
+        }
         guard videoSourceManager.activeSource != .none else {
             return .textOnly("Error: No video source active. Ask the user to enable screen sharing or a camera via the input source picker.")
         }
@@ -750,7 +763,7 @@ enum OrchestratorToolHandler {
 
     // MARK: - File Reading
 
-    private static func handleReadFile(path: String) async -> ToolCallResult {
+    private static func handleReadFile(path: String, supportsVisualInput: Bool) async -> ToolCallResult {
         guard !path.isEmpty else {
             return .textOnly("Error: path is required for read_file.")
         }
@@ -769,6 +782,17 @@ enum OrchestratorToolHandler {
             // For images, send the image data to the voice model so it can
             // visually analyze the content, matching the task agent's behavior.
             if result.hasImage {
+                guard supportsVisualInput else {
+                    let text = result.text + "\nThe selected voice provider does not support realtime image input, so this image was not loaded into the voice session."
+                    let record = ToolUseRecord(
+                        toolName: "read_file",
+                        summary: "Read \(filename) (\(sizeStr))",
+                        detail: result.text,
+                        fileResults: [],
+                        previewFilePath: path
+                    )
+                    return ToolCallResult(text: text, transcriptRecord: record)
+                }
                 let jpegData = imageAsJPEG(at: url)
                 let text = result.text + "\nThe image has been loaded into your visual input. You can see it — describe its contents to the user."
                 let record = ToolUseRecord(

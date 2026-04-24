@@ -28,114 +28,125 @@ struct InputSourcePickerView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Screens
-                    if !orchestrator.videoSourceManager.availableScreens.isEmpty {
-                        Text("Displays")
-                            .font(.subheadline.bold())
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
+            if !orchestrator.supportsVideoInput {
+                ContentUnavailableView(
+                    "Video Unavailable",
+                    systemImage: "video.slash",
+                    description: Text("The selected voice provider does not support realtime image or video input.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Screens
+                        if !orchestrator.videoSourceManager.availableScreens.isEmpty {
+                            Text("Displays")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal)
 
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(orchestrator.videoSourceManager.availableScreens, id: \.displayID) { display in
-                                Button {
-                                    selectSource(.screen(displayID: display.displayID))
-                                } label: {
-                                    VStack(spacing: 4) {
-                                        if let preview = displayPreviews[display.displayID] {
-                                            Image(nsImage: preview)
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fit)
-                                                .frame(height: 80)
-                                                .cornerRadius(6)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 6)
-                                                        .stroke(isActiveScreen(display) ? Color.blue : Color.secondary.opacity(0.3), lineWidth: isActiveScreen(display) ? 2 : 1)
-                                                )
-                                        } else {
-                                            Rectangle()
-                                                .fill(Color.secondary.opacity(0.1))
-                                                .frame(height: 80)
-                                                .aspectRatio(1.6, contentMode: .fit)
-                                                .cornerRadius(6)
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(orchestrator.videoSourceManager.availableScreens, id: \.displayID) { display in
+                                    Button {
+                                        selectSource(.screen(displayID: display.displayID))
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            if let preview = displayPreviews[display.displayID] {
+                                                Image(nsImage: preview)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fit)
+                                                    .frame(height: 80)
+                                                    .cornerRadius(6)
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 6)
+                                                            .stroke(isActiveScreen(display) ? Color.blue : Color.secondary.opacity(0.3), lineWidth: isActiveScreen(display) ? 2 : 1)
+                                                    )
+                                            } else {
+                                                Rectangle()
+                                                    .fill(Color.secondary.opacity(0.1))
+                                                    .frame(height: 80)
+                                                    .aspectRatio(1.6, contentMode: .fit)
+                                                    .cornerRadius(6)
+                                            }
+                                            Text("Display \(display.displayID)")
+                                                .font(.caption2)
                                         }
-                                        Text("Display \(display.displayID)")
-                                            .font(.caption2)
                                     }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+
+                        // Cameras
+                        if !orchestrator.videoSourceManager.availableCameras.isEmpty {
+                            Text("Cameras")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal)
+
+                            ForEach(orchestrator.videoSourceManager.availableCameras, id: \.uniqueID) { device in
+                                Button {
+                                    selectSource(.camera(deviceID: device.uniqueID))
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "camera.fill")
+                                            .foregroundColor(isActiveCamera(device) ? .blue : .secondary)
+                                        VStack(alignment: .leading) {
+                                            Text(device.localizedName)
+                                                .font(.system(size: 13))
+                                            if device.deviceType == .external || device.deviceType == .continuityCamera {
+                                                Text("Continuity Camera")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                        Spacer()
+                                        if isActiveCamera(device) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.blue)
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.horizontal)
-                    }
 
-                    // Cameras
-                    if !orchestrator.videoSourceManager.availableCameras.isEmpty {
-                        Text("Cameras")
-                            .font(.subheadline.bold())
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
-
-                        ForEach(orchestrator.videoSourceManager.availableCameras, id: \.uniqueID) { device in
+                        // Stop sharing (only when mid-call, not pre-call)
+                        if !startCallOnSelection && orchestrator.videoSourceManager.activeSource != .none {
+                            Divider()
                             Button {
-                                selectSource(.camera(deviceID: device.uniqueID))
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "camera.fill")
-                                        .foregroundColor(isActiveCamera(device) ? .blue : .secondary)
-                                    VStack(alignment: .leading) {
-                                        Text(device.localizedName)
-                                            .font(.system(size: 13))
-                                        if device.deviceType == .external || device.deviceType == .continuityCamera {
-                                            Text("Continuity Camera")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-                                    Spacer()
-                                    if isActiveCamera(device) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.blue)
-                                    }
+                                Task {
+                                    await orchestrator.videoSourceManager.deactivate()
+                                    dismiss()
                                 }
-                                .padding(.vertical, 4)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "stop.circle")
+                                        .foregroundColor(.red)
+                                    Text("Stop sharing")
+                                        .font(.system(size: 13))
+                                }
                                 .padding(.horizontal)
                             }
                             .buttonStyle(.plain)
                         }
                     }
-
-                    // Stop sharing (only when mid-call, not pre-call)
-                    if !startCallOnSelection && orchestrator.videoSourceManager.activeSource != .none {
-                        Divider()
-                        Button {
-                            Task {
-                                await orchestrator.videoSourceManager.deactivate()
-                                dismiss()
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: "stop.circle")
-                                    .foregroundColor(.red)
-                                Text("Stop sharing")
-                                    .font(.system(size: 13))
-                            }
-                            .padding(.horizontal)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    .padding(.bottom, 12)
                 }
-                .padding(.bottom, 12)
             }
         }
         .task {
+            guard orchestrator.supportsVideoInput else { return }
             await orchestrator.videoSourceManager.refreshSources()
             await loadPreviews()
         }
     }
 
     private func selectSource(_ source: VideoSource) {
+        guard orchestrator.supportsVideoInput else { return }
         Task {
             if startCallOnSelection {
                 NotificationCenter.default.post(name: .startVoiceCall, object: nil)

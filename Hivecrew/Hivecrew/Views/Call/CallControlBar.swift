@@ -29,27 +29,29 @@ struct CallControlBar: View {
                 orchestrator.isMuted.toggle()
             }
 
-            CallControlButton(
-                icon: videoActive ? "rectangle.on.rectangle.fill" : "rectangle.dashed.badge.record",
-                color: videoActive ? .blue : .black
-            ) {
-                showSourcePicker.toggle()
-            }
-            .popover(isPresented: $showSourcePicker) {
-                InputSourcePickerView()
-                    .environmentObject(orchestrator)
-                    .frame(width: 320, height: 300)
-            }
-
-            if videoActive {
+            if orchestrator.supportsVideoInput {
                 CallControlButton(
-                    icon: "camera.fill",
-                    color: .black
+                    icon: videoActive ? "rectangle.on.rectangle.fill" : "rectangle.dashed.badge.record",
+                    color: videoActive ? .blue : .black
                 ) {
-                    Task {
-                        if let data = await orchestrator.videoSourceManager.captureCurrentFrame() {
-                            let url = FileManager.default.temporaryDirectory.appendingPathComponent("capture_\(UUID().uuidString).jpg")
-                            try? data.write(to: url)
+                    showSourcePicker.toggle()
+                }
+                .popover(isPresented: $showSourcePicker) {
+                    InputSourcePickerView()
+                        .environmentObject(orchestrator)
+                        .frame(width: 320, height: 300)
+                }
+
+                if videoActive {
+                    CallControlButton(
+                        icon: "camera.fill",
+                        color: .black
+                    ) {
+                        Task {
+                            if let data = await orchestrator.videoSourceManager.captureCurrentFrame() {
+                                let url = FileManager.default.temporaryDirectory.appendingPathComponent("capture_\(UUID().uuidString).jpg")
+                                try? data.write(to: url)
+                            }
                         }
                     }
                 }

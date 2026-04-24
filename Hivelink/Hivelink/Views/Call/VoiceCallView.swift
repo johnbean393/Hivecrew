@@ -85,14 +85,18 @@ struct VoiceCallView: View {
     private var idleButtonRow: some View {
         HStack(spacing: 16) {
             idleVoiceButton
-            idleVideoButton
+            if orchestrator.supportsVideoInput {
+                idleVideoButton
+            }
         }
     }
 
     private var idleButtonColumn: some View {
         VStack(spacing: 16) {
             idleVoiceButton
-            idleVideoButton
+            if orchestrator.supportsVideoInput {
+                idleVideoButton
+            }
         }
     }
 
@@ -194,6 +198,7 @@ struct VoiceCallView: View {
     // MARK: - Orb Section
 
     private var activeCameraSession: AVCaptureSession? {
+        guard orchestrator.supportsVideoInput else { return nil }
         if orchestrator.activeInputSource == .camera, orchestrator.cameraCapture.isCapturing {
             return orchestrator.cameraCapture.captureSession
         }
@@ -250,15 +255,17 @@ struct VoiceCallView: View {
                 orchestrator.toggleMute()
             }
 
-            CallControlButton(
-                icon: videoActive ? "video.fill" : "video.slash.fill",
-                color: videoActive ? .blue : .black
-            ) {
-                showSourcePicker = true
-            }
-            .sheet(isPresented: $showSourcePicker) {
-                InputSourcePickerView()
-                    .environmentObject(orchestrator)
+            if orchestrator.supportsVideoInput {
+                CallControlButton(
+                    icon: videoActive ? "video.fill" : "video.slash.fill",
+                    color: videoActive ? .blue : .black
+                ) {
+                    showSourcePicker = true
+                }
+                .sheet(isPresented: $showSourcePicker) {
+                    InputSourcePickerView()
+                        .environmentObject(orchestrator)
+                }
             }
 
             ZStack {

@@ -49,6 +49,7 @@ enum VoiceInputSource: String, CaseIterable, Identifiable {
 enum HivelinkVoiceProvider: String, CaseIterable, Identifiable {
     case gemini
     case openAI = "openai"
+    case xAI = "xai"
 
     var id: String { rawValue }
 
@@ -58,6 +59,8 @@ enum HivelinkVoiceProvider: String, CaseIterable, Identifiable {
             return .geminiLive
         case .openAI:
             return .openAIRealtime
+        case .xAI:
+            return .xAIRealtime
         }
     }
 
@@ -67,6 +70,8 @@ enum HivelinkVoiceProvider: String, CaseIterable, Identifiable {
             return "Gemini"
         case .openAI:
             return "OpenAI"
+        case .xAI:
+            return "xAI"
         }
     }
 
@@ -710,6 +715,8 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         switch selectedVoiceProvider {
         case .gemini:
             return !selectedAPIKey.isEmpty
+        case .xAI:
+            return !selectedAPIKey.isEmpty
         case .openAI:
             switch selectedOpenAIAuthenticationMode {
             case .apiKey:
@@ -722,6 +729,10 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     var backend: VoiceProviderBackend {
         selectedVoiceProvider.backend
+    }
+
+    var supportsVideoInput: Bool {
+        backend != .xAIRealtime
     }
 
     private var resolvedVoiceName: String {
@@ -779,6 +790,10 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     func notifyVoiceConfigurationChanged() {
         voiceConfigurationVersion += 1
+        guard !supportsVideoInput, activeInputSource != .none else { return }
+        Task { @MainActor [weak self] in
+            await self?.setInputSource(.none)
+        }
     }
 
     // MARK: - Internal
@@ -859,10 +874,11 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     func startCall(video: Bool = false, context: IncomingCallContext? = nil) {
         guard callState == .idle else { return }
+        let requestedVideo = video && supportsVideoInput
 
         guard appStoreRegionPolicy.isCallKitAllowed else {
             isInCall = true
-            pendingVideoStart = video
+            pendingVideoStart = requestedVideo
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 await self.startSession(context: context)
@@ -883,12 +899,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         let uuid = UUID()
         activeCallUUID = uuid
         isInCall = true
-        pendingVideoStart = video
+        pendingVideoStart = requestedVideo
         pendingCallContext = context
 
         let handle = CXHandle(type: .generic, value: "Hivecrew Voice")
         let action = CXStartCallAction(call: uuid, handle: handle)
-        action.isVideo = video
+        action.isVideo = requestedVideo
 
         callController.request(CXTransaction(action: action)) { [weak self] error in
             if let error {
@@ -1023,6 +1039,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                 return
             }
             authentication = .apiKey(selectedAPIKey)
+        case .xAI:
+            guard !selectedAPIKey.isEmpty else {
+                connectionState = .error("No xAI API key configured. Add one in Settings → Voice.")
+                return
+            }
+            authentication = .apiKey(selectedAPIKey)
         case .openAI:
             switch selectedOpenAIAuthenticationMode {
             case .apiKey:
@@ -1059,7 +1081,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         let config = VoiceSessionConfig(
             systemPrompt: systemPrompt,
             voiceName: resolvedVoiceName,
-            tools: HivelinkToolHandler.toolDeclarations,
+            tools: HivelinkToolHandler.toolDeclarations(supportsVisualInput: supportsVideoInput),
             mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
             thinkingLevel: .low,
             includeThoughts: true,
@@ -1367,11 +1389,13 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     private func setupVideoCallbacks() {
         cameraCapture.onFrameCaptured = { [weak self] data in
             Task { @MainActor [weak self] in
+                guard self?.supportsVideoInput == true else { return }
                 try? await self?.provider?.sendVideoFrame(data)
             }
         }
         broadcastReceiver.onFrameReceived = { [weak self] data in
             Task { @MainActor [weak self] in
+                guard self?.supportsVideoInput == true else { return }
                 try? await self?.provider?.sendVideoFrame(data)
             }
         }
@@ -1428,7 +1452,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             transcript.append(.toolUse(record))
         }
 
-        if let imageData = result.imageData {
+        if let imageData = result.imageData, supportsVideoInput {
             try? await provider?.sendVideoFrame(imageData)
         }
 
@@ -1448,6 +1472,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
     // MARK: - Input Source
 
     func setInputSource(_ source: VoiceInputSource) async {
+        let source = supportsVideoInput ? source : .none
         let oldSource = activeInputSource
         activeInputSource = source
 
@@ -1732,6 +1757,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
                     return
                 }
                 authentication = .apiKey(selectedAPIKey)
+            case .xAI:
+                guard !selectedAPIKey.isEmpty else {
+                    failCallTerminal(reason: "No xAI API key configured.")
+                    return
+                }
+                authentication = .apiKey(selectedAPIKey)
             case .openAI:
                 switch selectedOpenAIAuthenticationMode {
                 case .apiKey:
@@ -1763,7 +1794,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             let config = VoiceSessionConfig(
                 systemPrompt: systemPrompt,
                 voiceName: resolvedVoiceName,
-                tools: HivelinkToolHandler.toolDeclarations,
+                tools: HivelinkToolHandler.toolDeclarations(supportsVisualInput: supportsVideoInput),
                 mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
                 thinkingLevel: .low,
                 includeThoughts: true,

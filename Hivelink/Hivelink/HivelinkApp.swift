@@ -298,6 +298,13 @@ struct HivelinkApp: App {
                 defaults: defaults
             ).trimmingCharacters(in: .whitespacesAndNewlines)
             hasVoiceConfiguration = !apiKey.isEmpty
+        case .xAI:
+            let apiKey = HivelinkVoicePreferences.restoredAPIKey(
+                for: .xAI,
+                currentAPIKey: defaults.string(forKey: HivelinkVoicePreferences.apiKeyKey),
+                defaults: defaults
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            hasVoiceConfiguration = !apiKey.isEmpty
         case .openAI:
             let authMode = HivelinkVoicePreferences.normalizedOpenAIAuthenticationMode(
                 defaults.string(forKey: HivelinkVoicePreferences.openAIAuthenticationModeKey)

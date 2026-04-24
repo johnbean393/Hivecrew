@@ -40,18 +40,20 @@ struct IdleCallView: View {
                     NotificationCenter.default.post(name: .startVoiceCall, object: nil)
                 }
 
-                CallControlButton(
-                    icon: "video.fill",
-                    color: .blue,
-                    size: 64,
-                    iconSize: 24
-                ) {
-                    showVideoSourcePicker.toggle()
-                }
-                .popover(isPresented: $showVideoSourcePicker) {
-                    InputSourcePickerView(startCallOnSelection: true)
-                        .environmentObject(orchestrator)
-                        .frame(minWidth: 320, minHeight: 200)
+                if orchestrator.supportsVideoInput {
+                    CallControlButton(
+                        icon: "video.fill",
+                        color: .blue,
+                        size: 64,
+                        iconSize: 24
+                    ) {
+                        showVideoSourcePicker.toggle()
+                    }
+                    .popover(isPresented: $showVideoSourcePicker) {
+                        InputSourcePickerView(startCallOnSelection: true)
+                            .environmentObject(orchestrator)
+                            .frame(minWidth: 320, minHeight: 200)
+                    }
                 }
 
                 CallControlButton(
@@ -99,6 +101,8 @@ struct VoiceSettingsPopover: View {
         switch currentProviderType {
         case .openAI, .chatGPTOAuth:
             return RealtimeVoiceCatalog.openAIVoices
+        case .xAI:
+            return RealtimeVoiceCatalog.xAIVoices
         default:
             return RealtimeVoiceCatalog.geminiVoices
         }

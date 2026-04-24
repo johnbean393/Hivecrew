@@ -16,6 +16,7 @@ import HivecrewVoice
 enum VoiceProviderType: String, Sendable {
     case gemini = "gemini"
     case openAI = "openai"
+    case xAI = "xai"
     case chatGPTOAuth = "chatgpt_oauth"
 }
 
@@ -35,11 +36,14 @@ enum VoiceAvailability {
 
     static let defaultGeminiModel = "gemini-3.1-flash-live-preview"
     static let defaultOpenAIModel = "gpt-realtime-1.5"
+    static let defaultXAIModel = "grok-voice-think-fast-1.0"
 
     static func defaultModel(for provider: VoiceProviderType) -> String {
         switch provider {
         case .gemini:
             return defaultGeminiModel
+        case .xAI:
+            return defaultXAIModel
         case .openAI, .chatGPTOAuth:
             return defaultOpenAIModel
         }
@@ -48,6 +52,7 @@ enum VoiceAvailability {
     static func defaultVoice(for provider: VoiceProviderType) -> String {
         switch provider {
         case .gemini: return "Leda"
+        case .xAI: return "eve"
         case .openAI, .chatGPTOAuth: return "marin"
         }
     }
@@ -94,6 +99,8 @@ enum VoiceAvailability {
         switch type {
         case .gemini:
             return .geminiLive
+        case .xAI:
+            return .xAIRealtime
         case .openAI, .chatGPTOAuth:
             return .openAIRealtime
         }
@@ -175,7 +182,7 @@ enum VoiceAvailability {
             }
 
             switch selectedType {
-            case .gemini, .openAI:
+            case .gemini, .openAI, .xAI:
                 guard let apiKey = provider.retrieveAPIKey(),
                       !apiKey.isEmpty else {
                     continue
@@ -222,6 +229,9 @@ enum VoiceAvailability {
         if baseURL.contains("api.openai.com") {
             return .openAI
         }
+        if baseURL.contains("api.x.ai") {
+            return .xAI
+        }
         return nil
     }
 
@@ -264,6 +274,10 @@ enum VoiceAvailability {
             return .openAI
         }
 
+        if hasConfiguredProvider(type: .xAI, providers: providers) {
+            return .xAI
+        }
+
         if hasConfiguredProvider(type: .chatGPTOAuth, providers: providers) {
             return .chatGPTOAuth
         }
@@ -273,7 +287,7 @@ enum VoiceAvailability {
 
     private static func hasCredentials(for provider: LLMProviderRecord) -> Bool {
         switch providerType(for: provider) {
-        case .gemini, .openAI:
+        case .gemini, .openAI, .xAI:
             guard let apiKey = provider.retrieveAPIKey() else { return false }
             return !apiKey.isEmpty
         case .chatGPTOAuth:

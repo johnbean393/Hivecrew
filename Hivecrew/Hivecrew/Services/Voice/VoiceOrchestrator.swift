@@ -250,6 +250,10 @@ final class VoiceOrchestrator: ObservableObject {
         return VoiceAvailability.backend(for: type)
     }
 
+    var supportsVideoInput: Bool {
+        backend != .xAIRealtime
+    }
+
     var selectedInputDeviceID: String? {
         let trimmed = inputDeviceIDRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -448,6 +452,7 @@ final class VoiceOrchestrator: ObservableObject {
     }
 
     private func sendProviderVideoFrame(_ data: Data) async {
+        guard supportsVideoInput else { return }
         do {
             try await provider?.sendVideoFrame(data)
         } catch {
@@ -633,7 +638,7 @@ final class VoiceOrchestrator: ObservableObject {
             authentication = .bearerToken {
                 try await resolveChatGPTOAuthAccessToken(providerId: providerId)
             }
-        case .gemini, .openAI, .none:
+        case .gemini, .openAI, .xAI, .none:
             guard let apiKey = credentials.secret, !apiKey.isEmpty else {
                 connectionState = .error("No voice provider configured. Add a provider in Settings → Providers.")
                 throw NSError(domain: "VoiceOrchestrator", code: 2, userInfo: [
@@ -666,7 +671,7 @@ final class VoiceOrchestrator: ObservableObject {
         let config = VoiceSessionConfig(
             systemPrompt: makeSystemPrompt(),
             voiceName: voiceName,
-            tools: OrchestratorToolHandler.toolDeclarations,
+            tools: OrchestratorToolHandler.toolDeclarations(supportsVisualInput: supportsVideoInput),
             mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
             thinkingLevel: VoiceSessionConfig.ThinkingLevel(rawValue: thinkingLevelRaw) ?? .low,
             includeThoughts: includeThoughts,
@@ -1207,6 +1212,7 @@ final class VoiceOrchestrator: ObservableObject {
         videoSourceManager.onFrameCaptured = { [weak self] data in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                guard self.supportsVideoInput else { return }
                 await self.sendProviderVideoFrame(data)
             }
         }

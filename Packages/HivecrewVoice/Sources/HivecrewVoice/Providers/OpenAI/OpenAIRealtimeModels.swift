@@ -198,6 +198,8 @@ struct OpenAIServerEvent: Decodable {
 
     // Error
     let error: ErrorInfo?
+    let code: String?
+    let message: String?
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -215,6 +217,8 @@ struct OpenAIServerEvent: Decodable {
         case callId = "call_id"
         case arguments
         case error
+        case code
+        case message
     }
 
     struct SessionInfo: Decodable {

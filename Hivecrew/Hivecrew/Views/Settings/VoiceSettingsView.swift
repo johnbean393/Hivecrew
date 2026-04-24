@@ -32,6 +32,10 @@ struct VoiceSettingsView: View {
         VoiceAvailability.hasConfiguredProvider(type: .openAI, providers: providers)
     }
 
+    private var hasXAIProvider: Bool {
+        VoiceAvailability.hasConfiguredProvider(type: .xAI, providers: providers)
+    }
+
     private var hasChatGPTOAuthProvider: Bool {
         VoiceAvailability.hasConfiguredProvider(type: .chatGPTOAuth, providers: providers)
     }
@@ -115,6 +119,7 @@ struct VoiceSettingsView: View {
                 Picker("Provider", selection: $voiceProviderType) {
                     Text("Google Gemini").tag(VoiceProviderType.gemini.rawValue)
                     Text("OpenAI API").tag(VoiceProviderType.openAI.rawValue)
+                    Text("xAI API").tag(VoiceProviderType.xAI.rawValue)
                     Text("OpenAI OAuth").tag(VoiceProviderType.chatGPTOAuth.rawValue)
                 }
                 .pickerStyle(.segmented)
@@ -132,6 +137,8 @@ struct VoiceSettingsView: View {
                 switch selectedProviderType {
                 case .openAI:
                     openAIConfigStatus
+                case .xAI:
+                    xAIConfigStatus
                 case .chatGPTOAuth:
                     chatGPTOAuthConfigStatus
                 default:
@@ -149,24 +156,33 @@ struct VoiceSettingsView: View {
         VStack(alignment: .leading, spacing: 4) {
             switch selectedProviderType {
             case .openAI, .chatGPTOAuth:
-                Picker("Model", selection: $selectedModel) {
-                    Text("gpt-realtime-1.5").tag("gpt-realtime-1.5")
-                    Text("gpt-realtime-mini").tag("gpt-realtime-mini")
-                }
+                voiceModelPicker(for: .openAIRealtime)
 
                 Text("OpenAI Realtime speech-to-speech models.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+            case .xAI:
+                voiceModelPicker(for: .xAIRealtime)
+
+                Text("xAI Grok voice models.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
             default:
-                Picker("Model", selection: $selectedModel) {
-                    Text("gemini-3.1-flash-live-preview").tag("gemini-3.1-flash-live-preview")
-                    Text("gemini-2.5-flash-native-audio-preview-12-2025").tag("gemini-2.5-flash-native-audio-preview-12-2025")
-                }
+                voiceModelPicker(for: .geminiLive)
 
                 Text("The live preview model for real-time voice conversations.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func voiceModelPicker(for backend: VoiceProviderBackend) -> some View {
+        Picker("Model", selection: $selectedModel) {
+            ForEach(RealtimeVoiceCatalog.models(for: backend)) { model in
+                Text(model.displayName).tag(model.id)
             }
         }
     }
@@ -184,6 +200,14 @@ struct VoiceSettingsView: View {
             isConfigured: hasOpenAIProvider,
             configuredMessage: String(localized: "Using OpenAI API key provider from Providers settings"),
             missingMessage: String(localized: "No OpenAI API key provider configured. Add one in the Providers tab.")
+        )
+    }
+
+    private var xAIConfigStatus: some View {
+        providerConfigStatus(
+            isConfigured: hasXAIProvider,
+            configuredMessage: String(localized: "Using xAI API key provider from Providers settings"),
+            missingMessage: String(localized: "No xAI API key provider configured. Add one in the Providers tab.")
         )
     }
 

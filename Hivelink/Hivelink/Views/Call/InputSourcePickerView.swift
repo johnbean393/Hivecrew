@@ -38,50 +38,52 @@ struct InputSourcePickerView: View {
                     }
                 }
 
-                Section("Camera") {
-                    Button {
-                        Task {
-                            await orchestrator.setInputSource(.camera)
-                            dismiss()
-                        }
-                    } label: {
-                        HStack {
-                            Label("Rear Camera", systemImage: "camera.fill")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if orchestrator.activeInputSource == .camera {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
-                                    .fontWeight(.semibold)
+                if orchestrator.supportsVideoInput {
+                    Section("Camera") {
+                        Button {
+                            Task {
+                                await orchestrator.setInputSource(.camera)
+                                dismiss()
+                            }
+                        } label: {
+                            HStack {
+                                Label("Rear Camera", systemImage: "camera.fill")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if orchestrator.activeInputSource == .camera {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                        .fontWeight(.semibold)
+                                }
                             }
                         }
                     }
-                }
 
-                Section("Screen Broadcast") {
-                    Button {
-                        Task {
-                            await orchestrator.setInputSource(.screenBroadcast)
-                        }
-                        BroadcastPickerTrigger.shared.trigger()
-                    } label: {
-                        HStack {
-                            Label("Share Screen", systemImage: "rectangle.inset.filled.and.person.filled")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if orchestrator.activeInputSource == .screenBroadcast {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
-                                    .fontWeight(.semibold)
+                    Section("Screen Broadcast") {
+                        Button {
+                            Task {
+                                await orchestrator.setInputSource(.screenBroadcast)
+                            }
+                            BroadcastPickerTrigger.shared.trigger()
+                        } label: {
+                            HStack {
+                                Label("Share Screen", systemImage: "rectangle.inset.filled.and.person.filled")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if orchestrator.activeInputSource == .screenBroadcast {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                        .fontWeight(.semibold)
+                                }
                             }
                         }
-                    }
-                    .onAppear {
-                        BroadcastPickerTrigger.shared.ensureInstalled(
-                            in: UIApplication.shared.connectedScenes
-                                .compactMap { ($0 as? UIWindowScene)?.keyWindow }
-                                .first
-                        )
+                        .onAppear {
+                            BroadcastPickerTrigger.shared.ensureInstalled(
+                                in: UIApplication.shared.connectedScenes
+                                    .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+                                    .first
+                            )
+                        }
                     }
                 }
             }

@@ -23319,6 +23319,7 @@
       }
     },
     "gemini-2.5-flash-native-audio-preview-12-2025" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -23363,9 +23364,6 @@
           }
         }
       }
-    },
-    "gemini-3.1-flash-live-preview" : {
-      "shouldTranslate" : false
     },
     "Generate API Key" : {
       "localizations" : {
@@ -23877,12 +23875,6 @@
           }
         }
       }
-    },
-    "gpt-realtime-1.5" : {
-      "shouldTranslate" : false
-    },
-    "gpt-realtime-mini" : {
-      "shouldTranslate" : false
     },
     "Hide API key" : {
       "localizations" : {
@@ -33657,6 +33649,9 @@
           }
         }
       }
+    },
+    "No xAI API key provider configured. Add one in the Providers tab." : {
+
     },
     "None" : {
       "localizations" : {
@@ -51141,6 +51136,9 @@
         }
       }
     },
+    "The selected voice provider does not support realtime image or video input." : {
+
+    },
     "The session may not have generated any trace events" : {
       "localizations" : {
         "de" : {
@@ -54447,6 +54445,9 @@
         }
       }
     },
+    "Using xAI API key provider from Providers settings" : {
+
+    },
     "value" : {
       "localizations" : {
         "de" : {
@@ -54814,6 +54815,9 @@
           }
         }
       }
+    },
+    "Video Unavailable" : {
+
     },
     "View" : {
       "localizations" : {
@@ -57445,6 +57449,12 @@
           }
         }
       }
+    },
+    "xAI API" : {
+
+    },
+    "xAI Grok voice models." : {
+
     },
     "You" : {
       "localizations" : {

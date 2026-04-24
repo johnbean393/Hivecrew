@@ -1,11 +1,11 @@
 //
-//  OpenAIRealtimeProvider+Handling.swift
+//  XAIRealtimeProvider+Handling.swift
 //  HivecrewVoice
 //
 
 import Foundation
 
-extension OpenAIRealtimeProvider {
+extension XAIRealtimeProvider {
 
     // MARK: - Receive Loop
 
@@ -82,6 +82,7 @@ extension OpenAIRealtimeProvider {
                     self.onInputActivity?(
                         VoiceInputActivityEvent(kind: .speechStarted, offsetMs: event.audioStartMs)
                     )
+                    Task { try? await self.sendJSON(ResponseCancelEvent()) }
                     self.isModelSpeaking = false
                     self.markCurrentOutputTranscriptInterrupted()
                     self.onInterrupted?()
@@ -133,7 +134,7 @@ extension OpenAIRealtimeProvider {
                 case "error":
                     if event.error != nil || event.message != nil {
                         let message = event.error?.message ?? event.message ?? "Unknown error"
-                        let error = OpenAIRealtimeError.sessionSetupFailed(message)
+                        let error = XAIRealtimeError.sessionSetupFailed(message)
                         self.onError?(error)
                     }
 
@@ -142,7 +143,7 @@ extension OpenAIRealtimeProvider {
                 }
             }
         } catch {
-            print("Failed to parse OpenAI server event: \(error)")
+            print("Failed to parse xAI server event: \(error)")
         }
     }
 

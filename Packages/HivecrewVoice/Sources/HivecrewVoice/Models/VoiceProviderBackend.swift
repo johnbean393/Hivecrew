@@ -8,6 +8,7 @@ import Foundation
 public enum VoiceProviderBackend: String, Sendable, CaseIterable, Identifiable {
     case geminiLive = "gemini_live"
     case openAIRealtime = "openai_realtime"
+    case xAIRealtime = "xai_realtime"
 
     public var id: String { rawValue }
 
@@ -15,6 +16,7 @@ public enum VoiceProviderBackend: String, Sendable, CaseIterable, Identifiable {
         switch self {
         case .geminiLive: return "Gemini Live"
         case .openAIRealtime: return "OpenAI Realtime"
+        case .xAIRealtime: return "xAI Realtime"
         }
     }
 }

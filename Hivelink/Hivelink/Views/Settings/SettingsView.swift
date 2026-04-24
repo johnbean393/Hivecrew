@@ -93,7 +93,7 @@ struct SettingsView: View {
     }
 
     private var showsOpenAIApiKeyMethod: Bool {
-        selectedVoiceProvider == .gemini || !(openAIAuthenticationMode == .chatGPTOAuth && openAIOAuth.isConnected)
+        selectedVoiceProvider != .openAI || !(openAIAuthenticationMode == .chatGPTOAuth && openAIOAuth.isConnected)
     }
 
     private var deleteAccountConfirmationTitle: String {
@@ -278,7 +278,7 @@ struct SettingsView: View {
             }
 
             if showsOpenAIApiKeyMethod {
-                LabeledContent(selectedVoiceProvider == .gemini ? "Gemini API Key" : "OpenAI API Key") {
+                LabeledContent(apiKeyFieldTitle) {
                     SecureField(
                         String(localized: "Enter API key"),
                         text: Binding(
@@ -440,6 +440,17 @@ struct SettingsView: View {
                 openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.apiKey.rawValue
             }
             voiceOrchestrator.notifyVoiceConfigurationChanged()
+        }
+    }
+
+    private var apiKeyFieldTitle: String {
+        switch selectedVoiceProvider {
+        case .gemini:
+            return "Gemini API Key"
+        case .openAI:
+            return "OpenAI API Key"
+        case .xAI:
+            return "xAI API Key"
         }
     }
 
@@ -650,10 +661,13 @@ struct SettingsView: View {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "hivelink.voiceApiKey.\(HivelinkVoiceProvider.gemini.rawValue)")
         defaults.removeObject(forKey: "hivelink.voiceApiKey.\(HivelinkVoiceProvider.openAI.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceApiKey.\(HivelinkVoiceProvider.xAI.rawValue)")
         defaults.removeObject(forKey: "hivelink.voiceModel.\(HivelinkVoiceProvider.gemini.rawValue)")
         defaults.removeObject(forKey: "hivelink.voiceModel.\(HivelinkVoiceProvider.openAI.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceModel.\(HivelinkVoiceProvider.xAI.rawValue)")
         defaults.removeObject(forKey: "hivelink.voiceName.\(HivelinkVoiceProvider.gemini.rawValue)")
         defaults.removeObject(forKey: "hivelink.voiceName.\(HivelinkVoiceProvider.openAI.rawValue)")
+        defaults.removeObject(forKey: "hivelink.voiceName.\(HivelinkVoiceProvider.xAI.rawValue)")
 
         CodexOAuthCoordinator.shared.logout(providerId: HivelinkChatGPTOAuthController.providerId)
         openAIOAuth.refreshStatus()

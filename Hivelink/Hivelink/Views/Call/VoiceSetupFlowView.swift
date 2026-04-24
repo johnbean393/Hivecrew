@@ -14,6 +14,7 @@ private enum OnboardingVoiceProviderChoice: String, CaseIterable, Identifiable {
     case chatGPTOAuth = "chatgpt_oauth"
     case gemini
     case openAIAPIKey = "openai_api_key"
+    case xAIAPIKey = "xai_api_key"
 
     var id: String { rawValue }
 
@@ -25,6 +26,8 @@ private enum OnboardingVoiceProviderChoice: String, CaseIterable, Identifiable {
             return "Gemini"
         case .openAIAPIKey:
             return "OpenAI API"
+        case .xAIAPIKey:
+            return "xAI API"
         }
     }
 
@@ -34,6 +37,8 @@ private enum OnboardingVoiceProviderChoice: String, CaseIterable, Identifiable {
             return .openAI
         case .gemini:
             return .gemini
+        case .xAIAPIKey:
+            return .xAI
         }
     }
 
@@ -41,7 +46,7 @@ private enum OnboardingVoiceProviderChoice: String, CaseIterable, Identifiable {
         switch self {
         case .chatGPTOAuth:
             return .chatGPTOAuth
-        case .gemini, .openAIAPIKey:
+        case .gemini, .openAIAPIKey, .xAIAPIKey:
             return .apiKey
         }
     }
@@ -52,7 +57,7 @@ struct VoiceSetupFlowView: View {
     @StateObject private var openAIOAuth = HivelinkChatGPTOAuthController()
 
     var title: String = "Set Up Voice"
-    var subtitle: String = "Choose ChatGPT OAuth, Google Gemini, or OpenAI API."
+    var subtitle: String = "Choose ChatGPT OAuth, Google Gemini, OpenAI API, or xAI API."
     var onConfigurationChange: ((Bool) -> Void)?
 
     @AppStorage(HivelinkVoicePreferences.providerKey)
@@ -91,7 +96,7 @@ struct VoiceSetupFlowView: View {
 
     private var configurationIsValid: Bool {
         switch selectedChoice {
-        case .gemini, .openAIAPIKey:
+        case .gemini, .openAIAPIKey, .xAIAPIKey:
             return hasEnteredAPIKey
         case .chatGPTOAuth:
             return hasChatGPTOAuthConnection
@@ -104,6 +109,8 @@ struct VoiceSetupFlowView: View {
             return "Gemini API Key"
         case .chatGPTOAuth, .openAIAPIKey:
             return "OpenAI API Key"
+        case .xAIAPIKey:
+            return "xAI API Key"
         }
     }
 
@@ -183,7 +190,7 @@ struct VoiceSetupFlowView: View {
             switch selectedChoice {
             case .chatGPTOAuth:
                 chatGPTOAuthRow
-            case .gemini, .openAIAPIKey:
+            case .gemini, .openAIAPIKey, .xAIAPIKey:
                 apiKeyRow
             }
 
@@ -454,6 +461,8 @@ struct VoiceSetupFlowView: View {
             return .gemini
         case .openAI:
             return authenticationMode == .chatGPTOAuth ? .chatGPTOAuth : .openAIAPIKey
+        case .xAI:
+            return .xAIAPIKey
         }
     }
 }

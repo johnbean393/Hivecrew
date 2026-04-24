@@ -58,6 +58,52 @@ actor VoiceTranscriptionSink {
 }
 
 @MainActor
+@Test func xAISessionUpdateEncodesVoiceAgentPayload() async throws {
+    let provider = XAIRealtimeProvider()
+    provider.configure(apiKey: "test")
+
+    let config = VoiceSessionConfig(
+        systemPrompt: "Help with Hivecrew tasks.",
+        voiceName: "ara",
+        tools: [
+            .init(
+                name: "create_task",
+                description: "Create a task",
+                parameters: .init(
+                    type: "object",
+                    properties: [
+                        "description": .init(type: "string", description: "Task description")
+                    ],
+                    required: ["description"]
+                )
+            )
+        ],
+        webSearchEnabled: true,
+        audioPolicy: .init(
+            openAI: .init(
+                turnDetection: .server(
+                    threshold: 0.72,
+                    prefixPaddingMs: 320,
+                    silenceDurationMs: 680
+                )
+            )
+        )
+    )
+
+    let sessionUpdate = provider.buildSessionUpdate(config: config)
+
+    #expect(sessionUpdate.session.voice == "ara")
+    #expect(sessionUpdate.session.instructions == "Help with Hivecrew tasks.")
+    #expect(sessionUpdate.session.turnDetection?.type == "server_vad")
+    #expect(sessionUpdate.session.turnDetection?.threshold == 0.72)
+    #expect(sessionUpdate.session.inputAudioTranscription?.model == "grok-2-audio")
+    #expect(sessionUpdate.session.audio?.input?.format?.type == "audio/pcm")
+    #expect(sessionUpdate.session.audio?.input?.format?.rate == 24000)
+    #expect(sessionUpdate.session.tools?.map(\.type) == ["web_search", "x_search", "function"])
+    #expect(sessionUpdate.session.tools?.last?.name == "create_task")
+}
+
+@MainActor
 @Test func geminiSessionConfigEncodesAutomaticDetectionPolicy() async throws {
     let provider = GeminiLiveProvider()
     provider.configure(apiKey: "test")

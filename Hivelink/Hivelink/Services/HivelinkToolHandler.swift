@@ -41,8 +41,11 @@ enum HivelinkToolHandler {
     }
 
     static let unsupportedTools: Set<String> = ["search_files", "open_file", "search_file_content", "read_file", "get_deliverables"]
-    static var toolDeclarations: [VoiceToolDeclaration] {
-        fromSharedToolSchemas().filter { !unsupportedTools.contains($0.name) }
+    static func toolDeclarations(supportsVisualInput: Bool = true) -> [VoiceToolDeclaration] {
+        fromSharedToolSchemas().filter {
+            !unsupportedTools.contains($0.name)
+                && (supportsVisualInput || $0.name != "capture_reference")
+        }
     }
 
     private static func resolvedTaskLaunchSnapshot() -> VoiceTaskLaunchSnapshot? {
@@ -524,6 +527,10 @@ enum HivelinkToolHandler {
         cameraCapture: CameraCaptureManager,
         orchestrator: HivelinkVoiceOrchestrator
     ) async -> HivelinkToolCallResult {
+        guard orchestrator.supportsVideoInput else {
+            return .textOnly("Error: The selected voice provider does not support realtime image or video input.")
+        }
+
         let data: Data?
         let sourceName: String
 
