@@ -57,7 +57,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         contextSuggestionIds: [String] = [],
         contextModeOverrides: [String: String] = [:],
         contextInlineBlocks: [String] = [],
-        contextAttachmentPaths: [String] = []
+        contextAttachmentPaths: [String] = [],
+        runtimeTarget: APIRuntimeTarget? = nil
     ) async throws -> APITask {
         // Find provider by name
         let providerId = try await findProviderIdByName(providerName)
@@ -67,6 +68,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             description: description,
             providerId: providerId,
             modelId: modelId,
+            runtimeTarget: runtimeTarget.flatMap { convertFromAPIRuntimeTarget($0) } ?? .automatic,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             attachedFilePaths: attachedFilePaths,
@@ -178,6 +180,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         contextModeOverrides: [String: String],
         contextInlineBlocks: [String],
         contextAttachmentPaths: [String],
+        runtimeTarget: APIRuntimeTarget? = nil,
         autoStart: Bool
     ) async throws -> TaskRecord {
         let providerId = (try? await findProviderIdByName(providerName))
@@ -188,6 +191,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             providerId: providerId,
             modelId: modelId,
             executionTarget: executionTarget,
+            runtimeTarget: runtimeTarget.flatMap { convertFromAPIRuntimeTarget($0) } ?? .automatic,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             attachedFilePaths: attachedFilePaths,

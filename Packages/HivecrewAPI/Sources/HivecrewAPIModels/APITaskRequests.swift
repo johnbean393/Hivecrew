@@ -55,6 +55,8 @@ public struct CreateTaskRequest: Codable, Sendable {
     public let contextInlineBlocks: [String]?
     /// Optional attachment paths from retrieval context pack materialization.
     public let contextAttachmentPaths: [String]?
+    /// Requested runtime target (automatic, fast, app, isolatedVM).
+    public let runtimeTarget: APIRuntimeTarget?
     
     public init(
         description: String,
@@ -72,7 +74,8 @@ public struct CreateTaskRequest: Codable, Sendable {
         contextSuggestionIds: [String]? = nil,
         contextModeOverrides: [String: String]? = nil,
         contextInlineBlocks: [String]? = nil,
-        contextAttachmentPaths: [String]? = nil
+        contextAttachmentPaths: [String]? = nil,
+        runtimeTarget: APIRuntimeTarget? = nil
     ) {
         self.description = description
         self.providerName = providerName
@@ -90,6 +93,7 @@ public struct CreateTaskRequest: Codable, Sendable {
         self.contextModeOverrides = contextModeOverrides
         self.contextInlineBlocks = contextInlineBlocks
         self.contextAttachmentPaths = contextAttachmentPaths
+        self.runtimeTarget = runtimeTarget
     }
 }
 
@@ -122,17 +126,20 @@ public struct CreateTaskBatchRequest: Codable, Sendable {
     public let planFirst: Bool?
     public let mentionedSkillNames: [String]?
     public let targets: [CreateTaskBatchTarget]
+    public let runtimeTarget: APIRuntimeTarget?
 
     public init(
         description: String,
         planFirst: Bool? = nil,
         mentionedSkillNames: [String]? = nil,
-        targets: [CreateTaskBatchTarget]
+        targets: [CreateTaskBatchTarget],
+        runtimeTarget: APIRuntimeTarget? = nil
     ) {
         self.description = description
         self.planFirst = planFirst
         self.mentionedSkillNames = mentionedSkillNames
         self.targets = targets
+        self.runtimeTarget = runtimeTarget
     }
 }
 

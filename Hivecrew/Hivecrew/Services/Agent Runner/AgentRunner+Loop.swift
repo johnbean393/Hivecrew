@@ -374,29 +374,36 @@ extension AgentRunner {
         }
     }
     
-    /// Take a screenshot and add it to the conversation
+    /// Observe the current runtime state and optionally capture a screenshot.
     /// - Parameter skipIfHostSide: If true and last tools were host-side, reuses previous screenshot
     func observe(skipIfHostSide: Bool = false) async throws -> ScreenshotResult {
         // Check if we should skip screenshot first, before logging observation
         if skipIfHostSide && stepCount > 1 {
-            // Optimization: If last tools were all host-side (didn't affect VM state),
-            // reuse the previous screenshot instead of capturing a new one
-            // This saves ~200-500ms per host tool execution
             statePublisher.logInfo("Skipping screenshot (last tools were host-side)")
-            // Return a placeholder - we'll reuse the last image in conversation history
             return ScreenshotResult(imageBase64: "", width: 0, height: 0)
         }
         
-        // We're actually taking a screenshot, so log the observation
         statePublisher.logObservation(screenshotPath: nil)
         
-        // Use cached initial screenshot for step 1, fetch new screenshot for subsequent steps
-        let screenshot: ScreenshotResult
+        // Use cached initial screenshot for step 1, fetch new observation for subsequent steps
+        let screenshot: ScreenshotResult?
         if stepCount == 1, let initial = initialScreenshot {
             screenshot = initial
-            initialScreenshot = nil // Clear the cache after use
+            initialScreenshot = nil
         } else {
-            screenshot = try await connection.screenshot()
+            let obs = try await connection.observe()
+            screenshot = obs.screenshot
+        }
+        
+        // If no screenshot is available (text-only runtime), return empty placeholder
+        guard let screenshot else {
+            try await tracer.logObservation(
+                observationType: "text",
+                screenshotPath: nil,
+                screenWidth: 0,
+                screenHeight: 0
+            )
+            return ScreenshotResult(imageBase64: "", width: 0, height: 0)
         }
         
         // Save screenshot to disk
@@ -404,13 +411,11 @@ extension AgentRunner {
         if let imageData = Data(base64Encoded: screenshot.imageBase64) {
             try imageData.write(to: screenshotPath)
             
-            // Update state with screenshot
             if let nsImage = NSImage(data: imageData) {
                 statePublisher.updateScreenshot(nsImage, path: screenshotPath.path)
             }
         }
         
-        // Log observation
         try await tracer.logObservation(
             observationType: "screenshot",
             screenshotPath: screenshotPath.path,

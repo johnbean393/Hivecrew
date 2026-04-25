@@ -29,6 +29,7 @@ extension TaskRoutes {
         var contextModeOverrides: [String: String] = [:]
         var contextInlineBlocks: [String] = []
         var contextAttachmentPaths: [String] = []
+        var runtimeTarget: APIRuntimeTarget?
 
         if contentType.contains("multipart/form-data") {
             let result = try await parseTaskMultipartForm(request: request)
@@ -62,6 +63,7 @@ extension TaskRoutes {
             contextModeOverrides = createRequest.contextModeOverrides ?? [:]
             contextInlineBlocks = createRequest.contextInlineBlocks ?? []
             contextAttachmentPaths = createRequest.contextAttachmentPaths ?? []
+            runtimeTarget = createRequest.runtimeTarget
         }
 
         guard !description.isEmpty else {
@@ -90,7 +92,8 @@ extension TaskRoutes {
             contextSuggestionIds: contextSuggestionIds,
             contextModeOverrides: contextModeOverrides,
             contextInlineBlocks: contextInlineBlocks,
-            contextAttachmentPaths: contextAttachmentPaths
+            contextAttachmentPaths: contextAttachmentPaths,
+            runtimeTarget: runtimeTarget
         )
 
         return try createJSONResponse(task, status: .created)

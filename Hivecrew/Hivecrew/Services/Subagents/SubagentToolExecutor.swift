@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import HivecrewCore
 import HivecrewLLM
 import HivecrewMCP
 import HivecrewShared
@@ -18,7 +19,7 @@ final class SubagentToolExecutor {
         case image(description: String, base64: String, mimeType: String)
     }
     
-    private let connection: GuestAgentConnection
+    private let connection: any AgentToolConnection
     private let vmScheduler: VMToolScheduler
     private let vmId: String
     private let taskId: String
@@ -36,7 +37,7 @@ final class SubagentToolExecutor {
     var onRequestPermission: ((String, String) async -> Bool)?
     
     init(
-        connection: GuestAgentConnection,
+        connection: any AgentToolConnection,
         vmScheduler: VMToolScheduler,
         vmId: String,
         taskId: String,
@@ -160,19 +161,41 @@ final class SubagentToolExecutor {
         subagentVisionSupport.removeValue(forKey: subagentId)
     }
     
-    // MARK: - VM Tools
+    /// Whether to use the VM scheduler for serializing tool calls.
+    /// Fast Worker connections don't need serialization; they execute directly.
+    private var useVMScheduler: Bool {
+        connection.runtimeKind == .isolatedVM
+    }
+
+    private func scheduledRun<T: Sendable>(_ body: @escaping @Sendable () async throws -> T) async throws -> T {
+        if useVMScheduler {
+            return try await vmScheduler.run(body)
+        }
+        return try await body()
+    }
+
+    // MARK: - VM / GUI Tools
     
     private func executeScreenshot() async throws -> ToolResult {
-        let result = try await vmScheduler.run {
-            try await self.connection.screenshot()
+        let result = try await scheduledRun {
+            guard let shot = try await self.connection.screenshot() else {
+                throw AgentConnectionError.agentError(
+                    code: -32601,
+                    message: "Screenshot not available for this runtime"
+                )
+            }
+            return shot
         }
         let desc = "Screenshot captured (\(result.width)x\(result.height) pixels)"
         return .image(description: desc, base64: result.imageBase64, mimeType: "image/png")
     }
     
     private func executeHealthCheck() async throws -> ToolResult {
-        let result = try await vmScheduler.run {
-            try await self.connection.healthCheck()
+        guard let vmConnection = connection as? GuestAgentConnection else {
+            return .text("health_check is only available for Isolated VM runtime")
+        }
+        let result = try await scheduledRun {
+            try await vmConnection.healthCheck()
         }
         var output = "Status: \(result.status)"
         output += "\nAccessibility permission: \(result.accessibilityPermission ? "granted" : "missing")"
@@ -186,7 +209,7 @@ final class SubagentToolExecutor {
     private func executeOpenApp(args: [String: Any]) async throws -> ToolResult {
         let bundleId = args["bundleId"] as? String
         let appName = args["appName"] as? String
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.openApp(bundleId: bundleId, appName: appName)
         }
         return .text("Opened app: \(appName ?? bundleId ?? "unknown")")
@@ -195,7 +218,7 @@ final class SubagentToolExecutor {
     private func executeOpenFile(args: [String: Any]) async throws -> ToolResult {
         let path = args["path"] as? String ?? ""
         let withApp = args["withApp"] as? String
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.openFile(path: path, withApp: withApp)
         }
         return .text("Opened file: \(path)")
@@ -203,7 +226,7 @@ final class SubagentToolExecutor {
     
     private func executeOpenUrl(args: [String: Any]) async throws -> ToolResult {
         let url = args["url"] as? String ?? ""
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.openUrl(url)
         }
         return .text("Opened URL: \(url)")
@@ -212,7 +235,7 @@ final class SubagentToolExecutor {
     private func executeMouseMove(args: [String: Any]) async throws -> ToolResult {
         let x = parseDouble(args["x"])
         let y = parseDouble(args["y"])
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.mouseMove(x: x, y: y)
         }
         return .text("Moved mouse to (\(Int(x)), \(Int(y)))")
@@ -223,7 +246,7 @@ final class SubagentToolExecutor {
         let y = parseDouble(args["y"])
         let button = args["button"] as? String ?? "left"
         let clickType = args["clickType"] as? String ?? "single"
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.mouseClick(x: x, y: y, button: button, clickType: clickType)
         }
         return .text("Clicked at (\(Int(x)), \(Int(y))) with \(button) button")
@@ -234,7 +257,7 @@ final class SubagentToolExecutor {
         let fromY = parseDouble(args["fromY"])
         let toX = parseDouble(args["toX"])
         let toY = parseDouble(args["toY"])
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.mouseDrag(fromX: fromX, fromY: fromY, toX: toX, toY: toY)
         }
         return .text("Dragged from (\(Int(fromX)), \(Int(fromY))) to (\(Int(toX)), \(Int(toY)))")
@@ -243,7 +266,7 @@ final class SubagentToolExecutor {
     private func executeKeyboardType(args: [String: Any]) async throws -> ToolResult {
         let originalText = args["text"] as? String ?? ""
         let actualText = CredentialManager.shared.substituteTokens(in: originalText)
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.keyboardType(text: actualText)
         }
         let preview = originalText.prefix(50)
@@ -253,7 +276,7 @@ final class SubagentToolExecutor {
     private func executeKeyboardKey(args: [String: Any]) async throws -> ToolResult {
         let key = args["key"] as? String ?? ""
         let modifiers = args["modifiers"] as? [String] ?? []
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.keyboardKey(key: key, modifiers: modifiers)
         }
         let modStr = modifiers.isEmpty ? "" : "\(modifiers.joined(separator: "+"))+"
@@ -265,7 +288,7 @@ final class SubagentToolExecutor {
         let y = parseDouble(args["y"])
         let deltaX = parseDouble(args["deltaX"])
         let deltaY = parseDouble(args["deltaY"])
-        try await vmScheduler.run {
+        try await scheduledRun {
             try await self.connection.scroll(x: x, y: y, deltaX: -deltaX, deltaY: -deltaY)
         }
         return .text("Scrolled at (\(Int(x)), \(Int(y)))")

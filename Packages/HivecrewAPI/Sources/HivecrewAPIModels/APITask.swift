@@ -186,6 +186,10 @@ public struct APITask: Codable, Sendable {
     public let appliedWritebackPaths: [String]?
     public let nodeId: String?
     public let nodeName: String?
+    public let runtimeTarget: APIRuntimeTarget?
+    public let assignedRuntimeKind: APIAgentRuntimeKind?
+    public let setupRequirement: APITaskSetupRequirement?
+    public let migrationEvents: [APIRuntimeMigrationEvent]?
     
     public init(
         id: String,
@@ -221,7 +225,11 @@ public struct APITask: Codable, Sendable {
         pendingWritebackCount: Int? = nil,
         appliedWritebackPaths: [String]? = nil,
         nodeId: String? = nil,
-        nodeName: String? = nil
+        nodeName: String? = nil,
+        runtimeTarget: APIRuntimeTarget? = nil,
+        assignedRuntimeKind: APIAgentRuntimeKind? = nil,
+        setupRequirement: APITaskSetupRequirement? = nil,
+        migrationEvents: [APIRuntimeMigrationEvent]? = nil
     ) {
         self.id = id
         self.title = title
@@ -257,6 +265,10 @@ public struct APITask: Codable, Sendable {
         self.appliedWritebackPaths = appliedWritebackPaths
         self.nodeId = nodeId
         self.nodeName = nodeName
+        self.runtimeTarget = runtimeTarget
+        self.assignedRuntimeKind = assignedRuntimeKind
+        self.setupRequirement = setupRequirement
+        self.migrationEvents = migrationEvents
     }
 }
 
@@ -274,6 +286,8 @@ public struct APITaskSummary: Codable, Sendable {
     public let outputFileCount: Int
     public let nodeId: String?
     public let nodeName: String?
+    public let runtimeTarget: APIRuntimeTarget?
+    public let assignedRuntimeKind: APIAgentRuntimeKind?
     
     public init(
         id: String,
@@ -287,7 +301,9 @@ public struct APITaskSummary: Codable, Sendable {
         inputFileCount: Int = 0,
         outputFileCount: Int = 0,
         nodeId: String? = nil,
-        nodeName: String? = nil
+        nodeName: String? = nil,
+        runtimeTarget: APIRuntimeTarget? = nil,
+        assignedRuntimeKind: APIAgentRuntimeKind? = nil
     ) {
         self.id = id
         self.title = title
@@ -301,6 +317,8 @@ public struct APITaskSummary: Codable, Sendable {
         self.outputFileCount = outputFileCount
         self.nodeId = nodeId
         self.nodeName = nodeName
+        self.runtimeTarget = runtimeTarget
+        self.assignedRuntimeKind = assignedRuntimeKind
     }
 }
 

@@ -254,6 +254,9 @@ struct HivecrewApp: App {
         // Configure MCP server manager (connections are established lazily)
         // Servers are connected when MCP tools are first needed to avoid startup lag
         MCPServerManager.shared.configure(modelContext: sharedModelContainer.mainContext)
+
+        // Configure App Worker (cua-driver) manager — probes binary/permissions without launching backend
+        CuaDriverManager.shared.configure()
         
         // Check startup tasks only once per app launch, not on window re-open.
         if !hasPerformedStartupCheck {

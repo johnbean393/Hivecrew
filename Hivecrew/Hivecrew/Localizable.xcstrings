@@ -3534,6 +3534,9 @@
         }
       }
     },
+    "%lld task(s) waiting" : {
+
+    },
     "%lld workers" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4343,6 +4346,9 @@
           }
         }
       }
+    },
+    "Accessibility" : {
+
     },
     "Account" : {
       "localizations" : {
@@ -6835,6 +6841,15 @@
           }
         }
       }
+    },
+    "App Focus" : {
+
+    },
+    "App Worker" : {
+
+    },
+    "App Worker requires Accessibility and Screen Recording permissions to control apps in the background." : {
+
     },
     "Apply Changes" : {
       "localizations" : {
@@ -9554,6 +9569,9 @@
           }
         }
       }
+    },
+    "Calls list_apps on cua-driver to verify the backend is functional." : {
+
     },
     "Cameras" : {
       "localizations" : {
@@ -15423,6 +15441,9 @@
           }
         }
       }
+    },
+    "cua-driver Binary" : {
+
     },
     "Current Activity" : {
       "localizations" : {
@@ -23272,6 +23293,9 @@
         }
       }
     },
+    "Found" : {
+
+    },
     "From %@" : {
       "localizations" : {
         "de" : {
@@ -23875,6 +23899,12 @@
           }
         }
       }
+    },
+    "Grant" : {
+
+    },
+    "Granted" : {
+
     },
     "Hide API key" : {
       "localizations" : {
@@ -26059,6 +26089,9 @@
         }
       }
     },
+    "In Use" : {
+
+    },
     "Incomplete" : {
       "localizations" : {
         "de" : {
@@ -27440,6 +27473,9 @@
         }
       }
     },
+    "Last Error" : {
+
+    },
     "Last Updated" : {
       "localizations" : {
         "de" : {
@@ -28564,6 +28600,9 @@
           }
         }
       }
+    },
+    "macOS Permissions" : {
+
     },
     "Main and worker models configured" : {
       "localizations" : {
@@ -29856,6 +29895,9 @@
         }
       }
     },
+    "Missing" : {
+
+    },
     "Missing Attachments" : {
       "localizations" : {
         "de" : {
@@ -30599,6 +30641,9 @@
           }
         }
       }
+    },
+    "Multiple tasks can run concurrently on different apps. Tasks targeting the same app are queued automatically." : {
+
     },
     "Mute" : {
       "localizations" : {
@@ -31474,6 +31519,9 @@
           }
         }
       }
+    },
+    "No apps currently in use" : {
+
     },
     "No audio was captured. Please try again." : {
       "localizations" : {
@@ -33883,6 +33931,9 @@
         }
       }
     },
+    "Not Granted" : {
+
+    },
     "Not scheduled" : {
       "localizations" : {
         "de" : {
@@ -34757,6 +34808,9 @@
           }
         }
       }
+    },
+    "Open System Settings" : {
+
     },
     "Open VM and Agent Trace in New Window" : {
       "localizations" : {
@@ -35727,6 +35781,9 @@
           }
         }
       }
+    },
+    "Path" : {
+
     },
     "Pause" : {
       "localizations" : {
@@ -42797,6 +42854,9 @@
         }
       }
     },
+    "Run Self-Test" : {
+
+    },
     "Running Local Tasks" : {
       "localizations" : {
         "de" : {
@@ -44319,6 +44379,9 @@
           }
         }
       }
+    },
+    "Screen Recording" : {
+
     },
     "Screenshot not available" : {
       "localizations" : {
@@ -48188,6 +48251,9 @@
           }
         }
       }
+    },
+    "Start" : {
+
     },
     "Start a task or developer VM to see it here" : {
       "localizations" : {
@@ -54723,6 +54789,9 @@
           }
         }
       }
+    },
+    "Version" : {
+
     },
     "Version %@" : {
       "localizations" : {

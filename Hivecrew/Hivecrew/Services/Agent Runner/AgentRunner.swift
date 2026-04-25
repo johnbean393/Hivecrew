@@ -41,9 +41,9 @@ final class AgentRunner {
     // MARK: - Properties
     
     let task: TaskRecord
-    private let vmId: String
+    private let vmId: String?
     let llmClient: any LLMClientProtocol
-    let connection: GuestAgentConnection
+    let connection: any AgentToolConnection
     let tracer: AgentTracer
     let toolExecutor: ToolExecutor
     let statePublisher: AgentStatePublisher
@@ -120,9 +120,9 @@ final class AgentRunner {
     
     init(
         task: TaskRecord,
-        vmId: String,
+        vmId: String? = nil,
         llmClient: any LLMClientProtocol,
-        connection: GuestAgentConnection,
+        connection: any AgentToolConnection,
         sessionPath: URL,
         statePublisher: AgentStatePublisher,
         inputFileNames: [String] = [],
@@ -163,7 +163,7 @@ final class AgentRunner {
             taskModelId: task.modelId,
             taskService: taskService,
             modelContext: taskService.modelContext,
-            vmId: vmId,
+            vmId: vmId ?? "",
             supportsVision: supportsVision
         )
         self.toolExecutor.taskId = task.id
@@ -171,7 +171,7 @@ final class AgentRunner {
         let subagentToolExecutor = SubagentToolExecutor(
             connection: connection,
             vmScheduler: vmToolScheduler,
-            vmId: vmId,
+            vmId: vmId ?? "",
             taskId: task.id,
             taskProviderId: task.providerId,
             taskModelId: task.modelId,
@@ -183,7 +183,7 @@ final class AgentRunner {
         let subagentUICallbacks = SubagentManager.UICallbacks(statePublisher: statePublisher)
         self.subagentManager = SubagentManager(
             taskId: task.id,
-            vmId: vmId,
+            vmId: vmId ?? "",
             sessionPath: sessionPath,
             rootTracer: tracer,
             uiCallbacks: subagentUICallbacks,
@@ -234,8 +234,8 @@ final class AgentRunner {
         // Note: Screenshot is NOT a tool - we automatically capture after each action
         let schemaBuilder = ToolSchemaBuilder()
         
-        // Determine which tools to exclude based on availability
-        var excludedTools: Set<AgentMethod> = []
+        // Determine which tools to exclude based on availability and runtime
+        var excludedTools: Set<AgentMethod> = RuntimeToolFiltering.excludedTools(for: connection.capabilities)
         
         // Exclude image generation tool if not configured
         if let modelContext = taskService.modelContext {
@@ -243,7 +243,6 @@ final class AgentRunner {
                 excludedTools.insert(.generateImage)
             }
         } else {
-            // No model context available, exclude image generation
             excludedTools.insert(.generateImage)
         }
 
@@ -318,20 +317,27 @@ final class AgentRunner {
             timeoutTask?.cancel()
         }
         
-        // Log session start
+        // Log session start with runtime and device metadata
         try await tracer.logSessionStart(
             taskId: task.id,
             taskDescription: task.taskDescription,
             model: llmClient.configuration.model,
-            vmId: vmId
+            vmId: vmId ?? "",
+            runtimeKind: task.assignedRuntimeKind?.displayName,
+            deviceId: task.executionTarget.peerId ?? "local",
+            deviceName: task.executionTarget.peerName
         )
         
-        // Take initial screenshot to get screen dimensions
-        let initialScreenshot = try await connection.screenshot()
-        let screenWidth = initialScreenshot.width
-        let screenHeight = initialScreenshot.height
+        // Take initial observation to get screen dimensions (screenshot may be nil for text-only runtimes)
+        let initialObservation = try await connection.observe()
+        let screenWidth = initialObservation.screenWidth ?? 0
+        let screenHeight = initialObservation.screenHeight ?? 0
         
-        statePublisher.logInfo("Screen dimensions: \(screenWidth)x\(screenHeight)")
+        if screenWidth > 0 && screenHeight > 0 {
+            statePublisher.logInfo("Screen dimensions: \(screenWidth)x\(screenHeight)")
+        } else {
+            statePublisher.logInfo("Runtime: \(connection.runtimeKind.displayName) (text-only)")
+        }
         
         // Log matched skills
         if !matchedSkills.isEmpty {
@@ -341,6 +347,7 @@ final class AgentRunner {
         // Initialize conversation with system prompt including screen dimensions, input files, skills, and plan
         let systemPrompt = AgentPrompts.systemPrompt(
             task: task.taskDescription,
+            runtimeKind: connection.runtimeKind,
             screenWidth: screenWidth,
             screenHeight: screenHeight,
             inputFiles: inputFileNames,
@@ -357,8 +364,8 @@ final class AgentRunner {
             initializePlanState(from: planMarkdown)
         }
         
-        // Store initial screenshot for the first observation
-        self.initialScreenshot = initialScreenshot
+        // Store initial screenshot for the first observation (may be nil for text-only runtimes)
+        self.initialScreenshot = initialObservation.screenshot
         
         var result: AgentResult
         

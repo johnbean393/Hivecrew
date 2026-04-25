@@ -289,6 +289,65 @@ extension ToolSchemaBuilder {
                 emptyObjectSchema()
             )
 
+        // App Worker facade tools
+        case .appListApps:
+            return (
+                "List all running applications on the host Mac. Returns application names and identifiers. Use this to discover which apps are available before opening one.",
+                emptyObjectSchema()
+            )
+
+        case .appListWindows:
+            return (
+                "List all windows for a running application. Use after opening an app to discover available windows, then select one with app_select_window.",
+                objectSchema(
+                    properties: [
+                        "app": stringProperty("Application name to list windows for. If omitted, uses the currently targeted app.")
+                    ],
+                    required: []
+                )
+            )
+
+        case .appSelectWindow:
+            return (
+                "Select a window to target for subsequent GUI operations (clicks, typing, observation). Use the window index from app_list_windows.",
+                objectSchema(
+                    properties: [
+                        "windowIndex": numberProperty("The 0-based index of the window from app_list_windows to select as the current target.")
+                    ],
+                    required: ["windowIndex"]
+                )
+            )
+
+        case .appGetWindowState:
+            return (
+                "Get the current state of the targeted window, including all accessible UI elements with their roles, labels, and values. Each element has an index that can be used with app_click_element or app_set_value.",
+                emptyObjectSchema()
+            )
+
+        case .appClickElement:
+            return (
+                "Click a UI element by its index from the most recent app_get_window_state or observation. More reliable than pixel clicks because it uses accessibility actions directly.",
+                objectSchema(
+                    properties: [
+                        "elementIndex": numberProperty("The element index from the most recent window state observation."),
+                        "button": enumProperty("Mouse button to click with.", ["left", "right"])
+                    ],
+                    required: ["elementIndex"]
+                )
+            )
+
+        case .appSetValue:
+            return (
+                "Set the value of a UI element (text field, checkbox, etc.) by its index from the most recent window state. Use for text fields, search boxes, and other value-accepting elements.",
+                objectSchema(
+                    properties: [
+                        "elementIndex": numberProperty("The element index from the most recent window state observation."),
+                        "value": stringProperty("The value to set on the element.")
+                    ],
+                    required: ["elementIndex", "value"]
+                )
+            )
+
         case .createTodoList, .addTodoItem, .finishTodoItem, .requestUserIntervention,
              .getLoginCredentials, .generateImage, .listLocalEntries, .importLocalFile,
              .stageWritebackCopy, .stageWritebackMove,

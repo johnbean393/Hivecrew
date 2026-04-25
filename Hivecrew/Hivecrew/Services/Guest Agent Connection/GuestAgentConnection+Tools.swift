@@ -11,8 +11,8 @@ import Foundation
 
 extension GuestAgentConnection {
     
-    /// Take a screenshot of the VM
-    func screenshot() async throws -> ScreenshotResult {
+    /// Take a screenshot of the VM (concrete non-optional return for VM-internal use)
+    func vmScreenshot() async throws -> ScreenshotResult {
         let response = try await call(method: "screenshot", params: nil)
         
         guard let result = response.result?.dictValue,

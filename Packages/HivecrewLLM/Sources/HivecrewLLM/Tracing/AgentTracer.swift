@@ -69,7 +69,10 @@ public actor AgentTracer {
         taskId: String,
         taskDescription: String,
         model: String,
-        vmId: String?
+        vmId: String?,
+        runtimeKind: String? = nil,
+        deviceId: String? = nil,
+        deviceName: String? = nil
     ) throws {
         let event = TraceEvent(
             sessionId: sessionId,
@@ -79,7 +82,10 @@ public actor AgentTracer {
                 taskId: taskId,
                 taskDescription: taskDescription,
                 model: model,
-                vmId: vmId
+                vmId: vmId,
+                runtimeKind: runtimeKind,
+                deviceId: deviceId,
+                deviceName: deviceName
             ))
         )
         try log(event)

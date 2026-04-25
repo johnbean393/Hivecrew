@@ -122,12 +122,26 @@ public struct SessionStartData: Sendable, Codable {
     public let taskDescription: String
     public let model: String
     public let vmId: String?
+    public let runtimeKind: String?
+    public let deviceId: String?
+    public let deviceName: String?
     
-    public init(taskId: String, taskDescription: String, model: String, vmId: String?) {
+    public init(
+        taskId: String,
+        taskDescription: String,
+        model: String,
+        vmId: String?,
+        runtimeKind: String? = nil,
+        deviceId: String? = nil,
+        deviceName: String? = nil
+    ) {
         self.taskId = taskId
         self.taskDescription = taskDescription
         self.model = model
         self.vmId = vmId
+        self.runtimeKind = runtimeKind
+        self.deviceId = deviceId
+        self.deviceName = deviceName
     }
 }
 

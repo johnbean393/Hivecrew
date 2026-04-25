@@ -16,6 +16,7 @@ enum AgentPrompts {
     /// Generate the system prompt for the agent
     /// - Parameters:
     ///   - task: The task description
+    ///   - runtimeKind: The runtime kind (fast, app, isolatedVM)
     ///   - screenWidth: Screen width in pixels
     ///   - screenHeight: Screen height in pixels
     ///   - inputFiles: List of input file names
@@ -24,6 +25,7 @@ enum AgentPrompts {
     ///   - approvedContextBlocks: Optional approved retrieval snippets/summaries
     static func systemPrompt(
         task: String,
+        runtimeKind: AgentRuntimeKind = .isolatedVM,
         screenWidth: Int = 1344,
         screenHeight: Int = 840,
         inputFiles: [String] = [],
@@ -33,6 +35,16 @@ enum AgentPrompts {
         supportsVision: Bool = true,
         localAccessGrants: [LocalAccessGrant] = []
     ) -> String {
+        if runtimeKind == .fast {
+            return fastWorkerSystemPrompt(
+                task: task,
+                inputFiles: inputFiles,
+                skills: skills,
+                plan: plan,
+                approvedContextBlocks: approvedContextBlocks,
+                localAccessGrants: localAccessGrants
+            )
+        }
         var filesSection = ""
         if !inputFiles.isEmpty {
             let treeView = buildTreeView(files: inputFiles)
@@ -269,6 +281,130 @@ If the task involved an attached file, make sure the final user-facing result is
 """
     }
     
+    // MARK: - Fast Worker Prompt
+
+    private static func fastWorkerSystemPrompt(
+        task: String,
+        inputFiles: [String],
+        skills: [Skill],
+        plan: String?,
+        approvedContextBlocks: [String],
+        localAccessGrants: [LocalAccessGrant]
+    ) -> String {
+        var filesSection = ""
+        if !inputFiles.isEmpty {
+            let treeView = buildTreeView(files: inputFiles)
+            filesSection = """
+
+            INPUT FILES:
+            The user has provided the following files for you to work with:
+            \(treeView)
+
+            """
+        }
+
+        var skillsSection = ""
+        if !skills.isEmpty {
+            skillsSection = buildSkillsSection(skills: skills)
+        }
+        var planSection = ""
+        if let plan = plan, !plan.isEmpty {
+            planSection = buildPlanSection(plan: plan)
+        }
+
+        var retrievalContextSection = ""
+        if !approvedContextBlocks.isEmpty {
+            let formatted = approvedContextBlocks
+                .prefix(12)
+                .enumerated()
+                .map { idx, block in "\(idx + 1). \(block)" }
+                .joined(separator: "\n\n")
+
+            retrievalContextSection = """
+
+            ---
+
+            APPROVED CONTEXT:
+            \(formatted)
+
+            ---
+
+            """
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: Date())
+
+        var localWritebackSection = ""
+        if !localAccessGrants.isEmpty {
+            let grants = localAccessGrants.map { grant in
+                let kind = grant.scopeKind == .folder ? "folder" : "file"
+                return "- \(grant.displayName) (\(kind)): \(grant.rootPath)"
+            }.joined(separator: "\n")
+            localWritebackSection = """
+
+            LOCAL FILESYSTEM ACCESS:
+            You have been granted access to the following host locations:
+            \(grants)
+            Use `list_local_entries` and `import_local_file` to read from these paths.
+            Use the `stage_writeback_*` tools to stage changes back to the host.
+            """
+        }
+
+        return """
+You are Hivecrew, an AI agent running as a Fast Worker — a local headless runtime with no GUI or desktop access.
+
+Today's date: \(dateString)
+
+TASK: \(task)
+\(filesSection)
+FILE LOCATIONS:
+- Input files from the user are in the inbox/ directory
+- Save all output files and deliverables to the outbox/ directory
+- Use the workspace/ directory for intermediate and working files
+- Files in outbox/ will be automatically delivered to the user when the task completes
+
+HOW IT WORKS:
+- You have access to shell commands, file operations, web tools, and management tools.
+- You do NOT have access to any GUI, desktop, mouse, keyboard, screenshot, or app-launching tools.
+- Work entirely through text-based tools: `run_shell`, `read_file`, `write_file`, `list_directory`, `move_file`, web tools, and todo tools.
+- Use relative paths (e.g. `inbox/file.txt`, `workspace/draft.md`, `outbox/result.pdf`) or absolute paths within the session.
+
+AVAILABLE TOOLS:
+- run_shell: Execute a shell command and return its output
+- read_file: Read file contents (text, PDF, RTF, Office docs, images)
+- write_file: Write UTF-8 text files
+- list_directory: List directory contents
+- move_file: Move or rename a file from source to destination
+- wait: Wait for the specified number of seconds before continuing
+- ask_text_question: Ask the user an open-ended question
+- ask_multiple_choice: Ask the user to select from predefined options
+- request_user_intervention: Request user to perform manual actions
+- get_login_credentials: Get stored credentials as UUID tokens
+- web_search: Search the web and get results
+- read_webpage_content: Extract full webpage text content in Markdown format
+- extract_info_from_webpage: Extract specific information from a webpage
+- get_location: Get current geographic location based on IP address
+- create_todo_list: Create a todo list for organizing subtasks
+- add_todo_item: Add a new item to your todo list
+- finish_todo_item: Mark a todo item as completed by its number
+\(localWritebackSection)
+
+TIPS:
+- Save any final deliverables to outbox/ so the user can access them.
+- For web research, use `web_search`, `read_webpage_content`, and `extract_info_from_webpage`.
+- Use `run_shell` with tools like `curl` for downloads or API requests.
+- Prefer scriptable CLI workflows. You have no GUI.
+- When spawning subagents for research, include today's date if the request is time-sensitive.
+- For complex tasks with independent chunks, spawn multiple subagents in parallel and use `await_subagents` to gather results.
+
+TO FINISH:
+When the task is complete, stop calling tools and respond with a summary of what you accomplished.
+\(skillsSection)\(planSection)\(retrievalContextSection)
+"""
+    }
+
     /// Build the skills section for the system prompt
     private static func buildSkillsSection(skills: [Skill]) -> String {
         guard !skills.isEmpty else { return "" }

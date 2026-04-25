@@ -7,6 +7,7 @@ public struct TaskCreationRequest: Sendable {
     public let providerId: String
     public let modelId: String
     public let executionTarget: TaskExecutionTarget
+    public let runtimeTarget: TaskRuntimeTarget
     public let reasoningEnabled: Bool?
     public let reasoningEffort: String?
     public let serviceTier: LLMServiceTier?
@@ -37,6 +38,7 @@ public struct TaskCreationRequest: Sendable {
         providerId: String,
         modelId: String,
         executionTarget: TaskExecutionTarget = .automatic,
+        runtimeTarget: TaskRuntimeTarget = .automatic,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
         serviceTier: LLMServiceTier? = nil,
@@ -66,6 +68,7 @@ public struct TaskCreationRequest: Sendable {
         self.providerId = providerId
         self.modelId = modelId
         self.executionTarget = executionTarget
+        self.runtimeTarget = runtimeTarget
         self.reasoningEnabled = reasoningEnabled
         self.reasoningEffort = reasoningEffort
         self.serviceTier = serviceTier

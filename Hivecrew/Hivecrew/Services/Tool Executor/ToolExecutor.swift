@@ -11,10 +11,10 @@ import HivecrewLLM
 import HivecrewShared
 import HivecrewCore
 
-/// Executes tool calls from the LLM using the GuestAgentConnection
+/// Executes tool calls from the LLM using the AgentToolConnection
 @MainActor
 class ToolExecutor {
-    let connection: GuestAgentConnection
+    let connection: any AgentToolConnection
     
     var taskId: String = ""
     var vmId: String = ""
@@ -43,7 +43,7 @@ class ToolExecutor {
     }
     
     init(
-        connection: GuestAgentConnection,
+        connection: any AgentToolConnection,
         todoManager: TodoManager,
         taskProviderId: String,
         taskModelId: String,
@@ -319,8 +319,11 @@ class ToolExecutor {
         case "send_message":
             return await executeSendMessage(args: args, from: "main")
             
+        case "app_list_apps", "app_list_windows", "app_select_window",
+             "app_get_window_state", "app_click_element", "app_set_value":
+            return try await executeAppWorkerTool(name: name, args: args)
+
         default:
-            // Check if this is an MCP tool
             if isMCPTool(name) {
                 return try await executeMCPTool(name: name, args: args)
             }

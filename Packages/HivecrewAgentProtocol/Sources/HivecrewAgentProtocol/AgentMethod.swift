@@ -50,6 +50,14 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case listSubagents = "list_subagents"
     case sendMessage = "send_message"
 
+    // App Worker facade tools (element-indexed GUI)
+    case appListApps = "app_list_apps"
+    case appListWindows = "app_list_windows"
+    case appSelectWindow = "app_select_window"
+    case appGetWindowState = "app_get_window_state"
+    case appClickElement = "app_click_element"
+    case appSetValue = "app_set_value"
+
     public var isHostSideTool: Bool {
         switch self {
         case .webSearch, .readWebpageContent, .extractInfoFromWebpage,
@@ -59,7 +67,8 @@ public enum AgentMethod: String, CaseIterable, Sendable {
              .listLocalEntries, .importLocalFile,
              .stageWritebackCopy, .stageWritebackMove, .stageAttachedFileUpdate, .listWritebackTargets,
              .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents,
-             .sendMessage:
+             .sendMessage,
+             .appListApps, .appListWindows, .appSelectWindow, .appGetWindowState, .appClickElement, .appSetValue:
             return true
         default:
             return false

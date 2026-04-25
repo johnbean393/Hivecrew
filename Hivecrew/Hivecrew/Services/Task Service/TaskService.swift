@@ -59,6 +59,12 @@ class TaskService: ObservableObject {
     
     /// Skill manager for loading and matching skills
     let skillManager: SkillManager
+
+    /// Per-runtime capacity tracking (Fast Worker + Isolated VM).
+    let localRuntimeCapacity = LocalRuntimeCapacity()
+
+    /// Classifies tasks into runtime kinds.
+    let runtimeClassifier = RuntimeClassifier()
     
     /// Combine subscriptions for state publisher observations
     var cancellables: [String: AnyCancellable] = [:]
@@ -101,6 +107,7 @@ class TaskService: ObservableObject {
         providerId: String,
         modelId: String,
         executionTarget: TaskExecutionTarget = .automatic,
+        runtimeTarget: TaskRuntimeTarget = .automatic,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
         serviceTier: LLMServiceTier? = nil,
@@ -132,6 +139,7 @@ class TaskService: ObservableObject {
             providerId: providerId,
             modelId: modelId,
             executionTarget: executionTarget,
+            runtimeTarget: runtimeTarget,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             serviceTier: serviceTier,
@@ -208,6 +216,7 @@ class TaskService: ObservableObject {
                 providerId: request.providerId,
                 modelId: request.modelId,
                 executionTarget: request.executionTarget,
+                runtimeTarget: request.runtimeTarget,
                 reasoningEnabled: request.reasoningEnabled,
                 reasoningEffort: request.reasoningEffort,
                 serviceTier: request.serviceTier,
@@ -621,8 +630,15 @@ class TaskService: ObservableObject {
             return isTaskEffectivelyActive(task) || shouldKeepInternalClusterExecutionVisible(task, now: now)
         }
 
-        return (task.assignedVMId != nil || task.isExecutingRemotely) &&
-            isTaskEffectivelyActive(task)
+        guard isTaskEffectivelyActive(task) else { return false }
+
+        if task.assignedVMId != nil || task.isExecutingRemotely { return true }
+
+        if let kind = task.assignedRuntimeKind, (kind == .fast || kind == .app) {
+            return statePublishers[task.id] != nil
+        }
+
+        return false
     }
     
     /// Get the state publisher for a task

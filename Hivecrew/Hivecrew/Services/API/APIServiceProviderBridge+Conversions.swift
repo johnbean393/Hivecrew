@@ -124,7 +124,13 @@ extension APIServiceProviderBridge {
             pendingWritebackCount: task.pendingWritebackOperations.count,
             appliedWritebackPaths: task.appliedWritebackPaths,
             nodeId: task.clusterPeerId,
-            nodeName: task.clusterPeerName
+            nodeName: task.clusterPeerName,
+            runtimeTarget: convertToAPIRuntimeTarget(task.runtimeTarget),
+            assignedRuntimeKind: task.assignedRuntimeKind.flatMap(convertToAPIRuntimeKind),
+            setupRequirement: task.setupRequirement.flatMap(convertToAPISetupRequirement),
+            migrationEvents: task.runtimeMigrationEvents.isEmpty
+                ? nil
+                : task.runtimeMigrationEvents.map(convertToAPIMigrationEvent)
         )
     }
     
@@ -143,7 +149,9 @@ extension APIServiceProviderBridge {
             inputFileCount: task.attachedFilePaths.count,
             outputFileCount: task.outputFilePaths?.count ?? 0,
             nodeId: task.clusterPeerId,
-            nodeName: task.clusterPeerName
+            nodeName: task.clusterPeerName,
+            runtimeTarget: convertToAPIRuntimeTarget(task.runtimeTarget),
+            assignedRuntimeKind: task.assignedRuntimeKind.flatMap(convertToAPIRuntimeKind)
         )
     }
     
@@ -473,6 +481,58 @@ extension APIServiceProviderBridge {
             dayOfMonth: recurrence.dayOfMonth,
             hour: recurrence.hour,
             minute: recurrence.minute
+        )
+    }
+}
+
+// MARK: - Runtime Conversions
+
+extension APIServiceProviderBridge {
+
+    func convertToAPIRuntimeTarget(_ target: TaskRuntimeTarget) -> APIRuntimeTarget {
+        switch target {
+        case .automatic: return .automatic
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    func convertFromAPIRuntimeTarget(_ target: APIRuntimeTarget) -> TaskRuntimeTarget {
+        switch target {
+        case .automatic: return .automatic
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    func convertToAPIRuntimeKind(_ kind: AgentRuntimeKind) -> APIAgentRuntimeKind {
+        switch kind {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    func convertToAPISetupRequirement(_ req: TaskSetupRequirement) -> APITaskSetupRequirement {
+        APITaskSetupRequirement(
+            runtimeKind: convertToAPIRuntimeKind(req.runtimeKind),
+            reason: req.reason.rawValue,
+            deviceId: req.deviceId,
+            userFacingMessage: req.userFacingMessage
+        )
+    }
+
+    func convertToAPIMigrationEvent(_ event: RuntimeMigrationEvent) -> APIRuntimeMigrationEvent {
+        APIRuntimeMigrationEvent(
+            id: event.id.uuidString,
+            taskId: event.taskId,
+            sessionId: event.sessionId,
+            sourceRuntime: convertToAPIRuntimeKind(event.sourceRuntime),
+            destinationRuntime: convertToAPIRuntimeKind(event.destinationRuntime),
+            reason: event.reason,
+            createdAt: event.createdAt
         )
     }
 }

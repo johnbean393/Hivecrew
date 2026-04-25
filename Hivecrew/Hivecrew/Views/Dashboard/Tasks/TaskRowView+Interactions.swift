@@ -64,6 +64,21 @@ extension TaskRowView {
                 titleView
 
                 HStack(spacing: 8) {
+                    if let kind = task.assignedRuntimeKind {
+                        HStack(spacing: 3) {
+                            Image(systemName: kind.iconName)
+                                .font(.system(size: 8))
+                            Text(kind.displayName)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(kind.badgeColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(kind.badgeColor.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+
                     if effectiveStatus == .completed, let success = task.wasSuccessful {
                         Text(success ? String(localized: "Verified Complete") : String(localized: "Incomplete"))
                             .font(.caption)

@@ -87,16 +87,23 @@ extension TaskService {
 
     
     func canStartTaskImmediately() -> Bool {
+        // Fast and App Workers have their own capacity — check all pools
+        if localRuntimeCapacity.canStart(.fast) { return true }
+        if localRuntimeCapacity.canStart(.app) { return true }
+
         let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
         let runningDeveloperVMs = countRunningDeveloperVMs()
         let pendingCount = syncPendingVMCount()
         let teardownCount = tearingDownVMIds.count
+        let nonVMRunning = localRuntimeCapacity.runningCount(for: .fast)
+            + localRuntimeCapacity.runningCount(for: .app)
         let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs + teardownCount
+            - nonVMRunning
         return currentlyActive < effectiveMax
     }
     
     @discardableResult
-    private func reserveExecutionSlot(for task: TaskRecord, context: ModelContext) -> Bool {
+    private func reserveVMExecutionSlot(for task: TaskRecord, context: ModelContext) -> Bool {
         guard !tasksInProgress.contains(task.id) else {
             print("TaskService: Task '\(task.title)' is already being processed, skipping duplicate call")
             return false
@@ -106,9 +113,12 @@ extension TaskService {
         let runningDeveloperVMs = countRunningDeveloperVMs()
         let pendingCount = syncPendingVMCount()
         let teardownCount = tearingDownVMIds.count
+        let nonVMRunning = localRuntimeCapacity.runningCount(for: .fast)
+            + localRuntimeCapacity.runningCount(for: .app)
         let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs + teardownCount
+            - nonVMRunning
         
-        print("TaskService: Concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), tearingDown=\(teardownCount), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
+        print("TaskService: VM concurrency check for '\(task.title)': running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), tearingDown=\(teardownCount), inProgress=\(tasksInProgress.count), max=\(effectiveMax)")
         
         guard currentlyActive < effectiveMax else {
             if task.status != .queued {
@@ -133,10 +143,22 @@ extension TaskService {
     @discardableResult
     func startTaskImmediatelyIfPossible(_ task: TaskRecord) async -> Bool {
         guard let context = modelContext else { return false }
-        guard reserveExecutionSlot(for: task, context: context) else { return false }
-        Task {
-            await startTask(task, skipCapacityReservation: true)
+        guard !tasksInProgress.contains(task.id) else { return false }
+
+        // Classify runtime BEFORE reserving any slot so Fast tasks never
+        // touch VM capacity or show "Awaiting VM".
+        let decision = try? runtimeClassifier.classify(task)
+        let assignedKind = decision?.assignedKind ?? .isolatedVM
+
+        if assignedKind == .fast {
+            guard localRuntimeCapacity.canStart(.fast) else { return false }
+            Task { await startTask(task) }
+            return true
         }
+
+        // VM path — reserve a VM slot first (sets .waitingForVM)
+        guard reserveVMExecutionSlot(for: task, context: context) else { return false }
+        Task { await startTask(task, skipCapacityReservation: true) }
         return true
     }
     
@@ -169,7 +191,7 @@ extension TaskService {
             }
             await runPlanningPhase(task: task, context: context)
             tasksInProgress.remove(task.id)
-            return // Planning phase complete, wait for user to execute
+            return
         }
         
         guard !task.requiresRemoteClusterExecution else {
@@ -189,8 +211,53 @@ extension TaskService {
             }
             return
         }
-        
-        if !skipCapacityReservation, !reserveExecutionSlot(for: task, context: context) {
+
+        // MARK: - Runtime Classification (runtime-first scheduling)
+        let runtimeDecision: RuntimeClassifier.Decision
+        do {
+            runtimeDecision = try runtimeClassifier.classify(task)
+        } catch let error as RuntimeClassificationError {
+            if case .appUnavailable(let setupReq) = error {
+                task.setupRequirement = setupReq
+            }
+            task.status = .failed
+            task.errorMessage = error.localizedDescription
+            task.completedAt = Date()
+            try? context.save()
+            objectWillChange.send()
+            print("TaskService: Runtime classification failed for '\(task.title)': \(error.localizedDescription)")
+            return
+        } catch {
+            task.status = .failed
+            task.errorMessage = error.localizedDescription
+            task.completedAt = Date()
+            try? context.save()
+            objectWillChange.send()
+            return
+        }
+
+        task.assignedRuntimeKind = runtimeDecision.assignedKind
+        try? context.save()
+
+        // Branch by runtime: Fast and App Workers bypass VM reservation entirely
+        if runtimeDecision.assignedKind == .fast {
+            if skipCapacityReservation {
+                pendingVMCount = max(0, pendingVMCount - 1)
+            }
+            await runFastPipeline(task: task, context: context)
+            return
+        }
+
+        if runtimeDecision.assignedKind == .app {
+            if skipCapacityReservation {
+                pendingVMCount = max(0, pendingVMCount - 1)
+            }
+            await runAppPipeline(task: task, context: context)
+            return
+        }
+
+        // Isolated VM path continues below
+        if !skipCapacityReservation, !reserveVMExecutionSlot(for: task, context: context) {
             return
         }
         
@@ -623,6 +690,9 @@ extension TaskService {
             let timeoutMinutes = UserDefaults.standard.integer(forKey: "defaultTaskTimeoutMinutes")
             let maxIterations = UserDefaults.standard.integer(forKey: "defaultMaxIterations")
             
+            // Record the assigned runtime kind for tracing and API responses
+            task.assignedRuntimeKind = .isolatedVM
+
             // Create and run agent
             if await abortIfInactive(stage: "agent startup") { return }
             let agent = try AgentRunner(
@@ -678,6 +748,614 @@ extension TaskService {
         await processQueuedTasks()
     }
     
+    // MARK: - Fast Worker Pipeline
+
+    private func runFastPipeline(task: TaskRecord, context: ModelContext) async {
+        guard !tasksInProgress.contains(task.id) else {
+            print("TaskService: Fast task '\(task.title)' already in progress, skipping")
+            return
+        }
+        tasksInProgress.insert(task.id)
+
+        guard localRuntimeCapacity.canStart(.fast) else {
+            localRuntimeCapacity.enqueue(.fast, taskId: task.id)
+            tasksInProgress.remove(task.id)
+            print("TaskService: Fast Worker at capacity, queuing '\(task.title)'")
+            return
+        }
+        localRuntimeCapacity.reserve(.fast, taskId: task.id)
+
+        let sessionId = UUID().uuidString
+        let fastPaths = FastWorkerPaths(sessionId: sessionId)
+
+        var skillMatchingTask: Task<[Skill], Never>?
+        var llmClientTask: Task<any LLMClientProtocol, Error>?
+
+        let taskProviderId = task.providerId
+        let taskModelId = task.modelId
+        let taskReasoningEnabled = task.reasoningEnabled
+        let taskReasoningEffort = task.reasoningEffort
+        let taskServiceTier = task.serviceTier
+        let taskMentionedSkillNames = task.mentionedSkillNames ?? []
+        let taskPlanSelectedSkillNames = task.planSelectedSkillNames ?? []
+        let taskDescription = task.taskDescription
+
+        do {
+            // Create session layout
+            try fastPaths.createLayout()
+
+            let session = FastWorkerSession(paths: fastPaths, localAccessGrants: task.localAccessGrants)
+            try session.initialize()
+
+            // Seed attachments into inbox
+            if !task.attachmentInfos.isEmpty {
+                let updatedInfos = try session.seedAttachments(infos: task.attachmentInfos)
+                task.attachmentInfos = updatedInfos
+            }
+
+            task.sessionId = sessionId
+
+            // Materialize referenced-task bundles (continuation / task mentions)
+            var taskReferenceContextBlocks: [String] = []
+            if !(task.referencedTaskIds ?? []).isEmpty {
+                do {
+                    let referencesRoot = fastPaths.workspace
+                        .appendingPathComponent("references", isDirectory: true)
+                    taskReferenceContextBlocks = try materializeTaskReferences(
+                        for: task,
+                        referencesRoot: referencesRoot,
+                        guestReferencesRootPath: "workspace/references"
+                    )
+                    print("TaskService: Fast pipeline materialized \(taskReferenceContextBlocks.count) task reference context block(s)")
+                } catch {
+                    print("TaskService: Failed to materialize task references for Fast pipeline (non-fatal): \(error)")
+                }
+            }
+
+            // Create LLM client (parallel with skill matching)
+            llmClientTask = Task {
+                try await self.createLLMClient(
+                    providerId: taskProviderId,
+                    modelId: taskModelId,
+                    reasoningEnabled: taskReasoningEnabled,
+                    reasoningEffort: taskReasoningEffort,
+                    serviceTier: taskServiceTier
+                )
+            }
+
+            // Skill matching
+            skillMatchingTask = Task { () -> [Skill] in
+                var skillsToUse: [Skill] = []
+                let allSkills = self.skillManager.skills
+
+                func appendUnique(_ skills: [Skill]) {
+                    let existing = Set(skillsToUse.map(\.name))
+                    skillsToUse.append(contentsOf: skills.filter { !existing.contains($0.name) })
+                }
+
+                if !taskMentionedSkillNames.isEmpty {
+                    appendUnique(allSkills.filter { taskMentionedSkillNames.contains($0.name) })
+                }
+                if !taskPlanSelectedSkillNames.isEmpty {
+                    appendUnique(allSkills.filter { taskPlanSelectedSkillNames.contains($0.name) })
+                }
+
+                let auto = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
+                if auto && taskMentionedSkillNames.isEmpty && taskPlanSelectedSkillNames.isEmpty {
+                    let enabled = self.skillManager.enabledSkills
+                    let already = Set(skillsToUse.map(\.name))
+                    let available = enabled.filter { !already.contains($0.name) }
+                    if !available.isEmpty {
+                        do {
+                            guard let client = try await llmClientTask?.value else { return skillsToUse }
+                            let matcher = SkillMatcher(llmClient: client, embeddingService: self.skillManager.embeddingService)
+                            let matched = try await matcher.matchSkills(forTask: taskDescription, availableSkills: available)
+                            skillsToUse.append(contentsOf: matched)
+                        } catch {}
+                    }
+                }
+                return skillsToUse
+            }
+
+            // Abort check
+            guard task.status.isActive || task.status == .queued else {
+                cleanupFastTask(task: task, sessionId: sessionId)
+                return
+            }
+
+            task.status = .running
+            task.startedAt = Date()
+            try? context.save()
+            objectWillChange.send()
+            notifyClusterTaskUpdateIfNeeded(task)
+
+            // Copy attachments to session archive
+            if !task.attachmentInfos.isEmpty {
+                do {
+                    let archiveInfos = try AttachmentManager.copyAttachmentsToSession(
+                        infos: task.attachmentInfos,
+                        sessionId: sessionId
+                    )
+                    task.attachmentInfos = archiveInfos
+                } catch {}
+            }
+
+            let sessionPath = AppPaths.sessionDirectory(id: sessionId)
+            let sessionRecord = AgentSessionRecord(
+                id: sessionId,
+                taskId: task.id,
+                vmId: "",
+                tracePath: sessionPath.path
+            )
+            context.insert(sessionRecord)
+            try? context.save()
+
+            let statePublisher = AgentStatePublisher(taskId: task.id, taskTitle: task.title)
+            statePublisher.sessionId = sessionId
+            statePublisher.status = .running
+            statePublishers[task.id] = statePublisher
+
+            observePermissionRequests(for: task.id, from: statePublisher)
+            observeClusterPushEvents(for: task.id, from: statePublisher)
+
+            guard let llmClient = try await llmClientTask?.value else {
+                throw TaskServiceError.missingLLMClient
+            }
+
+            let visionCapability = await resolveVisionCapability(
+                providerId: task.providerId,
+                modelId: task.modelId,
+                using: llmClient
+            )
+
+            let skillsToUse = await (skillMatchingTask?.value ?? [])
+            session.seedSkillFiles(skills: skillsToUse, skillManager: skillManager)
+
+            let timeoutMinutes = UserDefaults.standard.integer(forKey: "defaultTaskTimeoutMinutes")
+            let maxIterations = UserDefaults.standard.integer(forKey: "defaultMaxIterations")
+
+            let connection = FastWorkerConnection(session: session)
+            let agent = try AgentRunner(
+                task: task,
+                llmClient: llmClient,
+                connection: connection,
+                sessionPath: sessionPath,
+                statePublisher: statePublisher,
+                inputFileNames: session.inputFileNames,
+                matchedSkills: skillsToUse,
+                additionalContextBlocks: taskReferenceContextBlocks,
+                maxSteps: maxIterations > 0 ? maxIterations : 300,
+                timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 90,
+                taskService: self,
+                supportsVision: visionCapability.supportsVision
+            )
+            runningAgents[task.id] = agent
+
+            let result = try await agent.run()
+
+            // Harvest artifacts
+            if result.terminationReason != .cancelled {
+                session.persistWorkspaceSnapshot()
+                task.outputFilePaths = session.harvestArtifacts(
+                    taskTitle: task.title,
+                    customOutputDirectory: task.outputDirectory
+                )
+                if let paths = task.outputFilePaths, !paths.isEmpty {
+                    await MainActor.run { TipStore.shared.donateDeliverableReceived() }
+                }
+            }
+
+            await handleFastTaskCompletion(
+                task: task, result: result, sessionId: sessionId, context: context
+            )
+
+        } catch {
+            task.status = .failed
+            task.errorMessage = error.localizedDescription
+            task.completedAt = Date()
+            try? context.save()
+            notifyClusterTaskUpdateIfNeeded(task)
+            sendTaskCompletionNotification(task: task)
+            statePublishers[task.id]?.status = .failed
+            statePublishers[task.id]?.logError(error.localizedDescription)
+            runningAgents.removeValue(forKey: task.id)
+            tasksInProgress.remove(task.id)
+            cleanupTaskObservations(taskId: task.id)
+            localRuntimeCapacity.release(.fast, taskId: task.id)
+            print("TaskService: Fast task '\(task.title)' failed: \(error)")
+        }
+
+        objectWillChange.send()
+        await processQueuedTasks()
+    }
+
+    private func handleFastTaskCompletion(
+        task: TaskRecord,
+        result: AgentResult,
+        sessionId: String,
+        context: ModelContext
+    ) async {
+        task.completedAt = Date()
+        task.resultSummary = result.summary
+        task.wasSuccessful = result.success
+
+        switch result.terminationReason {
+        case .completed:
+            task.status = .completed
+            await MainActor.run {
+                TipStore.shared.donateTaskCompleted()
+                if result.success { TipStore.shared.successfulTaskCompleted() }
+            }
+        case .failed:
+            task.status = .failed
+            task.errorMessage = result.errorMessage
+            await MainActor.run { TipStore.shared.donateTaskCompleted() }
+        case .cancelled:
+            task.status = .cancelled
+            task.errorMessage = result.errorMessage
+        case .timedOut:
+            task.status = .timedOut
+            task.errorMessage = result.errorMessage
+            await MainActor.run { TipStore.shared.donateTaskCompleted() }
+        case .maxIterations:
+            task.status = .maxIterations
+            task.errorMessage = result.errorMessage
+            await MainActor.run { TipStore.shared.donateTaskCompleted() }
+        }
+
+        switch result.terminationReason {
+        case .completed:  statePublishers[task.id]?.status = .completed
+        case .failed:     statePublishers[task.id]?.status = .failed
+        case .cancelled:  statePublishers[task.id]?.status = .cancelled
+        case .timedOut:   statePublishers[task.id]?.status = .failed
+        case .maxIterations: statePublishers[task.id]?.status = .failed
+        }
+
+        if let session = try? context.fetch(FetchDescriptor<AgentSessionRecord>(predicate: #Predicate { $0.id == sessionId })).first {
+            session.endedAt = Date()
+            session.status = result.terminationReason.rawValue
+            session.stepCount = result.stepCount
+            session.promptTokens = result.promptTokens
+            session.completionTokens = result.completionTokens
+        }
+
+        if task.hasPendingWriteback, result.terminationReason != .cancelled {
+            do {
+                let appliedPaths = try autoApplyConfiguredWriteback(for: task)
+                if !appliedPaths.isEmpty {
+                    statePublishers[task.id]?.logInfo("Applied \(appliedPaths.count) staged local writeback change(s) automatically")
+                }
+            } catch {
+                statePublishers[task.id]?.logInfo("Automatic writeback could not be applied: \(error.localizedDescription)")
+            }
+            if task.hasPendingWriteback {
+                task.status = .writebackReview
+            }
+        }
+
+        try? context.save()
+        notifyClusterTaskUpdateIfNeeded(task)
+        sendTaskCompletionNotification(task: task)
+
+        runningAgents.removeValue(forKey: task.id)
+        tasksInProgress.remove(task.id)
+        cleanupTaskObservations(taskId: task.id)
+        localRuntimeCapacity.release(.fast, taskId: task.id)
+
+        print("TaskService: Fast task '\(task.title)' completed. running=\(runningAgents.count)")
+    }
+
+    private func cleanupFastTask(task: TaskRecord, sessionId: String) {
+        tasksInProgress.remove(task.id)
+        localRuntimeCapacity.release(.fast, taskId: task.id)
+        cleanupTaskObservations(taskId: task.id)
+    }
+
+    // MARK: - App Worker Pipeline
+
+    private func runAppPipeline(task: TaskRecord, context: ModelContext) async {
+        guard !tasksInProgress.contains(task.id) else {
+            print("TaskService: App task '\(task.title)' already in progress, skipping")
+            return
+        }
+        tasksInProgress.insert(task.id)
+
+        // App Worker has no global concurrency limit — per-app serialisation
+        // is handled by AppFocusManager inside CuaDriverConnection.
+        localRuntimeCapacity.reserve(.app, taskId: task.id)
+
+        let sessionId = UUID().uuidString
+        let appPaths = FastWorkerPaths(sessionId: sessionId)
+
+        var skillMatchingTask: Task<[Skill], Never>?
+        var llmClientTask: Task<any LLMClientProtocol, Error>?
+
+        let taskProviderId = task.providerId
+        let taskModelId = task.modelId
+        let taskReasoningEnabled = task.reasoningEnabled
+        let taskReasoningEffort = task.reasoningEffort
+        let taskServiceTier = task.serviceTier
+        let taskMentionedSkillNames = task.mentionedSkillNames ?? []
+        let taskPlanSelectedSkillNames = task.planSelectedSkillNames ?? []
+        let taskDescription = task.taskDescription
+
+        do {
+            try appPaths.createLayout()
+
+            let session = AppWorkerSession(paths: appPaths, localAccessGrants: task.localAccessGrants)
+            try session.initialize()
+
+            if !task.attachmentInfos.isEmpty {
+                let updatedInfos = try session.seedAttachments(infos: task.attachmentInfos)
+                task.attachmentInfos = updatedInfos
+            }
+
+            task.sessionId = sessionId
+            task.assignedRuntimeKind = .app
+
+            // Materialize referenced-task bundles
+            var taskReferenceContextBlocks: [String] = []
+            if !(task.referencedTaskIds ?? []).isEmpty {
+                do {
+                    let referencesRoot = appPaths.workspace
+                        .appendingPathComponent("references", isDirectory: true)
+                    taskReferenceContextBlocks = try materializeTaskReferences(
+                        for: task,
+                        referencesRoot: referencesRoot,
+                        guestReferencesRootPath: "workspace/references"
+                    )
+                } catch {
+                    print("TaskService: Failed to materialize task references for App pipeline (non-fatal): \(error)")
+                }
+            }
+
+            // Ensure cua-driver backend is running
+            let mcpClient = try await CuaDriverManager.shared.ensureBackend()
+
+            llmClientTask = Task {
+                try await self.createLLMClient(
+                    providerId: taskProviderId,
+                    modelId: taskModelId,
+                    reasoningEnabled: taskReasoningEnabled,
+                    reasoningEffort: taskReasoningEffort,
+                    serviceTier: taskServiceTier
+                )
+            }
+
+            skillMatchingTask = Task { () -> [Skill] in
+                var skillsToUse: [Skill] = []
+                let allSkills = self.skillManager.skills
+
+                func appendUnique(_ skills: [Skill]) {
+                    let existing = Set(skillsToUse.map(\.name))
+                    skillsToUse.append(contentsOf: skills.filter { !existing.contains($0.name) })
+                }
+
+                if !taskMentionedSkillNames.isEmpty {
+                    appendUnique(allSkills.filter { taskMentionedSkillNames.contains($0.name) })
+                }
+                if !taskPlanSelectedSkillNames.isEmpty {
+                    appendUnique(allSkills.filter { taskPlanSelectedSkillNames.contains($0.name) })
+                }
+
+                let auto = UserDefaults.standard.object(forKey: "automaticSkillMatching") as? Bool ?? true
+                if auto && taskMentionedSkillNames.isEmpty && taskPlanSelectedSkillNames.isEmpty {
+                    let enabled = self.skillManager.enabledSkills
+                    let already = Set(skillsToUse.map(\.name))
+                    let available = enabled.filter { !already.contains($0.name) }
+                    if !available.isEmpty {
+                        do {
+                            guard let client = try await llmClientTask?.value else { return skillsToUse }
+                            let matcher = SkillMatcher(llmClient: client, embeddingService: self.skillManager.embeddingService)
+                            let matched = try await matcher.matchSkills(forTask: taskDescription, availableSkills: available)
+                            skillsToUse.append(contentsOf: matched)
+                        } catch {}
+                    }
+                }
+                return skillsToUse
+            }
+
+            guard task.status.isActive || task.status == .queued else {
+                cleanupAppTask(task: task)
+                return
+            }
+
+            task.status = .running
+            task.startedAt = Date()
+            try? context.save()
+            objectWillChange.send()
+            notifyClusterTaskUpdateIfNeeded(task)
+
+            if !task.attachmentInfos.isEmpty {
+                do {
+                    let archiveInfos = try AttachmentManager.copyAttachmentsToSession(
+                        infos: task.attachmentInfos,
+                        sessionId: sessionId
+                    )
+                    task.attachmentInfos = archiveInfos
+                } catch {}
+            }
+
+            let sessionPath = AppPaths.sessionDirectory(id: sessionId)
+            let sessionRecord = AgentSessionRecord(
+                id: sessionId,
+                taskId: task.id,
+                vmId: "",
+                tracePath: sessionPath.path
+            )
+            context.insert(sessionRecord)
+            try? context.save()
+
+            let statePublisher = AgentStatePublisher(taskId: task.id, taskTitle: task.title)
+            statePublisher.sessionId = sessionId
+            statePublisher.status = .running
+            statePublishers[task.id] = statePublisher
+
+            observePermissionRequests(for: task.id, from: statePublisher)
+            observeClusterPushEvents(for: task.id, from: statePublisher)
+
+            guard let llmClient = try await llmClientTask?.value else {
+                throw TaskServiceError.missingLLMClient
+            }
+
+            let visionCapability = await resolveVisionCapability(
+                providerId: task.providerId,
+                modelId: task.modelId,
+                using: llmClient
+            )
+
+            let skillsToUse = await (skillMatchingTask?.value ?? [])
+            session.seedSkillFiles(skills: skillsToUse, skillManager: skillManager)
+
+            let timeoutMinutes = UserDefaults.standard.integer(forKey: "defaultTaskTimeoutMinutes")
+            let maxIterations = UserDefaults.standard.integer(forKey: "defaultMaxIterations")
+
+            let connection = CuaDriverConnection(mcp: mcpClient, session: session)
+            let agent = try AgentRunner(
+                task: task,
+                llmClient: llmClient,
+                connection: connection,
+                sessionPath: sessionPath,
+                statePublisher: statePublisher,
+                inputFileNames: session.inputFileNames,
+                matchedSkills: skillsToUse,
+                additionalContextBlocks: taskReferenceContextBlocks,
+                maxSteps: maxIterations > 0 ? maxIterations : 300,
+                timeoutMinutes: timeoutMinutes > 0 ? timeoutMinutes : 90,
+                taskService: self,
+                supportsVision: visionCapability.supportsVision
+            )
+            runningAgents[task.id] = agent
+
+            let result = try await agent.run()
+
+            if result.terminationReason != .cancelled {
+                session.persistWorkspaceSnapshot()
+                task.outputFilePaths = session.harvestArtifacts(
+                    taskTitle: task.title,
+                    customOutputDirectory: task.outputDirectory
+                )
+                if let paths = task.outputFilePaths, !paths.isEmpty {
+                    await MainActor.run { TipStore.shared.donateDeliverableReceived() }
+                }
+            }
+
+            await handleAppTaskCompletion(
+                task: task, result: result, sessionId: sessionId, context: context
+            )
+
+        } catch {
+            task.status = .failed
+            task.errorMessage = error.localizedDescription
+            task.completedAt = Date()
+
+            if let cuaError = error as? CuaDriverError {
+                switch cuaError {
+                case .binaryMissing:
+                    task.setupRequirement = TaskSetupRequirement(runtimeKind: .app, reason: .cuaDriverMissing, userFacingMessage: cuaError.localizedDescription)
+                case .accessibilityMissing, .screenRecordingMissing:
+                    task.setupRequirement = TaskSetupRequirement(runtimeKind: .app, reason: .appPermissionsMissing, userFacingMessage: cuaError.localizedDescription)
+                case .launchFailed:
+                    task.setupRequirement = TaskSetupRequirement(runtimeKind: .app, reason: .providerUnavailable, userFacingMessage: cuaError.localizedDescription)
+                default:
+                    break
+                }
+            }
+
+            try? context.save()
+            notifyClusterTaskUpdateIfNeeded(task)
+            sendTaskCompletionNotification(task: task)
+            statePublishers[task.id]?.status = .failed
+            statePublishers[task.id]?.logError(error.localizedDescription)
+            runningAgents.removeValue(forKey: task.id)
+            cleanupAppTask(task: task)
+            print("TaskService: App task '\(task.title)' failed: \(error)")
+        }
+
+        objectWillChange.send()
+        await processQueuedTasks()
+    }
+
+    private func handleAppTaskCompletion(
+        task: TaskRecord,
+        result: AgentResult,
+        sessionId: String,
+        context: ModelContext
+    ) async {
+        task.completedAt = Date()
+        task.resultSummary = result.summary
+        task.wasSuccessful = result.success
+
+        switch result.terminationReason {
+        case .completed:
+            task.status = .completed
+            await MainActor.run {
+                TipStore.shared.donateTaskCompleted()
+                if result.success { TipStore.shared.successfulTaskCompleted() }
+            }
+        case .failed:
+            task.status = .failed
+            task.errorMessage = result.errorMessage
+            await MainActor.run { TipStore.shared.donateTaskCompleted() }
+        case .cancelled:
+            task.status = .cancelled
+            task.errorMessage = result.errorMessage
+        case .timedOut:
+            task.status = .timedOut
+            task.errorMessage = result.errorMessage
+            await MainActor.run { TipStore.shared.donateTaskCompleted() }
+        case .maxIterations:
+            task.status = .maxIterations
+            task.errorMessage = result.errorMessage
+            await MainActor.run { TipStore.shared.donateTaskCompleted() }
+        }
+
+        switch result.terminationReason {
+        case .completed:  statePublishers[task.id]?.status = .completed
+        case .failed:     statePublishers[task.id]?.status = .failed
+        case .cancelled:  statePublishers[task.id]?.status = .cancelled
+        case .timedOut:   statePublishers[task.id]?.status = .failed
+        case .maxIterations: statePublishers[task.id]?.status = .failed
+        }
+
+        if let session = try? context.fetch(FetchDescriptor<AgentSessionRecord>(predicate: #Predicate { $0.id == sessionId })).first {
+            session.endedAt = Date()
+            session.status = result.terminationReason.rawValue
+            session.stepCount = result.stepCount
+            session.promptTokens = result.promptTokens
+            session.completionTokens = result.completionTokens
+        }
+
+        if task.hasPendingWriteback, result.terminationReason != .cancelled {
+            do {
+                let appliedPaths = try autoApplyConfiguredWriteback(for: task)
+                if !appliedPaths.isEmpty {
+                    statePublishers[task.id]?.logInfo("Applied \(appliedPaths.count) staged local writeback change(s) automatically")
+                }
+            } catch {
+                statePublishers[task.id]?.logInfo("Automatic writeback could not be applied: \(error.localizedDescription)")
+            }
+            if task.hasPendingWriteback {
+                task.status = .writebackReview
+            }
+        }
+
+        try? context.save()
+        notifyClusterTaskUpdateIfNeeded(task)
+        sendTaskCompletionNotification(task: task)
+
+        runningAgents.removeValue(forKey: task.id)
+        cleanupAppTask(task: task)
+
+        print("TaskService: App task '\(task.title)' completed. running=\(runningAgents.count)")
+    }
+
+    private func cleanupAppTask(task: TaskRecord) {
+        tasksInProgress.remove(task.id)
+        localRuntimeCapacity.release(.app, taskId: task.id)
+        cleanupTaskObservations(taskId: task.id)
+    }
+
     /// Handle successful task completion
     private func handleTaskCompletion(
         task: TaskRecord,
@@ -1048,9 +1726,15 @@ extension TaskService {
         objectWillChange.send()
     }
     
-    /// Process queued tasks when a VM becomes available
+    /// Process queued tasks across all runtime queues.
     func processQueuedTasks() async {
-        // Find queued tasks that aren't already being processed, sorted by creation time (oldest first)
+        await processFastQueue()
+        await processAppQueue()
+        await processVMQueue()
+    }
+
+    /// Drain queued tasks eligible for Fast Worker execution.
+    private func processFastQueue() async {
         let queuedTasks = tasks
             .filter {
                 $0.status == .queued &&
@@ -1059,31 +1743,96 @@ extension TaskService {
                 !tasksInProgress.contains($0.id)
             }
             .sorted { $0.createdAt < $1.createdAt }
-        
+
         guard !queuedTasks.isEmpty else { return }
-        
-        // Calculate available capacity
+
+        let fastSlots = max(0, localRuntimeCapacity.maxSlots(for: .fast) - localRuntimeCapacity.runningCount(for: .fast))
+        guard fastSlots > 0 else { return }
+
+        var started = 0
+        for task in queuedTasks {
+            guard started < fastSlots else { break }
+            let decision = try? runtimeClassifier.classify(task)
+            guard decision?.assignedKind == .fast else { continue }
+            started += 1
+            Task {
+                await startTask(task)
+            }
+        }
+        if started > 0 {
+            print("TaskService: Started \(started) Fast Worker task(s)")
+        }
+    }
+
+    /// Drain queued tasks eligible for App Worker execution.
+    /// App Worker has no global concurrency limit, so all eligible queued
+    /// tasks are started immediately.  Per-app serialisation is handled
+    /// downstream by AppFocusManager.
+    private func processAppQueue() async {
+        let queuedTasks = tasks
+            .filter {
+                $0.status == .queued &&
+                !$0.requiresRemoteClusterExecution &&
+                $0.clusterExecutionState == .none &&
+                !tasksInProgress.contains($0.id)
+            }
+            .sorted { $0.createdAt < $1.createdAt }
+
+        guard !queuedTasks.isEmpty else { return }
+
+        var started = 0
+        for task in queuedTasks {
+            let decision = try? runtimeClassifier.classify(task)
+            guard decision?.assignedKind == .app else { continue }
+            started += 1
+            Task {
+                await startTask(task)
+            }
+        }
+        if started > 0 {
+            print("TaskService: Started \(started) App Worker task(s)")
+        }
+    }
+
+    /// Drain queued tasks eligible for VM execution.
+    private func processVMQueue() async {
+        let queuedTasks = tasks
+            .filter {
+                $0.status == .queued &&
+                !$0.requiresRemoteClusterExecution &&
+                $0.clusterExecutionState == .none &&
+                !tasksInProgress.contains($0.id)
+            }
+            .sorted { $0.createdAt < $1.createdAt }
+
+        guard !queuedTasks.isEmpty else { return }
+
         let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
         let runningDeveloperVMs = countRunningDeveloperVMs()
         let pendingCount = syncPendingVMCount()
         let teardownCount = tearingDownVMIds.count
+        let nonVMRunning = localRuntimeCapacity.runningCount(for: .fast)
+            + localRuntimeCapacity.runningCount(for: .app)
         let currentlyActive = runningAgents.count + pendingCount + runningDeveloperVMs + teardownCount
+            - nonVMRunning
         let availableSlots = max(0, effectiveMax - currentlyActive)
-        
+
         guard availableSlots > 0 else {
-            print("TaskService: No available slots for queued tasks (running=\(runningAgents.count), pending=\(pendingCount), developerVMs=\(runningDeveloperVMs), tearingDown=\(teardownCount), max=\(effectiveMax))")
             return
         }
-        
-        // Start as many queued tasks as we have slots for
-        // Use Task { } to run them concurrently (startTask blocks until the entire task completes)
-        let tasksToStart = Array(queuedTasks.prefix(availableSlots))
-        print("TaskService: Processing \(tasksToStart.count) queued task(s) (available slots: \(availableSlots))")
-        
-        for task in tasksToStart {
+
+        var started = 0
+        for task in queuedTasks {
+            guard started < availableSlots else { break }
+            let decision = try? runtimeClassifier.classify(task)
+            guard decision?.assignedKind != .fast else { continue }
+            started += 1
             Task {
                 await startTask(task)
             }
+        }
+        if started > 0 {
+            print("TaskService: Started \(started) VM task(s) (available slots: \(availableSlots))")
         }
     }
 

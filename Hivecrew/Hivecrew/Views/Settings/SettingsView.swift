@@ -15,6 +15,7 @@ struct SettingsView: View {
     enum SettingsTab: String, CaseIterable, Identifiable {
         case providers = "Providers"
         case environment = "Environment"
+        case appWorker = "App Worker"
         case tasks = "Tasks"
         case tools = "Tools"
         case voice = "Voice"
@@ -30,6 +31,7 @@ struct SettingsView: View {
             switch self {
             case .providers: return String(localized: "Providers")
             case .environment: return String(localized: "Environment")
+            case .appWorker: return String(localized: "App Worker")
             case .tasks: return String(localized: "Tasks")
             case .tools: return String(localized: "Tools")
             case .voice: return String(localized: "Voice")
@@ -45,6 +47,7 @@ struct SettingsView: View {
             switch self {
             case .providers: return "brain.head.profile"
             case .environment: return "desktopcomputer"
+            case .appWorker: return "macwindow.on.rectangle"
             case .tasks: return "checklist"
             case .tools: return "wrench.and.screwdriver"
             case .voice: return "waveform"
@@ -61,6 +64,7 @@ struct SettingsView: View {
         TabView(selection: $selectedTab) {
             providersTab
             environmentTab
+            appWorkerTab
             tasksTab
             toolsTab
             voiceTab
@@ -90,6 +94,12 @@ struct SettingsView: View {
         EnvironmentSettingsView()
             .tabItem { Label(SettingsTab.environment.localizedName, systemImage: SettingsTab.environment.icon) }
             .tag(SettingsTab.environment)
+    }
+    
+    private var appWorkerTab: some View {
+        AppWorkerSettingsView()
+            .tabItem { Label(SettingsTab.appWorker.localizedName, systemImage: SettingsTab.appWorker.icon) }
+            .tag(SettingsTab.appWorker)
     }
     
     private var tasksTab: some View {

@@ -298,6 +298,11 @@ struct AgentEnvironmentsView: View {
                 .popoverTip(takeControlTip, arrowEdge: .bottom)
         } else if task.isInternalClusterExecution {
             leasedTaskPlaceholder(for: task)
+        } else if let publisher = taskService.statePublisher(for: task.id) {
+            LocalWorkerDetailView(
+                task: task,
+                statePublisher: publisher
+            )
         } else {
             emptyDetailView
         }
@@ -905,6 +910,8 @@ struct DetachedTaskEnvironmentWindow: View {
         } else if let vmId = task.assignedVMId,
                   let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
             VMDetailView(vm: vmInfo, showTracePanel: .constant(true))
+        } else if let publisher = taskService.statePublisher(for: task.id) {
+            LocalWorkerDetailView(task: task, statePublisher: publisher)
         } else {
             unavailableView
         }

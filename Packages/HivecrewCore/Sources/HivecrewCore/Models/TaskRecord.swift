@@ -294,6 +294,51 @@ public final class TaskRecord {
         }
     }
     
+    // MARK: - Runtime Targeting Properties
+
+    /// Requested runtime target (user/API-specified).
+    /// Optional for migration compatibility — nil means `.automatic`.
+    private var runtimeTargetRaw: Int?
+
+    public var runtimeTarget: TaskRuntimeTarget {
+        get { runtimeTargetRaw.flatMap { TaskRuntimeTarget(rawValue: $0) } ?? .automatic }
+        set { runtimeTargetRaw = newValue.rawValue }
+    }
+
+    /// Assigned runtime kind after routing (nil until task starts).
+    private var assignedRuntimeKindRaw: Int?
+
+    public var assignedRuntimeKind: AgentRuntimeKind? {
+        get { assignedRuntimeKindRaw.flatMap { AgentRuntimeKind(rawValue: $0) } }
+        set { assignedRuntimeKindRaw = newValue?.rawValue }
+    }
+
+    /// JSON-encoded runtime migration events for this task.
+    private var runtimeMigrationEventsData: Data?
+
+    public var runtimeMigrationEvents: [RuntimeMigrationEvent] {
+        get {
+            guard let d = runtimeMigrationEventsData,
+                  let decoded = try? JSONDecoder().decode([RuntimeMigrationEvent].self, from: d)
+            else { return [] }
+            return decoded
+        }
+        set { runtimeMigrationEventsData = try? JSONEncoder().encode(newValue) }
+    }
+
+    /// JSON-encoded setup requirement if the task cannot proceed without setup.
+    private var setupRequirementData: Data?
+
+    public var setupRequirement: TaskSetupRequirement? {
+        get {
+            guard let d = setupRequirementData,
+                  let decoded = try? JSONDecoder().decode(TaskSetupRequirement.self, from: d)
+            else { return nil }
+            return decoded
+        }
+        set { setupRequirementData = newValue.flatMap { try? JSONEncoder().encode($0) } }
+    }
+
     // MARK: - Plan Mode Properties
     
     /// Whether plan mode was enabled for this task (optional for migration compatibility)
@@ -469,6 +514,7 @@ public final class TaskRecord {
         providerId: String,
         modelId: String,
         executionTarget: TaskExecutionTarget = .automatic,
+        runtimeTarget: TaskRuntimeTarget = .automatic,
         reasoningEnabled: Bool? = nil,
         reasoningEffort: String? = nil,
         serviceTier: LLMServiceTier? = nil,
@@ -546,6 +592,7 @@ public final class TaskRecord {
         self.executionTargetKindRaw = executionTarget.kind.rawValue
         self.executionTargetPeerId = executionTarget.peerId
         self.executionTargetPeerName = executionTarget.peerName
+        self.runtimeTargetRaw = runtimeTarget.rawValue
         self.clusterCoordinatorTaskId = clusterOwnerTaskId
         self.clusterOwnerNodeId = clusterOwnerNodeId
         self.clusterWorkerTaskId = clusterWorkerTaskId

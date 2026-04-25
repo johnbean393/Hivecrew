@@ -376,7 +376,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         contextSuggestionIds: [String],
         contextModeOverrides: [String: String],
         contextInlineBlocks: [String],
-        contextAttachmentPaths: [String]
+        contextAttachmentPaths: [String],
+        runtimeTarget: APIRuntimeTarget?
     ) async throws -> APITask {
         try await createTask(
             description: description,
@@ -395,7 +396,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             contextSuggestionIds: contextSuggestionIds,
             contextModeOverrides: contextModeOverrides,
             contextInlineBlocks: contextInlineBlocks,
-            contextAttachmentPaths: contextAttachmentPaths
+            contextAttachmentPaths: contextAttachmentPaths,
+            runtimeTarget: runtimeTarget
         )
     }
 
@@ -416,7 +418,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         contextSuggestionIds: [String],
         contextModeOverrides: [String: String],
         contextInlineBlocks: [String],
-        contextAttachmentPaths: [String]
+        contextAttachmentPaths: [String],
+        runtimeTarget: APIRuntimeTarget? = nil
     ) async throws -> APITask {
         let localHasProvider = (try? await localProvider.getProviderByName(name: providerName)) != nil
         
@@ -438,6 +441,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             contextModeOverrides: contextModeOverrides,
             contextInlineBlocks: contextInlineBlocks,
             contextAttachmentPaths: contextAttachmentPaths,
+            runtimeTarget: runtimeTarget,
             autoStart: planFirst
         )
         

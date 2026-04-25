@@ -29,9 +29,21 @@ struct ActiveTaskRow: View {
                 Text(task.title)
                     .font(.headline)
                     .lineLimit(1)
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundStyle(task.isExecutingRemotely ? .blue : .secondary)
+                HStack(spacing: 6) {
+                    if let kind = task.assignedRuntimeKind {
+                        HStack(spacing: 3) {
+                            Image(systemName: kind.iconName)
+                                .font(.system(size: 8))
+                            Text(kind.displayName)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(kind.badgeColor)
+                    }
+                    Text(statusText)
+                        .font(.caption)
+                        .foregroundStyle(task.isExecutingRemotely ? .blue : .secondary)
+                }
                 if let ownerLabel {
                     Text(ownerLabel)
                         .font(.caption2)
@@ -46,11 +58,12 @@ struct ActiveTaskRow: View {
             Button {
                 openDetachedTaskWindow()
             } label: {
+                let isVM = task.assignedRuntimeKind == .isolatedVM || task.assignedVMId != nil
                 Label {
                     Text(
                         detachedTaskWindowStore.isDetached(task.id)
-                            ? String(localized: "Show VM and Agent Trace Window")
-                            : String(localized: "Open VM and Agent Trace in New Window")
+                            ? String(localized: isVM ? "Show VM and Agent Trace Window" : "Show Agent Trace Window")
+                            : String(localized: isVM ? "Open VM and Agent Trace in New Window" : "Open Agent Trace in New Window")
                     )
                 } icon: {
                     Image(

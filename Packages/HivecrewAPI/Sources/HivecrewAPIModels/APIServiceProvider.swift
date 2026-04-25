@@ -38,7 +38,8 @@ public protocol APIServiceProvider: Sendable {
         contextSuggestionIds: [String],
         contextModeOverrides: [String: String],
         contextInlineBlocks: [String],
-        contextAttachmentPaths: [String]
+        contextAttachmentPaths: [String],
+        runtimeTarget: APIRuntimeTarget?
     ) async throws -> APITask
 
     func createTaskBatch(
