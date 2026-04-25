@@ -86,11 +86,22 @@ func appKeepsDesktopAndFileTools() {
     let excluded = RuntimeToolFiltering.excludedTools(for: AgentRuntimeKind.app)
     let expectedPresent: [AgentMethod] = [
         .openApp, .openFile, .openUrl,
-        .mouseClick, .keyboardType, .scroll,
+        .keyboardType, .keyboardKey,
         .runShell, .readFile, .writeFile, .listDirectory, .moveFile,
     ]
     for method in expectedPresent {
         #expect(!excluded.contains(method), "Expected \(method.rawValue) to NOT be excluded for App")
+    }
+}
+
+@Test
+func appExcludesRawMouseAndScrollTools() {
+    let excluded = RuntimeToolFiltering.excludedTools(for: AgentRuntimeKind.app)
+    let expectedExcluded: [AgentMethod] = [
+        .mouseMove, .mouseClick, .mouseDrag, .scroll,
+    ]
+    for method in expectedExcluded {
+        #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for App (foreground-stealing)")
     }
 }
 

@@ -21,6 +21,22 @@ public enum AgentRuntimeKind: Int, Codable, Sendable, Hashable {
         case .isolatedVM: return "Isolated VM"
         }
     }
+
+    public init(remote: RemoteAgentRuntimeKind) {
+        switch remote {
+        case .fast: self = .fast
+        case .app: self = .app
+        case .isolatedVM: self = .isolatedVM
+        }
+    }
+
+    public var toRemoteKind: RemoteAgentRuntimeKind {
+        switch self {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
 }
 
 // MARK: - Runtime Capabilities

@@ -414,6 +414,36 @@ struct CallTaskDetailView: View {
             Text(task.status.displayName)
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            if let kind = task.assignedRuntimeKind {
+                HStack(spacing: 3) {
+                    Image(systemName: kind.iconName)
+                        .font(.system(size: 8))
+                    Text(kind.displayName)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                }
+                .foregroundStyle(kind.badgeColor)
+            }
+
+            if let setup = task.setupRequirement {
+                Text(setup.reason.rawValue.replacingOccurrences(of: "Missing", with: " Missing"))
+                    .font(.caption2)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.15), in: Capsule())
+                    .foregroundStyle(.orange)
+            }
+
+            if task.isExecutingRemotely, let nodeName = task.remoteNodeDisplayName {
+                HStack(spacing: 3) {
+                    Image(systemName: "network")
+                        .font(.system(size: 8))
+                    Text(nodeName)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.blue)
+            }
         }
     }
 

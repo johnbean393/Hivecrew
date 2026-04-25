@@ -11,6 +11,7 @@ import TipKit
 import UniformTypeIdentifiers
 import QuickLook
 import HivecrewCore
+import HivecrewAPIModels
 import HivecrewLLM
 
 struct ReasoningSelectionResolution {
@@ -105,6 +106,7 @@ struct PromptBar: View {
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
     @Binding var executionTarget: TaskExecutionTarget
+    @Binding var runtimeTarget: TaskRuntimeTarget
     @Binding var reasoningEnabled: Bool?
     @Binding var reasoningEffort: String?
     @Binding var serviceTier: LLMServiceTier?
@@ -393,7 +395,12 @@ struct PromptBar: View {
                             isFocused: isFocused
                         )
                     }
-                    
+
+                    PromptRuntimeTargetButton(
+                        runtimeTarget: $runtimeTarget,
+                        isFocused: isFocused
+                    )
+
                     // Plan First toggle (rightmost)
                     PlanFirstToggle(
                         isEnabled: $planFirstEnabled,
@@ -936,6 +943,7 @@ struct PromptExecutionTargetMenuOption: Equatable {
     let title: String
     let isEnabled: Bool
     let startsNewSection: Bool
+    var runtimeBadges: [String] = []
 }
 
 struct PromptExecutionTargetButton: View {
@@ -1010,11 +1018,15 @@ struct PromptExecutionTargetButton: View {
                     modelId: descriptor.modelId
                 ) != .unsupported
             }
+            let badges = peer.runtimes
+                .filter { $0.supported }
+                .map { $0.runtimeKind.rawValue.capitalized }
             return PromptExecutionTargetMenuOption(
                 target: .peer(id: peer.id, name: peer.name ?? peer.subdomain),
                 title: peer.name ?? peer.subdomain,
                 isEnabled: isSupported,
-                startsNewSection: false
+                startsNewSection: false,
+                runtimeBadges: badges
             )
         }
 
@@ -1072,6 +1084,118 @@ struct PromptExecutionTargetButton: View {
     }
 }
 
+// MARK: - Runtime Target Button
+
+extension TaskRuntimeTarget {
+    var promptBarTitle: String {
+        switch self {
+        case .automatic: return String(localized: "Auto")
+        case .fast: return String(localized: "Fast")
+        case .app: return String(localized: "App")
+        case .isolatedVM: return String(localized: "VM")
+        }
+    }
+
+    var promptBarSymbolName: String {
+        switch self {
+        case .automatic: return "wand.and.stars"
+        case .fast: return "bolt.fill"
+        case .app: return "macwindow"
+        case .isolatedVM: return "shippingbox.fill"
+        }
+    }
+
+    var promptBarHelpText: String {
+        switch self {
+        case .automatic:
+            return String(localized: "Auto — let the worker model pick Fast, App, or VM")
+        case .fast:
+            return String(localized: "Fast Worker — headless sandbox (shell, files, network)")
+        case .app:
+            return String(localized: "App Worker — drives your real macOS apps")
+        case .isolatedVM:
+            return String(localized: "Isolated VM — disposable macOS desktop with full GUI")
+        }
+    }
+}
+
+/// Pill-style picker that lets the user pin the execution runtime
+/// (Auto / Fast / App / VM) for the next task.
+struct PromptRuntimeTargetButton: View {
+    @Binding var runtimeTarget: TaskRuntimeTarget
+    var isFocused: Bool = false
+
+    @State private var anchorView: NSView?
+
+    private var selectedTextColor: Color {
+        isFocused ? .accentColor : .primary.opacity(0.5)
+    }
+
+    private var selectedBackgroundColor: Color {
+        isFocused ? Color.accentColor.opacity(0.3) : .white.opacity(0.0001)
+    }
+
+    private var unselectedBorderColor: Color {
+        .primary.opacity(0.3)
+    }
+
+    private var menuLabelColor: NSColor {
+        isFocused ? .controlAccentColor : NSColor(Color.primary.opacity(0.5))
+    }
+
+    private var options: [TaskRuntimeTarget] {
+        [.automatic, .fast, .app, .isolatedVM]
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            CopyCountAnchorRepresentable(view: $anchorView)
+                .frame(width: 0.1, height: 0.1)
+
+            HStack(spacing: 4) {
+                Image(systemName: runtimeTarget.promptBarSymbolName)
+                    .font(.caption)
+                    .contentTransition(.symbolEffect(.replace))
+                Text(runtimeTarget.promptBarTitle)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .contentTransition(.interpolate)
+            }
+            .foregroundStyle(selectedTextColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+
+            Rectangle()
+                .fill(isFocused ? selectedBackgroundColor : unselectedBorderColor)
+                .frame(width: 0.5, height: 18)
+
+            CopyCountMenuIcon(
+                iconName: "chevron.down",
+                color: menuLabelColor,
+                menu: NSMenu.fromRuntimeTargetOptions(options: options) { target in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        runtimeTarget = target
+                    }
+                },
+                anchorViewProvider: { anchorView }
+            )
+            .frame(width: 18, height: 18)
+            .padding(.trailing, 2)
+        }
+        .background {
+            ZStack {
+                Capsule()
+                    .fill(selectedBackgroundColor)
+                Capsule()
+                    .stroke(style: StrokeStyle(lineWidth: 0.3))
+                    .fill(isFocused ? selectedBackgroundColor : unselectedBorderColor)
+            }
+        }
+        .help(runtimeTarget.promptBarHelpText)
+        .animation(.easeInOut(duration: 0.15), value: runtimeTarget)
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -1081,6 +1205,7 @@ struct PromptExecutionTargetButton: View {
         @State var providerId = ""
         @State var modelId = ""
         @State var executionTarget: TaskExecutionTarget = .automatic
+        @State var runtimeTarget: TaskRuntimeTarget = .automatic
         @State var serviceTier: LLMServiceTier?
         @State var copyCount: TaskCopyCount = .one
         @State var useMultipleModels = false
@@ -1102,6 +1227,7 @@ struct PromptExecutionTargetButton: View {
                     selectedProviderId: $providerId,
                     selectedModelId: $modelId,
                     executionTarget: $executionTarget,
+                    runtimeTarget: $runtimeTarget,
                     reasoningEnabled: .constant(nil),
                     reasoningEffort: .constant(nil),
                     serviceTier: $serviceTier,

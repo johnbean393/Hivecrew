@@ -679,6 +679,13 @@ public final class TaskRecord {
         executionTarget.kind == .local
     }
 
+    /// Task has data-local constraints (access grants, pending writeback)
+    /// that prevent remote dispatch.
+    public var requiresLocalDevice: Bool {
+        !localAccessGrants.isEmpty || hasPendingWriteback
+            || !(appliedWritebackPaths ?? []).isEmpty
+    }
+
     public var isPinnedToPeerExecution: Bool {
         executionTarget.kind == .peer && !isInternalClusterExecution
     }

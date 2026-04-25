@@ -23,7 +23,7 @@ extension ToolExecutor {
                 return .text("No running applications found.")
             }
             let lines = apps.enumerated().map { i, app in
-                var line = "[\(i)] \(app.name)"
+                var line = "[\(i)] pid=\(app.pid) \(app.name)"
                 if let bid = app.bundleId { line += " (\(bid))" }
                 return line
             }
@@ -36,7 +36,8 @@ extension ToolExecutor {
                 return .text("No windows found for the specified app.")
             }
             let lines = windows.enumerated().map { i, win in
-                "[\(i)] \(win.title)"
+                let app = win.appName.map { " app=\"\($0)\"" } ?? ""
+                return "[\(i)] window_id=\(win.windowId) pid=\(win.pid) title=\"\(win.title)\"\(app)"
             }
             return .text("Windows:\n" + lines.joined(separator: "\n"))
 
@@ -52,16 +53,10 @@ extension ToolExecutor {
 
         case "app_get_window_state":
             let state = try await appConn.getWindowState()
-            var lines: [String] = []
-            for el in state.elements {
-                var line = "[\(el.index)] \(el.role) \"\(el.label)\""
-                if let v = el.value, !v.isEmpty { line += " value=\"\(v)\"" }
-                lines.append(line)
-            }
-            if lines.isEmpty {
+            if state.treeMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return .text("No accessible elements found in the current window.")
             }
-            return .text("Window elements:\n" + lines.joined(separator: "\n"))
+            return .text("Window elements (\(state.elementCount) interactive):\n" + state.treeMarkdown)
 
         case "app_click_element":
             let elementIndex = args["elementIndex"] as? Int ?? 0

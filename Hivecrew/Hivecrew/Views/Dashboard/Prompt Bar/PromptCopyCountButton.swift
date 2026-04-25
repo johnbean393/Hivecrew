@@ -304,6 +304,34 @@ extension NSMenu {
         return menu
     }
 
+    static func fromRuntimeTargetOptions(
+        options: [TaskRuntimeTarget],
+        selectionHandler: @escaping (TaskRuntimeTarget) -> Void
+    ) -> NSMenu {
+        let menu = NSMenu()
+        for option in options {
+            let item = NSMenuItem(
+                title: runtimeTargetMenuTitle(for: option),
+                action: #selector(RuntimeTargetMenuHandler.handleMenu(_:)),
+                keyEquivalent: ""
+            )
+            if let symbolName = runtimeTargetMenuIconName(for: option),
+               let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {
+                item.image = image
+            }
+            item.target = RuntimeTargetMenuHandler.shared
+            item.representedObject = RuntimeTargetMenuHandler.OptionWrapper(
+                option: option,
+                handler: selectionHandler
+            )
+            menu.addItem(item)
+            if option == .automatic {
+                menu.addItem(.separator())
+            }
+        }
+        return menu
+    }
+
     static func fromExecutionTargetOptions(
         options: [PromptExecutionTargetMenuOption],
         selectionHandler: @escaping (TaskExecutionTarget) -> Void
@@ -313,8 +341,14 @@ extension NSMenu {
             if option.startsNewSection, !menu.items.isEmpty {
                 menu.addItem(.separator())
             }
+            let title: String
+            if !option.runtimeBadges.isEmpty {
+                title = option.title + "  (" + option.runtimeBadges.joined(separator: ", ") + ")"
+            } else {
+                title = option.title
+            }
             let item = NSMenuItem(
-                title: option.title,
+                title: title,
                 action: #selector(ExecutionTargetMenuHandler.handleMenu(_:)),
                 keyEquivalent: ""
             )
@@ -356,6 +390,40 @@ fileprivate class ReasoningEffortMenuHandler: NSObject {
     struct OptionWrapper {
         let option: String
         let handler: (String) -> Void
+    }
+
+    @objc func handleMenu(_ sender: NSMenuItem) {
+        if let wrapper = sender.representedObject as? OptionWrapper {
+            wrapper.handler(wrapper.option)
+        }
+    }
+}
+
+private func runtimeTargetMenuTitle(for target: TaskRuntimeTarget) -> String {
+    switch target {
+    case .automatic: return String(localized: "Auto")
+    case .fast: return String(localized: "Fast Worker")
+    case .app: return String(localized: "App Worker")
+    case .isolatedVM: return String(localized: "Isolated VM")
+    }
+}
+
+private func runtimeTargetMenuIconName(for target: TaskRuntimeTarget) -> String? {
+    switch target {
+    case .automatic: return "wand.and.stars"
+    case .fast: return "bolt.fill"
+    case .app: return "macwindow"
+    case .isolatedVM: return "shippingbox.fill"
+    }
+}
+
+fileprivate class RuntimeTargetMenuHandler: NSObject {
+
+    static let shared = RuntimeTargetMenuHandler()
+
+    struct OptionWrapper {
+        let option: TaskRuntimeTarget
+        let handler: (TaskRuntimeTarget) -> Void
     }
 
     @objc func handleMenu(_ sender: NSMenuItem) {

@@ -190,6 +190,28 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
     }
     
     func executeNow(_ request: ClusterExecuteNowRequest) async throws -> ClusterExecuteNowResponse {
+        if let apiTarget = request.runtimeTarget, apiTarget != .automatic {
+            let localCapacity = await MainActor.run {
+                APIServerManager.shared.taskServiceRef?.localRuntimeCapacity
+            }
+            if let localCapacity {
+                let kind: AgentRuntimeKind
+                switch apiTarget {
+                case .fast: kind = .fast
+                case .app: kind = .app
+                case .isolatedVM: kind = .isolatedVM
+                case .automatic: kind = .fast
+                }
+
+                let snapshots = await MainActor.run { localCapacity.snapshot() }
+                if let snap = snapshots.first(where: { $0.runtimeKind == kind }) {
+                    if !snap.supported || snap.setupStatus != .ready {
+                        throw APIError.conflict("Requested runtime \(apiTarget.rawValue) is not available on this node.")
+                    }
+                }
+            }
+        }
+
         let task = try await localProvider.createClusterExecutionTask(
             canonicalTaskId: request.canonicalTaskId,
             ownerTunnelId: request.ownerTunnelId,
@@ -252,10 +274,25 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
                 status: node.status.rawValue,
                 availableSlots: node.availableSlots,
                 runningTasks: node.runningTasks,
-                lastSeen: node.lastSeen
+                lastSeen: node.lastSeen,
+                runtimes: node.runtimes.isEmpty ? nil : node.runtimes
             )
         }
-        
+
+        let localRuntimes: [PeerRuntimeSummary]? = await MainActor.run {
+            guard let taskService = APIServerManager.shared.taskServiceRef else { return nil }
+            return taskService.localRuntimeCapacity.snapshot().map { snap in
+                PeerRuntimeSummary(
+                    runtimeKind: snap.runtimeKind.toAPIKind,
+                    supported: snap.supported,
+                    availableSlots: snap.availableSlots == .max ? 999 : snap.availableSlots,
+                    runningTasks: snap.running,
+                    queuedTasks: snap.queued,
+                    setupStatus: APIRuntimeSetupStatus(rawValue: snap.setupStatus.rawValue) ?? .unavailable
+                )
+            }
+        }
+
         return APIClusterStatus(
             role: role.rawValue,
             totalCapacity: totalCapacity,
@@ -266,6 +303,7 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             localRunning: localRunning,
             localQueued: localQueued,
             localProviders: localProviders,
+            localRuntimes: localRuntimes,
             peers: peerList
         )
     }
@@ -280,7 +318,8 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
                 status: node.status.rawValue,
                 availableSlots: node.availableSlots,
                 runningTasks: node.runningTasks,
-                lastSeen: node.lastSeen
+                lastSeen: node.lastSeen,
+                runtimes: node.runtimes.isEmpty ? nil : node.runtimes
             )
         }
     }

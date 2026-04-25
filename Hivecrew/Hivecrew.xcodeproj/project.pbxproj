@@ -7,31 +7,32 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		"'40B1F00100000001'" = {isa = PBXBuildFile; fileRef = 40A1F00100000001; };
-		"'40B1F00200000001'" = {isa = PBXBuildFile; fileRef = 40A1F00200000001; };
-		"'40B1F00300000001'" = {isa = PBXBuildFile; fileRef = 40A1F00300000001; };
-		"'40B1F00400000001'" = {isa = PBXBuildFile; fileRef = 40A1F00400000001; };
-		"'40B1F00500000001'" = {isa = PBXBuildFile; fileRef = 40A1F00500000001; };
-		"'40B1F00600000001'" = {isa = PBXBuildFile; fileRef = 40A1F00600000001; };
-		"'40B1F00700000001'" = {isa = PBXBuildFile; fileRef = 40A1F00700000001; };
-		"'40B1F00800000001'" = {isa = PBXBuildFile; fileRef = 40A1F00800000001; };
-		"'40B1F00900000001'" = {isa = PBXBuildFile; fileRef = 40A1F00900000001; };
-		"'40B1F00A00000001'" = {isa = PBXBuildFile; fileRef = 40A1F00A00000001; };
-		"'40B1F00B00000001'" = {isa = PBXBuildFile; fileRef = 40A1F00B00000001; };
-		"'40B1F00C00000001'" = {isa = PBXBuildFile; fileRef = 40A1F00C00000001; };
-		"'40B1F00D00000001'" = {isa = PBXBuildFile; fileRef = 40A1F00D00000001; };
-		"'40B1F00E00000001'" = {isa = PBXBuildFile; fileRef = 40A1F00E00000001; };
-		"'40B1F00F00000001'" = {isa = PBXBuildFile; fileRef = 40A1F00F00000001; };
-		"'40B1F01000000001'" = {isa = PBXBuildFile; fileRef = 40A1F01000000001; };
-		"'40B1F01100000001'" = {isa = PBXBuildFile; fileRef = 40A1F01100000001; };
-		"'40B1F01200000001'" = {isa = PBXBuildFile; fileRef = 40A1F01200000001; };
-		"'40B1F01300000001'" = {isa = PBXBuildFile; fileRef = 40A1F01300000001; };
-		"'40B1F01400000001'" = {isa = PBXBuildFile; fileRef = 40A1F01400000001; };
-		"'40B1F01500000001'" = {isa = PBXBuildFile; fileRef = 40A1F01500000001; };
-		"'40B1F01600000001'" = {isa = PBXBuildFile; fileRef = 40A1F01600000001; };
-		"'40B1F01700000001'" = {isa = PBXBuildFile; fileRef = 40A1F01700000001; };
+		40B1F00100000001 = {isa = PBXBuildFile; fileRef = 40A1F00100000001; };
+		40B1F00200000001 = {isa = PBXBuildFile; fileRef = 40A1F00200000001; };
+		40B1F00300000001 = {isa = PBXBuildFile; fileRef = 40A1F00300000001; };
+		40B1F00400000001 = {isa = PBXBuildFile; fileRef = 40A1F00400000001; };
+		40B1F00500000001 = {isa = PBXBuildFile; fileRef = 40A1F00500000001; };
+		40B1F00600000001 = {isa = PBXBuildFile; fileRef = 40A1F00600000001; };
+		40B1F00700000001 = {isa = PBXBuildFile; fileRef = 40A1F00700000001; };
+		40B1F00800000001 = {isa = PBXBuildFile; fileRef = 40A1F00800000001; };
+		40B1F00900000001 = {isa = PBXBuildFile; fileRef = 40A1F00900000001; };
+		40B1F00A00000001 = {isa = PBXBuildFile; fileRef = 40A1F00A00000001; };
+		40B1F00B00000001 = {isa = PBXBuildFile; fileRef = 40A1F00B00000001; };
+		40B1F00C00000001 = {isa = PBXBuildFile; fileRef = 40A1F00C00000001; };
+		40B1F00D00000001 = {isa = PBXBuildFile; fileRef = 40A1F00D00000001; };
+		40B1F00E00000001 = {isa = PBXBuildFile; fileRef = 40A1F00E00000001; };
+		40B1F00F00000001 = {isa = PBXBuildFile; fileRef = 40A1F00F00000001; };
+		40B1F01000000001 = {isa = PBXBuildFile; fileRef = 40A1F01000000001; };
+		40B1F01100000001 = {isa = PBXBuildFile; fileRef = 40A1F01100000001; };
+		40B1F01200000001 = {isa = PBXBuildFile; fileRef = 40A1F01200000001; };
+		40B1F01300000001 = {isa = PBXBuildFile; fileRef = 40A1F01300000001; };
+		40B1F01400000001 = {isa = PBXBuildFile; fileRef = 40A1F01400000001; };
+		40B1F01500000001 = {isa = PBXBuildFile; fileRef = 40A1F01500000001; };
+		40B1F01600000001 = {isa = PBXBuildFile; fileRef = 40A1F01600000001; };
+		40B1F01700000001 = {isa = PBXBuildFile; fileRef = 40A1F01700000001; };
 		15F84DF987EB715E216226A8 /* FastWorkerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45541EB8E32405180734647 /* FastWorkerConnection.swift */; };
 		1E3C4D83882811A9A19BD6DB /* RuntimeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10854D74B37247758334D637 /* RuntimeClassifierTests.swift */; };
+		A1F4D90021RUNTIME0POLICY1 /* RuntimeRoutingPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4D90021RUNTIME0POLICY2 /* RuntimeRoutingPolicyTests.swift */; };
 		2019E33D2F13997E0041819D /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33C2F13997E0041819D /* OpenAI */; };
 		2019E3402F139C0000041819 /* HivecrewLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2019E33F2F139C0000041819 /* HivecrewLLM */; };
 		2019E3502F13A00000041819 /* LLMProviderRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2019E34F2F13A00000041819 /* LLMProviderRecord.swift */; };
@@ -199,6 +200,7 @@
 		20E22E042F3EC85E003EFCE4 /* PlanProgressSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E032F3EC85E003EFCE4 /* PlanProgressSectionView.swift */; };
 		20E22E052F3EC85E003EFCE4 /* ActivityEntryRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E022F3EC85E003EFCE4 /* ActivityEntryRowView.swift */; };
 		20E22E082F3EC873003EFCE4 /* ActiveTaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E062F3EC873003EFCE4 /* ActiveTaskRowView.swift */; };
+		20E22F022F3EC873003EFCE4 /* LocalWorkerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22F012F3EC873003EFCE4 /* LocalWorkerDetailView.swift */; };
 		20E22E092F3EC873003EFCE4 /* DeveloperVMRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E072F3EC873003EFCE4 /* DeveloperVMRowView.swift */; };
 		20E22E0C2F3EC88B003EFCE4 /* UsernameRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E0B2F3EC88B003EFCE4 /* UsernameRowView.swift */; };
 		20E22E0D2F3EC88B003EFCE4 /* TokenCopyRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E22E0A2F3EC88B003EFCE4 /* TokenCopyRowView.swift */; };
@@ -296,9 +298,11 @@
 		D0A1B00B2FA000100000000B /* ScreenCaptureAnimationWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B00A2FA000100000000A /* ScreenCaptureAnimationWindow.swift */; };
 		D0A1B00C2FA000200000000C /* ScreenCaptureShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B00D2FA000200000000D /* ScreenCaptureShader.metal */; };
 		D8A3441D89F4AF9E2B4BA472 /* AppWorkerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6585420C88CD2C93F2BCD3D1 /* AppWorkerSettingsView.swift */; };
+		C4E8F0A12FAA40D1B0C00102 /* CuaDriverPermissionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E8F0A12FAA40D1B0C00101 /* CuaDriverPermissionsSheet.swift */; };
 		DA5D4CF8BCBA6C36A5973403 /* FastWorkerSandboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98C04059A6CB14041148E98D /* FastWorkerSandboxTests.swift */; };
 		DE7541CBA77A5CC468659560 /* CuaDriverConnectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914545E394E71EA541A40B74 /* CuaDriverConnectionTests.swift */; };
 		E61B407D937FE2539DA5CB68 /* LocalRuntimeCapacity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A88F420498ADAF22D55E3996 /* LocalRuntimeCapacity.swift */; };
+		E61B407D937FE2539DA5CB69 /* RuntimeRoutingPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A88F420498ADAF22D55E3997 /* RuntimeRoutingPolicy.swift */; };
 		E88F465A99DFDEE06973FC04 /* AppWorkerSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35D24E518CC324E63B62C34D /* AppWorkerSession.swift */; };
 		F22C4691AFD8DBE23487EE64 /* FastWorkerPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD94F6485BC221FB3E4206B /* FastWorkerPaths.swift */; };
 		F92E4F7C8A55ED09F1B40134 /* LocalRuntimeCapacityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F404EB38CF646DA78F7DCC0 /* LocalRuntimeCapacityTests.swift */; };
@@ -353,34 +357,35 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		"'40A1F00100000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrchestrator.swift; sourceTree = "<group>"; };
-		"'40A1F00200000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerRegistry.swift; sourceTree = "<group>"; };
-		"'40A1F00300000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorToolHandler.swift; sourceTree = "<group>"; };
-		"'40A1F00400000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorSystemPrompt.swift; sourceTree = "<group>"; };
-		"'40A1F00500000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
-		"'40A1F00600000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleCallView.swift; sourceTree = "<group>"; };
-		"'40A1F00700000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedCallView.swift; sourceTree = "<group>"; };
-		"'40A1F00800000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallConversationPane.swift; sourceTree = "<group>"; };
-		"'40A1F00900000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbView.swift; sourceTree = "<group>"; };
-		"'40A1F00A00000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTranscriptView.swift; sourceTree = "<group>"; };
-		"'40A1F00B00000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallControlButton.swift; sourceTree = "<group>"; };
-		"'40A1F00C00000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallControlBar.swift; sourceTree = "<group>"; };
-		"'40A1F00D00000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskPane.swift; sourceTree = "<group>"; };
-		"'40A1F00E00000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskRowView.swift; sourceTree = "<group>"; };
-		"'40A1F00F00000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskDetailView.swift; sourceTree = "<group>"; };
-		"'40A1F01000000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactShareHUD.swift; sourceTree = "<group>"; };
-		"'40A1F01100000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourcePickerView.swift; sourceTree = "<group>"; };
-		"'40A1F01200000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePreviewView.swift; sourceTree = "<group>"; };
-		"'40A1F01300000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSettingsView.swift; sourceTree = "<group>"; };
-		"'40A1F01400000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAvailability.swift; sourceTree = "<group>"; };
-		"'40A1F01500000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProviderSetupView.swift; sourceTree = "<group>"; };
-		"'40A1F01600000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRetrievalModels.swift; sourceTree = "<group>"; };
-		"'40A1F01700000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostFileReader.swift; sourceTree = "<group>"; };
+		40A1F00100000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrchestrator.swift; sourceTree = "<group>"; };
+		40A1F00200000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkerRegistry.swift; sourceTree = "<group>"; };
+		40A1F00300000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorToolHandler.swift; sourceTree = "<group>"; };
+		40A1F00400000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorSystemPrompt.swift; sourceTree = "<group>"; };
+		40A1F00500000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
+		40A1F00600000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleCallView.swift; sourceTree = "<group>"; };
+		40A1F00700000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandedCallView.swift; sourceTree = "<group>"; };
+		40A1F00800000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallConversationPane.swift; sourceTree = "<group>"; };
+		40A1F00900000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbView.swift; sourceTree = "<group>"; };
+		40A1F00A00000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTranscriptView.swift; sourceTree = "<group>"; };
+		40A1F00B00000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallControlButton.swift; sourceTree = "<group>"; };
+		40A1F00C00000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallControlBar.swift; sourceTree = "<group>"; };
+		40A1F00D00000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskPane.swift; sourceTree = "<group>"; };
+		40A1F00E00000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskRowView.swift; sourceTree = "<group>"; };
+		40A1F00F00000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallTaskDetailView.swift; sourceTree = "<group>"; };
+		40A1F01000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactShareHUD.swift; sourceTree = "<group>"; };
+		40A1F01100000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourcePickerView.swift; sourceTree = "<group>"; };
+		40A1F01200000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePreviewView.swift; sourceTree = "<group>"; };
+		40A1F01300000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSettingsView.swift; sourceTree = "<group>"; };
+		40A1F01400000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceAvailability.swift; sourceTree = "<group>"; };
+		40A1F01500000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProviderSetupView.swift; sourceTree = "<group>"; };
+		40A1F01600000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRetrievalModels.swift; sourceTree = "<group>"; };
+		40A1F01700000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostFileReader.swift; sourceTree = "<group>"; };
 		074C4864B8E2302CD6ADDEA6 /* AppWorkerSandboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppWorkerSandboxTests.swift; path = HivecrewTests/AppWorkerSandboxTests.swift; sourceTree = SOURCE_ROOT; };
 		0D0348ADBE42DD6116BDD033 /* RuntimeToolFiltering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuntimeToolFiltering.swift; path = Hivecrew/Services/Scheduler/RuntimeToolFiltering.swift; sourceTree = SOURCE_ROOT; };
 		0F404EB38CF646DA78F7DCC0 /* LocalRuntimeCapacityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalRuntimeCapacityTests.swift; path = HivecrewTests/LocalRuntimeCapacityTests.swift; sourceTree = SOURCE_ROOT; };
 		0FD94F6485BC221FB3E4206B /* FastWorkerPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FastWorkerPaths.swift; path = "Hivecrew/Services/Fast Worker/FastWorkerPaths.swift"; sourceTree = SOURCE_ROOT; };
 		10854D74B37247758334D637 /* RuntimeClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuntimeClassifierTests.swift; path = HivecrewTests/RuntimeClassifierTests.swift; sourceTree = SOURCE_ROOT; };
+		A1F4D90021RUNTIME0POLICY2 /* RuntimeRoutingPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuntimeRoutingPolicyTests.swift; path = HivecrewTests/RuntimeRoutingPolicyTests.swift; sourceTree = SOURCE_ROOT; };
 		1E584FE9B32A42D97BA556D7 /* FastWorkerSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FastWorkerSession.swift; path = "Hivecrew/Services/Fast Worker/FastWorkerSession.swift"; sourceTree = SOURCE_ROOT; };
 		2019E34F2F13A00000041819 /* LLMProviderRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProviderRecord.swift; sourceTree = "<group>"; };
 		202F64682F2BD82A00F6F359 /* PromptCopyCountButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCopyCountButton.swift; sourceTree = "<group>"; };
@@ -543,6 +548,7 @@
 		20E22E022F3EC85E003EFCE4 /* ActivityEntryRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEntryRowView.swift; sourceTree = "<group>"; };
 		20E22E032F3EC85E003EFCE4 /* PlanProgressSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanProgressSectionView.swift; sourceTree = "<group>"; };
 		20E22E062F3EC873003EFCE4 /* ActiveTaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveTaskRowView.swift; sourceTree = "<group>"; };
+		20E22F012F3EC873003EFCE4 /* LocalWorkerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWorkerDetailView.swift; sourceTree = "<group>"; };
 		20E22E072F3EC873003EFCE4 /* DeveloperVMRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperVMRowView.swift; sourceTree = "<group>"; };
 		20E22E0A2F3EC88B003EFCE4 /* TokenCopyRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCopyRowView.swift; sourceTree = "<group>"; };
 		20E22E0B2F3EC88B003EFCE4 /* UsernameRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsernameRowView.swift; sourceTree = "<group>"; };
@@ -611,6 +617,7 @@
 		35D24E518CC324E63B62C34D /* AppWorkerSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppWorkerSession.swift; path = "Hivecrew/Services/App Worker/AppWorkerSession.swift"; sourceTree = SOURCE_ROOT; };
 		54664395A79795C1B3CF20C5 /* cua-driver */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "cua-driver"; path = "Hivecrew/Resources/cua-driver"; sourceTree = SOURCE_ROOT; };
 		6585420C88CD2C93F2BCD3D1 /* AppWorkerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppWorkerSettingsView.swift; path = Hivecrew/Views/Settings/AppWorker/AppWorkerSettingsView.swift; sourceTree = SOURCE_ROOT; };
+		C4E8F0A12FAA40D1B0C00101 /* CuaDriverPermissionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CuaDriverPermissionsSheet.swift; path = Hivecrew/Views/Settings/AppWorker/CuaDriverPermissionsSheet.swift; sourceTree = SOURCE_ROOT; };
 		7D7643C690BB07D1BBEC045D /* CuaDriverConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CuaDriverConnection.swift; path = "Hivecrew/Services/App Worker/CuaDriverConnection.swift"; sourceTree = SOURCE_ROOT; };
 		80FE43CEBF5CFF6C6E14E0D6 /* RuntimeClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuntimeClassifier.swift; path = Hivecrew/Services/Scheduler/RuntimeClassifier.swift; sourceTree = SOURCE_ROOT; };
 		8B4F4E1ABA6086BB8CC1602B /* AppFocusManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppFocusManagerTests.swift; path = HivecrewTests/AppFocusManagerTests.swift; sourceTree = SOURCE_ROOT; };
@@ -620,6 +627,7 @@
 		9EC0433A9C966721FB49737C /* GuestAgentConnection+AgentToolConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "GuestAgentConnection+AgentToolConnection.swift"; path = "Hivecrew/Services/Guest Agent Connection/GuestAgentConnection+AgentToolConnection.swift"; sourceTree = SOURCE_ROOT; };
 		A75541C78565E3373890AEB2 /* AppFocusManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppFocusManager.swift; path = "Hivecrew/Services/App Worker/AppFocusManager.swift"; sourceTree = SOURCE_ROOT; };
 		A88F420498ADAF22D55E3996 /* LocalRuntimeCapacity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalRuntimeCapacity.swift; path = Hivecrew/Services/Scheduler/LocalRuntimeCapacity.swift; sourceTree = SOURCE_ROOT; };
+		A88F420498ADAF22D55E3997 /* RuntimeRoutingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuntimeRoutingPolicy.swift; path = Hivecrew/Services/Scheduler/RuntimeRoutingPolicy.swift; sourceTree = SOURCE_ROOT; };
 		AEA44E7D9B6556A883BBCF04 /* CuaDriverManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CuaDriverManager.swift; path = "Hivecrew/Services/App Worker/CuaDriverManager.swift"; sourceTree = SOURCE_ROOT; };
 		B45541EB8E32405180734647 /* FastWorkerConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FastWorkerConnection.swift; path = "Hivecrew/Services/Fast Worker/FastWorkerConnection.swift"; sourceTree = SOURCE_ROOT; };
 		C10100072FA3000100000007 /* ClusterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClusterManager.swift; sourceTree = "<group>"; };
@@ -877,6 +885,7 @@
 				A88F420498ADAF22D55E3996 /* LocalRuntimeCapacity.swift */,
 				80FE43CEBF5CFF6C6E14E0D6 /* RuntimeClassifier.swift */,
 				0D0348ADBE42DD6116BDD033 /* RuntimeToolFiltering.swift */,
+				A88F420498ADAF22D55E3997 /* RuntimeRoutingPolicy.swift */,
 				AEA44E7D9B6556A883BBCF04 /* CuaDriverManager.swift */,
 				7D7643C690BB07D1BBEC045D /* CuaDriverConnection.swift */,
 				C7C442E290743A0523905FEB /* CuaDriverConnection+Facade.swift */,
@@ -886,6 +895,7 @@
 				D9A845AF9149199765B9C33C /* WorkspaceSandbox.swift */,
 				260049AEB7EA0BFEE5F48300 /* ToolExecutor+AppWorker.swift */,
 				6585420C88CD2C93F2BCD3D1 /* AppWorkerSettingsView.swift */,
+				C4E8F0A12FAA40D1B0C00101 /* CuaDriverPermissionsSheet.swift */,
 				CFBA40F5AB85DE9CBB587732 /* AgentToolConnectionTests.swift */,
 				074C4864B8E2302CD6ADDEA6 /* AppWorkerSandboxTests.swift */,
 				914545E394E71EA541A40B74 /* CuaDriverConnectionTests.swift */,
@@ -894,6 +904,7 @@
 				98C04059A6CB14041148E98D /* FastWorkerSandboxTests.swift */,
 				0F404EB38CF646DA78F7DCC0 /* LocalRuntimeCapacityTests.swift */,
 				10854D74B37247758334D637 /* RuntimeClassifierTests.swift */,
+				A1F4D90021RUNTIME0POLICY2 /* RuntimeRoutingPolicyTests.swift */,
 				2BC3481DADA111441E859381 /* RuntimeToolFilteringTests.swift */,
 				8B4F4E1ABA6086BB8CC1602B /* AppFocusManagerTests.swift */,
 				54664395A79795C1B3CF20C5 /* cua-driver */,
@@ -1331,6 +1342,7 @@
 				209C61942F12ABD700062D0E /* AgentEnvironmentsView.swift */,
 				3001A00F2F1500000000000F /* AgentStatusBar.swift */,
 				20C413E32F14163200C6E8A9 /* AgentTracePanel.swift */,
+				20E22F012F3EC873003EFCE4 /* LocalWorkerDetailView.swift */,
 			);
 			path = Agent;
 			sourceTree = "<group>";
@@ -1393,6 +1405,7 @@
 				30B100042F72000300000004 /* HivecrewVoice */,
 				30B1000D2F72000E0000000F /* HivecrewCore */,
 				D0A1B0022FA0000200000002 /* DynamicNotchKit */,
+				E0CDA0022FA5000200000002 /* CuaDriverCore */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -1512,6 +1525,7 @@
 				2049633B2F17E553007DD5FD /* XCRemoteSwiftPackageReference "Sparkle" */,
 				206C85822F3E2B7E00941285 /* XCLocalSwiftPackageReference "../Packages/HivecrewRetrievalSystem" */,
 				D0A1B0012FA0000100000001 /* XCRemoteSwiftPackageReference "DynamicNotchKit" */,
+				E0CDA0012FA5000100000001 /* XCRemoteSwiftPackageReference "cua" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 209C5F952F12947F00062D0E /* Products */;
@@ -1607,6 +1621,7 @@
 				204DF41B2F14D5E7004AB99B /* OnboardingView.swift in Sources */,
 				20B8994D2F1FAEE1003887A3 /* ScheduledTaskRowView.swift in Sources */,
 				20E22E082F3EC873003EFCE4 /* ActiveTaskRowView.swift in Sources */,
+				20E22F022F3EC873003EFCE4 /* LocalWorkerDetailView.swift in Sources */,
 				20E22E092F3EC873003EFCE4 /* DeveloperVMRowView.swift in Sources */,
 				20B8994E2F1FAEE1003887A3 /* ScheduleCreationSheet.swift in Sources */,
 				20F0A0012F900001003887A3 /* ScheduleCreationSheet+Content.swift in Sources */,
@@ -1839,6 +1854,7 @@
 				E61B407D937FE2539DA5CB68 /* LocalRuntimeCapacity.swift in Sources */,
 				569F4E95AC3A725C335EE013 /* RuntimeClassifier.swift in Sources */,
 				40E14175B5D6CCDA260DEDB1 /* RuntimeToolFiltering.swift in Sources */,
+				E61B407D937FE2539DA5CB69 /* RuntimeRoutingPolicy.swift in Sources */,
 				38EF4074BDE367AE485B7E50 /* CuaDriverManager.swift in Sources */,
 				5B4E4BAFB504343E4D1F1A4E /* CuaDriverConnection.swift in Sources */,
 				7E9542469F97517A706C6E41 /* CuaDriverConnection+Facade.swift in Sources */,
@@ -1848,6 +1864,7 @@
 				623144A1A8C90BA6065B8B07 /* WorkspaceSandbox.swift in Sources */,
 				92AB4144A94C9D82971790D4 /* ToolExecutor+AppWorker.swift in Sources */,
 				D8A3441D89F4AF9E2B4BA472 /* AppWorkerSettingsView.swift in Sources */,
+				C4E8F0A12FAA40D1B0C00102 /* CuaDriverPermissionsSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1864,6 +1881,7 @@
 				DA5D4CF8BCBA6C36A5973403 /* FastWorkerSandboxTests.swift in Sources */,
 				F92E4F7C8A55ED09F1B40134 /* LocalRuntimeCapacityTests.swift in Sources */,
 				1E3C4D83882811A9A19BD6DB /* RuntimeClassifierTests.swift in Sources */,
+				A1F4D90021RUNTIME0POLICY1 /* RuntimeRoutingPolicyTests.swift in Sources */,
 				92764407B752267ED5194783 /* RuntimeToolFilteringTests.swift in Sources */,
 				6C484FDDA00B3BCAC6D7733E /* AppFocusManagerTests.swift in Sources */,
 			);
@@ -2386,6 +2404,14 @@
 				minimumVersion = 1.1.0;
 			};
 		};
+		E0CDA0012FA5000100000001 /* XCRemoteSwiftPackageReference "cua" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/johnbean393/cua";
+			requirement = {
+				branch = "cua-driver-spm";
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -2452,6 +2478,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D0A1B0012FA0000100000001 /* XCRemoteSwiftPackageReference "DynamicNotchKit" */;
 			productName = DynamicNotchKit;
+		};
+		E0CDA0022FA5000200000002 /* CuaDriverCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0CDA0012FA5000100000001 /* XCRemoteSwiftPackageReference "cua" */;
+			productName = CuaDriverCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

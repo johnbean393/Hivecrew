@@ -56,6 +56,7 @@ public struct APISystemStatus: Codable, Sendable {
     public let agents: APIAgentCounts
     public let vms: APIVMCounts
     public let resources: APIResourceUsage
+    public let runtimes: [APIRuntimeCounts]?
     
     public init(
         status: String,
@@ -63,7 +64,8 @@ public struct APISystemStatus: Codable, Sendable {
         uptime: Int,
         agents: APIAgentCounts,
         vms: APIVMCounts,
-        resources: APIResourceUsage
+        resources: APIResourceUsage,
+        runtimes: [APIRuntimeCounts]? = nil
     ) {
         self.status = status
         self.version = version
@@ -71,6 +73,7 @@ public struct APISystemStatus: Codable, Sendable {
         self.agents = agents
         self.vms = vms
         self.resources = resources
+        self.runtimes = runtimes
     }
 }
 

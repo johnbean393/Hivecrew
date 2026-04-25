@@ -1054,10 +1054,25 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                 cpuUsage: nil,
                 memoryUsedGB: memoryUsedGB,
                 memoryTotalGB: memoryTotalGB
-            )
+            ),
+            runtimes: buildRuntimeCounts()
         )
     }
-    
+
+    private func buildRuntimeCounts() -> [APIRuntimeCounts] {
+        taskService.localRuntimeCapacity.snapshot().map { snap in
+            APIRuntimeCounts(
+                kind: snap.runtimeKind.toAPIKind,
+                supported: snap.supported,
+                running: snap.running,
+                queued: snap.queued,
+                available: snap.availableSlots == .max ? 999 : snap.availableSlots,
+                maxConcurrent: taskService.localRuntimeCapacity.maxSlots(for: snap.runtimeKind) == .max ? 999 : taskService.localRuntimeCapacity.maxSlots(for: snap.runtimeKind),
+                setupStatus: APIRuntimeSetupStatus(rawValue: snap.setupStatus.rawValue) ?? .unavailable
+            )
+        }
+    }
+
     func getSystemConfig() async throws -> APISystemConfig {
         let defaults = UserDefaults.standard
         

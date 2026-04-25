@@ -185,7 +185,8 @@ actor ClusterManager {
                 runningTasks: existing?.runningTasks ?? 0,
                 queuedTasks: existing?.queuedTasks ?? 0,
                 lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
-                providers: existing?.providers ?? []
+                providers: existing?.providers ?? [],
+                runtimes: existing?.runtimes ?? []
             )
         }
         
@@ -215,7 +216,8 @@ actor ClusterManager {
                 runningTasks: runningTasks,
                 queuedTasks: queuedTasks,
                 lastSeen: Date(),
-                providers: existing?.providers ?? []
+                providers: existing?.providers ?? [],
+                runtimes: clusterStatus.localRuntimes ?? existing?.runtimes ?? []
             )
             await publishPeerUpdate()
             
@@ -246,7 +248,8 @@ actor ClusterManager {
                 runningTasks: 0,
                 queuedTasks: 0,
                 lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
-                providers: existing?.providers ?? []
+                providers: existing?.providers ?? [],
+                runtimes: existing?.runtimes ?? []
             )
             await publishPeerUpdate()
             print("ClusterManager: Failed to bootstrap peer \(peer.tunnelId): \(error)")
@@ -281,7 +284,8 @@ actor ClusterManager {
             runningTasks: runningTasks,
             queuedTasks: queuedTasks,
             lastSeen: Date(),
-            providers: announcement.providers ?? []
+            providers: announcement.providers ?? [],
+            runtimes: announcement.runtimes ?? []
         )
         peers[announcement.tunnelId] = node
         await publishPeerUpdate()
@@ -340,6 +344,9 @@ actor ClusterManager {
         node.lastSeen = Date()
         if let providers = announcement.providers {
             node.providers = providers
+        }
+        if let runtimes = announcement.runtimes {
+            node.runtimes = runtimes
         }
         peers[announcement.tunnelId] = node
         await publishPeerUpdate()
@@ -437,7 +444,63 @@ actor ClusterManager {
         node.availableSlots += 1
         peers[peerId] = node
     }
-    
+
+    // MARK: - Runtime-specific reservation
+
+    func reserveBestAvailablePeer(
+        providerName: String,
+        modelId: String,
+        excluding: Set<String>,
+        runtimeKind: RemoteAgentRuntimeKind
+    ) async -> PeerNode? {
+        await refreshCapabilitiesForDispatch(
+            providerName: providerName,
+            modelId: modelId,
+            excluding: excluding
+        )
+        let agentKind = AgentRuntimeKind(remote: runtimeKind)
+        guard let peer = bestAvailablePeerInternal(
+            providerName: providerName, modelId: modelId, excluding: excluding
+        ), peer.runtimeMatch(agentKind) != .unsupported,
+           peer.runtimeSetupReady(agentKind) || peer.runtimes.isEmpty
+        else {
+            return nil
+        }
+        reserveSlotInternal(peerId: peer.id)
+        return peer
+    }
+
+    func reserveSpecificPeer(
+        peerId: String,
+        providerName: String,
+        modelId: String,
+        runtimeKind: RemoteAgentRuntimeKind
+    ) async -> PeerNode? {
+        await refreshCapabilitiesIfNeeded(
+            peerId: peerId,
+            providerName: providerName,
+            modelId: modelId
+        )
+        let agentKind = AgentRuntimeKind(remote: runtimeKind)
+        guard let peer = peers[peerId],
+              peer.status == .online,
+              peer.availableSlots > 0,
+              peer.runtimeMatch(agentKind) != .unsupported,
+              peer.runtimeSetupReady(agentKind) || peer.runtimes.isEmpty
+        else {
+            return nil
+        }
+        if peer.capabilityMatch(providerName: providerName, modelId: modelId) == .unsupported {
+            return nil
+        }
+        reserveSlotInternal(peerId: peer.id)
+        return peer
+    }
+
+    func releaseSlot(peerId: String, runtimeKind: RemoteAgentRuntimeKind) {
+        releaseSlot(peerId: peerId)
+    }
+
     // MARK: - Internal Dispatch Helpers
     
     private func bestAvailablePeerInternal(
@@ -887,6 +950,7 @@ actor ClusterManager {
 
         let capacity = await localCapacity()
         let providerNames = await localProviderNames()
+        let runtimeSummaries = await localRuntimeSummaries()
 
         let announcement = PeerAnnouncement(
             tunnelId: selfId,
@@ -898,7 +962,8 @@ actor ClusterManager {
             queuedTasks: capacity.queued,
             providers: providerNames.map {
                 PeerProviderSummary(providerName: $0, modelIds: [])
-            }
+            },
+            runtimes: runtimeSummaries
         )
 
         let currentPeers = peers.values.filter {
@@ -985,6 +1050,21 @@ actor ClusterManager {
     @MainActor
     private func localProviderNames() -> [String] {
         APIServerManager.shared.localProviderNames()
+    }
+
+    @MainActor
+    private func localRuntimeSummaries() -> [PeerRuntimeSummary] {
+        guard let taskService = APIServerManager.shared.taskServiceRef else { return [] }
+        return taskService.localRuntimeCapacity.snapshot().map { snap in
+            PeerRuntimeSummary(
+                runtimeKind: snap.runtimeKind.toAPIKind,
+                supported: snap.supported,
+                availableSlots: snap.availableSlots == .max ? 999 : snap.availableSlots,
+                runningTasks: snap.running,
+                queuedTasks: snap.queued,
+                setupStatus: APIRuntimeSetupStatus(rawValue: snap.setupStatus.rawValue) ?? .unavailable
+            )
+        }
     }
 
     private func postClusterPayload<B: Encodable>(_ body: B, to urlString: String) async {

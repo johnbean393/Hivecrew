@@ -33,6 +33,7 @@ public struct PeerAnnouncement: Codable, Sendable {
     public let runningTasks: Int
     public let queuedTasks: Int
     public let providers: [PeerProviderSummary]?
+    public let runtimes: [PeerRuntimeSummary]?
     
     public init(
         tunnelId: String,
@@ -42,7 +43,8 @@ public struct PeerAnnouncement: Codable, Sendable {
         availableSlots: Int,
         runningTasks: Int,
         queuedTasks: Int,
-        providers: [PeerProviderSummary]? = nil
+        providers: [PeerProviderSummary]? = nil,
+        runtimes: [PeerRuntimeSummary]? = nil
     ) {
         self.tunnelId = tunnelId
         self.subdomain = subdomain
@@ -52,6 +54,7 @@ public struct PeerAnnouncement: Codable, Sendable {
         self.runningTasks = runningTasks
         self.queuedTasks = queuedTasks
         self.providers = providers
+        self.runtimes = runtimes
     }
 }
 
@@ -116,6 +119,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
     public let contextAttachmentPaths: [String]
     public let referenceContextBlocks: [String]
     public let referenceFiles: [ReferenceFile]
+    public let runtimeTarget: APIRuntimeTarget?
     
     public init(
         canonicalTaskId: String,
@@ -141,7 +145,8 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
         contextInlineBlocks: [String] = [],
         contextAttachmentPaths: [String] = [],
         referenceContextBlocks: [String] = [],
-        referenceFiles: [ReferenceFile] = []
+        referenceFiles: [ReferenceFile] = [],
+        runtimeTarget: APIRuntimeTarget? = nil
     ) {
         self.canonicalTaskId = canonicalTaskId
         self.ownerTunnelId = ownerTunnelId
@@ -167,6 +172,7 @@ public struct ClusterExecuteNowRequest: Codable, Sendable {
         self.contextAttachmentPaths = contextAttachmentPaths
         self.referenceContextBlocks = referenceContextBlocks
         self.referenceFiles = referenceFiles
+        self.runtimeTarget = runtimeTarget
     }
 }
 
@@ -210,6 +216,7 @@ public struct APIClusterStatus: Codable, Sendable {
     public let localRunning: Int
     public let localQueued: Int
     public let localProviders: [PeerProviderSummary]
+    public let localRuntimes: [PeerRuntimeSummary]?
     public let peers: [APIClusterPeer]
     
     public init(
@@ -222,6 +229,7 @@ public struct APIClusterStatus: Codable, Sendable {
         localRunning: Int,
         localQueued: Int,
         localProviders: [PeerProviderSummary] = [],
+        localRuntimes: [PeerRuntimeSummary]? = nil,
         peers: [APIClusterPeer]
     ) {
         self.role = role
@@ -233,6 +241,7 @@ public struct APIClusterStatus: Codable, Sendable {
         self.localRunning = localRunning
         self.localQueued = localQueued
         self.localProviders = localProviders
+        self.localRuntimes = localRuntimes
         self.peers = peers
     }
 
@@ -246,6 +255,7 @@ public struct APIClusterStatus: Codable, Sendable {
         case localRunning
         case localQueued
         case localProviders
+        case localRuntimes
         case peers
     }
 
@@ -260,6 +270,7 @@ public struct APIClusterStatus: Codable, Sendable {
         let localAvailableSlots = try container.decodeIfPresent(Int.self, forKey: .localAvailableSlots) ?? localCapacity
         let localQueued = try container.decodeIfPresent(Int.self, forKey: .localQueued) ?? 0
         let localProviders = try container.decodeIfPresent([PeerProviderSummary].self, forKey: .localProviders) ?? []
+        let localRuntimes = try container.decodeIfPresent([PeerRuntimeSummary].self, forKey: .localRuntimes)
         let peers = try container.decode([APIClusterPeer].self, forKey: .peers)
         self.init(
             role: role,
@@ -271,6 +282,7 @@ public struct APIClusterStatus: Codable, Sendable {
             localRunning: localRunning,
             localQueued: localQueued,
             localProviders: localProviders,
+            localRuntimes: localRuntimes,
             peers: peers
         )
     }
@@ -285,6 +297,7 @@ public struct APIClusterPeer: Codable, Sendable {
     public let availableSlots: Int
     public let runningTasks: Int
     public let lastSeen: Date
+    public let runtimes: [PeerRuntimeSummary]?
     
     public init(
         tunnelId: String,
@@ -293,7 +306,8 @@ public struct APIClusterPeer: Codable, Sendable {
         status: String,
         availableSlots: Int,
         runningTasks: Int,
-        lastSeen: Date
+        lastSeen: Date,
+        runtimes: [PeerRuntimeSummary]? = nil
     ) {
         self.tunnelId = tunnelId
         self.subdomain = subdomain
@@ -302,5 +316,6 @@ public struct APIClusterPeer: Codable, Sendable {
         self.availableSlots = availableSlots
         self.runningTasks = runningTasks
         self.lastSeen = lastSeen
+        self.runtimes = runtimes
     }
 }

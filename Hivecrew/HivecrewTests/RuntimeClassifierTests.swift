@@ -149,3 +149,65 @@ func classifierDefaultsToFast() throws {
         #expect(decision.assignedKind == .fast, "Expected Fast for: \(desc)")
     }
 }
+
+// MARK: - Inline override parsing
+
+@Test
+func parseInlineOverrideRecognisesFast() {
+    let result = RuntimeClassifier.parseInlineOverride(in: "Refactor this module @fast please")
+    #expect(result?.runtimeTarget == .fast)
+    #expect(result?.cleanedDescription == "Refactor this module please")
+}
+
+@Test
+func parseInlineOverrideRecognisesVM() {
+    let result = RuntimeClassifier.parseInlineOverride(in: "@vm open chrome and screenshot google")
+    #expect(result?.runtimeTarget == .isolatedVM)
+    #expect(result?.cleanedDescription == "open chrome and screenshot google")
+}
+
+@Test
+func parseInlineOverrideRecognisesApp() {
+    let result = RuntimeClassifier.parseInlineOverride(in: "Send an email from my mail app @app")
+    #expect(result?.runtimeTarget == .app)
+    #expect(result?.cleanedDescription == "Send an email from my mail app")
+}
+
+@Test
+func parseInlineOverrideRecognisesAutomatic() {
+    let result = RuntimeClassifier.parseInlineOverride(in: "Do something smart @auto")
+    #expect(result?.runtimeTarget == .automatic)
+    #expect(result?.cleanedDescription == "Do something smart")
+}
+
+@Test
+func parseInlineOverrideIgnoresUnknownToken() {
+    let result = RuntimeClassifier.parseInlineOverride(in: "Notify @alice about the deploy")
+    #expect(result == nil)
+}
+
+@Test
+func parseInlineOverrideDoesNotMatchInsideEmail() {
+    // The "@" must follow whitespace or be at the start, so an email address
+    // shouldn't trigger an override even if it contains a runtime keyword.
+    let result = RuntimeClassifier.parseInlineOverride(in: "Email me at fast@example.com")
+    #expect(result == nil)
+}
+
+// MARK: - Async classification
+
+@Test @MainActor
+func classifyAsyncFallsBackToHeuristicWhenNoWorker() async throws {
+    let classifier = RuntimeClassifier()
+    let task = makeTaskRecord(description: "Open Safari and navigate to a page")
+    let decision = try await classifier.classifyAsync(task)
+    #expect(decision.assignedKind == .isolatedVM)
+}
+
+@Test @MainActor
+func classifyAsyncHonorsExplicitFast() async throws {
+    let classifier = RuntimeClassifier()
+    let task = makeTaskRecord(description: "Open Safari and navigate to a page", runtimeTarget: .fast)
+    let decision = try await classifier.classifyAsync(task)
+    #expect(decision.assignedKind == .fast)
+}

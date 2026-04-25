@@ -3,14 +3,15 @@
 //  Hivecrew
 //
 //  AgentToolConnection conformance for the App Worker runtime.
-//  Wraps a cua-driver MCP subprocess for host macOS GUI control
+//  Uses CuaDriverCore linked in-process for host macOS GUI control,
 //  and provides local shell/file operations via the session sandbox.
 //
 
 import Foundation
 import AppKit
+import CoreGraphics
 import HivecrewCore
-import HivecrewMCP
+import CuaDriverCore
 
 // MARK: - Supporting types
 
@@ -43,10 +44,12 @@ struct WindowSummary: Sendable {
     var windowId: Int
     var title: String
     var pid: Int
+    var appName: String? = nil
 }
 
 struct WindowStateSnapshot: Sendable {
-    var elements: [AXElementSummary]
+    var treeMarkdown: String
+    var elementCount: Int
     var screenshotBase64: String?
     var screenWidth: Int?
     var screenHeight: Int?
@@ -60,20 +63,26 @@ final class CuaDriverConnection: AgentToolConnection {
     let capabilities: RuntimeCapabilities = .app
 
     let connectionId: String
-    let mcp: MCPClient
     let session: AppWorkerSession
     weak var todoManager: TodoManager?
+
+    let engine: AppStateEngine
+    let capture: WindowCapture
+    let focusGuard: FocusGuard
 
     var currentApp: AppContext?
     var currentWindow: WindowContext?
     var elementCache: [Int: AXElementSummary] = [:]
+    var cachedLaunchWindows: (pid: Int, windows: [WindowSummary])?
 
     var lockedAppKeys: Set<String> = []
 
-    init(mcp: MCPClient, session: AppWorkerSession, todoManager: TodoManager? = nil) {
+    init(session: AppWorkerSession, engine: AppStateEngine, capture: WindowCapture, focusGuard: FocusGuard, todoManager: TodoManager? = nil) {
         self.connectionId = UUID().uuidString
-        self.mcp = mcp
         self.session = session
+        self.engine = engine
+        self.capture = capture
+        self.focusGuard = focusGuard
         self.todoManager = todoManager
     }
 
@@ -81,24 +90,20 @@ final class CuaDriverConnection: AgentToolConnection {
 
     func screenshot() async throws -> ScreenshotResult? {
         guard let window = currentWindow else { return nil }
-
-        let result = try await mcp.callTool(name: "get_window_state", arguments: [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "capture_mode": .string("vision")
-        ])
-        guard result.isError != true else { return nil }
-
-        for content in result.content {
-            if content.type == "image", let data = content.data {
-                return ScreenshotResult(
-                    imageBase64: data,
-                    width: 0,
-                    height: 0
-                )
-            }
+        do {
+            let shot = try await capture.captureWindow(
+                windowID: CGWindowID(window.windowId),
+                format: .png,
+                quality: 80
+            )
+            return ScreenshotResult(
+                imageBase64: shot.imageData.base64EncodedString(),
+                width: shot.width,
+                height: shot.height
+            )
+        } catch {
+            return nil
         }
-        return nil
     }
 
     func observe() async throws -> RuntimeObservation {
@@ -109,21 +114,14 @@ final class CuaDriverConnection: AgentToolConnection {
         }
 
         let state = try await getWindowState()
-        elementCache = Dictionary(uniqueKeysWithValues: state.elements.map { ($0.index, $0) })
 
         var lines: [String] = []
         lines.append("Runtime: App Worker (host macOS GUI)")
         lines.append("Current app: \(currentApp?.appName ?? "unknown") (pid: \(window.pid))")
         lines.append("Current window: \(window.title) (id: \(window.windowId))")
         lines.append("")
-        lines.append("Accessible elements:")
-        for element in state.elements {
-            var line = "[\(element.index)] \(element.role) \"\(element.label)\""
-            if let value = element.value, !value.isEmpty {
-                line += " value=\"\(value)\""
-            }
-            lines.append(line)
-        }
+        lines.append("Accessible elements (\(state.elementCount) interactive):")
+        lines.append(state.treeMarkdown)
 
         var screenshot: ScreenshotResult?
         if let base64 = state.screenshotBase64 {
@@ -150,145 +148,271 @@ final class CuaDriverConnection: AgentToolConnection {
     // MARK: - App/File/URL
 
     func openApp(bundleId: String?, appName: String?) async throws {
-        // Acquire per-app focus lock before interacting
         let appKey = AppFocusManager.normalizedKey(bundleId: bundleId, appName: appName)
         await AppFocusManager.shared.acquire(appKey: appKey, connectionId: connectionId)
         lockedAppKeys.insert(appKey)
 
-        var args: [String: AnyCodableValue] = [:]
-        if let bid = bundleId { args["bundle_id"] = .string(bid) }
-        if let name = appName { args["app_name"] = .string(name) }
-
-        let result = try await mcp.callTool(name: "launch_app", arguments: args)
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
+        guard bundleId != nil || appName != nil else {
+            throw CuaDriverError.toolCallFailed("Provide either bundle_id or name.")
         }
 
-        if let text = result.content.first?.text,
-           let pidRange = text.range(of: #"\"pid\"\s*:\s*(\d+)"#, options: .regularExpression),
-           let pidStr = text[pidRange].split(separator: ":").last?.trimmingCharacters(in: .whitespacesAndNewlines),
-           let pid = Int(pidStr) {
-            currentApp = AppContext(pid: pid, appName: appName ?? bundleId ?? "app", bundleId: bundleId)
+        let previousFrontmost = NSWorkspace.shared.frontmostApplication
+
+        let running = NSWorkspace.shared.runningApplications.first { app in
+            if let bid = bundleId, !bid.isEmpty, app.bundleIdentifier == bid { return true }
+            if let name = appName, !name.isEmpty,
+               app.localizedName?.localizedCaseInsensitiveCompare(name) == .orderedSame { return true }
+            return false
+        }
+
+        let pid: Int
+        let resolvedName: String
+        let resolvedBundleId: String?
+
+        if let app = running {
+            pid = Int(app.processIdentifier)
+            resolvedName = app.localizedName ?? appName ?? "app"
+            resolvedBundleId = app.bundleIdentifier ?? bundleId
+        } else {
+            var appURL: URL?
+            if let bid = bundleId, !bid.isEmpty {
+                appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid)
+            }
+            if appURL == nil, let name = appName, !name.isEmpty {
+                for dir in ["/System/Applications", "/Applications", "/System/Applications/Utilities"] {
+                    let candidate = URL(fileURLWithPath: "\(dir)/\(name).app")
+                    if FileManager.default.fileExists(atPath: candidate.path) {
+                        appURL = candidate
+                        break
+                    }
+                }
+            }
+            guard let url = appURL else {
+                throw CuaDriverError.toolCallFailed(
+                    "Application not found: \(appName ?? bundleId ?? "unknown")"
+                )
+            }
+
+            let config = NSWorkspace.OpenConfiguration()
+            config.activates = false
+            let app = try await NSWorkspace.shared.openApplication(at: url, configuration: config)
+            pid = Int(app.processIdentifier)
+            resolvedName = app.localizedName ?? appName ?? "app"
+            resolvedBundleId = app.bundleIdentifier ?? bundleId
+            try? await Task.sleep(nanoseconds: 800_000_000)
+
+            // Apps can self-activate during launch (e.g. in
+            // applicationDidFinishLaunching) despite activates=false.
+            // Restore the user's frontmost app if it was stolen.
+            restoreFrontmostIfStolen(previousFrontmost)
+        }
+
+        currentApp = AppContext(pid: pid, appName: resolvedName, bundleId: resolvedBundleId)
+        elementCache = [:]
+
+        // Use allWindows() so we find windows of background-launched apps that
+        // may not be on-screen yet (minimized, other Space, hidden launch).
+        let windows = WindowEnumerator.allWindows()
+            .filter { $0.pid == Int32(pid) && $0.bounds.width > 1 && $0.bounds.height > 1 }
+            .sorted { $0.zIndex > $1.zIndex }
+        if !windows.isEmpty {
+            let summaries = windows.map { WindowSummary(windowId: $0.id, title: $0.name, pid: Int($0.pid)) }
+            cachedLaunchWindows = (pid: pid, windows: summaries)
+            if let best = summaries.first {
+                currentWindow = WindowContext(windowId: best.windowId, title: best.title, pid: best.pid)
+            }
+        } else {
             currentWindow = nil
-            elementCache = [:]
+            cachedLaunchWindows = nil
+        }
+    }
+
+    /// Restores the user's frontmost app if something stole focus.
+    private func restoreFrontmostIfStolen(_ previous: NSRunningApplication?) {
+        guard let previous else { return }
+        let current = NSWorkspace.shared.frontmostApplication
+        if let current, current.processIdentifier != previous.processIdentifier {
+            previous.activate()
         }
     }
 
     func openFile(path: String, withApp: String?) async throws {
+        let previousFrontmost = NSWorkspace.shared.frontmostApplication
         let url = URL(fileURLWithPath: path)
-        if let app = withApp {
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = false
+        if let app = withApp, !app.isEmpty {
             try await NSWorkspace.shared.open(
                 [url],
                 withApplicationAt: URL(fileURLWithPath: app),
-                configuration: NSWorkspace.OpenConfiguration()
+                configuration: config
+            )
+        } else if let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: url) {
+            try await NSWorkspace.shared.open(
+                [url],
+                withApplicationAt: defaultApp,
+                configuration: config
             )
         } else {
-            NSWorkspace.shared.open(url)
+            throw CuaDriverError.toolCallFailed(
+                "No application found to open file: \(path). Specify an app with the withApp parameter."
+            )
+        }
+        restoreFrontmostIfStolen(previousFrontmost)
+    }
+
+    func openUrl(_ urlString: String) async throws {
+        let urlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !urlString.isEmpty else { return }
+
+        let previousFrontmost = NSWorkspace.shared.frontmostApplication
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = false
+
+        if urlString.hasPrefix("x-apple.systempreferences:") {
+            let bid = "com.apple.systempreferences"
+            if let nsUrl = URL(string: urlString),
+               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
+                try await NSWorkspace.shared.open([nsUrl], withApplicationAt: appURL, configuration: config)
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            restoreFrontmostIfStolen(previousFrontmost)
+            if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bid }) {
+                let pid = Int(app.processIdentifier)
+                currentApp = AppContext(pid: pid, appName: "System Settings", bundleId: bid)
+                elementCache = [:]
+                let windows = WindowEnumerator.allWindows()
+                    .filter { $0.pid == Int32(pid) && $0.bounds.width > 1 && $0.bounds.height > 1 }
+                    .sorted { $0.zIndex > $1.zIndex }
+                if let best = windows.first {
+                    currentWindow = WindowContext(windowId: best.id, title: best.name, pid: Int(best.pid))
+                    cachedLaunchWindows = (pid: pid, windows: windows.map {
+                        WindowSummary(windowId: $0.id, title: $0.name, pid: Int($0.pid))
+                    })
+                } else {
+                    currentWindow = nil
+                }
+            }
+            return
+        }
+
+        if let nsUrl = URL(string: urlString) {
+            NSWorkspace.shared.open(nsUrl, configuration: config) { _, _ in }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            restoreFrontmostIfStolen(previousFrontmost)
         }
     }
 
-    func openUrl(_ url: String) async throws {
-        guard let nsUrl = URL(string: url) else { return }
-        NSWorkspace.shared.open(nsUrl)
-    }
-
-    // MARK: - Mouse/Keyboard/Scroll (pixel-level, existing protocol methods)
+    // MARK: - Mouse (pixel-level via CuaDriverCore)
 
     func mouseMove(x: Double, y: Double) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let result = try await mcp.callTool(name: "mouse_move", arguments: [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "x": .double(x),
-            "y": .double(y)
-        ])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
-        }
+        let screenPoint = try WindowCoordinateSpace.screenPoint(
+            fromImagePixel: CGPoint(x: x, y: y),
+            forPid: Int32(window.pid),
+            windowId: UInt32(window.windowId)
+        )
+        CursorControl.move(to: screenPoint)
     }
 
     func mouseClick(x: Double, y: Double, button: String, clickType: String) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-
-        var args: [String: AnyCodableValue] = [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "x": .double(x),
-            "y": .double(y)
-        ]
-        if button != "left" { args["button"] = .string(button) }
-        if clickType == "double" { args["click_type"] = .string("double") }
-
-        let result = try await mcp.callTool(name: "click", arguments: args)
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
-        }
+        let screenPoint = try WindowCoordinateSpace.screenPoint(
+            fromImagePixel: CGPoint(x: x, y: y),
+            forPid: Int32(window.pid),
+            windowId: UInt32(window.windowId)
+        )
+        let mouseButton: MouseInput.Button = button == "right" ? .right : .left
+        let count = clickType == "double" ? 2 : 1
+        try MouseInput.click(
+            at: screenPoint,
+            toPid: pid_t(window.pid),
+            button: mouseButton,
+            count: count
+        )
     }
 
     func mouseDrag(fromX: Double, fromY: Double, toX: Double, toY: Double) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let result = try await mcp.callTool(name: "drag", arguments: [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "start_x": .double(fromX),
-            "start_y": .double(fromY),
-            "end_x": .double(toX),
-            "end_y": .double(toY)
-        ])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
-        }
+        let startScreen = try WindowCoordinateSpace.screenPoint(
+            fromImagePixel: CGPoint(x: fromX, y: fromY),
+            forPid: Int32(window.pid),
+            windowId: UInt32(window.windowId)
+        )
+        let endScreen = try WindowCoordinateSpace.screenPoint(
+            fromImagePixel: CGPoint(x: toX, y: toY),
+            forPid: Int32(window.pid),
+            windowId: UInt32(window.windowId)
+        )
+        synthesizeDrag(from: startScreen, to: endScreen, pid: pid_t(window.pid))
     }
+
+    // MARK: - Keyboard (via CuaDriverCore)
 
     func keyboardType(text: String) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let result = try await mcp.callTool(name: "type_text", arguments: [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "text": .string(text)
-        ])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
+        let pid = pid_t(window.pid)
+
+        // Try AX-based text insertion first (works for native text fields)
+        let focused = try? AXInput.focusedElement(pid: pid)
+        if let focused = focused {
+            try? AXInput.setAttribute("AXSelectedText", on: focused, value: text as CFTypeRef)
+            return
         }
+
+        // Fall back to character-by-character typing via CGEvent
+        try KeyboardInput.typeCharacters(text, toPid: pid)
     }
+
+    /// Key combinations that macOS intercepts at the system level before
+    /// PID-targeted CGEvent delivery, causing app switching or window hiding.
+    private static let focusStealingHotkeys: Set<[String]> = [
+        ["command", "tab"],
+        ["command", "shift", "tab"],
+        ["command", "space"],
+        ["command", "option", "space"],
+        ["command", "h"],
+        ["command", "option", "h"],
+        ["command", "m"],
+        ["command", "q"],
+        ["control", "up"],
+        ["control", "down"],
+        ["control", "left"],
+        ["control", "right"],
+        ["control", "space"],
+        ["globe", "tab"],
+    ]
 
     func keyboardKey(key: String, modifiers: [String]) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        var args: [String: AnyCodableValue] = [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "key": .string(key)
-        ]
-        if !modifiers.isEmpty {
-            let toolName = modifiers.count == 1 && modifiers[0].isEmpty ? "press_key" : "hotkey"
-            if toolName == "hotkey" {
-                args["modifiers"] = .array(modifiers.map { .string($0) })
-                let result = try await mcp.callTool(name: "hotkey", arguments: args)
-                if result.isError == true {
-                    throw CuaDriverError.toolCallFailed(result.textContent)
+        let pid = pid_t(window.pid)
+
+        let filtered = modifiers.filter { !$0.isEmpty }
+        if !filtered.isEmpty {
+            let normalized = Set((filtered + [key]).map { $0.lowercased() })
+            for forbidden in Self.focusStealingHotkeys {
+                if normalized == Set(forbidden) {
+                    throw CuaDriverError.toolCallFailed(
+                        "Key combination \(filtered.joined(separator: "+"))+\(key) "
+                        + "is intercepted by macOS and would switch apps or hide windows. "
+                        + "Use app_click_element or another approach instead."
+                    )
                 }
-                return
             }
+            try KeyboardInput.hotkey(filtered + [key], toPid: pid)
+            return
         }
-        let result = try await mcp.callTool(name: "press_key", arguments: args)
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
-        }
+        try KeyboardInput.press(key, toPid: pid)
     }
 
     func scroll(x: Double, y: Double, deltaX: Double, deltaY: Double) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let result = try await mcp.callTool(name: "scroll", arguments: [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "x": .double(x),
-            "y": .double(y),
-            "delta_x": .double(deltaX),
-            "delta_y": .double(deltaY)
-        ])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
-        }
+        let screenPoint = try WindowCoordinateSpace.screenPoint(
+            fromImagePixel: CGPoint(x: x, y: y),
+            forPid: Int32(window.pid),
+            windowId: UInt32(window.windowId)
+        )
+        synthesizeScroll(at: screenPoint, deltaX: deltaX, deltaY: deltaY, pid: pid_t(window.pid))
     }
 
     // MARK: - Shell (host-local, rooted at session workspace)
@@ -402,6 +526,49 @@ final class CuaDriverConnection: AgentToolConnection {
     func disconnect() {
         AppFocusManager.shared.releaseAll(connectionId: connectionId)
         lockedAppKeys.removeAll()
-        CuaDriverManager.shared.releaseClient()
+    }
+
+    // MARK: - Private helpers
+
+    private func synthesizeDrag(from start: CGPoint, to end: CGPoint, pid: pid_t) {
+        guard let downEvent = CGEvent(
+            mouseEventSource: nil, mouseType: .leftMouseDown,
+            mouseCursorPosition: start, mouseButton: .left
+        ) else { return }
+        downEvent.postToPid(pid)
+
+        let steps = 10
+        for i in 1...steps {
+            let frac = CGFloat(i) / CGFloat(steps)
+            let pt = CGPoint(
+                x: start.x + (end.x - start.x) * frac,
+                y: start.y + (end.y - start.y) * frac
+            )
+            guard let dragEvent = CGEvent(
+                mouseEventSource: nil, mouseType: .leftMouseDragged,
+                mouseCursorPosition: pt, mouseButton: .left
+            ) else { continue }
+            dragEvent.postToPid(pid)
+            usleep(10_000)
+        }
+
+        guard let upEvent = CGEvent(
+            mouseEventSource: nil, mouseType: .leftMouseUp,
+            mouseCursorPosition: end, mouseButton: .left
+        ) else { return }
+        upEvent.postToPid(pid)
+    }
+
+    private func synthesizeScroll(at point: CGPoint, deltaX: Double, deltaY: Double, pid: pid_t) {
+        guard let event = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .pixel,
+            wheelCount: 2,
+            wheel1: Int32(deltaY),
+            wheel2: Int32(deltaX),
+            wheel3: 0
+        ) else { return }
+        event.location = point
+        event.postToPid(pid)
     }
 }

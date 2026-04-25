@@ -32,6 +32,7 @@ public struct DiscoveredClusterPeer: Identifiable, Codable, Sendable, Hashable {
     public var queuedTasks: Int
     public var lastSeen: Date
     public var providers: [PeerProviderSummary]
+    public var runtimes: [PeerRuntimeSummary]
 
     public init(
         id: String,
@@ -43,7 +44,8 @@ public struct DiscoveredClusterPeer: Identifiable, Codable, Sendable, Hashable {
         runningTasks: Int,
         queuedTasks: Int,
         lastSeen: Date,
-        providers: [PeerProviderSummary]
+        providers: [PeerProviderSummary],
+        runtimes: [PeerRuntimeSummary] = []
     ) {
         self.id = id
         self.subdomain = subdomain
@@ -55,6 +57,7 @@ public struct DiscoveredClusterPeer: Identifiable, Codable, Sendable, Hashable {
         self.queuedTasks = queuedTasks
         self.lastSeen = lastSeen
         self.providers = providers
+        self.runtimes = runtimes
     }
 }
 
@@ -274,7 +277,8 @@ public final class ClusterDiscoveryService: ObservableObject {
                 runningTasks: runningTasks,
                 queuedTasks: queuedTasks,
                 lastSeen: Date(),
-                providers: existing?.providers ?? []
+                providers: existing?.providers ?? [],
+                runtimes: clusterStatus.localRuntimes ?? existing?.runtimes ?? []
             )
             publishPeers()
 

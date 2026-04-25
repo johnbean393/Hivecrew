@@ -51,6 +51,7 @@ struct PromptBar: View {
     @State private var fieldFocused = false
 
     @State private var selectedExecutionTarget: TaskExecutionTarget = .automatic
+    @State private var selectedRuntimeTarget: TaskRuntimeTarget = .automatic
 
     private let cornerRadius: CGFloat = 16
 
@@ -278,6 +279,7 @@ struct PromptBar: View {
             HStack(spacing: 6) {
                 modelCapsule
                 reasoningCapsule
+                runtimeTargetCapsule
                 executionTargetCapsule
                 planToggle
             }
@@ -402,6 +404,48 @@ struct PromptBar: View {
             return normalized
                 .replacingOccurrences(of: "_", with: " ")
                 .capitalized
+        }
+    }
+
+    // MARK: - Runtime Target Capsule
+
+    private var runtimeTargetCapsule: some View {
+        Menu {
+            ForEach([TaskRuntimeTarget.automatic, .fast, .app, .isolatedVM], id: \.rawValue) { target in
+                Button {
+                    selectedRuntimeTarget = target
+                } label: {
+                    HStack {
+                        Text(target.displayName)
+                        if selectedRuntimeTarget == target {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: runtimeTargetIconName)
+                    .font(.caption)
+                Text(selectedRuntimeTarget == .automatic ? String(localized: "Auto") : selectedRuntimeTarget.displayName)
+                    .font(.caption)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+            .modifier(PromptCapsuleStyle(
+                isActive: selectedRuntimeTarget != .automatic,
+                isFocused: fieldFocused
+            ))
+        }
+    }
+
+    private var runtimeTargetIconName: String {
+        switch selectedRuntimeTarget {
+        case .automatic: return "cpu"
+        case .fast: return "bolt.fill"
+        case .app: return "macwindow"
+        case .isolatedVM: return "server.rack"
         }
     }
 
@@ -854,6 +898,7 @@ struct PromptBar: View {
             providerId: providerId(forProviderName: effectiveProviderName),
             modelId: effectiveModelId,
             executionTarget: selectedExecutionTarget,
+            runtimeTarget: selectedRuntimeTarget,
             reasoningEnabled: resolvedReasoningEnabled,
             reasoningEffort: resolvedReasoningEffort,
             attachedFilePaths: paths,

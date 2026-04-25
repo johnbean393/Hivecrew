@@ -145,18 +145,62 @@ extension TaskService {
         guard let context = modelContext else { return false }
         guard !tasksInProgress.contains(task.id) else { return false }
 
-        // Classify runtime BEFORE reserving any slot so Fast tasks never
-        // touch VM capacity or show "Awaiting VM".
-        let decision = try? runtimeClassifier.classify(task)
-        let assignedKind = decision?.assignedKind ?? .isolatedVM
+        // 1. Classify runtime BEFORE reserving any slot.
+        let decision: RuntimeClassifier.Decision
+        do {
+            decision = try runtimeClassifier.classify(task)
+        } catch let error as RuntimeClassificationError {
+            if case .appUnavailable(let req) = error {
+                task.setupRequirement = req
+                try? context.save()
+            }
+            return false
+        } catch {
+            return false
+        }
 
+        let assignedKind = decision.assignedKind
+        task.assignedRuntimeKind = assignedKind
+        if let req = decision.requirement.setupRequirement {
+            task.setupRequirement = TaskSetupRequirement(
+                runtimeKind: assignedKind,
+                reason: req,
+                userFacingMessage: "Setup required: \(req.rawValue)"
+            )
+        } else {
+            task.setupRequirement = nil
+        }
+        try? context.save()
+
+        // 2. Check data-local / host-specific constraints.
+        let dataLocal = RuntimeRoutingPolicy.dataLocalConstraint(for: task)
+        let hostSpecific = RuntimeRoutingPolicy.isHostSpecific(
+            requirement: decision.requirement,
+            description: task.taskDescription
+        )
+
+        // Host-specific or data-local tasks must not be dispatched remotely
+        // via the immediate-start path. They stay local-only.
+        let mustStayLocal = hostSpecific || dataLocal == .requiresLocalDevice
+
+        // 3. Route by assigned runtime kind.
         if assignedKind == .fast {
-            guard localRuntimeCapacity.canStart(.fast) else { return false }
+            guard localRuntimeCapacity.canStart(.fast) else {
+                if !mustStayLocal { return false }
+                localRuntimeCapacity.enqueue(.fast, taskId: task.id)
+                return false
+            }
             Task { await startTask(task) }
             return true
         }
 
-        // VM path — reserve a VM slot first (sets .waitingForVM)
+        if assignedKind == .app {
+            Task { await startTask(task) }
+            return true
+        }
+
+        // .isolatedVM — use existing VM reservation path, but only after
+        // routing policy approves local execution.
         guard reserveVMExecutionSlot(for: task, context: context) else { return false }
         Task { await startTask(task, skipCapacityReservation: true) }
         return true
@@ -213,9 +257,11 @@ extension TaskService {
         }
 
         // MARK: - Runtime Classification (runtime-first scheduling)
+        // For `.automatic` targets, this asks the worker LLM to choose between
+        // Fast / App / VM, with a regex heuristic as fallback.
         let runtimeDecision: RuntimeClassifier.Decision
         do {
-            runtimeDecision = try runtimeClassifier.classify(task)
+            runtimeDecision = try await runtimeClassifier.classifyAsync(task)
         } catch let error as RuntimeClassificationError {
             if case .appUnavailable(let setupReq) = error {
                 task.setupRequirement = setupReq
@@ -239,10 +285,24 @@ extension TaskService {
         task.assignedRuntimeKind = runtimeDecision.assignedKind
         try? context.save()
 
-        // Branch by runtime: Fast and App Workers bypass VM reservation entirely
+        // Branch by runtime: Fast and App Workers bypass VM reservation entirely.
+        //
+        // If a VM slot was pre-reserved by startTaskImmediatelyIfPossible
+        // (skipCapacityReservation == true), we have to release it cleanly:
+        //   - decrement pendingVMCount
+        //   - drop the task from tasksInProgress, otherwise the Fast / App
+        //     pipelines refuse to run the task ("already in progress")
+        //   - clear the .waitingForVM status so the UI doesn't keep showing
+        //     "Awaiting VM" until the pipeline gets around to setting .running
         if runtimeDecision.assignedKind == .fast {
             if skipCapacityReservation {
                 pendingVMCount = max(0, pendingVMCount - 1)
+                tasksInProgress.remove(task.id)
+                if task.status == .waitingForVM {
+                    task.status = .queued
+                    try? context.save()
+                    objectWillChange.send()
+                }
             }
             await runFastPipeline(task: task, context: context)
             return
@@ -251,6 +311,12 @@ extension TaskService {
         if runtimeDecision.assignedKind == .app {
             if skipCapacityReservation {
                 pendingVMCount = max(0, pendingVMCount - 1)
+                tasksInProgress.remove(task.id)
+                if task.status == .waitingForVM {
+                    task.status = .queued
+                    try? context.save()
+                    objectWillChange.send()
+                }
             }
             await runAppPipeline(task: task, context: context)
             return
@@ -1109,8 +1175,14 @@ extension TaskService {
                 }
             }
 
-            // Ensure cua-driver backend is running
-            let mcpClient = try await CuaDriverManager.shared.ensureBackend()
+            // Verify permissions before starting
+            CuaDriverManager.shared.probePermissions()
+            guard CuaDriverManager.shared.accessibilityGranted else {
+                throw CuaDriverError.accessibilityMissing
+            }
+            guard CuaDriverManager.shared.screenRecordingGranted else {
+                throw CuaDriverError.screenRecordingMissing
+            }
 
             llmClientTask = Task {
                 try await self.createLLMClient(
@@ -1210,7 +1282,14 @@ extension TaskService {
             let timeoutMinutes = UserDefaults.standard.integer(forKey: "defaultTaskTimeoutMinutes")
             let maxIterations = UserDefaults.standard.integer(forKey: "defaultMaxIterations")
 
-            let connection = CuaDriverConnection(mcp: mcpClient, session: session)
+            let connection = CuaDriverConnection(
+                session: session,
+                engine: CuaDriverManager.shared.engine,
+                capture: CuaDriverManager.shared.capture,
+                focusGuard: CuaDriverManager.shared.focusGuard
+            )
+            defer { connection.disconnect() }
+
             let agent = try AgentRunner(
                 task: task,
                 llmClient: llmClient,
@@ -1251,12 +1330,8 @@ extension TaskService {
 
             if let cuaError = error as? CuaDriverError {
                 switch cuaError {
-                case .binaryMissing:
-                    task.setupRequirement = TaskSetupRequirement(runtimeKind: .app, reason: .cuaDriverMissing, userFacingMessage: cuaError.localizedDescription)
                 case .accessibilityMissing, .screenRecordingMissing:
                     task.setupRequirement = TaskSetupRequirement(runtimeKind: .app, reason: .appPermissionsMissing, userFacingMessage: cuaError.localizedDescription)
-                case .launchFailed:
-                    task.setupRequirement = TaskSetupRequirement(runtimeKind: .app, reason: .providerUnavailable, userFacingMessage: cuaError.localizedDescription)
                 default:
                     break
                 }

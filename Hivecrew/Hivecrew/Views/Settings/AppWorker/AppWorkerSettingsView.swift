@@ -2,26 +2,22 @@
 //  AppWorkerSettingsView.swift
 //  Hivecrew
 //
-//  Settings panel for the App Worker runtime: cua-driver status,
-//  macOS permission management, backend lifecycle, and capacity.
+//  Settings panel for the App Worker runtime: macOS permission
+//  management and app focus status.
 //
 
 import SwiftUI
+import CuaDriverCore
 
 struct AppWorkerSettingsView: View {
     @StateObject private var manager = CuaDriverManager.shared
     @StateObject private var focusManager = AppFocusManager.shared
 
-    @State private var isTesting = false
-    @State private var isStartingBackend = false
-
     var body: some View {
         Form {
-            driverSection
+            driverInfoSection
             permissionsSection
-            backendSection
             activeLocksSection
-            testSection
         }
         .formStyle(.grouped)
         .onAppear {
@@ -29,32 +25,23 @@ struct AppWorkerSettingsView: View {
         }
     }
 
-    // MARK: - Driver
+    // MARK: - Driver info
 
-    private var driverSection: some View {
+    private var driverInfoSection: some View {
         Section {
-            LabeledContent("Status") {
+            LabeledContent("Engine") {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(manager.binaryStatus == .found ? Color.green : Color.red)
+                        .fill(Color.green)
                         .frame(width: 8, height: 8)
-                    Text(manager.binaryStatus == .found ? "Found" : "Missing")
+                    Text("CuaDriverCore (in-process)")
                 }
             }
-            if let path = manager.binaryPath {
-                LabeledContent("Path") {
-                    Text(path)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-            if let version = manager.binaryVersion {
-                LabeledContent("Version", value: version)
-            }
+            LabeledContent("Version", value: CuaDriverCore.version)
         } header: {
-            Text("cua-driver Binary")
+            Text("CuaDriver")
+        } footer: {
+            Text("CuaDriverCore is linked directly into Hivecrew. All accessibility and screen capture operations run in-process.")
         }
     }
 
@@ -110,51 +97,6 @@ struct AppWorkerSettingsView: View {
         }
     }
 
-    // MARK: - Backend
-
-    private var backendSection: some View {
-        Section {
-            LabeledContent("Status") {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(backendStatusColor)
-                        .frame(width: 8, height: 8)
-                    Text(backendStatusLabel)
-                }
-            }
-            if let error = manager.lastError {
-                LabeledContent("Last Error") {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .lineLimit(3)
-                }
-            }
-            HStack {
-                Spacer()
-                if manager.backendStatus == .stopped || manager.backendStatus == .failed {
-                    Button("Start") {
-                        isStartingBackend = true
-                        Task {
-                            _ = try? await manager.ensureBackend()
-                            isStartingBackend = false
-                        }
-                    }
-                    .disabled(isStartingBackend || manager.binaryStatus == .missing)
-                    .buttonStyle(.bordered)
-                }
-                if manager.backendStatus == .running {
-                    Button("Stop") {
-                        Task { await manager.stopBackend() }
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-        } header: {
-            Text("Backend")
-        }
-    }
-
     // MARK: - Active Locks
 
     private var activeLocksSection: some View {
@@ -191,61 +133,6 @@ struct AppWorkerSettingsView: View {
             Text("App Focus")
         } footer: {
             Text("Multiple tasks can run concurrently on different apps. Tasks targeting the same app are queued automatically.")
-        }
-    }
-
-    // MARK: - Test
-
-    private var testSection: some View {
-        Section {
-            HStack {
-                Button("Run Self-Test") {
-                    isTesting = true
-                    Task {
-                        try? await manager.runSelfTest()
-                        isTesting = false
-                    }
-                }
-                .disabled(isTesting || manager.binaryStatus == .missing)
-                .buttonStyle(.bordered)
-
-                if isTesting {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-
-                Spacer()
-
-                if let result = manager.selfTestResult {
-                    Text(result)
-                        .font(.caption)
-                        .foregroundStyle(result.hasPrefix("Success") ? .green : .red)
-                }
-            }
-        } header: {
-            Text("Diagnostics")
-        } footer: {
-            Text("Calls list_apps on cua-driver to verify the backend is functional.")
-        }
-    }
-
-    // MARK: - Helpers
-
-    private var backendStatusColor: Color {
-        switch manager.backendStatus {
-        case .stopped: return .secondary
-        case .starting: return .orange
-        case .running: return .green
-        case .failed: return .red
-        }
-    }
-
-    private var backendStatusLabel: String {
-        switch manager.backendStatus {
-        case .stopped: return "Stopped"
-        case .starting: return "Starting..."
-        case .running: return "Running"
-        case .failed: return "Failed"
         }
     }
 }

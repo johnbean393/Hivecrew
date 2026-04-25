@@ -1,5 +1,5 @@
 {
-  "originHash" : "e0fb19acaba3cf14b44466bb752341e8dd20f1a0ce8e1edde997fc584f73c082",
+  "originHash" : "538da43d3112196e63c1d4cc195356dfd65b66beb0a9bc3781aaee6988fe73f9",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -11,12 +11,30 @@
       }
     },
     {
+      "identity" : "cua",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/johnbean393/cua",
+      "state" : {
+        "branch" : "cua-driver-spm",
+        "revision" : "8978f3c2d0b5ed913ff496a661fb8fd8e7aa5b67"
+      }
+    },
+    {
       "identity" : "dynamicnotchkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MrKai77/DynamicNotchKit",
       "state" : {
         "revision" : "cd0b3e52d537db115ad3a9d89601f20e0bee8d27",
         "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "eventsource",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/eventsource.git",
+      "state" : {
+        "revision" : "a3a85a85214caf642abaa96ae664e4c772a59f6e",
+        "version" : "1.4.1"
       }
     },
     {
@@ -107,6 +125,15 @@
       "state" : {
         "revision" : "87e50f483c54e6efd60e885f7f5aa946cee68023",
         "version" : "1.2.1"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "state" : {
+        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
+        "version" : "1.7.1"
       }
     },
     {
@@ -305,6 +332,15 @@
       "state" : {
         "revision" : "7cdf33371bf89b23b9cf4fd3ce8d3c825c28fbe8",
         "version" : "1.9.0"
+      }
+    },
+    {
+      "identity" : "swift-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/modelcontextprotocol/swift-sdk.git",
+      "state" : {
+        "revision" : "6132fd4b5b4217ce4717c4775e4607f5c3120129",
+        "version" : "0.12.0"
       }
     },
     {

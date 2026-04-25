@@ -99,8 +99,20 @@ private struct PeerRowView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            if !peer.providers.isEmpty {
+            if !peer.providers.isEmpty || !peer.runtimes.isEmpty {
                 FlowLayout(spacing: 6) {
+                    ForEach(Array(peer.runtimes.enumerated()), id: \.offset) { _, runtime in
+                        HStack(spacing: 3) {
+                            Circle()
+                                .fill(runtime.setupStatus == .ready ? Color.green : Color.orange)
+                                .frame(width: 6, height: 6)
+                            Text(runtime.runtimeKind.rawValue.capitalized)
+                                .font(.caption2)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.quaternary, in: Capsule())
+                    }
                     ForEach(Array(peer.providers.enumerated()), id: \.offset) { _, provider in
                         Text(provider.providerName)
                             .font(.caption2)

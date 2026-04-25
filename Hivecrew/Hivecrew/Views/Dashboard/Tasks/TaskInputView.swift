@@ -40,13 +40,15 @@ struct TaskInputView: View {
     @State var copyCount: TaskCopyCount = .one
     @State var multiModelSelections: [PromptModelSelection] = []
     @State var executionTarget: TaskExecutionTarget = .automatic
+    @State var runtimeTarget: TaskRuntimeTarget = .automatic
     @State var reasoningEnabled: Bool?
     @State var reasoningEffort: String?
     @State var serviceTier: LLMServiceTier?
     @StateObject var contextProvider = PromptContextSuggestionProvider()
     @StateObject private var mentionInsertionController = MentionInsertionController()
     @State var hasDonatedGhostContextTip = false
-    
+    @State private var showCuaDriverPermissions = false
+
     // Persisted selections
     @AppStorage("lastSelectedProviderId") var selectedProviderId: String = ""
     @AppStorage("lastSelectedModelId") var selectedModelId: String = ""
@@ -80,6 +82,7 @@ struct TaskInputView: View {
                 selectedProviderId: $selectedProviderId,
                 selectedModelId: $selectedModelId,
                 executionTarget: $executionTarget,
+                runtimeTarget: $runtimeTarget,
                 reasoningEnabled: $reasoningEnabled,
                 reasoningEffort: $reasoningEffort,
                 serviceTier: $serviceTier,
@@ -104,6 +107,14 @@ struct TaskInputView: View {
                     .padding(.horizontal, 40)
             }
 
+        }
+        .sheet(isPresented: $showCuaDriverPermissions) {
+            CuaDriverPermissionsSheet()
+        }
+        .onChange(of: runtimeTarget) { _, newValue in
+            if shouldRequireLocalCuaSetup(for: newValue) {
+                Task { await presentCuaPermissionsSheetIfSetupIncomplete() }
+            }
         }
         .onAppear {
             // Select default provider only if no provider is currently selected
@@ -213,7 +224,19 @@ struct TaskInputView: View {
             guard !selectedProviderId.isEmpty else { return }
         }
         guard isWorkerModelConfigured else { return }
-        
+
+        let rawDescription = taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let (trimmedDescription, effectiveRuntimeTarget) = resolveSubmitDescription(
+            rawDescription: rawDescription
+        )
+        if shouldRequireLocalCuaSetup(for: effectiveRuntimeTarget) {
+            await CuaDriverManager.shared.refreshStatus()
+            if CuaDriverManager.shared.currentSetupRequirement() != nil {
+                showCuaDriverPermissions = true
+                return
+            }
+        }
+
         isSubmitting = true
         defer { isSubmitting = false }
         
@@ -236,8 +259,6 @@ struct TaskInputView: View {
         print("TaskInputView: Submitting \(taskCount) task(s) across \(executionTargets.count) target(s)")
         
         do {
-            let trimmedDescription = taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-
             let contextPack: RetrievalContextPackPayload?
             do {
                 contextPack = try await contextProvider.createContextPackIfNeeded(query: trimmedDescription)
@@ -267,6 +288,7 @@ struct TaskInputView: View {
                         providerId: target.providerId,
                         modelId: target.modelId,
                         executionTarget: executionTarget,
+                        runtimeTarget: effectiveRuntimeTarget,
                         reasoningEnabled: target.reasoningEnabled,
                         reasoningEffort: target.reasoningEffort,
                         serviceTier: target.serviceTier,
@@ -319,6 +341,29 @@ struct TaskInputView: View {
             contextProvider.clearAfterSubmit()
         } catch {
             print("Failed to create task: \(error)")
+        }
+    }
+
+    private func resolveSubmitDescription(
+        rawDescription: String
+    ) -> (trimmed: String, effectiveRuntime: TaskRuntimeTarget) {
+        if let override = RuntimeClassifier.parseInlineOverride(in: rawDescription) {
+            let trimmed = override.cleanedDescription.isEmpty
+                ? rawDescription
+                : override.cleanedDescription
+            return (trimmed, override.runtimeTarget)
+        }
+        return (rawDescription, runtimeTarget)
+    }
+
+    private func shouldRequireLocalCuaSetup(for target: TaskRuntimeTarget) -> Bool {
+        target == .app && APIServerManager.shared.federatedProvider == nil
+    }
+
+    private func presentCuaPermissionsSheetIfSetupIncomplete() async {
+        await CuaDriverManager.shared.refreshStatus()
+        if CuaDriverManager.shared.currentSetupRequirement() != nil {
+            showCuaDriverPermissions = true
         }
     }
 
@@ -438,6 +483,7 @@ struct TaskInputView: View {
         reasoningEffort = task.reasoningEffort
         serviceTier = task.serviceTier
         executionTarget = normalizedExecutionTarget(task.executionTarget)
+        runtimeTarget = task.runtimeTarget
         planFirstEnabled = task.planFirstEnabled
         mentionedSkillNames = task.mentionedSkillNames ?? []
         referencedTaskIds = task.referencedTaskIds ?? []

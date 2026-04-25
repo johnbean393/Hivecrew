@@ -3,99 +3,141 @@
 //  Hivecrew
 //
 //  Stable Hivecrew-facing GUI facade tools for the App Worker runtime.
-//  Keeps raw pid/window_id/element_index hidden from the LLM.
+//  Uses CuaDriverCore in-process for all AX, window, and input operations.
 //
 
+import AppKit
+import ApplicationServices
+import CoreGraphics
 import Foundation
-import HivecrewMCP
+import CuaDriverCore
+
+// MARK: - Tree-markdown element parser
+
+/// Extracts indexed `AXElementSummary` entries from the tree-markdown
+/// produced by `AppStateEngine.snapshot(…)` for element-cache population.
+enum TreeMarkdownParser {
+    private static let indexedLineRegex: NSRegularExpression? = {
+        try? NSRegularExpression(
+            pattern: #"\[(\d+)\]\s+(\S+)\s*(?:"([^"]*)")?"#,
+            options: []
+        )
+    }()
+
+    static func parseElements(_ markdown: String) -> [AXElementSummary] {
+        guard let re = indexedLineRegex else { return [] }
+        var results: [AXElementSummary] = []
+        for line in markdown.components(separatedBy: .newlines) {
+            let ns = line as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            guard let m = re.firstMatch(in: line, range: range),
+                  m.numberOfRanges > 2,
+                  let rIdx = Range(m.range(at: 1), in: line),
+                  let idx = Int(line[rIdx]),
+                  let rRole = Range(m.range(at: 2), in: line) else { continue }
+            let role = String(line[rRole])
+            var label = ""
+            if m.numberOfRanges > 3, m.range(at: 3).location != NSNotFound,
+               let rLabel = Range(m.range(at: 3), in: line) {
+                label = String(line[rLabel])
+            }
+            var value: String?
+            if let eqRange = line.range(of: " = \"") {
+                let afterEq = line[eqRange.upperBound...]
+                if let closeQuote = afterEq.firstIndex(of: "\"") {
+                    value = String(afterEq[..<closeQuote])
+                }
+            }
+            results.append(AXElementSummary(index: idx, role: role, label: label, value: value))
+        }
+        return results
+    }
+}
 
 extension CuaDriverConnection {
 
     // MARK: - List Apps
 
     func listApps() async throws -> [AppSummary] {
-        let result = try await mcp.callTool(name: "list_apps", arguments: [:])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
-        }
-
-        guard let text = result.content.first?.text,
-              let data = text.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return parseAppSummariesFromText(result.textContent)
-        }
-
-        return json.compactMap { dict in
-            guard let pid = dict["pid"] as? Int,
-                  let name = dict["name"] as? String else { return nil }
-            return AppSummary(
-                pid: pid,
-                name: name,
-                bundleId: dict["bundle_id"] as? String
+        let apps = AppEnumerator.apps()
+        return apps.map { info in
+            AppSummary(
+                pid: Int(info.pid),
+                name: info.name,
+                bundleId: info.bundleId
             )
         }
-    }
-
-    private func parseAppSummariesFromText(_ text: String) -> [AppSummary] {
-        var apps: [AppSummary] = []
-        let lines = text.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty, !trimmed.hasPrefix("{"), !trimmed.hasPrefix("[") {
-                apps.append(AppSummary(pid: 0, name: trimmed, bundleId: nil))
-            }
-        }
-        return apps
     }
 
     // MARK: - List Windows
 
     func listWindows(forApp app: String?) async throws -> [WindowSummary] {
         let pid: Int
-        if let appRef = app {
+        if let appRef = app, !appRef.isEmpty {
             let apps = try await listApps()
-            guard let match = apps.first(where: { $0.name.localizedCaseInsensitiveContains(appRef) }) else {
+            let withPid = apps.filter { $0.pid > 0 }
+            let pool = withPid.isEmpty ? apps : withPid
+            let match = pool.first(where: {
+                $0.name.localizedCaseInsensitiveContains(appRef)
+                    || ($0.bundleId?.localizedCaseInsensitiveContains(appRef) == true)
+            })
+            guard let match = match, match.pid > 0 else {
                 throw CuaDriverError.toolCallFailed("App '\(appRef)' not found in running apps.")
             }
             pid = match.pid
+
+            if currentApp == nil || currentApp?.pid != pid {
+                let appKey = AppFocusManager.normalizedKey(
+                    bundleId: match.bundleId, appName: match.name
+                )
+                await AppFocusManager.shared.acquire(appKey: appKey, connectionId: connectionId)
+                lockedAppKeys.insert(appKey)
+                currentApp = AppContext(
+                    pid: pid, appName: match.name, bundleId: match.bundleId
+                )
+            }
         } else if let current = currentApp {
             pid = current.pid
         } else {
             throw CuaDriverError.noAppSelected
         }
 
-        let result = try await mcp.callTool(name: "list_windows", arguments: [
-            "pid": .int(pid)
-        ])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
+        // Use allWindows() instead of visibleWindows() because the App Worker
+        // operates in the background — target apps may have windows that are
+        // off-screen, minimized, or on another Space.
+        let allWindows = WindowEnumerator.allWindows()
+        var windows = allWindows
+            .filter { $0.pid == Int32(pid) && $0.bounds.width > 1 && $0.bounds.height > 1 }
+            .sorted { $0.zIndex > $1.zIndex }
+            .map { info in
+                WindowSummary(
+                    windowId: info.id,
+                    title: info.name,
+                    pid: Int(info.pid)
+                )
+            }
+
+        if windows.isEmpty, let cached = cachedLaunchWindows, cached.pid == pid {
+            windows = cached.windows
         }
 
-        guard let text = result.content.first?.text,
-              let data = text.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
-        }
-
-        return json.compactMap { dict in
-            guard let windowId = dict["window_id"] as? Int else { return nil }
-            return WindowSummary(
-                windowId: windowId,
-                title: dict["title"] as? String ?? "Untitled",
-                pid: pid
-            )
-        }
+        return windows
     }
 
     // MARK: - Select Window
 
     func selectWindow(_ window: WindowSummary) async throws {
-        // Acquire per-app lock if switching to a different app
         if currentApp == nil || currentApp?.pid != window.pid {
-            let appKey = AppFocusManager.normalizedKey(bundleId: nil, appName: window.title)
+            let nameForKey = window.appName
+                ?? (window.title.isEmpty ? "pid-\(window.pid)" : window.title)
+            let appKey = AppFocusManager.normalizedKey(bundleId: nil, appName: nameForKey)
             await AppFocusManager.shared.acquire(appKey: appKey, connectionId: connectionId)
             lockedAppKeys.insert(appKey)
-            currentApp = AppContext(pid: window.pid, appName: window.title, bundleId: nil)
+            currentApp = AppContext(
+                pid: window.pid,
+                appName: window.appName ?? (window.title.isEmpty ? "App" : window.title),
+                bundleId: nil
+            )
         }
         currentWindow = WindowContext(windowId: window.windowId, title: window.title, pid: window.pid)
         elementCache = [:]
@@ -106,45 +148,40 @@ extension CuaDriverConnection {
     func getWindowState() async throws -> WindowStateSnapshot {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
 
-        let result = try await mcp.callTool(name: "get_window_state", arguments: [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId)
-        ])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
-        }
+        let snapshot = try await engine.snapshot(
+            pid: Int32(window.pid),
+            windowId: UInt32(window.windowId)
+        )
 
-        var elements: [AXElementSummary] = []
+        let elements = TreeMarkdownParser.parseElements(snapshot.treeMarkdown)
+        elementCache = Dictionary(uniqueKeysWithValues: elements.map { ($0.index, $0) })
+
         var screenshotBase64: String?
         var screenWidth: Int?
         var screenHeight: Int?
 
-        for content in result.content {
-            if content.type == "image", let data = content.data {
-                screenshotBase64 = data
-            }
-            if content.type == "text", let text = content.text,
-               let data = text.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-
-                if let w = json["width"] as? Int { screenWidth = w }
-                if let h = json["height"] as? Int { screenHeight = h }
-
-                if let tree = json["elements"] as? [[String: Any]] {
-                    elements = tree.enumerated().compactMap { index, dict in
-                        AXElementSummary(
-                            index: dict["index"] as? Int ?? index,
-                            role: dict["role"] as? String ?? "Unknown",
-                            label: dict["label"] as? String ?? "",
-                            value: dict["value"] as? String
-                        )
-                    }
-                }
+        if let base64 = snapshot.screenshotPngBase64 {
+            screenshotBase64 = base64
+            screenWidth = snapshot.screenshotWidth
+            screenHeight = snapshot.screenshotHeight
+        } else {
+            do {
+                let shot = try await capture.captureWindow(
+                    windowID: CGWindowID(window.windowId),
+                    format: .png,
+                    quality: 80
+                )
+                screenshotBase64 = shot.imageData.base64EncodedString()
+                screenWidth = shot.width
+                screenHeight = shot.height
+            } catch {
+                // Screenshot not critical — continue without it
             }
         }
 
         return WindowStateSnapshot(
-            elements: elements,
+            treeMarkdown: snapshot.treeMarkdown,
+            elementCount: snapshot.elementCount,
             screenshotBase64: screenshotBase64,
             screenWidth: screenWidth,
             screenHeight: screenHeight
@@ -156,17 +193,28 @@ extension CuaDriverConnection {
     func clickElement(_ index: Int, button: String = "left") async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
 
-        var args: [String: AnyCodableValue] = [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "element_index": .int(index)
-        ]
-        if button != "left" { args["button"] = .string(button) }
-
-        let result = try await mcp.callTool(name: "click", arguments: args)
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
+        let element: AXUIElement
+        do {
+            element = try await engine.lookup(
+                pid: Int32(window.pid),
+                windowId: UInt32(window.windowId),
+                elementIndex: index
+            )
+        } catch {
+            throw CuaDriverError.toolCallFailed(
+                "Element index \(index) is invalid. Re-run app_get_window_state to get a fresh tree. (\(error))"
+            )
         }
+
+        let action: String = (button == "right") ? kAXShowMenuAction : kAXPressAction
+        let previousFrontmost = NSWorkspace.shared.frontmostApplication
+        try await focusGuard.withFocusSuppressed(
+            pid: Int32(window.pid),
+            element: element
+        ) { @Sendable in
+            try AXInput.performAction(action, on: element)
+        }
+        restoreFrontmostIfStolen(previousFrontmost, targetPid: window.pid)
     }
 
     // MARK: - Set Value
@@ -174,14 +222,49 @@ extension CuaDriverConnection {
     func setValue(elementIndex: Int, value: String) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
 
-        let result = try await mcp.callTool(name: "set_value", arguments: [
-            "pid": .int(window.pid),
-            "window_id": .int(window.windowId),
-            "element_index": .int(elementIndex),
-            "value": .string(value)
-        ])
-        if result.isError == true {
-            throw CuaDriverError.toolCallFailed(result.textContent)
+        let element: AXUIElement
+        do {
+            element = try await engine.lookup(
+                pid: Int32(window.pid),
+                windowId: UInt32(window.windowId),
+                elementIndex: elementIndex
+            )
+        } catch {
+            throw CuaDriverError.toolCallFailed(
+                "Element index \(elementIndex) is invalid. Re-run app_get_window_state to get a fresh tree. (\(error))"
+            )
+        }
+
+        let previousFrontmost = NSWorkspace.shared.frontmostApplication
+        try await focusGuard.withFocusSuppressed(
+            pid: Int32(window.pid),
+            element: element
+        ) { @Sendable in
+            try AXInput.setAttribute(kAXFocusedAttribute, on: element, value: kCFBooleanTrue)
+            try AXInput.setAttribute(kAXValueAttribute, on: element, value: value as CFTypeRef)
+        }
+        restoreFrontmostIfStolen(previousFrontmost, targetPid: window.pid)
+    }
+
+    // MARK: - Frontmost app restoration
+
+    /// If an AX action caused the target app to steal frontmost status from
+    /// whatever the user had focused, re-activate the previous app to honor
+    /// the no-foreground contract.
+    private func restoreFrontmostIfStolen(
+        _ previous: NSRunningApplication?,
+        targetPid: Int
+    ) {
+        guard let previous else { return }
+        let currentFrontmost = NSWorkspace.shared.frontmostApplication
+        let previousPid = previous.processIdentifier
+        let targetWasAlreadyFront = Int(previousPid) == targetPid
+
+        if targetWasAlreadyFront { return }
+
+        if let current = currentFrontmost,
+           current.processIdentifier != previousPid {
+            previous.activate()
         }
     }
 }

@@ -245,6 +245,7 @@ struct TaskListView: View {
             providerId: task.providerId,
             modelId: task.modelId,
             executionTarget: task.executionTarget,
+            runtimeTarget: task.runtimeTarget,
             reasoningEnabled: task.reasoningEnabled,
             reasoningEffort: task.reasoningEffort,
             serviceTier: task.serviceTier,

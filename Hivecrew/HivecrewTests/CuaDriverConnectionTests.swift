@@ -3,7 +3,7 @@
 //  HivecrewTests
 //
 //  Tests for CuaDriverConnection: runtime properties, observation,
-//  file operations, and shell within sandbox.
+//  file operations, sandbox, and tree-markdown parsing.
 //
 
 import Foundation
@@ -29,8 +29,6 @@ private func makeAppWorkerSession() throws -> AppWorkerSession {
 @Test @MainActor
 func appConnectionRuntimeKind() throws {
     let session = try makeAppWorkerSession()
-    // We can't create a real MCPClient in tests, but we can verify the
-    // static properties via a minimal approach — check the type constants.
     #expect(AgentRuntimeKind.app.displayName == "App Worker")
     #expect(RuntimeCapabilities.app.desktopObservation == true)
     #expect(RuntimeCapabilities.app.desktopInput == true)
@@ -68,7 +66,6 @@ func appSessionAcceptsPathInsideWorkspace() throws {
 func appSessionWriteAndRead() throws {
     let session = try makeAppWorkerSession()
     let filePath = session.paths.workspace.appendingPathComponent("hello.txt").path
-    let fm = FileManager.default
     let resolved = try session.validatePath(filePath)
     try "Hello, App Worker!".write(to: resolved, atomically: true, encoding: .utf8)
     let content = try String(contentsOf: resolved, encoding: .utf8)
@@ -84,4 +81,66 @@ func appSessionObservationIsTextOnly() throws {
     #expect(obs.screenshot == nil)
     #expect(obs.text.contains("App Worker"))
     #expect(obs.metadata["runtime"] == "app")
+}
+
+// MARK: - TreeMarkdownParser
+
+@Test func treeMarkdownParserExtractsIndexedElements() {
+    let markdown = """
+    - AXApplication "System Settings"
+      - AXWindow "General"
+        - [0] AXButton "Close"
+        - [1] AXButton "Minimize"
+        - AXGroup
+          - [2] AXStaticText "General"
+          - [3] AXTextField "Search" = "hello"
+    """
+    let elements = TreeMarkdownParser.parseElements(markdown)
+    #expect(elements.count == 4)
+    #expect(elements[0].index == 0)
+    #expect(elements[0].role == "AXButton")
+    #expect(elements[0].label == "Close")
+    #expect(elements[1].index == 1)
+    #expect(elements[1].role == "AXButton")
+    #expect(elements[1].label == "Minimize")
+    #expect(elements[2].index == 2)
+    #expect(elements[2].role == "AXStaticText")
+    #expect(elements[2].label == "General")
+    #expect(elements[3].index == 3)
+    #expect(elements[3].role == "AXTextField")
+    #expect(elements[3].label == "Search")
+    #expect(elements[3].value == "hello")
+}
+
+@Test func treeMarkdownParserHandlesEmptyTree() {
+    let markdown = ""
+    let elements = TreeMarkdownParser.parseElements(markdown)
+    #expect(elements.isEmpty)
+}
+
+@Test func treeMarkdownParserSkipsNonIndexedLines() {
+    let markdown = """
+    - AXApplication "Finder"
+      - AXWindow "Desktop"
+        - AXGroup
+          - [0] AXButton "New Folder"
+    """
+    let elements = TreeMarkdownParser.parseElements(markdown)
+    #expect(elements.count == 1)
+    #expect(elements[0].index == 0)
+    #expect(elements[0].role == "AXButton")
+    #expect(elements[0].label == "New Folder")
+}
+
+@Test func treeMarkdownParserHandlesActionsAndDisabled() {
+    let markdown = """
+    - [0] AXButton "Submit" actions=[AXShowMenu, AXCopy]
+    - [1] AXCheckBox "Agree" DISABLED
+    """
+    let elements = TreeMarkdownParser.parseElements(markdown)
+    #expect(elements.count == 2)
+    #expect(elements[0].role == "AXButton")
+    #expect(elements[0].label == "Submit")
+    #expect(elements[1].role == "AXCheckBox")
+    #expect(elements[1].label == "Agree")
 }

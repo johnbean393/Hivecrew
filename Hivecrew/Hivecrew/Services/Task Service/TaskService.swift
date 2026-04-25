@@ -64,7 +64,9 @@ class TaskService: ObservableObject {
     let localRuntimeCapacity = LocalRuntimeCapacity()
 
     /// Classifies tasks into runtime kinds.
-    let runtimeClassifier = RuntimeClassifier()
+    /// Mutable so the worker-LLM client provider can be injected once a model
+    /// context is available (see `setModelContext`).
+    var runtimeClassifier = RuntimeClassifier()
     
     /// Combine subscriptions for state publisher observations
     var cancellables: [String: AnyCancellable] = [:]
@@ -88,7 +90,19 @@ class TaskService: ObservableObject {
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
         loadTasks()
-        
+
+        // Wire the runtime classifier's worker-LLM provider now that we have
+        // access to provider records via the model context.
+        runtimeClassifier.workerClientProvider = { [weak self] in
+            guard let self else {
+                throw TaskServiceError.workerModelNotConfigured
+            }
+            return try await self.createWorkerLLMClient(
+                fallbackProviderId: "",
+                fallbackModelId: ""
+            )
+        }
+
         // Clean up orphaned VMs on startup (after tasks are loaded)
         Task {
             await cleanupOrphanedVMs()
@@ -386,6 +400,7 @@ class TaskService: ObservableObject {
             providerId: providerId,
             modelId: modelId,
             executionTarget: originalTask.executionTarget,
+            runtimeTarget: originalTask.runtimeTarget,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             serviceTier: serviceTier,

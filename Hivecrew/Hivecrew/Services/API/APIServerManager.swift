@@ -50,6 +50,17 @@ final class APIServerManager {
         guard let localServiceProvider else { return nil }
         return try? await localServiceProvider.getTask(id: taskId)
     }
+
+    /// Maps a `TaskRuntimeTarget` into its API equivalent, returning nil for
+    /// `.automatic` so the wire format stays compact.
+    static func runtimeTargetToAPI(_ target: TaskRuntimeTarget) -> APIRuntimeTarget? {
+        switch target {
+        case .automatic: return nil
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
     
     /// Revokes all authorized devices (e.g. when removing remote access).
     func revokeAllAuthorizedDevices() async {
@@ -69,6 +80,7 @@ final class APIServerManager {
                 providerId: request.providerId,
                 modelId: request.modelId,
                 executionTarget: request.executionTarget,
+                runtimeTarget: request.runtimeTarget,
                 reasoningEnabled: request.reasoningEnabled,
                 reasoningEffort: request.reasoningEffort,
                 serviceTier: request.serviceTier,
@@ -94,7 +106,7 @@ final class APIServerManager {
         }
         
         let providerName = localProvider.getProviderName(for: request.providerId)
-        
+
         let apiTask = try await fedProvider.createTask(
             description: request.description,
             providerName: providerName,
@@ -112,7 +124,8 @@ final class APIServerManager {
             contextSuggestionIds: request.retrievalSelectedSuggestionIds,
             contextModeOverrides: request.retrievalModeOverrides,
             contextInlineBlocks: request.retrievalInlineContextBlocks,
-            contextAttachmentPaths: request.retrievalContextAttachmentPaths
+            contextAttachmentPaths: request.retrievalContextAttachmentPaths,
+            runtimeTarget: APIServerManager.runtimeTargetToAPI(request.runtimeTarget)
         )
         return apiTask.id
     }

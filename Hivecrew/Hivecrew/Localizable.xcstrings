@@ -6842,10 +6842,19 @@
         }
       }
     },
+    "App" : {
+
+    },
     "App Focus" : {
 
     },
     "App Worker" : {
+
+    },
+    "App Worker — drives your real macOS apps" : {
+
+    },
+    "App Worker needs your permission" : {
 
     },
     "App Worker requires Accessibility and Screen Recording permissions to control apps in the background." : {
@@ -8187,6 +8196,9 @@
           }
         }
       }
+    },
+    "Auto — let the worker model pick Fast, App, or VM" : {
+
     },
     "Automate with the API" : {
       "localizations" : {
@@ -9569,9 +9581,6 @@
           }
         }
       }
-    },
-    "Calls list_apps on cua-driver to verify the backend is functional." : {
-
     },
     "Cameras" : {
       "localizations" : {
@@ -15442,7 +15451,13 @@
         }
       }
     },
-    "cua-driver Binary" : {
+    "CuaDriver" : {
+
+    },
+    "CuaDriverCore (in-process)" : {
+
+    },
+    "CuaDriverCore is linked directly into Hivecrew. All accessibility and screen capture operations run in-process." : {
 
     },
     "Current Activity" : {
@@ -20098,6 +20113,9 @@
         }
       }
     },
+    "Engine" : {
+
+    },
     "Enroll Your Voice" : {
       "localizations" : {
         "de" : {
@@ -22509,6 +22527,9 @@
         }
       }
     },
+    "Fast" : {
+
+    },
     "Fast Mode" : {
       "localizations" : {
         "de" : {
@@ -22554,6 +22575,12 @@
           }
         }
       }
+    },
+    "Fast Worker" : {
+
+    },
+    "Fast Worker — headless sandbox (shell, files, network)" : {
+
     },
     "File" : {
       "localizations" : {
@@ -23293,9 +23320,6 @@
         }
       }
     },
-    "Found" : {
-
-    },
     "From %@" : {
       "localizations" : {
         "de" : {
@@ -23901,6 +23925,9 @@
       }
     },
     "Grant" : {
+
+    },
+    "Grant both so Hivecrew can inspect and drive native apps on your behalf. This window closes on its own once each item shows as granted." : {
 
     },
     "Granted" : {
@@ -27059,6 +27086,12 @@
         }
       }
     },
+    "Isolated VM" : {
+
+    },
+    "Isolated VM — disposable macOS desktop with full GUI" : {
+
+    },
     "Isolation" : {
       "localizations" : {
         "de" : {
@@ -27472,9 +27505,6 @@
           }
         }
       }
-    },
-    "Last Error" : {
-
     },
     "Last Updated" : {
       "localizations" : {
@@ -29894,9 +29924,6 @@
           }
         }
       }
-    },
-    "Missing" : {
-
     },
     "Missing Attachments" : {
       "localizations" : {
@@ -34813,6 +34840,7 @@
 
     },
     "Open VM and Agent Trace in New Window" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35781,9 +35809,6 @@
           }
         }
       }
-    },
-    "Path" : {
-
     },
     "Pause" : {
       "localizations" : {
@@ -42854,9 +42879,6 @@
         }
       }
     },
-    "Run Self-Test" : {
-
-    },
     "Running Local Tasks" : {
       "localizations" : {
         "de" : {
@@ -47103,6 +47125,7 @@
       }
     },
     "Show VM and Agent Trace Window" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -48251,9 +48274,6 @@
           }
         }
       }
-    },
-    "Start" : {
-
     },
     "Start a task or developer VM to see it here" : {
       "localizations" : {
@@ -50097,6 +50117,9 @@
           }
         }
       }
+    },
+    "System Settings" : {
+
     },
     "Tab" : {
       "localizations" : {
@@ -55071,6 +55094,9 @@
           }
         }
       }
+    },
+    "VM" : {
+
     },
     "VM and agent trace are visible in a new window." : {
       "localizations" : {

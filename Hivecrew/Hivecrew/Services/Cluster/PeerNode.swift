@@ -7,6 +7,7 @@
 
 import Foundation
 import HivecrewAPI
+import HivecrewCore
 
 enum PeerCapabilityMatch: Equatable {
     case supported
@@ -26,7 +27,7 @@ struct PeerNode: Identifiable, Codable, Sendable {
     var tunnelUrl: String
     /// Whether this peer is currently reachable
     var status: PeerStatus
-    /// Number of VM slots currently free on this peer
+    /// Number of VM slots currently free on this peer (legacy aggregate)
     var availableSlots: Int
     /// Number of tasks currently running on this peer
     var runningTasks: Int
@@ -36,6 +37,8 @@ struct PeerNode: Identifiable, Codable, Sendable {
     var lastSeen: Date
     /// Provider/model capabilities advertised by this peer
     var providers: [PeerProviderSummary]
+    /// Per-runtime capacity advertised by this peer
+    var runtimes: [PeerRuntimeSummary]
     
     /// Returns the capability state for dispatch decisions.
     /// Unknown capability information should not be treated as a positive match.
@@ -54,6 +57,40 @@ struct PeerNode: Identifiable, Codable, Sendable {
 
     nonisolated var hasUnknownCapabilities: Bool {
         providers.isEmpty || providers.contains(where: { $0.modelIds.isEmpty })
+    }
+
+    // MARK: - Runtime queries
+
+    nonisolated func runtimeSummary(_ kind: AgentRuntimeKind) -> PeerRuntimeSummary? {
+        let apiKind = kind.toAPIKind
+        return runtimes.first { $0.runtimeKind == apiKind }
+    }
+
+    nonisolated func runtimeMatch(_ kind: AgentRuntimeKind) -> PeerCapabilityMatch {
+        guard !runtimes.isEmpty else { return .unknown }
+        guard let summary = runtimeSummary(kind) else { return .unsupported }
+        return summary.supported ? .supported : .unsupported
+    }
+
+    nonisolated func runtimeAvailableSlots(_ kind: AgentRuntimeKind) -> Int {
+        runtimeSummary(kind)?.availableSlots ?? 0
+    }
+
+    nonisolated func runtimeSetupReady(_ kind: AgentRuntimeKind) -> Bool {
+        guard let summary = runtimeSummary(kind) else { return false }
+        return summary.setupStatus == .ready
+    }
+}
+
+// MARK: - AgentRuntimeKind ↔ APIAgentRuntimeKind bridging
+
+extension AgentRuntimeKind {
+    var toAPIKind: APIAgentRuntimeKind {
+        switch self {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
     }
 }
 

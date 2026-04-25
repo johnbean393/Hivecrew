@@ -57,6 +57,16 @@ public struct RemoteTaskLease: Sendable, Hashable {
     }
 }
 
+// MARK: - Runtime kind (core-level mirror of AgentRuntimeKind)
+
+/// Runtime kind for remote dispatch decisions. Lives in HivecrewCore so the
+/// protocol does not depend on app-target types.
+public enum RemoteAgentRuntimeKind: String, Sendable {
+    case fast
+    case app
+    case isolatedVM
+}
+
 // MARK: - Environment
 
 /// Cluster directory and slot reservation (implemented by the app’s `ClusterManager`).
@@ -68,6 +78,23 @@ public protocol RemoteClusterDirectory: Sendable {
     func markPeerOnline(tunnelId: String) async
     /// Primary cluster bearer token if known (keychain fallback is applied by the dispatcher).
     func clusterToken() async -> String?
+
+    // Runtime-specific overloads
+    func reserveBestAvailablePeer(providerName: String, modelId: String, excluding: Set<String>, runtimeKind: RemoteAgentRuntimeKind) async -> RemoteClusterPeer?
+    func reserveSpecificPeer(peerId: String, providerName: String, modelId: String, runtimeKind: RemoteAgentRuntimeKind) async -> RemoteClusterPeer?
+    func releaseSlot(peerId: String, runtimeKind: RemoteAgentRuntimeKind) async
+}
+
+public extension RemoteClusterDirectory {
+    func reserveBestAvailablePeer(providerName: String, modelId: String, excluding: Set<String>, runtimeKind: RemoteAgentRuntimeKind) async -> RemoteClusterPeer? {
+        await reserveBestAvailablePeer(providerName: providerName, modelId: modelId, excluding: excluding)
+    }
+    func reserveSpecificPeer(peerId: String, providerName: String, modelId: String, runtimeKind: RemoteAgentRuntimeKind) async -> RemoteClusterPeer? {
+        await reserveSpecificPeer(peerId: peerId, providerName: providerName, modelId: modelId)
+    }
+    func releaseSlot(peerId: String, runtimeKind: RemoteAgentRuntimeKind) async {
+        await releaseSlot(peerId: peerId)
+    }
 }
 
 /// Owner-side persistence and bridging for canonical tasks (implemented by `APIServiceProviderBridge` / task service).
@@ -310,6 +337,7 @@ public final class RemoteTaskDispatcher {
 
         guard task.status == .queued, task.clusterExecutionState == .none else { return false }
         guard !task.isPinnedToLocalExecution else { return false }
+        guard !task.requiresLocalDevice else { return false }
 
         let localAvailableSlots = await host.localAvailableSlotsForDispatchDecision()
         if task.executionTarget.kind == .automatic,
@@ -409,7 +437,8 @@ public final class RemoteTaskDispatcher {
                         contextInlineBlocks: task.retrievalInlineContextBlocks,
                         contextAttachmentPaths: stagedInputs.contextAttachments,
                         referenceContextBlocks: stagedReferences.contextBlocks,
-                        referenceFiles: stagedReferences.files
+                        referenceFiles: stagedReferences.files,
+                        runtimeTarget: Self.apiRuntimeTarget(from: task.runtimeTarget)
                     )
                 )
 
@@ -641,6 +670,17 @@ public final class RemoteTaskDispatcher {
             return true
         }
         return localAvailableSlots <= 0
+    }
+
+    // MARK: - Runtime target bridging
+
+    nonisolated static func apiRuntimeTarget(from target: TaskRuntimeTarget) -> APIRuntimeTarget? {
+        switch target {
+        case .automatic: return nil
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
     }
 
     // MARK: - Peer clients

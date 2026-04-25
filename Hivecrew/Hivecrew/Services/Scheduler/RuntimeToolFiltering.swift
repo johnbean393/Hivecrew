@@ -37,10 +37,21 @@ enum RuntimeToolFiltering {
         .appSetValue,
     ]
 
-    /// VM-guest-specific tools that the App Worker does not support.
+    /// Tools that only make sense inside a VM guest (not App Worker).
     static let vmGuestOnlyTools: Set<AgentMethod> = [
         .traverseAccessibilityTree,
         .healthCheck,
+    ]
+
+    /// Tools excluded from App Worker because they use CGEvent at global
+    /// screen coordinates, which causes macOS to activate/raise the window
+    /// under the cursor — breaking the no-foreground contract.
+    /// Use the AX-based `app_click_element` / `app_set_value` instead.
+    static let appExcludedTools: Set<AgentMethod> = [
+        .mouseMove,
+        .mouseClick,
+        .mouseDrag,
+        .scroll,
     ]
 
     /// Returns the set of `AgentMethod`s that should be excluded from the
@@ -50,7 +61,7 @@ enum RuntimeToolFiltering {
             return fastExcludedTools.union(appOnlyTools)
         }
         if capabilities.hostAppAccess && !capabilities.isolatedOS {
-            return vmGuestOnlyTools
+            return vmGuestOnlyTools.union(appExcludedTools)
         }
         return appOnlyTools
     }
@@ -61,7 +72,7 @@ enum RuntimeToolFiltering {
         case .fast:
             return fastExcludedTools.union(appOnlyTools)
         case .app:
-            return vmGuestOnlyTools
+            return vmGuestOnlyTools.union(appExcludedTools)
         case .isolatedVM:
             return appOnlyTools
         }

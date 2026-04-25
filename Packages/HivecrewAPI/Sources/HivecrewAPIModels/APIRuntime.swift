@@ -54,6 +54,73 @@ public struct APIRuntimeMigrationEvent: Codable, Sendable {
     }
 }
 
+// MARK: - Runtime Setup Status
+
+public enum APIRuntimeSetupStatus: String, Codable, Sendable {
+    case ready
+    case unavailable
+    case permissionsMissing
+    case backendMissing
+    case templateMissing
+}
+
+// MARK: - Peer Runtime Summary
+
+public struct PeerRuntimeSummary: Codable, Sendable, Hashable {
+    public let runtimeKind: APIAgentRuntimeKind
+    public let supported: Bool
+    public let availableSlots: Int
+    public let runningTasks: Int
+    public let queuedTasks: Int
+    public let setupStatus: APIRuntimeSetupStatus
+
+    public init(
+        runtimeKind: APIAgentRuntimeKind,
+        supported: Bool,
+        availableSlots: Int,
+        runningTasks: Int,
+        queuedTasks: Int,
+        setupStatus: APIRuntimeSetupStatus
+    ) {
+        self.runtimeKind = runtimeKind
+        self.supported = supported
+        self.availableSlots = availableSlots
+        self.runningTasks = runningTasks
+        self.queuedTasks = queuedTasks
+        self.setupStatus = setupStatus
+    }
+}
+
+// MARK: - Runtime Counts (system status)
+
+public struct APIRuntimeCounts: Codable, Sendable {
+    public let kind: APIAgentRuntimeKind
+    public let supported: Bool
+    public let running: Int
+    public let queued: Int
+    public let available: Int
+    public let maxConcurrent: Int
+    public let setupStatus: APIRuntimeSetupStatus
+
+    public init(
+        kind: APIAgentRuntimeKind,
+        supported: Bool,
+        running: Int,
+        queued: Int,
+        available: Int,
+        maxConcurrent: Int,
+        setupStatus: APIRuntimeSetupStatus
+    ) {
+        self.kind = kind
+        self.supported = supported
+        self.running = running
+        self.queued = queued
+        self.available = available
+        self.maxConcurrent = maxConcurrent
+        self.setupStatus = setupStatus
+    }
+}
+
 // MARK: - Setup Requirement
 
 public struct APITaskSetupRequirement: Codable, Sendable {
