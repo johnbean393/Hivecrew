@@ -57,7 +57,7 @@ public enum OrchestratorSystemPrompt {
 
     private static let workerCapabilities = """
         ## What each worker can do
-        Each worker is a capable AI agent running inside its own macOS virtual machine. A single worker can:
+        Each worker is a capable AI agent running in the best available runtime: Fast Worker for headless work, App Worker for the user's real macOS apps, or an isolated macOS VM when isolation/full GUI is needed. A single worker can:
         - Search the web and read webpages for research
         - Write, read, and manage files (text, code, documents, etc.)
         - Run shell commands (curl, python, scripts, git, etc.)
@@ -205,7 +205,8 @@ public enum OrchestratorSystemPrompt {
             text: "`create_task` — create a new task for a worker. Provide a clear, actionable description. "
                 + "Use it before verbally confirming that a task or worker exists. "
                 + "Set `plan_first` to \"true\" when the user explicitly asks to plan first, review a plan, or "
-                + "wants to see a plan before execution begins. When a plan is ready, the system will send a "
+                + "wants to see a plan before execution begins. Set `runtime_target` only when the user explicitly "
+                + "asks for `fast`, `app`, or `vm`; otherwise omit it and let the app choose. When a plan is ready, the system will send a "
                 + "callback — summarize the plan and use `approve_plan` or `reject_plan` based on the user's response."
         ),
         ToolEntry(

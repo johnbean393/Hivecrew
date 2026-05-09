@@ -14,11 +14,12 @@ public enum SharedToolDeclarations {
     public nonisolated(unsafe) static var declarations: [[String: Any]] { [
         tool(
             name: "create_task",
-            description: "Create a new task for a worker agent. Each worker runs in a full macOS VM and can search the web, write files, run shell commands, and use GUI apps — so include the complete goal in one task rather than splitting simple multi-step work across workers. Returns the task ID and assigned worker name. To attach a captured reference image, pass its file path in the attachments array.",
+            description: "Create a new task for a worker agent. Workers can run as Fast Worker, App Worker, or an isolated macOS VM and can search the web, write files, run shell commands, and use GUI apps when the selected runtime supports them. Include the complete goal in one task rather than splitting simple multi-step work across workers. Returns the task ID and assigned worker name. To attach a captured reference image, pass its file path in the attachments array.",
             properties: [
                 "description": stringProperty(description: "The full end-to-end goal for the worker, including all steps (e.g. research + write file)"),
                 "attachments": stringProperty(description: "Comma-separated file paths to attach (e.g. from capture_reference)"),
                 "plan_first": stringProperty(description: "If 'true', the worker will create a plan for review before executing. Use when the user explicitly asks to plan first or review a plan before work begins."),
+                "runtime_target": stringProperty(description: "Optional runtime override: 'auto', 'fast', 'app', or 'vm'. Use only when the user explicitly asks for Fast Worker, App Worker, or isolated VM."),
             ],
             required: ["description"]
         ),

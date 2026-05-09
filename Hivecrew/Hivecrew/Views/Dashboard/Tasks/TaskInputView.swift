@@ -21,6 +21,7 @@ struct TaskInputView: View {
         let providerId: String
         let modelId: String
         let executionTarget: TaskExecutionTarget
+        let runtimeTarget: TaskRuntimeTarget?
         let reasoningEnabled: Bool?
         let reasoningEffort: String?
         let serviceTier: LLMServiceTier?
@@ -115,6 +116,7 @@ struct TaskInputView: View {
             if shouldRequireLocalCuaSetup(for: newValue) {
                 Task { await presentCuaPermissionsSheetIfSetupIncomplete() }
             }
+            persistVoiceTaskLaunchSnapshot()
         }
         .onAppear {
             // Select default provider only if no provider is currently selected
@@ -380,6 +382,7 @@ struct TaskInputView: View {
             providerId: providerId,
             modelId: modelId,
             executionTarget: executionTarget,
+            runtimeTarget: runtimeTarget,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines),
             serviceTier: serviceTier

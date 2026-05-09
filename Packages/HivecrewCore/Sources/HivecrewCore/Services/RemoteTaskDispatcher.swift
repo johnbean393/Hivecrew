@@ -67,6 +67,52 @@ public enum RemoteAgentRuntimeKind: String, Sendable {
     case isolatedVM
 }
 
+private extension TaskRuntimeTarget {
+    var toAPIRuntimeTarget: APIRuntimeTarget {
+        switch self {
+        case .automatic: return .automatic
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+}
+
+private extension AgentRuntimeKind {
+    var toAPIRuntimeKind: APIAgentRuntimeKind {
+        switch self {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+}
+
+private extension TaskSetupRequirement {
+    var toAPISetupRequirement: APITaskSetupRequirement {
+        APITaskSetupRequirement(
+            runtimeKind: runtimeKind.toAPIRuntimeKind,
+            reason: reason.rawValue,
+            deviceId: deviceId,
+            userFacingMessage: userFacingMessage
+        )
+    }
+}
+
+private extension RuntimeMigrationEvent {
+    var toAPIRuntimeMigrationEvent: APIRuntimeMigrationEvent {
+        APIRuntimeMigrationEvent(
+            id: id.uuidString,
+            taskId: taskId,
+            sessionId: sessionId,
+            sourceRuntime: sourceRuntime.toAPIRuntimeKind,
+            destinationRuntime: destinationRuntime.toAPIRuntimeKind,
+            reason: reason,
+            createdAt: createdAt
+        )
+    }
+}
+
 // MARK: - Environment
 
 /// Cluster directory and slot reservation (implemented by the app’s `ClusterManager`).
@@ -356,10 +402,20 @@ public final class RemoteTaskDispatcher {
 
         var executionAttempt: Int?
         var triedPeerIds: Set<String> = []
+        let runtimeKind = Self.dispatchRuntimeKind(for: task)
+        let runtimeTarget = Self.apiRuntimeTargetForDispatch(task)
 
         func nextPeer() async -> RemoteClusterPeer? {
             switch task.executionTarget.kind {
             case .automatic, .remoteFirst:
+                if let runtimeKind {
+                    return await clusterDirectory.reserveBestAvailablePeer(
+                        providerName: providerName,
+                        modelId: task.modelId,
+                        excluding: triedPeerIds,
+                        runtimeKind: runtimeKind
+                    )
+                }
                 return await clusterDirectory.reserveBestAvailablePeer(
                     providerName: providerName,
                     modelId: task.modelId,
@@ -371,6 +427,14 @@ public final class RemoteTaskDispatcher {
                 guard let peerId = task.executionTarget.targetPeerId,
                       !triedPeerIds.contains(peerId) else {
                     return nil
+                }
+                if let runtimeKind {
+                    return await clusterDirectory.reserveSpecificPeer(
+                        peerId: peerId,
+                        providerName: providerName,
+                        modelId: task.modelId,
+                        runtimeKind: runtimeKind
+                    )
                 }
                 return await clusterDirectory.reserveSpecificPeer(
                     peerId: peerId,
@@ -438,7 +502,7 @@ public final class RemoteTaskDispatcher {
                         contextAttachmentPaths: stagedInputs.contextAttachments,
                         referenceContextBlocks: stagedReferences.contextBlocks,
                         referenceFiles: stagedReferences.files,
-                        runtimeTarget: Self.apiRuntimeTarget(from: task.runtimeTarget)
+                        runtimeTarget: runtimeTarget
                     )
                 )
 
@@ -458,7 +522,11 @@ public final class RemoteTaskDispatcher {
 
                 return true
             } catch {
-                await clusterDirectory.releaseSlot(peerId: peer.id)
+                if let runtimeKind {
+                    await clusterDirectory.releaseSlot(peerId: peer.id, runtimeKind: runtimeKind)
+                } else {
+                    await clusterDirectory.releaseSlot(peerId: peer.id)
+                }
                 if case PeerAPIError.httpError(let statusCode, _) = error, statusCode == 409 {
                     task.clusterPeerId = nil
                     task.clusterPeerName = nil
@@ -509,6 +577,13 @@ public final class RemoteTaskDispatcher {
         task.resultSummary = remoteTask.resultSummary
         task.errorMessage = remoteTask.errorMessage
         task.wasSuccessful = remoteTask.wasSuccessful
+        if let runtimeTarget = remoteTask.runtimeTarget {
+            task.runtimeTarget = Self.taskRuntimeTarget(from: runtimeTarget)
+        }
+        if let assignedRuntimeKind = remoteTask.assignedRuntimeKind {
+            task.assignedRuntimeKind = Self.agentRuntimeKind(from: assignedRuntimeKind)
+        }
+        task.setupRequirement = remoteTask.setupRequirement.flatMap(Self.taskSetupRequirement(from:))
         if let plan = remoteTask.planMarkdown, !plan.isEmpty {
             task.planMarkdown = plan
         }
@@ -565,7 +640,38 @@ public final class RemoteTaskDispatcher {
             pendingQuestion: task.pendingQuestion, pendingPermission: task.pendingPermission,
             pendingWriteback: task.pendingWriteback, pendingWritebackCount: task.pendingWritebackCount,
             appliedWritebackPaths: task.appliedWritebackPaths,
-            nodeId: peer.id, nodeName: peer.name ?? peer.subdomain
+            nodeId: peer.id, nodeName: peer.name ?? peer.subdomain,
+            runtimeTarget: task.runtimeTarget,
+            assignedRuntimeKind: task.assignedRuntimeKind,
+            setupRequirement: task.setupRequirement,
+            migrationEvents: task.migrationEvents
+        )
+    }
+
+    private nonisolated static func taskRuntimeTarget(from target: APIRuntimeTarget) -> TaskRuntimeTarget {
+        switch target {
+        case .automatic: return .automatic
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    private nonisolated static func agentRuntimeKind(from kind: APIAgentRuntimeKind) -> AgentRuntimeKind {
+        switch kind {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    private nonisolated static func taskSetupRequirement(from req: APITaskSetupRequirement) -> TaskSetupRequirement? {
+        guard let reason = RuntimeSetupRequirement(rawValue: req.reason) else { return nil }
+        return TaskSetupRequirement(
+            runtimeKind: agentRuntimeKind(from: req.runtimeKind),
+            reason: reason,
+            deviceId: req.deviceId,
+            userFacingMessage: req.userFacingMessage
         )
     }
 
@@ -677,6 +783,39 @@ public final class RemoteTaskDispatcher {
     nonisolated static func apiRuntimeTarget(from target: TaskRuntimeTarget) -> APIRuntimeTarget? {
         switch target {
         case .automatic: return nil
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    nonisolated static func remoteRuntimeKind(from kind: AgentRuntimeKind) -> RemoteAgentRuntimeKind {
+        switch kind {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    nonisolated static func dispatchRuntimeKind(for task: TaskRecord) -> RemoteAgentRuntimeKind? {
+        switch task.runtimeTarget {
+        case .automatic:
+            return task.assignedRuntimeKind.map(remoteRuntimeKind(from:))
+        case .fast:
+            return .fast
+        case .app:
+            return .app
+        case .isolatedVM:
+            return .isolatedVM
+        }
+    }
+
+    nonisolated static func apiRuntimeTargetForDispatch(_ task: TaskRecord) -> APIRuntimeTarget? {
+        if let explicit = apiRuntimeTarget(from: task.runtimeTarget) {
+            return explicit
+        }
+        guard let assigned = task.assignedRuntimeKind else { return nil }
+        switch assigned {
         case .fast: return .fast
         case .app: return .app
         case .isolatedVM: return .isolatedVM

@@ -1900,7 +1900,7 @@ extension TaskService {
         for task in queuedTasks {
             guard started < availableSlots else { break }
             let decision = try? runtimeClassifier.classify(task)
-            guard decision?.assignedKind != .fast else { continue }
+            guard decision?.assignedKind == .isolatedVM else { continue }
             started += 1
             Task {
                 await startTask(task)

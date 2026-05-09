@@ -478,7 +478,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         targets: [CreateTaskBatchTarget],
         attachedFilePaths: [String],
         planFirst: Bool,
-        mentionedSkillNames: [String]
+        mentionedSkillNames: [String],
+        runtimeTarget: APIRuntimeTarget?
     ) async throws -> [APITask] {
         var createdTasks: [APITask] = []
         createdTasks.reserveCapacity(targets.count)
@@ -502,7 +503,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 contextSuggestionIds: [],
                 contextModeOverrides: [:],
                 contextInlineBlocks: [],
-                contextAttachmentPaths: []
+                contextAttachmentPaths: [],
+                runtimeTarget: runtimeTarget
             )
             createdTasks.append(task)
         }
@@ -1017,10 +1019,20 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         
         var executionAttempt: Int?
         var triedPeerIds: Set<String> = []
+        let runtimeKind = Self.dispatchRuntimeKind(for: task)
+        let runtimeTarget = Self.apiRuntimeTargetForDispatch(task)
 
         func nextPeer() async -> PeerNode? {
             switch task.executionTarget.kind {
             case .automatic, .remoteFirst:
+                if let runtimeKind {
+                    return await clusterManager.reserveBestAvailablePeer(
+                        providerName: providerName,
+                        modelId: task.modelId,
+                        excluding: triedPeerIds,
+                        runtimeKind: runtimeKind
+                    )
+                }
                 return await clusterManager.reserveBestAvailablePeer(
                     providerName: providerName,
                     modelId: task.modelId,
@@ -1032,6 +1044,14 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 guard let peerId = task.executionTarget.targetPeerId,
                       !triedPeerIds.contains(peerId) else {
                     return nil
+                }
+                if let runtimeKind {
+                    return await clusterManager.reserveSpecificPeer(
+                        peerId: peerId,
+                        providerName: providerName,
+                        modelId: task.modelId,
+                        runtimeKind: runtimeKind
+                    )
                 }
                 return await clusterManager.reserveSpecificPeer(
                     peerId: peerId,
@@ -1097,7 +1117,8 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                     contextInlineBlocks: task.retrievalInlineContextBlocks,
                     contextAttachmentPaths: stagedInputs.contextAttachments,
                     referenceContextBlocks: stagedReferences.contextBlocks,
-                    referenceFiles: stagedReferences.files
+                    referenceFiles: stagedReferences.files,
+                    runtimeTarget: runtimeTarget
                 ))
                 
                 let taggedTask = tagWithNode(response.task, peer: peer, canonicalTaskId: task.id)
@@ -1117,7 +1138,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 print("FederatedServiceProvider: Assigned canonical task '\(task.title)' to peer \(peer.name ?? peer.id)")
                 return true
             } catch {
-                await clusterManager.releaseSlot(peerId: peer.id)
+                if let runtimeKind {
+                    await clusterManager.releaseSlot(peerId: peer.id, runtimeKind: runtimeKind)
+                } else {
+                    await clusterManager.releaseSlot(peerId: peer.id)
+                }
                 if case PeerAPIError.httpError(let statusCode, _) = error, statusCode == 409 {
                     print("FederatedServiceProvider: Peer \(peer.id) had no free slot at execution time")
                     task.clusterPeerId = nil
@@ -1168,6 +1193,15 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         task.resultSummary = remoteTask.resultSummary
         task.errorMessage = remoteTask.errorMessage
         task.wasSuccessful = remoteTask.wasSuccessful
+        if let runtimeTarget = remoteTask.runtimeTarget {
+            task.runtimeTarget = localProvider.convertFromAPIRuntimeTarget(runtimeTarget)
+        }
+        if let assignedRuntimeKind = remoteTask.assignedRuntimeKind {
+            task.assignedRuntimeKind = localProvider.convertFromAPIRuntimeKind(assignedRuntimeKind)
+        }
+        task.setupRequirement = remoteTask.setupRequirement.flatMap {
+            localProvider.convertFromAPISetupRequirement($0)
+        }
         task.status = localProvider.convertFromAPIStatus(remoteTask.status)
         resetLeaseHealth(
             for: task,
@@ -1213,7 +1247,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             pendingQuestion: task.pendingQuestion, pendingPermission: task.pendingPermission,
             pendingWriteback: task.pendingWriteback, pendingWritebackCount: task.pendingWritebackCount,
             appliedWritebackPaths: task.appliedWritebackPaths,
-            nodeId: peer.id, nodeName: peer.name ?? peer.subdomain
+            nodeId: peer.id, nodeName: peer.name ?? peer.subdomain,
+            runtimeTarget: task.runtimeTarget,
+            assignedRuntimeKind: task.assignedRuntimeKind,
+            setupRequirement: task.setupRequirement,
+            migrationEvents: task.migrationEvents
         )
     }
 
@@ -1340,6 +1378,46 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             return true
         }
         return localAvailableSlots <= 0
+    }
+
+    nonisolated static func remoteRuntimeKind(from kind: AgentRuntimeKind) -> RemoteAgentRuntimeKind {
+        switch kind {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
+    nonisolated static func dispatchRuntimeKind(for task: TaskRecord) -> RemoteAgentRuntimeKind? {
+        switch task.runtimeTarget {
+        case .automatic:
+            return task.assignedRuntimeKind.map(remoteRuntimeKind(from:))
+        case .fast:
+            return .fast
+        case .app:
+            return .app
+        case .isolatedVM:
+            return .isolatedVM
+        }
+    }
+
+    nonisolated static func apiRuntimeTargetForDispatch(_ task: TaskRecord) -> APIRuntimeTarget? {
+        switch task.runtimeTarget {
+        case .automatic:
+            break
+        case .fast:
+            return .fast
+        case .app:
+            return .app
+        case .isolatedVM:
+            return .isolatedVM
+        }
+        guard let assigned = task.assignedRuntimeKind else { return nil }
+        switch assigned {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
     }
 }
 

@@ -19,6 +19,7 @@ struct TaskMultipartFormResult {
     let mentionedSkillNames: [String]
     let referencedTaskIds: [String]
     let continuationSourceTaskId: String?
+    let runtimeTarget: APIRuntimeTarget?
 }
 
 struct TaskBatchMultipartFormResult {
@@ -27,6 +28,7 @@ struct TaskBatchMultipartFormResult {
     let filePaths: [String]
     let planFirst: Bool
     let mentionedSkillNames: [String]
+    let runtimeTarget: APIRuntimeTarget?
 }
 
 extension TaskRoutes {
@@ -43,6 +45,7 @@ extension TaskRoutes {
         var mentionedSkillNames: [String] = []
         var referencedTaskIds: [String] = []
         var continuationSourceTaskId: String?
+        var runtimeTarget: APIRuntimeTarget?
 
         let taskId = UUID().uuidString
         let bodyData = try await request.body.collect(upTo: maxTotalUploadSize)
@@ -85,6 +88,12 @@ extension TaskRoutes {
                 } else if name == "continuationSourceTaskId" {
                     continuationSourceTaskId = String(data: part.data, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if name == "runtimeTarget" || name == "runtime_target" {
+                    if let value = String(data: part.data, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                       !value.isEmpty {
+                        runtimeTarget = APIRuntimeTarget(rawValue: value)
+                    }
                 } else if name == "files" {
                     let filename = part.filename ?? "file_\(filePaths.count)"
                     if part.data.count > maxFileSize {
@@ -112,7 +121,8 @@ extension TaskRoutes {
             reasoningEffort: reasoningEffort,
             mentionedSkillNames: mentionedSkillNames,
             referencedTaskIds: referencedTaskIds,
-            continuationSourceTaskId: continuationSourceTaskId
+            continuationSourceTaskId: continuationSourceTaskId,
+            runtimeTarget: runtimeTarget
         )
     }
 
@@ -122,6 +132,7 @@ extension TaskRoutes {
         var filePaths: [String] = []
         var planFirst = false
         var mentionedSkillNames: [String] = []
+        var runtimeTarget: APIRuntimeTarget?
 
         let uploadId = UUID().uuidString
         let bodyData = try await request.body.collect(upTo: maxTotalUploadSize)
@@ -146,6 +157,12 @@ extension TaskRoutes {
                     !value.isEmpty {
                     mentionedSkillNames.append(value)
                 }
+            } else if name == "runtimeTarget" || name == "runtime_target" {
+                if let value = String(data: part.data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !value.isEmpty {
+                    runtimeTarget = APIRuntimeTarget(rawValue: value)
+                }
             } else if name == "files" {
                 let filename = part.filename ?? "file_\(filePaths.count)"
                 if part.data.count > maxFileSize {
@@ -167,7 +184,8 @@ extension TaskRoutes {
             targets: targets,
             filePaths: filePaths,
             planFirst: planFirst,
-            mentionedSkillNames: mentionedSkillNames
+            mentionedSkillNames: mentionedSkillNames,
+            runtimeTarget: runtimeTarget
         )
     }
 

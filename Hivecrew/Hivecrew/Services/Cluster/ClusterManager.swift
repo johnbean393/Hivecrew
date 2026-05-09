@@ -459,14 +459,15 @@ actor ClusterManager {
             excluding: excluding
         )
         let agentKind = AgentRuntimeKind(remote: runtimeKind)
-        guard let peer = bestAvailablePeerInternal(
-            providerName: providerName, modelId: modelId, excluding: excluding
-        ), peer.runtimeMatch(agentKind) != .unsupported,
-           peer.runtimeSetupReady(agentKind) || peer.runtimes.isEmpty
-        else {
+        guard let peer = bestAvailableRuntimePeerInternal(
+            providerName: providerName,
+            modelId: modelId,
+            excluding: excluding,
+            runtimeKind: agentKind
+        ) else {
             return nil
         }
-        reserveSlotInternal(peerId: peer.id)
+        reserveRuntimeSlotInternal(peerId: peer.id, runtimeKind: agentKind)
         return peer
     }
 
@@ -484,21 +485,19 @@ actor ClusterManager {
         let agentKind = AgentRuntimeKind(remote: runtimeKind)
         guard let peer = peers[peerId],
               peer.status == .online,
-              peer.availableSlots > 0,
-              peer.runtimeMatch(agentKind) != .unsupported,
-              peer.runtimeSetupReady(agentKind) || peer.runtimes.isEmpty
+              runtimeHasCapacity(peer, runtimeKind: agentKind)
         else {
             return nil
         }
         if peer.capabilityMatch(providerName: providerName, modelId: modelId) == .unsupported {
             return nil
         }
-        reserveSlotInternal(peerId: peer.id)
+        reserveRuntimeSlotInternal(peerId: peer.id, runtimeKind: agentKind)
         return peer
     }
 
     func releaseSlot(peerId: String, runtimeKind: RemoteAgentRuntimeKind) {
-        releaseSlot(peerId: peerId)
+        releaseRuntimeSlotInternal(peerId: peerId, runtimeKind: AgentRuntimeKind(remote: runtimeKind))
     }
 
     // MARK: - Internal Dispatch Helpers
@@ -516,6 +515,90 @@ actor ClusterManager {
             modelId: modelId,
             excluding: excluding
         )
+    }
+
+    private func bestAvailableRuntimePeerInternal(
+        providerName: String,
+        modelId: String,
+        excluding: Set<String>,
+        runtimeKind: AgentRuntimeKind
+    ) -> PeerNode? {
+        let order = UserDefaults.standard.stringArray(forKey: Self.dispatchOrderKey) ?? []
+        let candidates = peers.values.filter { peer in
+            guard peer.status == .online, !excluding.contains(peer.id) else { return false }
+            guard peer.capabilityMatch(providerName: providerName, modelId: modelId) == .supported else {
+                return false
+            }
+            return runtimeHasCapacity(peer, runtimeKind: runtimeKind)
+        }
+        guard !candidates.isEmpty else { return nil }
+
+        if !order.isEmpty {
+            for tunnelId in order {
+                if let peer = candidates.first(where: { $0.id == tunnelId }) {
+                    return peer
+                }
+            }
+        }
+
+        return candidates.sorted {
+            let lhs = runtimeSortSlots($0, runtimeKind: runtimeKind)
+            let rhs = runtimeSortSlots($1, runtimeKind: runtimeKind)
+            if lhs == rhs { return $0.id < $1.id }
+            return lhs > rhs
+        }.first
+    }
+
+    private nonisolated func runtimeHasCapacity(_ peer: PeerNode, runtimeKind: AgentRuntimeKind) -> Bool {
+        guard !peer.runtimes.isEmpty else {
+            return peer.availableSlots > 0
+        }
+        guard let summary = peer.runtimeSummary(runtimeKind) else { return false }
+        return summary.supported && summary.setupStatus == .ready && summary.availableSlots > 0
+    }
+
+    private nonisolated func runtimeSortSlots(_ peer: PeerNode, runtimeKind: AgentRuntimeKind) -> Int {
+        peer.runtimeSummary(runtimeKind)?.availableSlots ?? peer.availableSlots
+    }
+
+    private func reserveRuntimeSlotInternal(peerId: String, runtimeKind: AgentRuntimeKind) {
+        guard var node = peers[peerId] else { return }
+        guard !node.runtimes.isEmpty else {
+            reserveSlotInternal(peerId: peerId)
+            return
+        }
+        node.runtimes = node.runtimes.map { summary in
+            guard summary.runtimeKind == runtimeKind.toAPIKind else { return summary }
+            return PeerRuntimeSummary(
+                runtimeKind: summary.runtimeKind,
+                supported: summary.supported,
+                availableSlots: max(0, summary.availableSlots - 1),
+                runningTasks: summary.runningTasks + 1,
+                queuedTasks: summary.queuedTasks,
+                setupStatus: summary.setupStatus
+            )
+        }
+        peers[peerId] = node
+    }
+
+    private func releaseRuntimeSlotInternal(peerId: String, runtimeKind: AgentRuntimeKind) {
+        guard var node = peers[peerId] else { return }
+        guard !node.runtimes.isEmpty else {
+            releaseSlot(peerId: peerId)
+            return
+        }
+        node.runtimes = node.runtimes.map { summary in
+            guard summary.runtimeKind == runtimeKind.toAPIKind else { return summary }
+            return PeerRuntimeSummary(
+                runtimeKind: summary.runtimeKind,
+                supported: summary.supported,
+                availableSlots: summary.availableSlots + 1,
+                runningTasks: max(0, summary.runningTasks - 1),
+                queuedTasks: summary.queuedTasks,
+                setupStatus: summary.setupStatus
+            )
+        }
+        peers[peerId] = node
     }
     
     private func reserveSlotInternal(peerId: String) {

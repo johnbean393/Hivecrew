@@ -47,7 +47,8 @@ public protocol APIServiceProvider: Sendable {
         targets: [CreateTaskBatchTarget],
         attachedFilePaths: [String],
         planFirst: Bool,
-        mentionedSkillNames: [String]
+        mentionedSkillNames: [String],
+        runtimeTarget: APIRuntimeTarget?
     ) async throws -> [APITask]
     
     func getTasks(

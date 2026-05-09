@@ -42,6 +42,7 @@ enum OrchestratorToolHandler {
         let providerId: String
         let modelId: String
         let executionTarget: TaskExecutionTarget
+        let runtimeTarget: TaskRuntimeTarget?
         let reasoningEnabled: Bool?
         let reasoningEffort: String?
         let serviceTier: LLMServiceTier?
@@ -71,6 +72,7 @@ enum OrchestratorToolHandler {
                 description: args["description"] ?? "",
                 attachments: args["attachments"] ?? "",
                 planFirst: args["plan_first"]?.lowercased() == "true",
+                runtimeTarget: parseRuntimeTarget(args["runtime_target"] ?? args["runtimeTarget"]),
                 taskService: taskService,
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
@@ -184,6 +186,7 @@ enum OrchestratorToolHandler {
                 providerId: providerId,
                 modelId: modelId,
                 executionTarget: snapshot.executionTarget,
+                runtimeTarget: snapshot.runtimeTarget ?? .automatic,
                 reasoningEnabled: snapshot.reasoningEnabled,
                 reasoningEffort: snapshot.reasoningEffort?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines),
                 serviceTier: snapshot.serviceTier
@@ -201,16 +204,37 @@ enum OrchestratorToolHandler {
             providerId: providerId,
             modelId: modelId,
             executionTarget: .automatic,
+            runtimeTarget: .automatic,
             reasoningEnabled: nil,
             reasoningEffort: nil,
             serviceTier: nil
         )
     }
 
+    private static func parseRuntimeTarget(_ raw: String?) -> TaskRuntimeTarget? {
+        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !value.isEmpty else {
+            return nil
+        }
+        switch value {
+        case "auto", "automatic":
+            return .automatic
+        case "fast", "fastworker", "fast-worker", "fast_worker":
+            return .fast
+        case "app", "appworker", "app-worker", "app_worker":
+            return .app
+        case "vm", "isolated", "isolatedvm", "isolated-vm", "isolated_vm":
+            return .isolatedVM
+        default:
+            return nil
+        }
+    }
+
     private static func handleCreateTask(
         description: String,
         attachments: String,
         planFirst: Bool,
+        runtimeTarget: TaskRuntimeTarget?,
         taskService: TaskService,
         workerRegistry: WorkerRegistry,
         orchestrator: VoiceOrchestrator
@@ -245,6 +269,7 @@ enum OrchestratorToolHandler {
                 providerId: launchSnapshot.providerId,
                 modelId: launchSnapshot.modelId,
                 executionTarget: launchSnapshot.executionTarget,
+                runtimeTarget: runtimeTarget ?? launchSnapshot.runtimeTarget ?? .automatic,
                 reasoningEnabled: launchSnapshot.reasoningEnabled,
                 reasoningEffort: launchSnapshot.reasoningEffort,
                 serviceTier: launchSnapshot.serviceTier,
@@ -283,6 +308,7 @@ enum OrchestratorToolHandler {
                     providerId: launchSnapshot.providerId,
                     modelId: launchSnapshot.modelId,
                     executionTarget: launchSnapshot.executionTarget,
+                    runtimeTarget: runtimeTarget ?? launchSnapshot.runtimeTarget ?? .automatic,
                     reasoningEnabled: launchSnapshot.reasoningEnabled,
                     reasoningEffort: launchSnapshot.reasoningEffort,
                     serviceTier: launchSnapshot.serviceTier,

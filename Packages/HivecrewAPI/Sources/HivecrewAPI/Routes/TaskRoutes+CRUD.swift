@@ -44,6 +44,7 @@ extension TaskRoutes {
             mentionedSkillNames = result.mentionedSkillNames
             referencedTaskIds = result.referencedTaskIds
             continuationSourceTaskId = result.continuationSourceTaskId
+            runtimeTarget = result.runtimeTarget
         } else {
             let body = try await request.body.collect(upTo: 1024 * 1024)
             let createRequest = try makeISO8601Decoder().decode(CreateTaskRequest.self, from: body)
@@ -108,6 +109,7 @@ extension TaskRoutes {
         var uploadedFilePaths: [String] = []
         var planFirst = false
         var mentionedSkillNames: [String] = []
+        var runtimeTarget: APIRuntimeTarget?
 
         if contentType.contains("multipart/form-data") {
             let result = try await parseTaskBatchMultipartForm(request: request)
@@ -116,6 +118,7 @@ extension TaskRoutes {
             uploadedFilePaths = result.filePaths
             planFirst = result.planFirst
             mentionedSkillNames = result.mentionedSkillNames
+            runtimeTarget = result.runtimeTarget
         } else {
             let body = try await request.body.collect(upTo: 1024 * 1024)
             let batchRequest = try makeISO8601Decoder().decode(CreateTaskBatchRequest.self, from: body)
@@ -123,6 +126,7 @@ extension TaskRoutes {
             targets = batchRequest.targets
             planFirst = batchRequest.planFirst ?? false
             mentionedSkillNames = batchRequest.mentionedSkillNames ?? []
+            runtimeTarget = batchRequest.runtimeTarget
         }
 
         guard !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -138,7 +142,8 @@ extension TaskRoutes {
             targets: expandedTargets,
             attachedFilePaths: uploadedFilePaths,
             planFirst: planFirst,
-            mentionedSkillNames: mentionedSkillNames
+            mentionedSkillNames: mentionedSkillNames,
+            runtimeTarget: runtimeTarget
         )
 
         return try createJSONResponse(

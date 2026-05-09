@@ -111,7 +111,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         contextInlineBlocks: [String],
         contextAttachmentPaths: [String],
         referenceContextBlocks: [String],
-        referenceFiles: [ClusterExecuteNowRequest.ReferenceFile]
+        referenceFiles: [ClusterExecuteNowRequest.ReferenceFile],
+        runtimeTarget: APIRuntimeTarget? = nil
     ) async throws -> APITask {
         guard taskService.canStartTaskImmediately() else {
             throw APIError.conflict("No free execution slot on worker.")
@@ -128,6 +129,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
             description: description,
             providerId: providerId,
             modelId: modelId,
+            runtimeTarget: runtimeTarget.flatMap { convertFromAPIRuntimeTarget($0) } ?? .automatic,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort,
             attachedFilePaths: attachedFilePaths,
@@ -214,7 +216,8 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         targets: [CreateTaskBatchTarget],
         attachedFilePaths: [String],
         planFirst: Bool,
-        mentionedSkillNames: [String]
+        mentionedSkillNames: [String],
+        runtimeTarget: APIRuntimeTarget?
     ) async throws -> [APITask] {
         guard !targets.isEmpty else {
             return []
@@ -243,6 +246,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                     providerId: target.providerId,
                     modelId: target.modelId,
                     executionTarget: .automatic,
+                    runtimeTarget: runtimeTarget.flatMap { convertFromAPIRuntimeTarget($0) } ?? .automatic,
                     reasoningEnabled: target.reasoningEnabled,
                     reasoningEffort: target.reasoningEffort,
                     serviceTier: nil,

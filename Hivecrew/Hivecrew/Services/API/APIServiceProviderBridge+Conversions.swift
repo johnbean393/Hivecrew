@@ -515,10 +515,28 @@ extension APIServiceProviderBridge {
         }
     }
 
+    func convertFromAPIRuntimeKind(_ kind: APIAgentRuntimeKind) -> AgentRuntimeKind {
+        switch kind {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
+        }
+    }
+
     func convertToAPISetupRequirement(_ req: TaskSetupRequirement) -> APITaskSetupRequirement {
         APITaskSetupRequirement(
             runtimeKind: convertToAPIRuntimeKind(req.runtimeKind),
             reason: req.reason.rawValue,
+            deviceId: req.deviceId,
+            userFacingMessage: req.userFacingMessage
+        )
+    }
+
+    func convertFromAPISetupRequirement(_ req: APITaskSetupRequirement) -> TaskSetupRequirement? {
+        guard let reason = RuntimeSetupRequirement(rawValue: req.reason) else { return nil }
+        return TaskSetupRequirement(
+            runtimeKind: convertFromAPIRuntimeKind(req.runtimeKind),
+            reason: reason,
             deviceId: req.deviceId,
             userFacingMessage: req.userFacingMessage
         )

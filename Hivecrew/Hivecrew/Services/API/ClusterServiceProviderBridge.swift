@@ -104,7 +104,11 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             pendingWritebackCount: update.task.pendingWritebackCount,
             appliedWritebackPaths: update.task.appliedWritebackPaths,
             nodeId: update.tunnelId,
-            nodeName: peer?.name ?? peer?.subdomain
+            nodeName: peer?.name ?? peer?.subdomain,
+            runtimeTarget: update.task.runtimeTarget,
+            assignedRuntimeKind: update.task.assignedRuntimeKind,
+            setupRequirement: update.task.setupRequirement,
+            migrationEvents: update.task.migrationEvents
         )
         
         if await remoteTaskIndex.peerId(for: canonicalTaskId) == nil {
@@ -132,6 +136,15 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             task.resultSummary = update.task.resultSummary
             task.errorMessage = update.task.errorMessage
             task.wasSuccessful = update.task.wasSuccessful
+            if let runtimeTarget = update.task.runtimeTarget {
+                task.runtimeTarget = localProvider.convertFromAPIRuntimeTarget(runtimeTarget)
+            }
+            if let assignedRuntimeKind = update.task.assignedRuntimeKind {
+                task.assignedRuntimeKind = localProvider.convertFromAPIRuntimeKind(assignedRuntimeKind)
+            }
+            task.setupRequirement = update.task.setupRequirement.flatMap {
+                localProvider.convertFromAPISetupRequirement($0)
+            }
             if let plan = update.task.planMarkdown, !plan.isEmpty {
                 task.planMarkdown = plan
             }
@@ -236,7 +249,8 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
             contextInlineBlocks: request.contextInlineBlocks,
             contextAttachmentPaths: request.contextAttachmentPaths,
             referenceContextBlocks: request.referenceContextBlocks,
-            referenceFiles: request.referenceFiles
+            referenceFiles: request.referenceFiles,
+            runtimeTarget: request.runtimeTarget
         )
         return ClusterExecuteNowResponse(workerTaskId: task.id, task: task)
     }
