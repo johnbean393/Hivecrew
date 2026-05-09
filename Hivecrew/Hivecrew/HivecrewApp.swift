@@ -208,6 +208,7 @@ struct HivecrewApp: App {
         taskService.setModelContext(sharedModelContainer.mainContext)
         normalizeProviderSortOrdersIfNeeded(modelContext: sharedModelContainer.mainContext)
         synchronizePersistedCodexProviderNames()
+        VoiceAvailability.migrateRealtime15ToRealtime2IfNeeded()
         
         // Configure and start scheduler service
         schedulerService.configure(modelContext: sharedModelContainer.mainContext, taskService: taskService)

@@ -208,6 +208,7 @@ enum HivelinkVoicePreferences {
     static let voiceNameKey = "hivelink.voiceName"
     static let apiKeyKey = "hivelink.voiceApiKey"
     static let openAIAuthenticationModeKey = "hivelink.openAIAuthenticationMode"
+    static let realtime2MigrationCompletedKey = "hivelink.voice.gptRealtime2MigrationCompleted"
 
     private static func perProviderVoiceKey(_ provider: HivelinkVoiceProvider) -> String {
         "hivelink.voiceName.\(provider.rawValue)"
@@ -219,6 +220,22 @@ enum HivelinkVoicePreferences {
 
     private static func perProviderAPIKey(_ provider: HivelinkVoiceProvider) -> String {
         "hivelink.voiceApiKey.\(provider.rawValue)"
+    }
+
+    static func migrateRealtime15ToRealtime2IfNeeded(defaults: UserDefaults = .standard) {
+        guard defaults.bool(forKey: realtime2MigrationCompletedKey) == false else { return }
+
+        migrateRealtime15ModelValue(forKey: modelIDKey, defaults: defaults)
+        migrateRealtime15ModelValue(forKey: perProviderModelKey(.openAI), defaults: defaults)
+
+        defaults.set(true, forKey: realtime2MigrationCompletedKey)
+    }
+
+    private static func migrateRealtime15ModelValue(forKey key: String, defaults: UserDefaults) {
+        let stored = defaults.string(forKey: key)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard stored == "gpt-realtime-1.5" else { return }
+        defaults.set("gpt-realtime-2", forKey: key)
     }
 
     static func availableVoices(for provider: HivelinkVoiceProvider) -> [RealtimeVoiceOption] {

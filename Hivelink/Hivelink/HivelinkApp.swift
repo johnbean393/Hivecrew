@@ -57,6 +57,7 @@ private final class HivelinkAppCore: ObservableObject {
 
     init(modelContainer: ModelContainer) {
         IncomingCallManager.registerPreferenceDefaults()
+        HivelinkVoicePreferences.migrateRealtime15ToRealtime2IfNeeded()
         let regionPolicy = AppStoreRegionPolicy.shared
         let coordinator = HivelinkClusterCoordinator()
         let index = RemoteTaskIndex()

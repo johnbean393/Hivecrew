@@ -284,11 +284,7 @@ extension TaskRowView {
             showingWritebackReview = true
         } else if effectiveStatus == .queued || effectiveStatus == .waitingForVM {
             return
-        } else if isActivelyRunning {
-            if task.isExecutingRemotely {
-                showingTrace = true
-                return
-            }
+        } else if effectiveStatus == .running || effectiveStatus == .paused {
             navigateToTask(task.id)
         } else {
             showingTrace = true

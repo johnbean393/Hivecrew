@@ -33,6 +33,7 @@ enum VoiceAvailability {
     static let voiceThinkingLevelKey = "voice_thinking_level"
     static let voiceMediaResolutionKey = "voice_media_resolution"
     static let developerVoiceSessionCaptureKey = "developer_voice_session_capture_enabled"
+    static let realtime2MigrationCompletedKey = "voice_gpt_realtime_2_migration_completed"
 
     static let defaultGeminiModel = "gemini-3.1-flash-live-preview"
     static let defaultOpenAIModel = RealtimeVoiceCatalog.defaultModelID(for: .openAIRealtime)
@@ -67,6 +68,27 @@ enum VoiceAvailability {
 
     private static func perProviderKey(_ baseKey: String, provider: VoiceProviderType) -> String {
         "\(baseKey)_\(provider.rawValue)"
+    }
+
+    static func migrateRealtime15ToRealtime2IfNeeded(defaults: UserDefaults = .standard) {
+        guard defaults.bool(forKey: realtime2MigrationCompletedKey) == false else { return }
+
+        migrateRealtime15ModelValue(forKey: voiceModelKey, defaults: defaults)
+        migrateRealtime15ModelValue(
+            forKey: perProviderKey(voiceModelKey, provider: .openAI),
+            defaults: defaults
+        )
+        migrateRealtime15ModelValue(
+            forKey: perProviderKey(voiceModelKey, provider: .chatGPTOAuth),
+            defaults: defaults
+        )
+
+        defaults.set(true, forKey: realtime2MigrationCompletedKey)
+    }
+
+    private static func migrateRealtime15ModelValue(forKey key: String, defaults: UserDefaults) {
+        guard normalizedString(defaults.string(forKey: key)) == "gpt-realtime-1.5" else { return }
+        defaults.set("gpt-realtime-2", forKey: key)
     }
 
     /// Saves the current voice and model selections under per-provider keys.
@@ -109,6 +131,8 @@ enum VoiceAvailability {
     // MARK: - Auto-configure
 
     static func autoConfigureIfNeeded(modelContext: ModelContext) {
+        migrateRealtime15ToRealtime2IfNeeded()
+
         let descriptor = FetchDescriptor<LLMProviderRecord>()
         guard let providers = try? modelContext.fetch(descriptor), !providers.isEmpty else {
             return
