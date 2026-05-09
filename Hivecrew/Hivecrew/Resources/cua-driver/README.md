@@ -2,10 +2,10 @@
 
 Bundled `cua-driver` binary for the App Worker runtime.
 
-- **Version:** 0.0.5
-- **Source:** https://github.com/trycua/cua/releases/tag/cua-driver-v0.0.5
-- **Artifact:** `cua-driver-0.0.5-darwin-arm64.tar.gz`
-- **SHA256:** `77e8ca64f55d2b9a55cfc59a5815f973027507d360cf3b552c24698c24d2e3c5`
+- **Version:** 0.1.5
+- **Source:** https://github.com/trycua/cua/releases/tag/cua-driver-v0.1.5
+- **Artifact:** `cua-driver-0.1.5-darwin-arm64.tar.gz`
+- **SHA256:** `665f4eac42294c3690cf8200e2bd88d6044d6763826997d39dc0a418cd4b4a07`
 - **Architecture:** darwin-arm64
 
 ## Refresh procedure

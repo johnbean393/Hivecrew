@@ -311,7 +311,7 @@ struct AgentPreviewCardContent: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .aspectRatio(16/9, contentMode: .fit)
+        .frame(height: previewHeight)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }

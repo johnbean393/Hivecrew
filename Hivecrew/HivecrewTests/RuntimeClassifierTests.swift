@@ -8,6 +8,7 @@
 import Foundation
 import Testing
 import HivecrewCore
+import HivecrewLLM
 @testable import Hivecrew
 
 // MARK: - Helpers
@@ -102,8 +103,9 @@ func classifierHeadlessTaskGoesToFast() throws {
 }
 
 @Test @MainActor
-func classifierGUITaskGoesToVM() throws {
-    let classifier = RuntimeClassifier()
+func classifierGUITaskGoesToAppWhenAvailable() throws {
+    var classifier = RuntimeClassifier()
+    classifier.appWorkerAvailable = { true }
     let guiDescriptions = [
         "Open my browser and navigate to google.com",
         "Click on the submit button",
@@ -114,8 +116,42 @@ func classifierGUITaskGoesToVM() throws {
     for desc in guiDescriptions {
         let task = makeTaskRecord(description: desc)
         let decision = try classifier.classify(task)
-        #expect(decision.assignedKind == .isolatedVM, "Expected VM for: \(desc)")
+        #expect(decision.assignedKind == .app, "Expected App Worker for: \(desc)")
     }
+}
+
+@Test @MainActor
+func classifierInteractiveWebsiteTaskGoesToAppWhenAvailable() throws {
+    var classifier = RuntimeClassifier()
+    classifier.appWorkerAvailable = { true }
+    let webDescriptions = [
+        "Open Google and play tic tac toe",
+        "Use Chrome to fill out the form on example.com",
+        "Navigate to https://example.com and click the signup button",
+        "Open reddit and click the top post",
+    ]
+    for desc in webDescriptions {
+        let task = makeTaskRecord(description: desc)
+        let decision = try classifier.classify(task)
+        #expect(decision.assignedKind == .app, "Expected App Worker for: \(desc)")
+    }
+}
+
+@Test @MainActor
+func classifierInteractiveWebsiteTaskFallsBackToVMWhenAppUnavailable() throws {
+    var classifier = RuntimeClassifier()
+    classifier.appWorkerAvailable = { false }
+    let task = makeTaskRecord(description: "Open Google and play tic tac toe")
+    let decision = try classifier.classify(task)
+    #expect(decision.assignedKind == .isolatedVM)
+}
+
+@Test @MainActor
+func classifierWebResearchStillGoesToFast() throws {
+    let classifier = RuntimeClassifier()
+    let task = makeTaskRecord(description: "Search the web for recent Swift concurrency articles and summarize them")
+    let decision = try classifier.classify(task)
+    #expect(decision.assignedKind == .fast)
 }
 
 @Test @MainActor
@@ -198,10 +234,11 @@ func parseInlineOverrideDoesNotMatchInsideEmail() {
 
 @Test @MainActor
 func classifyAsyncFallsBackToHeuristicWhenNoWorker() async throws {
-    let classifier = RuntimeClassifier()
+    var classifier = RuntimeClassifier()
+    classifier.appWorkerAvailable = { true }
     let task = makeTaskRecord(description: "Open Safari and navigate to a page")
     let decision = try await classifier.classifyAsync(task)
-    #expect(decision.assignedKind == .isolatedVM)
+    #expect(decision.assignedKind == .app)
 }
 
 @Test @MainActor
@@ -210,4 +247,68 @@ func classifyAsyncHonorsExplicitFast() async throws {
     let task = makeTaskRecord(description: "Open Safari and navigate to a page", runtimeTarget: .fast)
     let decision = try await classifier.classifyAsync(task)
     #expect(decision.assignedKind == .fast)
+}
+
+@Test @MainActor
+func classifyAsyncHonorsWorkerAppChoiceForWebsiteInteraction() async throws {
+    var classifier = RuntimeClassifier()
+    classifier.appWorkerAvailable = { true }
+    classifier.workerClientProvider = {
+        MockRuntimeRouterClient(text: #"{"runtime":"app","reason":"browser"}"#)
+    }
+    let task = makeTaskRecord(description: "Open Google and play tic tac toe")
+    let decision = try await classifier.classifyAsync(task)
+    #expect(decision.assignedKind == .app)
+}
+
+private actor MockRuntimeRouterClient: LLMClientProtocol {
+    nonisolated let configuration = LLMConfiguration(
+        displayName: "Runtime Router Test",
+        baseURL: URL(string: "https://example.com/v1"),
+        apiKey: "test-key",
+        model: "test-model"
+    )
+
+    private let text: String
+
+    init(text: String) {
+        self.text = text
+    }
+
+    func chat(messages: [LLMMessage], tools: [LLMToolDefinition]?) async throws -> LLMResponse {
+        LLMResponse(
+            id: UUID().uuidString,
+            model: configuration.model,
+            created: Date(),
+            choices: [
+                LLMResponseChoice(
+                    index: 0,
+                    message: .assistant(text),
+                    finishReason: .stop
+                )
+            ],
+            usage: nil
+        )
+    }
+
+    func chatWithStreaming(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?,
+        onReasoningUpdate: ReasoningStreamCallback?,
+        onContentUpdate: ContentStreamCallback?
+    ) async throws -> LLMResponse {
+        try await chat(messages: messages, tools: tools)
+    }
+
+    func chatWithReasoningStream(
+        messages: [LLMMessage],
+        tools: [LLMToolDefinition]?,
+        onReasoningUpdate: ReasoningStreamCallback?
+    ) async throws -> LLMResponse {
+        try await chat(messages: messages, tools: tools)
+    }
+
+    func testConnection() async throws -> Bool { true }
+
+    func listModels() async throws -> [String] { [configuration.model] }
 }

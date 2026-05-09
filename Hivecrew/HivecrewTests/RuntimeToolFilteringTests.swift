@@ -75,6 +75,7 @@ func appIncludesAppOnlyTools() {
     let appTools: [AgentMethod] = [
         .appListApps, .appListWindows, .appSelectWindow,
         .appGetWindowState, .appClickElement, .appSetValue,
+        .appSubmitElement, .appOpenURL,
     ]
     for method in appTools {
         #expect(!excluded.contains(method), "Expected \(method.rawValue) to NOT be excluded for App")
@@ -85,8 +86,9 @@ func appIncludesAppOnlyTools() {
 func appKeepsDesktopAndFileTools() {
     let excluded = RuntimeToolFiltering.excludedTools(for: AgentRuntimeKind.app)
     let expectedPresent: [AgentMethod] = [
-        .openApp, .openFile, .openUrl,
-        .keyboardType, .keyboardKey,
+        .openApp, .openFile,
+        .appOpenURL,
+        .mouseClick, .mouseDrag, .keyboardType, .keyboardKey, .scroll,
         .runShell, .readFile, .writeFile, .listDirectory, .moveFile,
     ]
     for method in expectedPresent {
@@ -95,14 +97,20 @@ func appKeepsDesktopAndFileTools() {
 }
 
 @Test
-func appExcludesRawMouseAndScrollTools() {
+func appExcludesOnlyToolsThatBypassCuaDriverTargeting() {
     let excluded = RuntimeToolFiltering.excludedTools(for: AgentRuntimeKind.app)
     let expectedExcluded: [AgentMethod] = [
-        .mouseMove, .mouseClick, .mouseDrag, .scroll,
+        .openUrl, .mouseMove,
     ]
     for method in expectedExcluded {
-        #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for App (foreground-stealing)")
+        #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for App")
     }
+    #expect(!excluded.contains(.appOpenURL), "app_open_url should be available for App (dispatches through CuaDriver launch_app URL handoff)")
+    #expect(!excluded.contains(.mouseClick), "mouse_click should be available for App (dispatches through CuaDriver pid/window click)")
+    #expect(!excluded.contains(.mouseDrag), "mouse_drag should be available for App (dispatches through CuaDriver pid/window drag)")
+    #expect(!excluded.contains(.keyboardType), "keyboard_type should be available for App (dispatches through CuaDriver type_text)")
+    #expect(!excluded.contains(.keyboardKey), "keyboard_key should be available for App (dispatches through CuaDriver press_key)")
+    #expect(!excluded.contains(.scroll), "scroll should be available for App (dispatches through CuaDriver's background scroll tool)")
 }
 
 @Test
@@ -111,6 +119,7 @@ func fastExcludesAppOnlyTools() {
     let appTools: [AgentMethod] = [
         .appListApps, .appListWindows, .appSelectWindow,
         .appGetWindowState, .appClickElement, .appSetValue,
+        .appSubmitElement, .appOpenURL,
     ]
     for method in appTools {
         #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for Fast")
@@ -123,6 +132,7 @@ func vmExcludesAppOnlyTools() {
     let appTools: [AgentMethod] = [
         .appListApps, .appListWindows, .appSelectWindow,
         .appGetWindowState, .appClickElement, .appSetValue,
+        .appSubmitElement, .appOpenURL,
     ]
     for method in appTools {
         #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for VM")

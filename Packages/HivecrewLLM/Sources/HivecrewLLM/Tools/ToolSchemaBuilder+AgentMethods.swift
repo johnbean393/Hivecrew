@@ -41,7 +41,7 @@ extension ToolSchemaBuilder {
 
         case .openApp:
             return (
-                "Open an application by bundle ID or name. If the app is already running, it will be activated and brought to the foreground. At least one of bundleId or appName must be provided.",
+                "Open an application by bundle ID or name. In App Worker this uses CuaDriver background launch and should not bring the app to the foreground; in VM it may activate the app. At least one of bundleId or appName must be provided.",
                 objectSchema(
                     properties: [
                         "bundleId": stringProperty("The bundle identifier of the app (e.g., 'com.apple.Safari')"),
@@ -88,7 +88,7 @@ extension ToolSchemaBuilder {
 
         case .mouseClick:
             return (
-                "Click the mouse at the specified screen coordinates. COORDINATE SYSTEM: Origin (0,0) is at the TOP-LEFT corner of the screen. X increases to the right, Y increases DOWNWARD (not upward). For example, a point near the top of the screen has a small Y value, while a point near the bottom has a large Y value.",
+                "Click at the specified coordinates. In App Worker, coordinates are window-local screenshot pixels from the selected window's latest app_get_window_state/screenshot and are delivered to the target pid through CuaDriver without moving the user's cursor. In VM, coordinates are screen coordinates with top-left origin.",
                 objectSchema(
                     properties: [
                         "x": numberProperty("X coordinate on screen (0 = left edge, increases rightward)"),
@@ -102,7 +102,7 @@ extension ToolSchemaBuilder {
 
         case .mouseDrag:
             return (
-                "Drag the mouse from one position to another. COORDINATE SYSTEM: Origin (0,0) is at the TOP-LEFT corner of the screen. X increases to the right, Y increases DOWNWARD (not upward).",
+                "Drag from one position to another. In App Worker, coordinates are window-local screenshot pixels from the selected window and are delivered to the target pid through CuaDriver when possible. In VM, coordinates are screen coordinates with top-left origin.",
                 objectSchema(
                     properties: [
                         "fromX": numberProperty("Starting X coordinate (0 = left edge, increases rightward)"),
@@ -116,7 +116,7 @@ extension ToolSchemaBuilder {
 
         case .keyboardType:
             return (
-                "Type text using the keyboard. This simulates typing each character.",
+                "Type text into the current target. In App Worker this uses CuaDriver's pid-targeted type_text tool: it tries AX selected-text insertion first, then falls back to pid-routed key events for Chromium/Electron inputs without targeting the user's foreground app.",
                 objectSchema(
                     properties: [
                         "text": stringProperty("The text to type")
@@ -127,7 +127,7 @@ extension ToolSchemaBuilder {
 
         case .keyboardKey:
             return (
-                "Press a single key, optionally with modifier keys.",
+                "Press a single key, optionally with modifier keys. In App Worker this uses CuaDriver's pid-targeted press_key tool against the selected window/last interacted element when available; avoid focus shortcuts such as command+l unless the user accepts visible browser focus behavior.",
                 objectSchema(
                     properties: [
                         "key": stringProperty("The key to press (e.g., 'return', 'escape', 'tab', 'a', 'F1')"),
@@ -338,13 +338,37 @@ extension ToolSchemaBuilder {
 
         case .appSetValue:
             return (
-                "Set the value of a UI element (text field, checkbox, etc.) by its index from the most recent window state. Use for text fields, search boxes, and other value-accepting elements.",
+                "Set the AXValue of a UI element by its index from the most recent window state. Use for native text fields, sliders, steppers, and other value-accepting elements.",
                 objectSchema(
                     properties: [
                         "elementIndex": numberProperty("The element index from the most recent window state observation."),
                         "value": stringProperty("The value to set on the element.")
                     ],
                     required: ["elementIndex", "value"]
+                )
+            )
+
+        case .appSubmitElement:
+            return (
+                "Submit or confirm a UI element by index from the most recent window state using CuaDriver press_key return against that element.",
+                objectSchema(
+                    properties: [
+                        "elementIndex": numberProperty("The element index from the most recent window state observation. If omitted, submits the most recently interacted or focused element.")
+                    ],
+                    required: []
+                )
+            )
+
+        case .appOpenURL:
+            return (
+                "Open a URL in a target app using CuaDriver's background launch_app URL handoff. Prefer this over address-bar typing or open_url for browsers; it preserves the no-foreground contract through CuaDriver's focus restore guard.",
+                objectSchema(
+                    properties: [
+                        "url": stringProperty("The URL to open, such as https://example.com."),
+                        "bundleId": stringProperty("Optional target app bundle identifier, such as com.google.Chrome."),
+                        "appName": stringProperty("Optional target app name, such as Google Chrome.")
+                    ],
+                    required: ["url"]
                 )
             )
 

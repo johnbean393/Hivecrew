@@ -11,6 +11,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 import CuaDriverCore
+import MCP
 
 // MARK: - Tree-markdown element parser
 
@@ -141,6 +142,8 @@ extension CuaDriverConnection {
         }
         currentWindow = WindowContext(windowId: window.windowId, title: window.title, pid: window.pid)
         elementCache = [:]
+        lastInteractedElementIndex = nil
+        lastInteractedElement = nil
     }
 
     // MARK: - Get Window State
@@ -193,28 +196,14 @@ extension CuaDriverConnection {
     func clickElement(_ index: Int, button: String = "left") async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
 
-        let element: AXUIElement
-        do {
-            element = try await engine.lookup(
-                pid: Int32(window.pid),
-                windowId: UInt32(window.windowId),
-                elementIndex: index
-            )
-        } catch {
-            throw CuaDriverError.toolCallFailed(
-                "Element index \(index) is invalid. Re-run app_get_window_state to get a fresh tree. (\(error))"
-            )
-        }
-
-        let action: String = (button == "right") ? kAXShowMenuAction : kAXPressAction
-        let previousFrontmost = NSWorkspace.shared.frontmostApplication
-        try await focusGuard.withFocusSuppressed(
-            pid: Int32(window.pid),
-            element: element
-        ) { @Sendable in
-            try AXInput.performAction(action, on: element)
-        }
-        restoreFrontmostIfStolen(previousFrontmost, targetPid: window.pid)
+        _ = try await callCuaTool("click", [
+            "pid": .int(window.pid),
+            "window_id": .int(window.windowId),
+            "element_index": .int(index),
+            "action": .string(button == "right" ? "show_menu" : "press"),
+        ])
+        lastInteractedElementIndex = index
+        lastInteractedElement = await lookupLastInteractedElement(for: window)
     }
 
     // MARK: - Set Value
@@ -222,49 +211,35 @@ extension CuaDriverConnection {
     func setValue(elementIndex: Int, value: String) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
 
-        let element: AXUIElement
-        do {
-            element = try await engine.lookup(
-                pid: Int32(window.pid),
-                windowId: UInt32(window.windowId),
-                elementIndex: elementIndex
-            )
-        } catch {
-            throw CuaDriverError.toolCallFailed(
-                "Element index \(elementIndex) is invalid. Re-run app_get_window_state to get a fresh tree. (\(error))"
-            )
-        }
+        _ = try await callCuaTool("set_value", [
+            "pid": .int(window.pid),
+            "window_id": .int(window.windowId),
+            "element_index": .int(elementIndex),
+            "value": .string(value),
+        ])
 
-        let previousFrontmost = NSWorkspace.shared.frontmostApplication
-        try await focusGuard.withFocusSuppressed(
-            pid: Int32(window.pid),
-            element: element
-        ) { @Sendable in
-            try AXInput.setAttribute(kAXFocusedAttribute, on: element, value: kCFBooleanTrue)
-            try AXInput.setAttribute(kAXValueAttribute, on: element, value: value as CFTypeRef)
-        }
-        restoreFrontmostIfStolen(previousFrontmost, targetPid: window.pid)
+        lastInteractedElementIndex = elementIndex
+        lastInteractedElement = await lookupLastInteractedElement(for: window)
     }
 
-    // MARK: - Frontmost app restoration
+    // MARK: - Submit Element
 
-    /// If an AX action caused the target app to steal frontmost status from
-    /// whatever the user had focused, re-activate the previous app to honor
-    /// the no-foreground contract.
-    private func restoreFrontmostIfStolen(
-        _ previous: NSRunningApplication?,
-        targetPid: Int
-    ) {
-        guard let previous else { return }
-        let currentFrontmost = NSWorkspace.shared.frontmostApplication
-        let previousPid = previous.processIdentifier
-        let targetWasAlreadyFront = Int(previousPid) == targetPid
+    func submitElement(elementIndex: Int?) async throws {
+        guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
 
-        if targetWasAlreadyFront { return }
-
-        if let current = currentFrontmost,
-           current.processIdentifier != previousPid {
-            previous.activate()
+        guard let resolvedIndex = elementIndex ?? lastInteractedElementIndex else {
+            throw CuaDriverError.toolCallFailed(
+                "No element to submit. Pass an elementIndex from app_get_window_state or call app_set_value/app_click_element first."
+            )
         }
+
+        _ = try await callCuaTool("press_key", [
+            "pid": .int(window.pid),
+            "window_id": .int(window.windowId),
+            "element_index": .int(resolvedIndex),
+            "key": .string("return"),
+        ])
+        lastInteractedElementIndex = resolvedIndex
+        lastInteractedElement = await lookupLastInteractedElement(for: window)
     }
 }

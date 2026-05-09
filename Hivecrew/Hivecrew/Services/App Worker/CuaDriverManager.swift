@@ -13,6 +13,7 @@ import AppKit
 import Combine
 import HivecrewCore
 import CuaDriverCore
+import CuaDriverServer
 
 // MARK: - Status enums
 
@@ -36,15 +37,12 @@ final class CuaDriverManager: ObservableObject {
     @Published private(set) var screenRecordingGranted: Bool = false
     @Published private(set) var lastError: String?
 
-    // Shared CuaDriverCore actors — created once, reused across connections.
-    private let enablement = AXEnablementAssertion()
-    private(set) lazy var engine: AppStateEngine = AppStateEngine(enablement: enablement)
+    // Use CuaDriver's own shared registry so Hivecrew facade calls and
+    // CuaDriverServer tool calls share the same AX cache and focus guard.
+    private(set) lazy var systemFocusStealPreventer = AppStateRegistry.systemFocusStealPreventer
+    private(set) lazy var engine: AppStateEngine = AppStateRegistry.engine
     private(set) lazy var capture: WindowCapture = WindowCapture()
-    private(set) lazy var focusGuard: FocusGuard = FocusGuard(
-        enablement: enablement,
-        enforcer: SyntheticAppFocusEnforcer(),
-        systemPreventer: SystemFocusStealPreventer()
-    )
+    private(set) lazy var focusGuard: FocusGuard = AppStateRegistry.focusGuard
 
     private init() {}
 

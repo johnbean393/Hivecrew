@@ -12,6 +12,8 @@ import AppKit
 import CoreGraphics
 import HivecrewCore
 import CuaDriverCore
+import CuaDriverServer
+import MCP
 
 // MARK: - Supporting types
 
@@ -69,15 +71,25 @@ final class CuaDriverConnection: AgentToolConnection {
     let engine: AppStateEngine
     let capture: WindowCapture
     let focusGuard: FocusGuard
+    private let cuaTools = ToolRegistry.default
 
     var currentApp: AppContext?
     var currentWindow: WindowContext?
     var elementCache: [Int: AXElementSummary] = [:]
     var cachedLaunchWindows: (pid: Int, windows: [WindowSummary])?
+    var lastInteractedElementIndex: Int?
+    var lastInteractedElement: AXUIElement?
+    var chromiumBundleDetectionCache: [Int: Bool] = [:]
 
     var lockedAppKeys: Set<String> = []
 
-    init(session: AppWorkerSession, engine: AppStateEngine, capture: WindowCapture, focusGuard: FocusGuard, todoManager: TodoManager? = nil) {
+    init(
+        session: AppWorkerSession,
+        engine: AppStateEngine,
+        capture: WindowCapture,
+        focusGuard: FocusGuard,
+        todoManager: TodoManager? = nil
+    ) {
         self.connectionId = UUID().uuidString
         self.session = session
         self.engine = engine
@@ -148,67 +160,97 @@ final class CuaDriverConnection: AgentToolConnection {
     // MARK: - App/File/URL
 
     func openApp(bundleId: String?, appName: String?) async throws {
-        let appKey = AppFocusManager.normalizedKey(bundleId: bundleId, appName: appName)
-        await AppFocusManager.shared.acquire(appKey: appKey, connectionId: connectionId)
-        lockedAppKeys.insert(appKey)
-
         guard bundleId != nil || appName != nil else {
             throw CuaDriverError.toolCallFailed("Provide either bundle_id or name.")
         }
 
-        let previousFrontmost = NSWorkspace.shared.frontmostApplication
+        let appKey = AppFocusManager.normalizedKey(bundleId: bundleId, appName: appName)
+        await AppFocusManager.shared.acquire(appKey: appKey, connectionId: connectionId)
+        lockedAppKeys.insert(appKey)
 
-        let running = NSWorkspace.shared.runningApplications.first { app in
-            if let bid = bundleId, !bid.isEmpty, app.bundleIdentifier == bid { return true }
-            if let name = appName, !name.isEmpty,
-               app.localizedName?.localizedCaseInsensitiveCompare(name) == .orderedSame { return true }
-            return false
+        let info = try await launchAppInBackground(bundleId: bundleId, appName: appName)
+        await selectLaunchedApp(info, fallbackName: appName, fallbackBundleId: bundleId)
+    }
+
+    func openURLInApp(_ urlString: String, bundleId: String?, appName: String?) async throws {
+        let url = try resolveAppOpenURL(urlString)
+        var resolvedBundleId = bundleId
+        var resolvedAppName = appName
+
+        if resolvedBundleId == nil && resolvedAppName == nil,
+           let appURL = NSWorkspace.shared.urlForApplication(toOpen: url) {
+            resolvedBundleId = Bundle(url: appURL)?.bundleIdentifier
+            resolvedAppName = appURL.deletingPathExtension().lastPathComponent
         }
 
-        let pid: Int
-        let resolvedName: String
-        let resolvedBundleId: String?
+        let appKey = AppFocusManager.normalizedKey(
+            bundleId: resolvedBundleId,
+            appName: resolvedAppName
+        )
+        await AppFocusManager.shared.acquire(appKey: appKey, connectionId: connectionId)
+        lockedAppKeys.insert(appKey)
 
-        if let app = running {
-            pid = Int(app.processIdentifier)
-            resolvedName = app.localizedName ?? appName ?? "app"
-            resolvedBundleId = app.bundleIdentifier ?? bundleId
-        } else {
-            var appURL: URL?
-            if let bid = bundleId, !bid.isEmpty {
-                appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid)
-            }
-            if appURL == nil, let name = appName, !name.isEmpty {
-                for dir in ["/System/Applications", "/Applications", "/System/Applications/Utilities"] {
-                    let candidate = URL(fileURLWithPath: "\(dir)/\(name).app")
-                    if FileManager.default.fileExists(atPath: candidate.path) {
-                        appURL = candidate
-                        break
-                    }
-                }
-            }
-            guard let url = appURL else {
-                throw CuaDriverError.toolCallFailed(
-                    "Application not found: \(appName ?? bundleId ?? "unknown")"
-                )
-            }
+        let info = try await launchAppInBackground(
+            bundleId: resolvedBundleId,
+            appName: resolvedAppName,
+            urls: [url]
+        )
+        await selectLaunchedApp(
+            info,
+            fallbackName: resolvedAppName,
+            fallbackBundleId: resolvedBundleId
+        )
+    }
 
-            let config = NSWorkspace.OpenConfiguration()
-            config.activates = false
-            let app = try await NSWorkspace.shared.openApplication(at: url, configuration: config)
-            pid = Int(app.processIdentifier)
-            resolvedName = app.localizedName ?? appName ?? "app"
-            resolvedBundleId = app.bundleIdentifier ?? bundleId
-            try? await Task.sleep(nanoseconds: 800_000_000)
-
-            // Apps can self-activate during launch (e.g. in
-            // applicationDidFinishLaunching) despite activates=false.
-            // Restore the user's frontmost app if it was stolen.
-            restoreFrontmostIfStolen(previousFrontmost)
+    private func launchAppInBackground(
+        bundleId: String?,
+        appName: String?,
+        urls: [URL] = []
+    ) async throws -> AppInfo {
+        var arguments: [String: Value] = [:]
+        if let bundleId, !bundleId.isEmpty {
+            arguments["bundle_id"] = .string(bundleId)
         }
+        if let appName, !appName.isEmpty {
+            arguments["name"] = .string(appName)
+        }
+        if !urls.isEmpty {
+            arguments["urls"] = .array(urls.map { .string($0.absoluteString) })
+        }
+
+        let result = try await callCuaTool("launch_app", arguments)
+        if let info = parseLaunchInfo(result.structuredContent) {
+            return info
+        }
+
+        if let app = runningApplication(bundleId: bundleId, appName: appName) {
+            return AppInfo(
+                pid: app.processIdentifier,
+                bundleId: app.bundleIdentifier ?? bundleId,
+                name: app.localizedName ?? appName ?? bundleId ?? "app",
+                running: !app.isTerminated,
+                active: app.isActive
+            )
+        }
+
+        throw CuaDriverError.toolCallFailed(
+            "CuaDriver launch_app succeeded but did not return app identity."
+        )
+    }
+
+    private func selectLaunchedApp(
+        _ info: AppInfo,
+        fallbackName: String?,
+        fallbackBundleId: String?
+    ) async {
+        let pid = Int(info.pid)
+        let resolvedName = info.name.isEmpty ? (fallbackName ?? "app") : info.name
+        let resolvedBundleId = info.bundleId ?? fallbackBundleId
 
         currentApp = AppContext(pid: pid, appName: resolvedName, bundleId: resolvedBundleId)
         elementCache = [:]
+        lastInteractedElementIndex = nil
+        lastInteractedElement = nil
 
         // Use allWindows() so we find windows of background-launched apps that
         // may not be on-screen yet (minimized, other Space, hidden launch).
@@ -227,141 +269,137 @@ final class CuaDriverConnection: AgentToolConnection {
         }
     }
 
-    /// Restores the user's frontmost app if something stole focus.
-    private func restoreFrontmostIfStolen(_ previous: NSRunningApplication?) {
-        guard let previous else { return }
-        let current = NSWorkspace.shared.frontmostApplication
-        if let current, current.processIdentifier != previous.processIdentifier {
-            previous.activate()
+    private func runningApplication(bundleId: String?, appName: String?) -> NSRunningApplication? {
+        NSWorkspace.shared.runningApplications.first { app in
+            if let bid = bundleId, !bid.isEmpty, app.bundleIdentifier == bid { return true }
+            if let name = appName, !name.isEmpty,
+               app.localizedName?.localizedCaseInsensitiveCompare(name) == .orderedSame { return true }
+            return false
         }
     }
 
+    private func resolveAppOpenURL(_ raw: String) throws -> URL {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CuaDriverError.toolCallFailed("url must not be empty.")
+        }
+        if let url = URL(string: trimmed), url.scheme != nil {
+            return url
+        }
+        if trimmed.hasPrefix("~/") {
+            return URL(fileURLWithPath: NSString(string: trimmed).expandingTildeInPath)
+        }
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed)
+        }
+        guard let url = URL(string: "https://\(trimmed)") else {
+            throw CuaDriverError.toolCallFailed("Invalid URL: \(raw)")
+        }
+        return url
+    }
+
     func openFile(path: String, withApp: String?) async throws {
-        let previousFrontmost = NSWorkspace.shared.frontmostApplication
         let url = URL(fileURLWithPath: path)
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = false
+        var bundleId: String?
+        var appName: String?
         if let app = withApp, !app.isEmpty {
-            try await NSWorkspace.shared.open(
-                [url],
-                withApplicationAt: URL(fileURLWithPath: app),
-                configuration: config
-            )
+            let appURL = URL(fileURLWithPath: (app as NSString).expandingTildeInPath)
+            if FileManager.default.fileExists(atPath: appURL.path) {
+                bundleId = Bundle(url: appURL)?.bundleIdentifier
+                appName = appURL.deletingPathExtension().lastPathComponent
+            } else {
+                appName = app
+            }
         } else if let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: url) {
-            try await NSWorkspace.shared.open(
-                [url],
-                withApplicationAt: defaultApp,
-                configuration: config
-            )
+            bundleId = Bundle(url: defaultApp)?.bundleIdentifier
+            appName = defaultApp.deletingPathExtension().lastPathComponent
         } else {
             throw CuaDriverError.toolCallFailed(
                 "No application found to open file: \(path). Specify an app with the withApp parameter."
             )
         }
-        restoreFrontmostIfStolen(previousFrontmost)
+
+        let info = try await launchAppInBackground(bundleId: bundleId, appName: appName, urls: [url])
+        await selectLaunchedApp(info, fallbackName: appName, fallbackBundleId: bundleId)
     }
 
     func openUrl(_ urlString: String) async throws {
-        let urlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !urlString.isEmpty else { return }
-
-        let previousFrontmost = NSWorkspace.shared.frontmostApplication
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = false
-
-        if urlString.hasPrefix("x-apple.systempreferences:") {
-            let bid = "com.apple.systempreferences"
-            if let nsUrl = URL(string: urlString),
-               let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
-                try await NSWorkspace.shared.open([nsUrl], withApplicationAt: appURL, configuration: config)
-            }
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            restoreFrontmostIfStolen(previousFrontmost)
-            if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bid }) {
-                let pid = Int(app.processIdentifier)
-                currentApp = AppContext(pid: pid, appName: "System Settings", bundleId: bid)
-                elementCache = [:]
-                let windows = WindowEnumerator.allWindows()
-                    .filter { $0.pid == Int32(pid) && $0.bounds.width > 1 && $0.bounds.height > 1 }
-                    .sorted { $0.zIndex > $1.zIndex }
-                if let best = windows.first {
-                    currentWindow = WindowContext(windowId: best.id, title: best.name, pid: Int(best.pid))
-                    cachedLaunchWindows = (pid: pid, windows: windows.map {
-                        WindowSummary(windowId: $0.id, title: $0.name, pid: Int($0.pid))
-                    })
-                } else {
-                    currentWindow = nil
-                }
-            }
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if trimmed.hasPrefix("x-apple.systempreferences:") {
+            try await openURLInApp(trimmed, bundleId: "com.apple.systempreferences", appName: "System Settings")
             return
         }
-
-        if let nsUrl = URL(string: urlString) {
-            NSWorkspace.shared.open(nsUrl, configuration: config) { _, _ in }
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            restoreFrontmostIfStolen(previousFrontmost)
-        }
+        try await openURLInApp(trimmed, bundleId: nil, appName: nil)
     }
 
     // MARK: - Mouse (pixel-level via CuaDriverCore)
 
     func mouseMove(x: Double, y: Double) async throws {
-        guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let screenPoint = try WindowCoordinateSpace.screenPoint(
-            fromImagePixel: CGPoint(x: x, y: y),
-            forPid: Int32(window.pid),
-            windowId: UInt32(window.windowId)
+        throw CuaDriverError.toolCallFailed(
+            "mouse_move is not available in App Worker. Use CuaDriver element-indexed app tools instead."
         )
-        CursorControl.move(to: screenPoint)
     }
 
     func mouseClick(x: Double, y: Double, button: String, clickType: String) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let screenPoint = try WindowCoordinateSpace.screenPoint(
-            fromImagePixel: CGPoint(x: x, y: y),
-            forPid: Int32(window.pid),
-            windowId: UInt32(window.windowId)
-        )
-        let mouseButton: MouseInput.Button = button == "right" ? .right : .left
-        let count = clickType == "double" ? 2 : 1
-        try MouseInput.click(
-            at: screenPoint,
-            toPid: pid_t(window.pid),
-            button: mouseButton,
-            count: count
-        )
+        let count: Int
+        switch clickType {
+        case "double": count = 2
+        case "triple": count = 3
+        default: count = 1
+        }
+
+        switch button {
+        case "left", "":
+            _ = try await callCuaTool("click", [
+                "pid": .int(window.pid),
+                "window_id": .int(window.windowId),
+                "x": .double(x),
+                "y": .double(y),
+                "count": .int(count),
+            ])
+        case "right":
+            _ = try await callCuaTool("right_click", [
+                "pid": .int(window.pid),
+                "window_id": .int(window.windowId),
+                "x": .double(x),
+                "y": .double(y),
+            ])
+        default:
+            throw CuaDriverError.toolCallFailed(
+                "Unsupported App Worker mouse button '\(button)'. Use left or right."
+            )
+        }
     }
 
     func mouseDrag(fromX: Double, fromY: Double, toX: Double, toY: Double) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let startScreen = try WindowCoordinateSpace.screenPoint(
-            fromImagePixel: CGPoint(x: fromX, y: fromY),
-            forPid: Int32(window.pid),
-            windowId: UInt32(window.windowId)
-        )
-        let endScreen = try WindowCoordinateSpace.screenPoint(
-            fromImagePixel: CGPoint(x: toX, y: toY),
-            forPid: Int32(window.pid),
-            windowId: UInt32(window.windowId)
-        )
-        synthesizeDrag(from: startScreen, to: endScreen, pid: pid_t(window.pid))
+        _ = try await callCuaTool("drag", [
+            "pid": .int(window.pid),
+            "window_id": .int(window.windowId),
+            "from_x": .double(fromX),
+            "from_y": .double(fromY),
+            "to_x": .double(toX),
+            "to_y": .double(toY),
+        ])
     }
 
     // MARK: - Keyboard (via CuaDriverCore)
 
     func keyboardType(text: String) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let pid = pid_t(window.pid)
-
-        // Try AX-based text insertion first (works for native text fields)
-        let focused = try? AXInput.focusedElement(pid: pid)
-        if let focused = focused {
-            try? AXInput.setAttribute("AXSelectedText", on: focused, value: text as CFTypeRef)
-            return
+        var arguments: [String: Value] = [
+            "pid": .int(window.pid),
+            "text": .string(text),
+        ]
+        if let index = lastInteractedElementIndex {
+            arguments["window_id"] = .int(window.windowId)
+            arguments["element_index"] = .int(index)
         }
+        arguments["delay_ms"] = .int(isChromiumBackedCurrentTarget() ? 30 : 10)
 
-        // Fall back to character-by-character typing via CGEvent
-        try KeyboardInput.typeCharacters(text, toPid: pid)
+        _ = try await callCuaTool("type_text", arguments)
     }
 
     /// Key combinations that macOS intercepts at the system level before
@@ -371,6 +409,8 @@ final class CuaDriverConnection: AgentToolConnection {
         ["command", "shift", "tab"],
         ["command", "space"],
         ["command", "option", "space"],
+        ["command", "l"],
+        ["command", "shift", "g"],
         ["command", "h"],
         ["command", "option", "h"],
         ["command", "m"],
@@ -389,7 +429,7 @@ final class CuaDriverConnection: AgentToolConnection {
 
         let filtered = modifiers.filter { !$0.isEmpty }
         if !filtered.isEmpty {
-            let normalized = Set((filtered + [key]).map { $0.lowercased() })
+            let normalized = Set((filtered + [key]).map { Self.normalizedShortcutName($0) })
             for forbidden in Self.focusStealingHotkeys {
                 if normalized == Set(forbidden) {
                     throw CuaDriverError.toolCallFailed(
@@ -399,20 +439,57 @@ final class CuaDriverConnection: AgentToolConnection {
                     )
                 }
             }
-            try KeyboardInput.hotkey(filtered + [key], toPid: pid)
-            return
         }
-        try KeyboardInput.press(key, toPid: pid)
+
+        var arguments: [String: Value] = [
+            "pid": .int(Int(pid)),
+            "key": .string(key),
+        ]
+        if !filtered.isEmpty {
+            arguments["modifiers"] = .array(filtered.map { .string(Self.cuaModifierName($0)) })
+            arguments["window_id"] = .int(window.windowId)
+        }
+        if let index = lastInteractedElementIndex {
+            arguments["window_id"] = .int(window.windowId)
+            arguments["element_index"] = .int(index)
+        }
+        _ = try await callCuaTool("press_key", arguments)
+    }
+
+    private static func cuaModifierName(_ modifier: String) -> String {
+        switch modifier.lowercased() {
+        case "command", "cmd": return "cmd"
+        case "control", "ctrl": return "ctrl"
+        case "function", "fn": return "fn"
+        default: return modifier.lowercased()
+        }
+    }
+
+    private static func normalizedShortcutName(_ key: String) -> String {
+        switch key.lowercased() {
+        case "cmd": return "command"
+        case "ctrl": return "control"
+        case "fn": return "function"
+        default: return key.lowercased()
+        }
     }
 
     func scroll(x: Double, y: Double, deltaX: Double, deltaY: Double) async throws {
         guard let window = currentWindow else { throw CuaDriverError.noWindowSelected }
-        let screenPoint = try WindowCoordinateSpace.screenPoint(
-            fromImagePixel: CGPoint(x: x, y: y),
-            forPid: Int32(window.pid),
-            windowId: UInt32(window.windowId)
-        )
-        synthesizeScroll(at: screenPoint, deltaX: deltaX, deltaY: deltaY, pid: pid_t(window.pid))
+        guard let (direction, amount, by) = cuaScrollRequest(deltaX: deltaX, deltaY: deltaY) else {
+            return
+        }
+        var arguments: [String: Value] = [
+            "pid": .int(window.pid),
+            "direction": .string(direction),
+            "amount": .int(amount),
+            "by": .string(by),
+        ]
+        if let index = lastInteractedElementIndex {
+            arguments["window_id"] = .int(window.windowId)
+            arguments["element_index"] = .int(index)
+        }
+        _ = try await callCuaTool("scroll", arguments)
     }
 
     // MARK: - Shell (host-local, rooted at session workspace)
@@ -530,45 +607,209 @@ final class CuaDriverConnection: AgentToolConnection {
 
     // MARK: - Private helpers
 
-    private func synthesizeDrag(from start: CGPoint, to end: CGPoint, pid: pid_t) {
-        guard let downEvent = CGEvent(
-            mouseEventSource: nil, mouseType: .leftMouseDown,
-            mouseCursorPosition: start, mouseButton: .left
-        ) else { return }
-        downEvent.postToPid(pid)
+    func callCuaTool(
+        _ name: String,
+        _ arguments: [String: Value],
+        allowToolError: Bool = false
+    ) async throws -> CallTool.Result {
+        let result = try await cuaTools.call(name, arguments: arguments)
+        if result.isError == true && !allowToolError {
+            throw CuaDriverError.toolCallFailed(firstTextContent(result) ?? "\(name) failed")
+        }
+        return result
+    }
 
-        let steps = 10
-        for i in 1...steps {
-            let frac = CGFloat(i) / CGFloat(steps)
-            let pt = CGPoint(
-                x: start.x + (end.x - start.x) * frac,
-                y: start.y + (end.y - start.y) * frac
-            )
-            guard let dragEvent = CGEvent(
-                mouseEventSource: nil, mouseType: .leftMouseDragged,
-                mouseCursorPosition: pt, mouseButton: .left
-            ) else { continue }
-            dragEvent.postToPid(pid)
-            usleep(10_000)
+    private func firstTextContent(_ result: CallTool.Result) -> String? {
+        for item in result.content {
+            if case let .text(text, _, _) = item {
+                return text
+            }
+        }
+        return nil
+    }
+
+    private func parseLaunchInfo(_ value: Value?) -> AppInfo? {
+        guard let object = value?.objectValue,
+              let pid = object["pid"]?.intValue,
+              let checkedPid = Int32(exactly: pid) else {
+            return nil
+        }
+        return AppInfo(
+            pid: checkedPid,
+            bundleId: object["bundle_id"]?.stringValue,
+            name: object["name"]?.stringValue ?? "app",
+            running: object["running"]?.boolValue ?? true,
+            active: object["active"]?.boolValue ?? false
+        )
+    }
+
+    private func cuaScrollRequest(deltaX: Double, deltaY: Double) -> (direction: String, amount: Int, by: String)? {
+        let useVertical = abs(deltaY) >= abs(deltaX)
+        let delta = useVertical ? deltaY : deltaX
+        let magnitude = abs(delta)
+        guard magnitude >= 0.5 else { return nil }
+
+        let direction: String
+        if useVertical {
+            direction = delta < 0 ? "down" : "up"
+        } else {
+            direction = delta < 0 ? "right" : "left"
         }
 
-        guard let upEvent = CGEvent(
-            mouseEventSource: nil, mouseType: .leftMouseUp,
-            mouseCursorPosition: end, mouseButton: .left
-        ) else { return }
-        upEvent.postToPid(pid)
+        if magnitude >= 10 {
+            return (
+                direction: direction,
+                amount: min(5, max(1, Int((magnitude / 10).rounded(.up)))),
+                by: "page"
+            )
+        }
+        return (
+            direction: direction,
+            amount: min(50, max(1, Int(magnitude.rounded()))),
+            by: "line"
+        )
     }
 
-    private func synthesizeScroll(at point: CGPoint, deltaX: Double, deltaY: Double, pid: pid_t) {
-        guard let event = CGEvent(
-            scrollWheelEvent2Source: nil,
-            units: .pixel,
-            wheelCount: 2,
-            wheel1: Int32(deltaY),
-            wheel2: Int32(deltaX),
-            wheel3: 0
-        ) else { return }
-        event.location = point
-        event.postToPid(pid)
+    func lookupLastInteractedElement(for window: WindowContext) async -> AXUIElement? {
+        guard let index = lastInteractedElementIndex else { return nil }
+        return try? await engine.lookup(
+            pid: Int32(window.pid),
+            windowId: UInt32(window.windowId),
+            elementIndex: index
+        )
     }
+
+    func isChromiumBackedCurrentTarget() -> Bool {
+        let pid = currentWindow?.pid ?? currentApp?.pid
+        if let pid, appBundleLooksChromiumBacked(pid: pid) {
+            return true
+        }
+
+        // Electron/Chromium-backed apps commonly expose the page as AXWebArea.
+        if elementCache.values.contains(where: { $0.role == "AXWebArea" }) {
+            return true
+        }
+
+        // Fallback for browser shells whose bundles may be outside normal
+        // locations, unreadable, or represented by helper processes.
+        let bundleId = currentApp?.bundleId?.lowercased() ?? ""
+        let appName = currentApp?.appName.lowercased() ?? ""
+        let chromiumBundlePrefixes = [
+            "com.google.chrome",
+            "org.chromium.chromium",
+            "com.microsoft.edgemac",
+            "com.brave.browser",
+            "com.vivaldi.vivaldi",
+            "com.operasoftware.opera",
+            "company.thebrowser.browser",
+        ]
+        if chromiumBundlePrefixes.contains(where: { bundleId.hasPrefix($0) }) {
+            return true
+        }
+
+        let chromiumNameFragments = [
+            "chrome",
+            "chromium",
+            "microsoft edge",
+            "brave",
+            "vivaldi",
+            "opera",
+            "arc",
+        ]
+        if chromiumNameFragments.contains(where: { appName.contains($0) }) {
+            return true
+        }
+
+        return false
+    }
+
+    private func appBundleLooksChromiumBacked(pid: Int) -> Bool {
+        if let cached = chromiumBundleDetectionCache[pid] {
+            return cached
+        }
+
+        guard let app = NSRunningApplication(processIdentifier: pid_t(pid)),
+              let bundleURL = app.bundleURL else {
+            chromiumBundleDetectionCache[pid] = false
+            return false
+        }
+
+        let detected = bundleContainsChromiumMarkers(bundleURL)
+        chromiumBundleDetectionCache[pid] = detected
+        return detected
+    }
+
+    private func bundleContainsChromiumMarkers(_ bundleURL: URL) -> Bool {
+        let fm = FileManager.default
+
+        let markerNames = [
+            "Electron Framework.framework",
+            "Chromium Embedded Framework.framework",
+            "Chromium Framework.framework",
+            "Google Chrome Framework.framework",
+            "Microsoft Edge Framework.framework",
+            "Brave Browser Framework.framework",
+            "Vivaldi Framework.framework",
+            "Opera Framework.framework",
+            "libcef.dylib",
+            "libcef.so",
+        ].map { $0.lowercased() }
+
+        let markerSubstrings = [
+            "electron framework",
+            "chromium embedded framework",
+            "chromium framework",
+            "chrome framework",
+            "libcef",
+        ]
+
+        let candidateRoots = [
+            bundleURL.appendingPathComponent("Contents/Frameworks"),
+            bundleURL.appendingPathComponent("Contents/Helpers"),
+            bundleURL.appendingPathComponent("Contents/Versions"),
+            bundleURL.appendingPathComponent("Contents/Resources"),
+        ]
+
+        for root in candidateRoots where fm.fileExists(atPath: root.path) {
+            if directoryContainsChromiumMarker(root, markerNames: markerNames, markerSubstrings: markerSubstrings) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func directoryContainsChromiumMarker(
+        _ root: URL,
+        markerNames: [String],
+        markerSubstrings: [String],
+        maxDepth: Int = 4
+    ) -> Bool {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: { _, _ in true }
+        ) else {
+            return false
+        }
+
+        let rootDepth = root.pathComponents.count
+        for case let url as URL in enumerator {
+            let depth = url.pathComponents.count - rootDepth
+            if depth > maxDepth {
+                enumerator.skipDescendants()
+                continue
+            }
+
+            let name = url.lastPathComponent.lowercased()
+            if markerNames.contains(name) || markerSubstrings.contains(where: { name.contains($0) }) {
+                return true
+            }
+        }
+
+        return false
+    }
+
 }

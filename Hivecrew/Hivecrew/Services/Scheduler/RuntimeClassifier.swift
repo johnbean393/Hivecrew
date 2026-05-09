@@ -179,7 +179,7 @@ struct RuntimeClassifier {
         client: any LLMClientProtocol
     ) async throws -> AgentRuntimeKind {
         let appLine = appAvailable
-            ? "- \"app\": Use the user's REAL macOS apps on their host (Safari profile, Mail account, Finder, Notes, etc.). Required when the task says \"my\" app/profile/account, or when results must persist in the user's apps."
+            ? "- \"app\": Use the user's REAL macOS apps on their host, including browsers, Electron apps, Finder, Mail, Notes, and local app/account state. CuaDriver can operate windows in the background."
             : "- \"app\": NOT AVAILABLE on this host. Do not pick this option."
 
         let prompt = """
@@ -188,12 +188,12 @@ struct RuntimeClassifier {
         Runtimes:
         - "fast": Headless sandbox (shell, filesystem, network). No GUI, no screenshots, no mouse/keyboard. Best for code, scripts, file processing, web requests, data transformation, document generation.
         \(appLine)
-        - "vm": Disposable isolated macOS VM with full GUI. Best for browser automation, untrusted binaries (.dmg/.pkg), tasks needing a clean desktop, or screen-based workflows that don't require the user's personal apps/profiles.
+        - "vm": Disposable isolated macOS VM with full GUI. Best for untrusted binaries (.dmg/.pkg), tasks needing a clean desktop, or workflows that must not touch the user's real apps/profiles.
 
         Selection rules:
         1. Prefer "fast" by default — it is the cheapest and quickest.
-        2. Choose "vm" when the task clearly needs a GUI / screenshots / a browser / desktop interaction but does NOT need the user's personal apps or accounts.
-        3. Choose "app" only when the task explicitly references the user's own macOS apps, profiles, or accounts ("my Safari", "my Mail", "open Notes and add…").
+        2. Choose "app" for interactive host GUI work when App is available: browser automation, URL navigation, Chrome/Safari browsing, browser games, Electron apps, and the user's local macOS apps.
+        3. Choose "vm" when isolation is the point: untrusted installers/binaries, clean-room testing, or avoiding the user's real browser/profile/apps.
         4. If the task is ambiguous, prefer "fast".
 
         Task:
@@ -311,13 +311,29 @@ struct RuntimeClassifier {
     private func classifyAutomaticHeuristic(_ task: TaskRecord) -> Decision {
         let desc = task.taskDescription.lowercased()
 
-        if matchesGUISignals(desc) {
-            return vmDecision()
-        }
         if matchesIsolationSignals(desc) {
             return vmDecision()
         }
+        if Self.matchesWebInteractionSignals(desc) || matchesGUISignals(desc) {
+            return automaticAppOrVMDecision()
+        }
         return fastDecision()
+    }
+
+    private func automaticAppOrVMDecision() -> Decision {
+        guard appWorkerAvailable() else {
+            return vmDecision()
+        }
+        return Decision(
+            assignedKind: .app,
+            requirement: TaskRuntimeRequirement(
+                preferredRuntime: .app,
+                allowedRuntimes: [.app],
+                requiredCapabilities: .app,
+                requiresHostSpecificState: true,
+                riskLevel: .trustedGUI
+            )
+        )
     }
 
     private static let guiPattern: NSRegularExpression? = {
@@ -331,6 +347,33 @@ struct RuntimeClassifier {
         return try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
     }()
 
+    private static let webInteractionPattern: NSRegularExpression? = {
+        let pattern = [
+            "\\bhttps?://",
+            "\\bwww\\.",
+            "\\bwebsite\\b",
+            "\\bweb site\\b",
+            "\\bwebpage\\b",
+            "\\bweb page\\b",
+            "\\bbrowser\\b",
+            "\\bchrome\\b",
+            "\\bchromium\\b",
+            "\\bsafari\\b",
+            "\\bfirefox\\b",
+            "\\bedge\\b",
+            "\\bopen\\b.*\\b(google|reddit|youtube|website|webpage|web page|site|url)\\b",
+            "\\bgo to\\b.*\\b(google|reddit|youtube|website|webpage|web page|site|url)\\b",
+            "\\bnavigate\\b",
+            "\\burl\\b",
+            "\\bclick\\b.*\\b(web|site|page|link|button)\\b",
+            "\\bplay\\b.*\\b(game|tic tac toe|tictactoe|browser)\\b",
+            "\\bform\\b",
+            "\\blog in\\b",
+            "\\bsign in\\b",
+        ].joined(separator: "|")
+        return try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
+    }()
+
     private static let isolationPattern: NSRegularExpression? = {
         let pattern = [
             "untrusted", "unknown installer", "sandbox", "\\bisolate\\b",
@@ -341,6 +384,12 @@ struct RuntimeClassifier {
 
     private func matchesGUISignals(_ text: String) -> Bool {
         guard let regex = Self.guiPattern else { return false }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.firstMatch(in: text, range: range) != nil
+    }
+
+    private static func matchesWebInteractionSignals(_ text: String) -> Bool {
+        guard let regex = webInteractionPattern else { return false }
         let range = NSRange(text.startIndex..., in: text)
         return regex.firstMatch(in: text, range: range) != nil
     }

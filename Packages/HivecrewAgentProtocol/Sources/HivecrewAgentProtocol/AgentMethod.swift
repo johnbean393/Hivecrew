@@ -57,6 +57,8 @@ public enum AgentMethod: String, CaseIterable, Sendable {
     case appGetWindowState = "app_get_window_state"
     case appClickElement = "app_click_element"
     case appSetValue = "app_set_value"
+    case appSubmitElement = "app_submit_element"
+    case appOpenURL = "app_open_url"
 
     public var isHostSideTool: Bool {
         switch self {
@@ -68,7 +70,8 @@ public enum AgentMethod: String, CaseIterable, Sendable {
              .stageWritebackCopy, .stageWritebackMove, .stageAttachedFileUpdate, .listWritebackTargets,
              .spawnSubagent, .getSubagentStatus, .awaitSubagents, .cancelSubagent, .listSubagents,
              .sendMessage,
-             .appListApps, .appListWindows, .appSelectWindow, .appGetWindowState, .appClickElement, .appSetValue:
+             .appListApps, .appListWindows, .appSelectWindow, .appGetWindowState,
+             .appClickElement, .appSetValue, .appSubmitElement, .appOpenURL:
             return true
         default:
             return false

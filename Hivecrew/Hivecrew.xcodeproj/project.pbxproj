@@ -292,6 +292,7 @@
 		C101000F2FA300010000000F /* ClusterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10100102FA3000100000010 /* ClusterSettingsView.swift */; };
 		C829412DB0CA94E00B0BE991 /* AppWorkerSandboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074C4864B8E2302CD6ADDEA6 /* AppWorkerSandboxTests.swift */; };
 		D0A1B0032FA0000300000003 /* DynamicNotchKit in Frameworks */ = {isa = PBXBuildFile; productRef = D0A1B0022FA0000200000002 /* DynamicNotchKit */; };
+		E0CDA0042FA5000300000003 /* CuaDriverServer in Frameworks */ = {isa = PBXBuildFile; productRef = E0CDA0032FA5000300000003 /* CuaDriverServer */; };
 		D0A1B0042FA0000400000004 /* CompactCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B0072FA0000700000007 /* CompactCallManager.swift */; };
 		D0A1B0052FA0000500000005 /* CompactHUDContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B0082FA0000800000008 /* CompactHUDContentView.swift */; };
 		D0A1B0062FA0000600000006 /* CompactCallNotch.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A1B0092FA0000900000009 /* CompactCallNotch.swift */; };
@@ -668,6 +669,7 @@
 				20C413F92F143BAA00C6E8A9 /* MarkdownView in Frameworks */,
 				204DF4512F16274B004AB99B /* GoogleSearch in Frameworks */,
 				D0A1B0032FA0000300000003 /* DynamicNotchKit in Frameworks */,
+				E0CDA0042FA5000300000003 /* CuaDriverServer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1406,6 +1408,7 @@
 				30B1000D2F72000E0000000F /* HivecrewCore */,
 				D0A1B0022FA0000200000002 /* DynamicNotchKit */,
 				E0CDA0022FA5000200000002 /* CuaDriverCore */,
+				E0CDA0032FA5000300000003 /* CuaDriverServer */,
 			);
 			productName = Hivecrew;
 			productReference = 209C5F942F12947F00062D0E /* Hivecrew.app */;
@@ -2483,6 +2486,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E0CDA0012FA5000100000001 /* XCRemoteSwiftPackageReference "cua" */;
 			productName = CuaDriverCore;
+		};
+		E0CDA0032FA5000300000003 /* CuaDriverServer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0CDA0012FA5000100000001 /* XCRemoteSwiftPackageReference "cua" */;
+			productName = CuaDriverServer;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
