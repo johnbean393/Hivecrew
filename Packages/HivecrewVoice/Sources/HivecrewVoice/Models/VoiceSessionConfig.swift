@@ -51,6 +51,7 @@ public struct VoiceSessionConfig: Sendable {
         case low = "low"
         case medium = "medium"
         case high = "high"
+        case xhigh = "xhigh"
 
         public var id: String { rawValue }
     }

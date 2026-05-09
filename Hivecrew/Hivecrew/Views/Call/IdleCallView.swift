@@ -129,9 +129,11 @@ struct VoiceSettingsPopover: View {
                 )
             )
 
-            if currentProviderType == .gemini {
-                Toggle("Web Search", isOn: $orchestrator.webSearchEnabled)
-                    .toggleStyle(.switch)
+            if currentProviderType == .gemini || currentProviderType == .openAI || currentProviderType == .chatGPTOAuth {
+                if currentProviderType == .gemini {
+                    Toggle("Web Search", isOn: $orchestrator.webSearchEnabled)
+                        .toggleStyle(.switch)
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Thinking")
@@ -142,11 +144,16 @@ struct VoiceSettingsPopover: View {
                         Text("Low").tag("low")
                         Text("Medium").tag("medium")
                         Text("High").tag("high")
+                        if currentProviderType == .openAI || currentProviderType == .chatGPTOAuth {
+                            Text("X-High").tag("xhigh")
+                        }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
 
-                    Toggle("Thought Summaries", isOn: $orchestrator.includeThoughts)
+                    if currentProviderType == .gemini {
+                        Toggle("Thought Summaries", isOn: $orchestrator.includeThoughts)
+                    }
                 }
             }
         }

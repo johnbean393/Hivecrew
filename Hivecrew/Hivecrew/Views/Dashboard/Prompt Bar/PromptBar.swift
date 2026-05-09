@@ -204,6 +204,10 @@ struct PromptBar: View {
             }
     }
 
+    private var shouldShowExecutionTargetButton: Bool {
+        !availableExecutionPeers.isEmpty || executionTarget.kind == .peer
+    }
+
     private var orderedProviders: [LLMProviderRecord] {
         orderedProviderRecords(Array(providers))
     }
@@ -383,7 +387,7 @@ struct PromptBar: View {
                         .popoverTip(batchExecutionTip, arrowEdge: .bottom)
                     }
 
-                    if !availableExecutionPeers.isEmpty {
+                    if shouldShowExecutionTargetButton {
                         PromptExecutionTargetButton(
                             executionTarget: $executionTarget,
                             selectedProviderId: $selectedProviderId,
@@ -943,7 +947,6 @@ struct PromptExecutionTargetMenuOption: Equatable {
     let title: String
     let isEnabled: Bool
     let startsNewSection: Bool
-    var runtimeBadges: [String] = []
 }
 
 struct PromptExecutionTargetButton: View {
@@ -981,7 +984,17 @@ struct PromptExecutionTargetButton: View {
     }
 
     private var selectedLabel: String {
-        executionTarget.displayName
+        let displayName = executionTarget.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !displayName.isEmpty {
+            return displayName
+        }
+        if executionTarget.kind == .peer,
+           let peerId = executionTarget.targetPeerId,
+           let peer = peers.first(where: { $0.id == peerId }) {
+            let peerName = peer.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return peerName.isEmpty ? peer.subdomain : peerName
+        }
+        return String(localized: "Peer")
     }
 
     private var requestedDescriptors: [(providerName: String, modelId: String)] {
@@ -1018,15 +1031,11 @@ struct PromptExecutionTargetButton: View {
                     modelId: descriptor.modelId
                 ) != .unsupported
             }
-            let badges = peer.runtimes
-                .filter { $0.supported }
-                .map { $0.runtimeKind.rawValue.capitalized }
             return PromptExecutionTargetMenuOption(
                 target: .peer(id: peer.id, name: peer.name ?? peer.subdomain),
                 title: peer.name ?? peer.subdomain,
                 isEnabled: isSupported,
-                startsNewSection: false,
-                runtimeBadges: badges
+                startsNewSection: false
             )
         }
 
@@ -1048,6 +1057,7 @@ struct PromptExecutionTargetButton: View {
                 Text(selectedLabel)
                     .font(.caption)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
             .foregroundStyle(selectedTextColor)
             .padding(.horizontal, 8)

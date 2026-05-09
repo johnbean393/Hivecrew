@@ -286,6 +286,11 @@ final class VoiceOrchestrator: ObservableObject {
     private var hasUsedFreshRestartInCurrentFailureEpisode = false
     private var isReplayingRecoveryTranscript = false
     private var lastSystemSleepDate: Date?
+    private lazy var toolCallCoordinator = VoiceToolCallCoordinator { [weak self] toolCalls in
+        Task { @MainActor [weak self] in
+            await self?.handleToolCallBatch(toolCalls)
+        }
+    }
 
     private struct PreparedVoiceSession {
         let provider: any RealtimeVoiceProvider
@@ -461,8 +466,25 @@ final class VoiceOrchestrator: ObservableObject {
     }
 
     private func sendProviderToolResponse(callId: String, name: String, result: String) async {
+        await sendProviderToolResponses([
+            VoiceToolResponse(callId: callId, name: name, result: result)
+        ])
+    }
+
+    private func sendProviderToolResponses(_ responses: [VoiceToolResponse]) async {
+        guard !responses.isEmpty else { return }
         do {
-            try await provider?.sendToolResponse(callId: callId, name: name, result: result)
+            if let batchingProvider = provider as? any RealtimeVoiceToolResponseBatching {
+                try await batchingProvider.sendToolResponses(responses)
+            } else {
+                for response in responses {
+                    try await provider?.sendToolResponse(
+                        callId: response.callId,
+                        name: response.name,
+                        result: response.result
+                    )
+                }
+            }
         } catch {
             recordProviderSendFailure(error, operation: "tool_response")
         }
@@ -1021,7 +1043,7 @@ final class VoiceOrchestrator: ObservableObject {
                     "tool_name": toolCall.name,
                     "tool_id": toolCall.id
                 ])
-                await self.handleToolCall(toolCall)
+                self.toolCallCoordinator.enqueue(toolCall)
             }
         }
 
@@ -1054,6 +1076,7 @@ final class VoiceOrchestrator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 guard !self.isReplayingRecoveryTranscript else { return }
+                self.toolCallCoordinator.flushNow()
                 if let startedAt = self.pendingOverlapStartedAt {
                     let elapsedMs = Int((Date().timeIntervalSinceReferenceDate - startedAt) * 1000)
                     print("[VoiceInterruption] Turn completed without server interruption after \(elapsedMs) ms")
@@ -1253,8 +1276,66 @@ final class VoiceOrchestrator: ObservableObject {
     // MARK: - Tool Calls
 
     private func handleToolCall(_ toolCall: VoiceToolCall) async {
+        await handleToolCallBatch([toolCall])
+    }
+
+    private func handleToolCallBatch(_ toolCalls: [VoiceToolCall]) async {
+        guard !toolCalls.isEmpty else { return }
+        var completed: [(VoiceToolCall, ToolCallResult)] = []
+
+        for segment in VoiceToolExecutionPlanner.segments(for: toolCalls) {
+            if segment.runsInParallel, segment.toolCalls.count > 1 {
+                let segmentResults = await withTaskGroup(
+                    of: (Int, VoiceToolCall, ToolCallResult).self,
+                    returning: [(VoiceToolCall, ToolCallResult)].self
+                ) { group in
+                    for (index, toolCall) in segment.toolCalls.enumerated() {
+                        group.addTask {
+                            let result = await self.executeToolCall(toolCall)
+                            return (index, toolCall, result)
+                        }
+                    }
+
+                    var indexedResults: [(Int, VoiceToolCall, ToolCallResult)] = []
+                    for await result in group {
+                        indexedResults.append(result)
+                    }
+                    return indexedResults
+                        .sorted { $0.0 < $1.0 }
+                        .map { ($0.1, $0.2) }
+                }
+                completed.append(contentsOf: segmentResults)
+            } else {
+                for toolCall in segment.toolCalls {
+                    completed.append((toolCall, await executeToolCall(toolCall)))
+                }
+            }
+        }
+
+        for (_, result) in completed {
+            if let record = result.transcriptRecord {
+                transcript.append(.toolUse(record))
+            }
+
+            // If a tool produced image data, send it via the realtime input
+            // stream before any tool output triggers the model's next response.
+            if let imageData = result.imageData {
+                await sendProviderVideoFrame(imageData)
+            }
+        }
+
+        await sendProviderToolResponses(
+            completed.map { toolCall, result in
+                VoiceToolResponse(callId: toolCall.id, name: toolCall.name, result: result.text)
+            }
+        )
+    }
+
+    private func executeToolCall(_ toolCall: VoiceToolCall) async -> ToolCallResult {
         resetIdleTimer()
-        guard let taskService else { return }
+        guard let taskService else {
+            return .textOnly("Voice tool failed: task service is unavailable.")
+        }
 
         // Snapshot the model's current text so we can strip it from the
         // cumulative transcription Gemini sends after the tool response.
@@ -1263,29 +1344,12 @@ final class VoiceOrchestrator: ObservableObject {
             modelTranscriptPrefixToStrip = prevText
         }
 
-        let result = await OrchestratorToolHandler.handle(
+        return await OrchestratorToolHandler.handle(
             toolCall: toolCall,
             taskService: taskService,
             workerRegistry: workerRegistry,
             videoSourceManager: videoSourceManager,
             orchestrator: self
-        )
-
-        if let record = result.transcriptRecord {
-            transcript.append(.toolUse(record))
-        }
-
-        // If the tool produced image data, send it via the realtime input
-        // stream BEFORE the tool response so the model has the image in
-        // context when it processes the result and starts generating.
-        if let imageData = result.imageData {
-            await sendProviderVideoFrame(imageData)
-        }
-
-        await sendProviderToolResponse(
-            callId: toolCall.id,
-            name: toolCall.name,
-            result: result.text
         )
     }
 
@@ -1648,6 +1712,7 @@ final class VoiceOrchestrator: ObservableObject {
 
     func clearSession() {
         pendingEndCall = false
+        toolCallCoordinator.reset()
         resetOverlapMetrics()
         isReplayingRecoveryTranscript = false
         recoveryPhase = .idle
@@ -1725,7 +1790,7 @@ struct TranscriptEntry: Identifiable, Equatable {
 
 // MARK: - Tool Use Record
 
-struct ToolUseRecord: Identifiable, Equatable {
+struct ToolUseRecord: Identifiable, Equatable, Sendable {
     let id = UUID()
     let toolName: String
     let summary: String

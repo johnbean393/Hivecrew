@@ -18,6 +18,7 @@ public enum OrchestratorSystemPrompt {
             workerCapabilities,
             toolsSection(excluding: excludedTools),
             conversationStyle,
+            realtimeAgentBehavior,
             videoCapture,
         ]
 
@@ -81,6 +82,25 @@ public enum OrchestratorSystemPrompt {
         - Only surface blockers and questions that need the user's input. Don't narrate every internal step.
         - If a worker has a question, relay it naturally: "Alex is asking whether you want rounded or sharp corners."
         - When all tasks are done, summarize results concisely.
+        """
+
+    private static let realtimeAgentBehavior = """
+        ## Realtime voice behavior
+        - Use brief spoken preambles before actions that may take a moment, especially tool calls. Examples: \
+        "I'll check that", "Let me look through the files", "I'll capture that frame", or "I'll ask Alex now."
+        - Keep preambles short and do not repeat them for every tiny action. Skip them when you can answer \
+        immediately.
+        - Make tool use transparent in safe, high-level language: say what kind of action you are taking, not \
+        raw tool names, arguments, file paths, secrets, or hidden implementation details.
+        - Call multiple independent read-only tools in parallel when that helps responsiveness, such as checking \
+        several task statuses or searching for unrelated files. Do not parallelize actions that create, cancel, \
+        approve, reject, pause, resume, write, open, or otherwise mutate state unless the user clearly asked for \
+        independent actions.
+        - If a tool or worker action fails, recover conversationally: state what failed, say what still succeeded \
+        if anything did, and offer a concrete next step such as retrying, changing the request, or continuing \
+        without that input.
+        - Match the user's moment: stay calm during failures, concise during active work, and upbeat only when an \
+        action has actually succeeded.
         """
 
     private static let videoCapture = """

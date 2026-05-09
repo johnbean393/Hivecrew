@@ -76,6 +76,11 @@ actor VoiceTranscriptionSink {
     )
     #expect(highReasoning.session.reasoning?.effort == "high")
 
+    let xhighReasoning = provider.buildSessionUpdate(
+        config: VoiceSessionConfig(thinkingLevel: .xhigh)
+    )
+    #expect(xhighReasoning.session.reasoning?.effort == "xhigh")
+
     let minimalReasoning = provider.buildSessionUpdate(
         config: VoiceSessionConfig(thinkingLevel: .minimal)
     )
@@ -87,6 +92,28 @@ actor VoiceTranscriptionSink {
     )
     #expect(previousRealtime.session.model == "gpt-realtime-1.5")
     #expect(previousRealtime.session.reasoning?.effort == nil)
+}
+
+@Test func voiceToolExecutionPlannerBatchesReadOnlyToolsAndSerializesMutations() {
+    let calls = [
+        VoiceToolCall(id: "1", name: "get_task_status", arguments: [:]),
+        VoiceToolCall(id: "2", name: "search_files", arguments: [:]),
+        VoiceToolCall(id: "3", name: "create_task", arguments: [:]),
+        VoiceToolCall(id: "4", name: "read_file", arguments: [:]),
+        VoiceToolCall(id: "5", name: "send_instruction", arguments: [:])
+    ]
+
+    let segments = VoiceToolExecutionPlanner.segments(for: calls)
+
+    #expect(segments.count == 4)
+    #expect(segments[0].runsInParallel)
+    #expect(segments[0].toolCalls.map(\.id) == ["1", "2"])
+    #expect(!segments[1].runsInParallel)
+    #expect(segments[1].toolCalls.map(\.id) == ["3"])
+    #expect(segments[2].runsInParallel)
+    #expect(segments[2].toolCalls.map(\.id) == ["4"])
+    #expect(!segments[3].runsInParallel)
+    #expect(segments[3].toolCalls.map(\.id) == ["5"])
 }
 
 @MainActor

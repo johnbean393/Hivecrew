@@ -52,6 +52,7 @@ private actor FakeRemoteAccessAPIClient: RemoteAccessAPIClientProtocol {
     private let session: RemoteAccessAuthSession
     private var logoutCallCount = 0
     private var deleteAccountCallCount = 0
+    private var deleteTunnelCallCount = 0
 
     init(session: RemoteAccessAuthSession) {
         self.session = session
@@ -71,7 +72,11 @@ private actor FakeRemoteAccessAPIClient: RemoteAccessAPIClientProtocol {
         deleteAccountCallCount += 1
     }
 
-    func calls() -> (logout: Int, deleteAccount: Int) {
-        (logoutCallCount, deleteAccountCallCount)
+    func deleteTunnel(tunnelId: String, sessionToken: String) async throws {
+        deleteTunnelCallCount += 1
+    }
+
+    func calls() -> (logout: Int, deleteAccount: Int, deleteTunnel: Int) {
+        (logoutCallCount, deleteAccountCallCount, deleteTunnelCallCount)
     }
 }

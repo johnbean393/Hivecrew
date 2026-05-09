@@ -12,6 +12,7 @@ public protocol RemoteAccessAPIClientProtocol: Sendable {
     func verify(email: String, code: String) async throws -> RemoteAccessAuthSession
     func logout(sessionToken: String, ownerId: String?) async throws
     func deleteAccount(sessionToken: String) async throws
+    func deleteTunnel(tunnelId: String, sessionToken: String) async throws
 }
 
 public enum RemoteAccessDeleteAccountBehavior: String, Codable, Sendable {
@@ -406,12 +407,26 @@ public struct ClusterInfoResponse: Decodable, Sendable {
     public let meshEnabled: Bool?
 }
 
-public struct ClusterPeerInfo: Decodable, Sendable {
+public struct ClusterPeerInfo: Codable, Sendable, Hashable {
     public let tunnelId: String
     public let subdomain: String
     public let name: String?
     public let url: String
     public let lastHeartbeat: Double
+
+    public init(
+        tunnelId: String,
+        subdomain: String,
+        name: String?,
+        url: String,
+        lastHeartbeat: Double
+    ) {
+        self.tunnelId = tunnelId
+        self.subdomain = subdomain
+        self.name = name
+        self.url = url
+        self.lastHeartbeat = lastHeartbeat
+    }
 }
 
 private struct ErrorBody: Decodable {

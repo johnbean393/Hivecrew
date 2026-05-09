@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - File Search Result (UI-facing)
 
-struct VoiceFileSearchResult: Identifiable, Equatable {
+struct VoiceFileSearchResult: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
     let path: String

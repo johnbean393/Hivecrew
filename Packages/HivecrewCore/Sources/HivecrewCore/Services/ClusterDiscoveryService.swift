@@ -123,6 +123,7 @@ public final class ClusterDiscoveryService: ObservableObject {
                 return
             }
 
+            ClusterPeerDirectoryCache.store(info.peers)
             let directoryPeers = filteredRemotePeers(from: info.peers, excludingTunnelId: excludingTunnelId)
 
             clusterToken = token
@@ -134,6 +135,11 @@ public final class ClusterDiscoveryService: ObservableObject {
             if let cached = cachedClusterToken {
                 clusterToken = cached
                 startHealthMonitoring()
+                let cachedPeers = filteredRemotePeers(
+                    from: ClusterPeerDirectoryCache.retrieve(),
+                    excludingTunnelId: excludingTunnelId
+                )
+                await bootstrapPeersFromDirectory(cachedPeers, clusterToken: cached)
             } else {
                 await resetState()
             }
@@ -146,6 +152,7 @@ public final class ClusterDiscoveryService: ObservableObject {
             let info = try await apiClient.getClusterInfo(sessionToken: sessionToken)
             guard info.hasCluster, let token = info.clusterToken else { return }
 
+            ClusterPeerDirectoryCache.store(info.peers)
             let directoryPeers = filteredRemotePeers(from: info.peers, excludingTunnelId: excludingTunnelId)
 
             self.clusterToken = token
@@ -154,6 +161,13 @@ public final class ClusterDiscoveryService: ObservableObject {
             await bootstrapPeersFromDirectory(directoryPeers, clusterToken: token)
         } catch {
             print("ClusterDiscoveryService: Failed to refresh peer directory: \(error)")
+            guard let token = clusterToken else { return }
+            let cachedPeers = filteredRemotePeers(
+                from: ClusterPeerDirectoryCache.retrieve(),
+                excludingTunnelId: excludingTunnelId
+            )
+            guard !cachedPeers.isEmpty else { return }
+            await bootstrapPeersFromDirectory(cachedPeers, clusterToken: token)
         }
     }
 

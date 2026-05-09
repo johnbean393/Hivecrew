@@ -98,4 +98,5 @@ enum PeerStatus: String, Codable, Sendable {
     case online
     case offline
     case unreachable
+    case dnsUnavailable
 }

@@ -126,6 +126,11 @@ public final class RemoteAccessAuthManager: ObservableObject {
         defer { isSigningOut = false }
 
         do {
+            if let tunnelId = RemoteAccessKeychain.retrieveTunnelId(),
+               !tunnelId.isEmpty,
+               RemoteAccessKeychain.retrieveTunnelToken() != nil {
+                try? await apiClient.deleteTunnel(tunnelId: tunnelId, sessionToken: sessionToken)
+            }
             try await apiClient.logout(
                 sessionToken: sessionToken,
                 ownerId: RemoteAccessKeychain.retrieveTunnelId()
@@ -143,6 +148,7 @@ public final class RemoteAccessAuthManager: ObservableObject {
     /// Clears stored remote access credentials from Keychain and resets published state.
     private func clearLocalCredentials() {
         _ = RemoteAccessKeychain.clearAll()
+        ClusterPeerDirectoryCache.clear()
         email = nil
         errorMessage = nil
         isAuthenticated = false

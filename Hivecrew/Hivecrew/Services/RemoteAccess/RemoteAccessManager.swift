@@ -87,6 +87,7 @@ actor RemoteAccessManager {
     
     private var heartbeatTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    private static let heartbeatInterval: Duration = .seconds(5 * 60)
     
     private init() {}
     
@@ -133,6 +134,21 @@ actor RemoteAccessManager {
         do {
             let machineName = Host.current().localizedName
             let response = try await apiClient.createTunnel(sessionToken: sessionToken, name: machineName)
+            if let previousTunnelId = RemoteAccessKeychain.retrieveTunnelId(),
+               !previousTunnelId.isEmpty,
+               previousTunnelId != response.tunnelId {
+                do {
+                    try await apiClient.deleteTunnel(tunnelId: previousTunnelId, sessionToken: sessionToken)
+                    print("RemoteAccessManager: Deleted replaced tunnel \(previousTunnelId)")
+                } catch {
+                    queuePendingTunnelDeletion(
+                        tunnelId: previousTunnelId,
+                        email: RemoteAccessKeychain.retrieveEmail(),
+                        subdomain: RemoteAccessKeychain.retrieveSubdomain()
+                    )
+                    print("RemoteAccessManager: Failed to delete replaced tunnel \(previousTunnelId): \(error)")
+                }
+            }
             
             // Store tunnel credentials in Keychain
             RemoteAccessKeychain.storeTunnelToken(response.tunnelToken)
@@ -234,6 +250,8 @@ actor RemoteAccessManager {
     
     /// Remove remote access completely (delete tunnel, clear credentials, revoke all devices)
     func remove() async {
+        await ClusterManager.shared.shutdown()
+
         // Stop cloudflared
         await disconnect()
         
@@ -259,12 +277,14 @@ actor RemoteAccessManager {
         
         // Clear all local credentials
         RemoteAccessKeychain.clearAll()
+        ClusterPeerDirectoryCache.clear()
         UserDefaults.standard.set(false, forKey: "remoteAccessEnabled")
         UserDefaults.standard.removeObject(forKey: "remoteAccessSubdomain")
         UserDefaults.standard.removeObject(forKey: "remoteAccessEmail")
         await MainActor.run {
             APIServerManager.shared.restart()
         }
+        await ClusterManager.shared.configure(role: .none, clusterToken: nil)
         
         await resetStatus()
     }
@@ -302,21 +322,22 @@ actor RemoteAccessManager {
         heartbeatTask?.cancel()
         heartbeatTask = Task {
             while !Task.isCancelled {
-                // Send heartbeat every 24 hours
-                try? await Task.sleep(for: .seconds(24 * 60 * 60))
-                
-                guard !Task.isCancelled else { break }
-                
-                if let sessionToken = RemoteAccessKeychain.retrieveSessionToken(),
-                   let tunnelId = RemoteAccessKeychain.retrieveTunnelId() {
-                    do {
-                        try await apiClient.heartbeat(tunnelId: tunnelId, sessionToken: sessionToken)
-                        print("RemoteAccessManager: Heartbeat sent")
-                    } catch {
-                        print("RemoteAccessManager: Heartbeat failed: \(error)")
-                    }
-                }
+                await sendHeartbeat()
+                try? await Task.sleep(for: Self.heartbeatInterval)
             }
+        }
+    }
+
+    private func sendHeartbeat() async {
+        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken(),
+              let tunnelId = RemoteAccessKeychain.retrieveTunnelId() else {
+            return
+        }
+        do {
+            try await apiClient.heartbeat(tunnelId: tunnelId, sessionToken: sessionToken)
+            print("RemoteAccessManager: Heartbeat sent")
+        } catch {
+            print("RemoteAccessManager: Heartbeat failed: \(error)")
         }
     }
     

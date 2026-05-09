@@ -341,14 +341,8 @@ extension NSMenu {
             if option.startsNewSection, !menu.items.isEmpty {
                 menu.addItem(.separator())
             }
-            let title: String
-            if !option.runtimeBadges.isEmpty {
-                title = option.title + "  (" + option.runtimeBadges.joined(separator: ", ") + ")"
-            } else {
-                title = option.title
-            }
             let item = NSMenuItem(
-                title: title,
+                title: option.title,
                 action: #selector(ExecutionTargetMenuHandler.handleMenu(_:)),
                 keyEquivalent: ""
             )

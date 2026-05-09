@@ -34,6 +34,23 @@ public struct VoiceDisconnectEvent: Sendable {
     }
 }
 
+public struct VoiceToolResponse: Sendable {
+    public let callId: String
+    public let name: String
+    public let result: String
+
+    public init(callId: String, name: String, result: String) {
+        self.callId = callId
+        self.name = name
+        self.result = result
+    }
+}
+
+@MainActor
+public protocol RealtimeVoiceToolResponseBatching: AnyObject {
+    func sendToolResponses(_ responses: [VoiceToolResponse]) async throws
+}
+
 @MainActor
 public protocol RealtimeVoiceProvider: ObservableObject {
 

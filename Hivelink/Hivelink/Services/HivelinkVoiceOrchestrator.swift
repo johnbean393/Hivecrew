@@ -689,6 +689,11 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     /// Prefix to strip from model output transcriptions after a tool call.
     private var modelTranscriptPrefixToStrip: String = ""
+    private lazy var toolCallCoordinator = VoiceToolCallCoordinator { [weak self] toolCalls in
+        Task { @MainActor [weak self] in
+            await self?.handleToolCallBatch(toolCalls)
+        }
+    }
 
     // MARK: - Settings
 
@@ -1300,7 +1305,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         prov.onToolCall = { [weak self] toolCall in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                await self.handleToolCall(toolCall)
+                self.toolCallCoordinator.enqueue(toolCall)
             }
         }
 
@@ -1317,6 +1322,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         prov.onTurnComplete = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.toolCallCoordinator.flushNow()
                 self.isModelSpeaking = false
                 self.audioManager.setServerModelSpeaking(false)
                 if self.pendingEndCall {
@@ -1431,35 +1437,96 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     // MARK: - Tool Calls
 
+    private func sendProviderToolResponses(_ responses: [VoiceToolResponse]) async {
+        guard !responses.isEmpty else { return }
+        do {
+            if let batchingProvider = provider as? any RealtimeVoiceToolResponseBatching {
+                try await batchingProvider.sendToolResponses(responses)
+            } else {
+                for response in responses {
+                    try await provider?.sendToolResponse(
+                        callId: response.callId,
+                        name: response.name,
+                        result: response.result
+                    )
+                }
+            }
+        } catch {
+            connectionState = .error(error.localizedDescription)
+        }
+    }
+
     private func handleToolCall(_ toolCall: VoiceToolCall) async {
+        await handleToolCallBatch([toolCall])
+    }
+
+    private func handleToolCallBatch(_ toolCalls: [VoiceToolCall]) async {
+        guard !toolCalls.isEmpty else { return }
+        var completed: [(VoiceToolCall, HivelinkToolCallResult)] = []
+
+        for segment in VoiceToolExecutionPlanner.segments(for: toolCalls) {
+            if segment.runsInParallel, segment.toolCalls.count > 1 {
+                let segmentResults = await withTaskGroup(
+                    of: (Int, VoiceToolCall, HivelinkToolCallResult).self,
+                    returning: [(VoiceToolCall, HivelinkToolCallResult)].self
+                ) { group in
+                    for (index, toolCall) in segment.toolCalls.enumerated() {
+                        group.addTask {
+                            let result = await self.executeToolCall(toolCall)
+                            return (index, toolCall, result)
+                        }
+                    }
+
+                    var indexedResults: [(Int, VoiceToolCall, HivelinkToolCallResult)] = []
+                    for await result in group {
+                        indexedResults.append(result)
+                    }
+                    return indexedResults
+                        .sorted { $0.0 < $1.0 }
+                        .map { ($0.1, $0.2) }
+                }
+                completed.append(contentsOf: segmentResults)
+            } else {
+                for toolCall in segment.toolCalls {
+                    completed.append((toolCall, await executeToolCall(toolCall)))
+                }
+            }
+        }
+
+        for (_, result) in completed {
+            if let record = result.transcriptRecord {
+                transcript.append(.toolUse(record))
+            }
+
+            if let imageData = result.imageData, supportsVideoInput {
+                try? await provider?.sendVideoFrame(imageData)
+            }
+        }
+
+        await sendProviderToolResponses(
+            completed.map { toolCall, result in
+                VoiceToolResponse(callId: toolCall.id, name: toolCall.name, result: result.text)
+            }
+        )
+    }
+
+    private func executeToolCall(_ toolCall: VoiceToolCall) async -> HivelinkToolCallResult {
         resetIdleTimer()
-        guard let taskService else { return }
+        guard let taskService else {
+            return .textOnly("Voice tool failed: task service is unavailable.")
+        }
 
         if let lastModel = transcript.last(where: { $0.role == .model }),
            case .text(let prevText) = lastModel.content {
             modelTranscriptPrefixToStrip = prevText
         }
 
-        let result = await HivelinkToolHandler.handle(
+        return await HivelinkToolHandler.handle(
             toolCall: toolCall,
             taskService: taskService,
             workerRegistry: workerRegistry,
             cameraCapture: cameraCapture,
             orchestrator: self
-        )
-
-        if let record = result.transcriptRecord {
-            transcript.append(.toolUse(record))
-        }
-
-        if let imageData = result.imageData, supportsVideoInput {
-            try? await provider?.sendVideoFrame(imageData)
-        }
-
-        try? await provider?.sendToolResponse(
-            callId: toolCall.id,
-            name: toolCall.name,
-            result: result.text
         )
     }
 
@@ -1511,6 +1578,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     func clearSession() {
         pendingEndCall = false
+        toolCallCoordinator.reset()
         recoveryPhase = .idle
         hasUsedFreshRestartInCurrentFailureEpisode = false
         isReplayingRecoveryTranscript = false
@@ -2105,7 +2173,7 @@ struct TranscriptEntry: Identifiable, Equatable {
 
 // MARK: - Tool Use Record
 
-struct ToolUseRecord: Identifiable, Equatable {
+struct ToolUseRecord: Identifiable, Equatable, Sendable {
     let id = UUID()
     let toolName: String
     let summary: String
@@ -2114,7 +2182,7 @@ struct ToolUseRecord: Identifiable, Equatable {
     var previewFilePath: String?
 }
 
-struct VoiceFileSearchResult: Identifiable, Equatable {
+struct VoiceFileSearchResult: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
     let path: String

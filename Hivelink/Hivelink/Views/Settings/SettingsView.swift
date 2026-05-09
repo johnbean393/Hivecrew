@@ -414,6 +414,7 @@ struct SettingsView: View {
                 Text(String(localized: "Low")).tag("low")
                 Text(String(localized: "Medium")).tag("medium")
                 Text(String(localized: "High")).tag("high")
+                Text(String(localized: "Extra High")).tag("xhigh")
             }
 
             Picker(String(localized: "Reasoning Effort"), selection: $reasoningEffort) {

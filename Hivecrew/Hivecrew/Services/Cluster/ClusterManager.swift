@@ -119,6 +119,7 @@ actor ClusterManager {
                 return
             }
             
+            ClusterPeerDirectoryCache.store(info.peers)
             let directoryPeers = filteredRemotePeers(from: info.peers)
 
             await configure(role: .member, clusterToken: token)
@@ -130,6 +131,8 @@ actor ClusterManager {
             // Fall back to cached credentials
             if let cachedToken = RemoteAccessKeychain.retrieveClusterToken() {
                 await configure(role: .member, clusterToken: cachedToken)
+                let cachedPeers = filteredRemotePeers(from: ClusterPeerDirectoryCache.retrieve())
+                await bootstrapPeersFromDirectory(cachedPeers, clusterToken: cachedToken)
             }
         }
     }
@@ -166,6 +169,32 @@ actor ClusterManager {
                 }
             }
         }
+    }
+
+    func refreshPeersFromDirectory(_ directoryPeers: [ClusterPeerInfo], clusterToken token: String) async {
+        let previousToken = self.clusterToken
+        let wasDisabled = role == .none
+        role = .member
+        clusterToken = token
+        RemoteAccessKeychain.storeClusterToken(token)
+
+        if wasDisabled {
+            startHealthChecks()
+        }
+
+        let currentPeers = Array(peers.values)
+        await MainActor.run {
+            ClusterStatus.shared.update(role: .member, peers: currentPeers)
+        }
+
+        if previousToken != token {
+            await MainActor.run {
+                APIServerManager.shared.restart()
+            }
+        }
+
+        let remotePeers = filteredRemotePeers(from: directoryPeers)
+        await bootstrapPeersFromDirectory(remotePeers, clusterToken: token)
     }
     
     private func syncPeersFromDirectory(_ directoryPeers: [ClusterPeerInfo]) {
@@ -238,15 +267,17 @@ actor ClusterManager {
             }
         } catch {
             let existing = peers[peer.tunnelId]
+            let healthResult = await client.healthResult()
+            let isReachable = healthResult.isReachable
             peers[peer.tunnelId] = PeerNode(
                 id: peer.tunnelId,
                 subdomain: peer.subdomain,
                 name: peer.name,
                 tunnelUrl: peer.url,
-                status: .offline,
-                availableSlots: 0,
-                runningTasks: 0,
-                queuedTasks: 0,
+                status: Self.peerStatus(for: healthResult),
+                availableSlots: isReachable ? (existing?.availableSlots ?? 0) : 0,
+                runningTasks: isReachable ? (existing?.runningTasks ?? 0) : 0,
+                queuedTasks: isReachable ? (existing?.queuedTasks ?? 0) : 0,
                 lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
                 providers: existing?.providers ?? [],
                 runtimes: existing?.runtimes ?? []
@@ -823,14 +854,14 @@ actor ClusterManager {
         let currentPeers = Array(peers.values)
         guard !currentPeers.isEmpty else { return }
         
-        let results = await withTaskGroup(of: (String, Bool).self) { group in
+        let results = await withTaskGroup(of: (String, PeerHealthResult).self) { group in
             for peer in currentPeers {
                 let url = peer.tunnelUrl
                 group.addTask {
                     return (peer.id, await Self.probePeerHealth(url: url))
                 }
             }
-            var collected: [(String, Bool)] = []
+            var collected: [(String, PeerHealthResult)] = []
             for await result in group {
                 collected.append(result)
             }
@@ -839,20 +870,28 @@ actor ClusterManager {
         
         var stateChanged = false
         var peersToRefreshCapabilities: [(id: String, url: String)] = []
-        for (id, reachable) in results {
+        for (id, healthResult) in results {
             guard var peer = peers[id] else { continue }
-            if reachable && peer.status != .online {
+            if healthResult.isReachable && peer.status != .online {
                 peerProbeFailureCounts[id] = 0
-                let wasOffline = peer.status == .offline
+                let wasUnavailable = peer.status != .online
                 peer.status = .online
                 peer.lastSeen = Date()
                 peers[id] = peer
                 stateChanged = true
                 print("ClusterManager: Health probe passed for \(peer.name ?? id), marking online")
-                if wasOffline {
+                if wasUnavailable {
                     peersToRefreshCapabilities.append((id: id, url: peer.tunnelUrl))
                 }
-            } else if !reachable {
+            } else if healthResult == .dnsUnavailable {
+                peerProbeFailureCounts[id] = 0
+                if peer.status != .dnsUnavailable {
+                    peer.status = .dnsUnavailable
+                    peers[id] = peer
+                    stateChanged = true
+                    print("ClusterManager: DNS lookup failed for \(peer.name ?? id), marking DNS unavailable")
+                }
+            } else {
                 let failureCount = (peerProbeFailureCounts[id] ?? 0) + 1
                 peerProbeFailureCounts[id] = failureCount
 
@@ -903,24 +942,37 @@ actor ClusterManager {
         do {
             let info = try await apiClient.getClusterInfo(sessionToken: sessionToken)
             guard info.hasCluster, let token = info.clusterToken else { return }
-            let directoryPeers = filteredRemotePeers(from: info.peers)
-
-            self.clusterToken = token
-            RemoteAccessKeychain.storeClusterToken(token)
-
-            await bootstrapPeersFromDirectory(directoryPeers, clusterToken: token)
+            ClusterPeerDirectoryCache.store(info.peers)
+            await refreshPeersFromDirectory(info.peers, clusterToken: token)
         } catch {
             print("ClusterManager: Failed to refresh peer directory: \(error)")
+            guard let token = clusterToken else { return }
+            let cachedPeers = filteredRemotePeers(from: ClusterPeerDirectoryCache.retrieve())
+            guard !cachedPeers.isEmpty else { return }
+            await bootstrapPeersFromDirectory(cachedPeers, clusterToken: token)
         }
     }
     
-    private static func probePeerHealth(url: String) async -> Bool {
-        guard let healthURL = URL(string: "\(url)/health") else { return false }
+    private static func probePeerHealth(url: String) async -> PeerHealthResult {
+        guard let healthURL = URL(string: "\(url)/health") else { return .unreachable }
         do {
             let (_, response) = try await healthSession.data(from: healthURL)
-            return (response as? HTTPURLResponse)?.statusCode == 200
+            return (response as? HTTPURLResponse)?.statusCode == 200 ? .reachable : .unreachable
+        } catch let error as URLError where error.code == .cannotFindHost {
+            return .dnsUnavailable
         } catch {
-            return false
+            return .unreachable
+        }
+    }
+
+    private static func peerStatus(for healthResult: PeerHealthResult) -> PeerStatus {
+        switch healthResult {
+        case .reachable:
+            return .online
+        case .dnsUnavailable:
+            return .dnsUnavailable
+        case .unreachable:
+            return .offline
         }
     }
     

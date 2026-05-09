@@ -15,7 +15,7 @@ internal import AVFoundation
 
 /// Result returned from a tool handler, carrying both the text sent back
 /// to the voice model and an optional record for the transcript UI.
-struct ToolCallResult {
+struct ToolCallResult: Sendable {
     let text: String
     let transcriptRecord: ToolUseRecord?
 

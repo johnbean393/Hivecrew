@@ -10,7 +10,7 @@ import Foundation
 import Combine
 
 @MainActor
-final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableObject {
+final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, RealtimeVoiceToolResponseBatching, ObservableObject {
 
     // MARK: - Protocol: Observable State
 
@@ -261,20 +261,30 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, ObservableO
     }
 
     func sendToolResponse(callId: String, name: String, result: String) async throws {
+        try await sendToolResponses([
+            VoiceToolResponse(callId: callId, name: name, result: result)
+        ])
+    }
+
+    func sendToolResponses(_ responses: [VoiceToolResponse]) async throws {
+        guard !responses.isEmpty else { return }
         guard connectionState == .connected else {
             throw OpenAIRealtimeError.notConnected
         }
 
-        let itemEvent = ConversationItemCreateEvent(
-            item: .init(
-                type: "function_call_output",
-                role: nil,
-                content: nil,
-                callId: callId,
-                output: result
+        for response in responses {
+            let itemEvent = ConversationItemCreateEvent(
+                item: .init(
+                    type: "function_call_output",
+                    role: nil,
+                    content: nil,
+                    callId: response.callId,
+                    output: response.result
+                )
             )
-        )
-        try await sendJSON(itemEvent)
+            try await sendJSON(itemEvent)
+        }
+
         try await sendJSON(ResponseCreateEvent(response: nil))
     }
 

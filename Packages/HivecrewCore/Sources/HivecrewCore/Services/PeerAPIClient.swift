@@ -8,6 +8,16 @@
 import Foundation
 import HivecrewAPIModels
 
+public enum PeerHealthResult: Sendable, Equatable {
+    case reachable
+    case dnsUnavailable
+    case unreachable
+
+    public var isReachable: Bool {
+        self == .reachable
+    }
+}
+
 public actor PeerAPIClient {
     public struct StagedLocalFileUpload: Sendable {
         public let localPath: String
@@ -48,12 +58,18 @@ public actor PeerAPIClient {
     // MARK: - Health
 
     public func health() async -> Bool {
-        guard let url = URL(string: "\(baseURL)/health") else { return false }
+        await healthResult().isReachable
+    }
+
+    public func healthResult() async -> PeerHealthResult {
+        guard let url = URL(string: "\(baseURL)/health") else { return .unreachable }
         do {
             let (_, response) = try await session.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200
+            return (response as? HTTPURLResponse)?.statusCode == 200 ? .reachable : .unreachable
+        } catch let error as URLError where error.code == .cannotFindHost {
+            return .dnsUnavailable
         } catch {
-            return false
+            return .unreachable
         }
     }
 

@@ -12,7 +12,7 @@ import HivecrewAPIModels
 import HivecrewCore
 import HivecrewVoice
 
-struct HivelinkToolCallResult {
+struct HivelinkToolCallResult: Sendable {
     let text: String
     let transcriptRecord: ToolUseRecord?
     let imageData: Data?

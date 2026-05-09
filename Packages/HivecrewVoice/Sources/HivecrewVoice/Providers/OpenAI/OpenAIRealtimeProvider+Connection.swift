@@ -178,7 +178,7 @@ extension OpenAIRealtimeProvider {
         let effort = switch config.thinkingLevel {
         case .minimal:
             "low"
-        case .low, .medium, .high:
+        case .low, .medium, .high, .xhigh:
             config.thinkingLevel.rawValue
         }
 

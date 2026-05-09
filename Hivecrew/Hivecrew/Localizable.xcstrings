@@ -34330,6 +34330,7 @@
       }
     },
     "Offline" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36039,6 +36040,9 @@
           }
         }
       }
+    },
+    "Peer" : {
+
     },
     "Permission denied: %@" : {
       "localizations" : {
@@ -40159,6 +40163,9 @@
           }
         }
       }
+    },
+    "Remove Machine?" : {
+
     },
     "Remove Remote Access" : {
       "localizations" : {
@@ -51896,6 +51903,9 @@
         }
       }
     },
+    "This removes %@ from the cluster directory. If that Mac still needs remote access, reconnect remote access on that Mac." : {
+
+    },
     "This session did not record any screenshots" : {
       "localizations" : {
         "de" : {
@@ -57544,6 +57554,9 @@
           }
         }
       }
+    },
+    "X-High" : {
+
     },
     "xAI API" : {
 
