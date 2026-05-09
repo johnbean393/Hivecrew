@@ -140,18 +140,28 @@ struct SessionTraceView: View {
     
     // MARK: - Main Content View
     
+    private var shouldUseTraceOnlyLayout: Bool {
+        task.assignedRuntimeKind == .fast || (task.assignedRuntimeKind == nil && task.runtimeTarget == .fast)
+    }
+
+    @ViewBuilder
     private var mainContentView: some View {
-        HStack(spacing: 0) {
-            // Left side - Screenshot viewer (synced to scroll)
-            screenshotViewer
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
-            
-            Divider()
-            
-            // Right side - Trace panel
+        if shouldUseTraceOnlyLayout {
             tracePanel
-                .frame(width: 400)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            HStack(spacing: 0) {
+                // Left side - Screenshot viewer (synced to scroll)
+                screenshotViewer
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+
+                Divider()
+
+                // Right side - Trace panel
+                tracePanel
+                    .frame(width: 400)
+            }
         }
     }
     

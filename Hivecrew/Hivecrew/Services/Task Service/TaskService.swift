@@ -623,9 +623,12 @@ class TaskService: ObservableObject {
     }
 
     /// Keep worker-side cluster executions briefly visible after they finish so
-    /// short leased tasks do not disappear before the user can notice them.
+    /// short leased VM tasks do not disappear before the user can notice them.
     func shouldKeepInternalClusterExecutionVisible(_ task: TaskRecord, now: Date = Date()) -> Bool {
         guard task.isInternalClusterExecution else { return false }
+        guard task.assignedRuntimeKind == .isolatedVM || task.assignedVMId != nil else {
+            return false
+        }
 
         switch task.status {
         case .completed, .failed, .cancelled, .timedOut, .maxIterations, .planFailed:

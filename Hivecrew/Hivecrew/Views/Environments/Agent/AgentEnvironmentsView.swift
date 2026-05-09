@@ -486,10 +486,12 @@ struct AgentEnvironmentsView: View {
             .disabled(isPerformingRemoteAction)
         }
         
-        Button(action: { showRemoteTracePanel.toggle() }) {
-            Label("Trace", systemImage: "sidebar.trailing")
+        if selectedRemoteTask?.expectsRemoteEnvironmentScreenshot != false {
+            Button(action: { showRemoteTracePanel.toggle() }) {
+                Label("Trace", systemImage: "sidebar.trailing")
+            }
+            .help(showRemoteTracePanel ? "Hide Trace Panel" : "Show Trace Panel")
         }
-        .help(showRemoteTracePanel ? "Hide Trace Panel" : "Show Trace Panel")
     }
     
     private func pauseSelectedLocalTask() {
@@ -627,41 +629,43 @@ private struct RemoteTaskDetailView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                Group {
-                    if let screenshot {
-                        Image(nsImage: screenshot)
-                            .resizable()
-                            .scaledToFit()
+            if expectsRemoteScreenshot {
+                VStack(spacing: 0) {
+                    Group {
+                        if let screenshot {
+                            Image(nsImage: screenshot)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background(Color.black)
+                        } else {
+                            VStack(spacing: 8) {
+                                ProgressView()
+                                Text("Waiting for remote screenshot...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(Color.black)
-                    } else {
-                        VStack(spacing: 8) {
-                            ProgressView()
-                            Text("Waiting for remote screenshot...")
-                                .font(.caption)
+                        }
+                    }
+
+                    HStack(spacing: 16) {
+                        Label(currentNodeName ?? "Remote node", systemImage: "desktopcomputer")
+                        Spacer()
+                        if let currentTask, let tokenUsage = currentTask.tokenUsage {
+                            Text("\(formatNumber(tokenUsage.total)) tokens")
                                 .foregroundStyle(.secondary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black)
                     }
+                    .font(.caption)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(nsColor: .controlBackgroundColor))
                 }
-
-                HStack(spacing: 16) {
-                    Label(currentNodeName ?? "Remote node", systemImage: "desktopcomputer")
-                    Spacer()
-                    if let currentTask, let tokenUsage = currentTask.tokenUsage {
-                        Text("\(formatNumber(tokenUsage.total)) tokens")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.caption)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(nsColor: .controlBackgroundColor))
             }
 
-            if showTracePanel {
+            if showTracePanel || !expectsRemoteScreenshot {
                 Divider()
                 RemoteAgentTracePanel(
                     task: currentTask,
@@ -673,7 +677,8 @@ private struct RemoteTaskDetailView: View {
                     isPerformingAction: isPerformingAction,
                     onSendInstruction: submitInstruction,
                     onAnswerQuestion: answerQuestion,
-                    onRespondToPermission: respondToPermission
+                    onRespondToPermission: respondToPermission,
+                    fillsAvailableWidth: !expectsRemoteScreenshot
                 )
             }
         }
@@ -722,10 +727,15 @@ private struct RemoteTaskDetailView: View {
             traceState.totalTokens = fetchedTask.tokenUsage?.total ?? 0
         }
 
-        if let remoteScreenshot = try? await provider.getTaskScreenshot(id: task.id),
-           let image = NSImage(data: remoteScreenshot.data) {
-            screenshot = image
-            traceState.lastScreenshot = image
+        if expectsRemoteScreenshot {
+            if let remoteScreenshot = try? await provider.getTaskScreenshot(id: task.id),
+               let image = NSImage(data: remoteScreenshot.data) {
+                screenshot = image
+                traceState.lastScreenshot = image
+            }
+        } else {
+            screenshot = nil
+            traceState.lastScreenshot = nil
         }
 
         if let response = try? await provider.getTaskActivity(id: task.id, since: since) {
@@ -738,6 +748,10 @@ private struct RemoteTaskDetailView: View {
 
     private var currentNodeName: String? {
         currentTask?.nodeName ?? task.clusterPeerName
+    }
+
+    private var expectsRemoteScreenshot: Bool {
+        currentTask?.expectsRemoteEnvironmentScreenshot ?? task.expectsRemoteEnvironmentScreenshot
     }
 
     @MainActor
@@ -1096,6 +1110,7 @@ private struct RemoteAgentTracePanel: View {
     let onSendInstruction: () -> Void
     let onAnswerQuestion: (String) -> Void
     let onRespondToPermission: (Bool) -> Void
+    var fillsAvailableWidth = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1141,7 +1156,8 @@ private struct RemoteAgentTracePanel: View {
             Divider()
             statusFooter
         }
-        .frame(width: 380)
+        .frame(width: fillsAvailableWidth ? nil : 380)
+        .frame(maxWidth: fillsAvailableWidth ? .infinity : nil, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -1334,6 +1350,30 @@ private struct RemoteAgentTracePanel: View {
             return String(format: "%.1fk", Double(n) / 1000.0)
         }
         return "\(n)"
+    }
+}
+
+private extension TaskRecord {
+    var expectsRemoteEnvironmentScreenshot: Bool {
+        if assignedRuntimeKind == .fast {
+            return false
+        }
+        if assignedRuntimeKind == nil, runtimeTarget == .fast {
+            return false
+        }
+        return true
+    }
+}
+
+private extension APITask {
+    var expectsRemoteEnvironmentScreenshot: Bool {
+        if assignedRuntimeKind == .fast {
+            return false
+        }
+        if assignedRuntimeKind == nil, runtimeTarget == .fast {
+            return false
+        }
+        return true
     }
 }
 
