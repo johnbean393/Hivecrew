@@ -364,7 +364,7 @@ final class CodexOAuthRequestTests: XCTestCase {
         )
 
         let models = try parseResponsesModelsForTests(data, backendMode: .codexOAuth)
-        let model = try XCTUnwrap(models.first)
+        let model = try XCTUnwrap(models.first(where: { $0.id == "gpt-5-codex" }))
 
         XCTAssertEqual(model.reasoningCapability.kind, .effort)
         XCTAssertEqual(model.reasoningCapability.supportedEfforts, ["low", "medium", "high"])
@@ -394,7 +394,7 @@ final class CodexOAuthRequestTests: XCTestCase {
         )
 
         let models = try parseResponsesModelsForTests(data, backendMode: .codexOAuth)
-        let model = try XCTUnwrap(models.first)
+        let model = try XCTUnwrap(models.first(where: { $0.id == "gpt-5-codex" }))
 
         XCTAssertEqual(model.contextLength, 400000)
         XCTAssertEqual(model.inputModalities ?? [], ["text", "image"])
@@ -443,11 +443,58 @@ final class CodexOAuthRequestTests: XCTestCase {
         let models = try parseResponsesModelsForTests(data, backendMode: .codexOAuth)
         let model = try XCTUnwrap(models.first(where: { $0.id == "gpt-5.5" }))
 
+        XCTAssertNotNil(models.first(where: { $0.id == "codex-auto-review" }))
+        XCTAssertNotNil(models.first(where: { $0.id == "gpt-5.4-mini" }))
+        XCTAssertNotNil(models.first(where: { $0.id == "gpt-5.3-codex" }))
+        XCTAssertNotNil(models.first(where: { $0.id == "gpt-5.2" }))
         XCTAssertEqual(model.contextLength, 400_000)
         XCTAssertEqual(model.effectiveContextLength, 400_000)
         XCTAssertEqual(model.reasoningCapability.kind, .effort)
         XCTAssertEqual(model.reasoningCapability.supportedEfforts, ["low", "medium", "high", "xhigh"])
         XCTAssertTrue(model.isVisionCapable)
+    }
+
+    func testCodexModelsIncludeEntriesMarkedUnsupportedInPublicAPI() throws {
+        let data = Data(
+            """
+            {
+              "models": [
+                {
+                  "id": "gpt-5.6-codex-lab",
+                  "supported_in_api": false
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .codexOAuth)
+
+        XCTAssertNotNil(models.first(where: { $0.id == "gpt-5.6-codex-lab" }))
+    }
+
+    func testResponsesModelsExcludeEntriesMarkedUnsupportedInPublicAPI() throws {
+        let data = Data(
+            """
+            {
+              "data": [
+                {
+                  "id": "internal-model",
+                  "supported_in_api": false
+                },
+                {
+                  "id": "public-model",
+                  "supported_in_api": true
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let models = try parseResponsesModelsForTests(data, backendMode: .responses)
+
+        XCTAssertNil(models.first(where: { $0.id == "internal-model" }))
+        XCTAssertNotNil(models.first(where: { $0.id == "public-model" }))
     }
 
     func testResponsesModelsPayloadWithSupportedParametersMapsToToggleCapability() throws {

@@ -116,7 +116,7 @@ extension ToolSchemaBuilder {
 
         case .keyboardType:
             return (
-                "Type text using the keyboard. This simulates typing each character.",
+                "Type text using pid-targeted keyboard input. In App Worker browser fields, prefer app_set_value for the target element; use keyboard_type only after an element has already been focused.",
                 objectSchema(
                     properties: [
                         "text": stringProperty("The text to type")
@@ -127,7 +127,7 @@ extension ToolSchemaBuilder {
 
         case .keyboardKey:
             return (
-                "Press a single key, optionally with modifier keys.",
+                "Press a single key, optionally with modifier keys. In App Worker, this reuses the most recently focused/interacted element when possible, so Return can submit Chromium browser fields in the background.",
                 objectSchema(
                     properties: [
                         "key": stringProperty("The key to press (e.g., 'return', 'escape', 'tab', 'a', 'F1')"),
@@ -338,13 +338,37 @@ extension ToolSchemaBuilder {
 
         case .appSetValue:
             return (
-                "Set the value of a UI element (text field, checkbox, etc.) by its index from the most recent window state. Use for text fields, search boxes, and other value-accepting elements.",
+                "Set the AXValue of a UI element by its index from the most recent window state. Use for native text fields, sliders, steppers, and other value-accepting elements. For browser URL navigation, use app_open_url instead of filling the address bar.",
                 objectSchema(
                     properties: [
                         "elementIndex": numberProperty("The element index from the most recent window state observation."),
                         "value": stringProperty("The value to set on the element.")
                     ],
                     required: ["elementIndex", "value"]
+                )
+            )
+
+        case .appSubmitElement:
+            return (
+                "Submit or confirm a UI element by index from the most recent window state. Use for forms and in-page search fields instead of keyboard_key return. For browser URL navigation, use app_open_url.",
+                objectSchema(
+                    properties: [
+                        "elementIndex": numberProperty("The element index from the most recent window state observation. If omitted, submits the most recently interacted or focused element.")
+                    ],
+                    required: []
+                )
+            )
+
+        case .appOpenURL:
+            return (
+                "Open a URL in a target app using cua-driver's background LaunchServices handoff. Use this for browser navigation instead of app_set_value on an address/search field. If bundleId/appName are omitted, the user's default browser is used.",
+                objectSchema(
+                    properties: [
+                        "url": stringProperty("The URL to open, such as https://example.com."),
+                        "bundleId": stringProperty("Optional target app bundle identifier, such as com.google.Chrome."),
+                        "appName": stringProperty("Optional target app name, such as Google Chrome.")
+                    ],
+                    required: ["url"]
                 )
             )
 

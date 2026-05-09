@@ -5,6 +5,7 @@
 //  System prompt templates for the agent
 //
 
+import AppKit
 import Foundation
 import HivecrewLLM
 import HivecrewShared
@@ -379,6 +380,13 @@ If the task involved an attached file, make sure the final user-facing result is
             visionLine = "This model run is text-only; rely on `app_get_window_state` and tool output."
         }
 
+        let browserLine: String
+        if let browser = defaultBrowserDescription() {
+            browserLine = "\n- The user's **default browser** is **\(browser)**. Use this app for any task that requires web browsing."
+        } else {
+            browserLine = ""
+        }
+
         return """
 You are Hivecrew, running as an **App Worker** on the user's **host macOS**. GUI control is provided by **cua-driver** (background launch, per-pid input, accessibility tree + window capture).
 
@@ -389,35 +397,38 @@ TASK: \(task)
 ENVIRONMENT:
 - You are **not** inside an isolated guest VM. Shell and file tools operate under a **session workspace** on the host (paths may look like a sandbox, but it is the real Mac).
 - The **no-foreground contract** applies: keep the user’s current frontmost app stable. Do not steal focus to complete tasks unless the user explicitly asked to bring an app to the front.
-- **`open_app`** uses cua’s **background launch** — it is **not** the same as Terminal `open` and does not mean “force frontmost” here.
+- **`open_app`** uses cua’s **background launch** — it is **not** the same as Terminal `open` and does not mean “force frontmost” here.\(browserLine)
 
 \(visionLine)
 
 GUI WORKFLOW (prefer this over ad-hoc shell scripts):
 1. `open_app` with a **real bundle ID** when known (e.g. `com.apple.systempreferences` for System Settings), or a clear app name.
-2. `app_list_windows` for that app, then `app_select_window` with a window index, then `app_get_window_state` / `app_click_element` / `app_set_value` as needed.
-3. **`app_list_apps`** is for discovery; for windows always use `app_list_windows` / `app_select_window`.
+2. For browser navigation, use `app_open_url` instead of typing into the address bar.
+3. `app_list_windows` for that app, then `app_select_window` with a window index, then `app_get_window_state` / `app_click_element` / `app_set_value` as needed.
+4. **`app_list_apps`** is for discovery; for windows always use `app_list_windows` / `app_select_window`.
 
 **Forbidden workarounds** (they defeat cua and steal focus):
 - `osascript` that **activates** or **tells** an app to open windows to the front.
-- Shell **`open`**, `open -a`, `open -b`, or `open <url>` for app or preference URLs when a cua tool exists.
+- Shell **`open`**, `open -a`, `open -b`, or `open <url>` for app, browser, or preference URLs when `open_app` / `app_*` tools can do the work.
 - `run_shell` whose only purpose is to drive UI that `app_*` / `open_app` can do.
 - Relying on AppleScript to dump accessibility when `app_get_window_state` is available.
 
-**`open_url`**: for System Settings deep links (`x-apple.systempreferences:…`), the tool uses a background handoff. For generic `https://` URLs, default handlers may still activate a browser; prefer non-GUI research tools when the task does not require a visible browser.
+`open_url` and `keyboard_key` are not available in App Worker. For web tasks, prefer web tools for research/content extraction. When a visible browser is required, use `app_open_url` for browser navigation and then drive the page with semantic `app_*` tools and scroll.
 
 AVAILABLE TOOLS (representative; the schema is authoritative):
-- **Apps / windows**: `open_app`, `app_list_apps`, `app_list_windows`, `app_select_window`, `app_get_window_state`, `app_click_element`, `app_set_value`
+- **Apps / windows**: `open_app`, `app_open_url`, `app_list_apps`, `app_list_windows`, `app_select_window`, `app_get_window_state`, `app_click_element`, `app_set_value`, `app_submit_element`
 - **Host shell / files (sandboxed)**: `run_shell`, `read_file`, `write_file`, `list_directory`, `move_file`
-- **Input**: `keyboard_type`, `keyboard_key`
-- **Other**: `open_url`, `open_file`, `wait`, todo tools, web tools, user-interaction tools
+- **Input**: `keyboard_type`, `scroll`
+- **Other**: `open_file`, `wait`, todo tools, web tools, user-interaction tools
 
-**No raw-pixel mouse tools** (`mouse_click`, `mouse_move`, `mouse_drag`, `scroll`) are available in App Worker — they use global screen events that steal focus. Use `app_click_element` and `app_set_value` instead; for scrolling, use `keyboard_key` with arrow keys or Page Down/Up.
+**No raw-pixel mouse tools** (`mouse_click`, `mouse_move`, `mouse_drag`) are available in App Worker — they use global screen events that steal focus. Use `app_click_element` and `app_set_value` instead. `scroll` is available through CuaDriver's background scroll tool; click or focus the scrollable region first when needed.
 \(localWritebackSection)
 
 TIPS:
 - If `app_list_windows` returns no rows, wait briefly and call `app_list_windows` again, or re-run `open_app` with a known `bundle_id`.
 - Match **System Settings** to bundle ID `com.apple.systempreferences` (not `com.apple.SystemSettings`).
+- For browser URL navigation, use `app_open_url`; do not fill Chrome/Chromium address bars with `app_set_value` or keyboard input.
+- For form/search fields inside loaded web pages, use `app_set_value` for AX-settable fields. If a Chromium web field ignores AXValue, focus it with `app_click_element`, use `keyboard_type`, then click an explicit submit/search button or use `app_submit_element` only when needed.
 
 TO FINISH:
 When the task is complete, stop calling tools and respond with a concise summary of what you accomplished.
@@ -721,6 +732,21 @@ When the task is complete, stop calling tools and respond with a summary of what
 
         JSON Response:
         """
+    }
+
+    // MARK: - Helpers
+
+    private static func defaultBrowserDescription() -> String? {
+        guard let url = URL(string: "https://example.com"),
+              let appURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
+            return nil
+        }
+        let name = appURL.deletingPathExtension().lastPathComponent
+        let bundleId = Bundle(url: appURL)?.bundleIdentifier
+        if let bundleId {
+            return "\(name) (`\(bundleId)`)"
+        }
+        return name
     }
 
 }

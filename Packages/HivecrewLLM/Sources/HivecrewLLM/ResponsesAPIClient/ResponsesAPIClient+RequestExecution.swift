@@ -93,7 +93,7 @@ extension ResponsesAPIClient {
             let decoded = try JSONDecoder().decode(StrictModelsResponse.self, from: data)
             var models = LLMProviderModel.sortByVersionDescending(finalizeProviderModelsMetadata(
                 decoded.data
-                    .filter(\.isSupportedInAPI)
+                    .filter { shouldIncludeProviderModel($0, configuration: configuration) }
                     .map { model in
                         let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
                         let supportsReasoningToggle = model.supportedParameters?.contains(where: {
@@ -145,7 +145,10 @@ extension ResponsesAPIClient {
         } catch {
             logStrictModelsDecodeFailure(error: error, data: data)
             var models = LLMProviderModel.sortByVersionDescending(finalizeProviderModelsMetadata(
-                try parseModelsResponse(data),
+                try parseModelsResponse(
+                    data,
+                    includeUnsupportedAPIModels: configuration.backendMode == .codexOAuth
+                ),
                 configuration: configuration
             ))
 

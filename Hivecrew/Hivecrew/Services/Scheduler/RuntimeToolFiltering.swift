@@ -35,6 +35,8 @@ enum RuntimeToolFiltering {
         .appGetWindowState,
         .appClickElement,
         .appSetValue,
+        .appSubmitElement,
+        .appOpenURL,
     ]
 
     /// Tools that only make sense inside a VM guest (not App Worker).
@@ -43,15 +45,23 @@ enum RuntimeToolFiltering {
         .healthCheck,
     ]
 
-    /// Tools excluded from App Worker because they use CGEvent at global
-    /// screen coordinates, which causes macOS to activate/raise the window
-    /// under the cursor — breaking the no-foreground contract.
-    /// Use the AX-based `app_click_element` / `app_set_value` instead.
+    /// Tools excluded from App Worker because they bypass the CuaDriver
+    /// background-control contract or expose primitives that are too easy to
+    /// route to the user's foreground app. Use the CuaDriver-backed
+    /// `app_*` facade tools instead.
+    /// `open_url` is excluded because default URL handlers can activate apps;
+    /// use `open_app` plus app/window tools for GUI browser work.
+    /// `keyboard_key` is excluded because even pid-targeted key events can
+    /// cause apps such as Chrome to activate themselves. Use semantic app_*
+    /// actions, especially `app_submit_element`, instead.
+    /// `scroll` is kept: App Worker dispatches it through CuaDriver's
+    /// background scroll tool.
     static let appExcludedTools: Set<AgentMethod> = [
+        .openUrl,
         .mouseMove,
         .mouseClick,
         .mouseDrag,
-        .scroll,
+        .keyboardKey,
     ]
 
     /// Returns the set of `AgentMethod`s that should be excluded from the

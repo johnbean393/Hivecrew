@@ -18,7 +18,7 @@ func parseResponsesModelsForTests(
     do {
         let decoded = try JSONDecoder().decode(StrictModelsResponse.self, from: data)
         let models = decoded.data
-            .filter(\.isSupportedInAPI)
+            .filter { shouldIncludeProviderModel($0, configuration: configuration) }
             .map { model in
                 let supportedEfforts = model.supportedReasoningLevels?.map(\.effort) ?? []
                 let supportsReasoningToggle = model.supportedParameters?.contains(where: {
@@ -62,11 +62,23 @@ func parseResponsesModelsForTests(
         .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     } catch {
         return try finalizeProviderModelsMetadata(
-            parseModelsResponse(data),
+            parseModelsResponse(
+                data,
+                includeUnsupportedAPIModels: backendMode == .codexOAuth
+            ),
             configuration: configuration
         )
             .sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
     }
+}
+
+func shouldIncludeProviderModel(
+    _ model: StrictModelsResponse.ModelInfo,
+    configuration: LLMConfiguration
+) -> Bool {
+    // Codex OAuth models can be usable through the Codex backend even when the
+    // catalog marks them as unsupported by the public API.
+    configuration.backendMode == .codexOAuth || model.isSupportedInAPI
 }
 
 func normalizeProviderModelMetadata(
@@ -109,6 +121,13 @@ func finalizeProviderModelsMetadata(
     return mergeProviderModels(primary: normalized, supplementary: knownCodexOAuthModels)
 }
 
+let codexOAuthReasoningCapability = LLMReasoningCapability(
+    kind: .effort,
+    supportedEfforts: ["low", "medium", "high", "xhigh"],
+    defaultEffort: "medium",
+    defaultEnabled: false
+)
+
 let knownCodexOAuthModels: [LLMProviderModel] = [
     LLMProviderModel(
         id: "gpt-5.5",
@@ -119,16 +138,69 @@ let knownCodexOAuthModels: [LLMProviderModel] = [
         inputModalities: ["text", "image"],
         outputModalities: ["text"],
         supportsVisionInput: true,
-        reasoningCapability: LLMReasoningCapability(
-            kind: .effort,
-            supportedEfforts: ["low", "medium", "high", "xhigh"],
-            defaultEffort: "medium",
-            defaultEnabled: false
-        )
+        reasoningCapability: codexOAuthReasoningCapability
+    ),
+    LLMProviderModel(
+        id: "codex-auto-review",
+        name: "codex-auto-review",
+        description: nil,
+        contextLength: nil,
+        createdAt: nil,
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"],
+        supportsVisionInput: true,
+        reasoningCapability: .none
+    ),
+    LLMProviderModel(
+        id: "gpt-5.4",
+        name: "GPT-5.4",
+        description: nil,
+        contextLength: 1_000_000,
+        createdAt: nil,
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"],
+        supportsVisionInput: true,
+        reasoningCapability: codexOAuthReasoningCapability
+    ),
+    LLMProviderModel(
+        id: "gpt-5.4-mini",
+        name: "GPT-5.4-Mini",
+        description: nil,
+        contextLength: nil,
+        createdAt: nil,
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"],
+        supportsVisionInput: true,
+        reasoningCapability: codexOAuthReasoningCapability
+    ),
+    LLMProviderModel(
+        id: "gpt-5.3-codex",
+        name: "GPT-5.3-Codex",
+        description: nil,
+        contextLength: nil,
+        createdAt: nil,
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"],
+        supportsVisionInput: true,
+        reasoningCapability: codexOAuthReasoningCapability
+    ),
+    LLMProviderModel(
+        id: "gpt-5.2",
+        name: "GPT-5.2",
+        description: nil,
+        contextLength: nil,
+        createdAt: nil,
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"],
+        supportsVisionInput: true,
+        reasoningCapability: codexOAuthReasoningCapability
     )
 ]
 
-func parseModelsResponse(_ data: Data) throws -> [LLMProviderModel] {
+func parseModelsResponse(
+    _ data: Data,
+    includeUnsupportedAPIModels: Bool = false
+) throws -> [LLMProviderModel] {
     let json = try JSONSerialization.jsonObject(with: data)
     let modelPayloads = extractModelPayloads(from: json)
 
@@ -142,7 +214,9 @@ func parseModelsResponse(_ data: Data) throws -> [LLMProviderModel] {
         )
     }
 
-    let models = modelPayloads.compactMap(parseModelPayload)
+    let models = modelPayloads.compactMap {
+        parseModelPayload($0, includeUnsupportedAPIModels: includeUnsupportedAPIModels)
+    }
     if !models.isEmpty {
         return models
     }
@@ -242,8 +316,12 @@ private func looksLikeModelPayload(_ payload: [String: Any]) -> Bool {
         || payload["model"] is String
 }
 
-private func parseModelPayload(_ payload: [String: Any]) -> LLMProviderModel? {
-    if firstBool(in: payload, keys: ["supported_in_api", "supportedInAPI"]) == false {
+private func parseModelPayload(
+    _ payload: [String: Any],
+    includeUnsupportedAPIModels: Bool
+) -> LLMProviderModel? {
+    if !includeUnsupportedAPIModels,
+       firstBool(in: payload, keys: ["supported_in_api", "supportedInAPI"]) == false {
         return nil
     }
 

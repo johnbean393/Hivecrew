@@ -71,6 +71,22 @@ extension ToolExecutor {
             try await appConn.setValue(elementIndex: elementIndex, value: value)
             return .text("Set value on element [\(elementIndex)] to \"\(value.prefix(50))\(value.count > 50 ? "..." : "")\"")
 
+        case "app_submit_element":
+            let elementIndex = args["elementIndex"] as? Int
+            try await appConn.submitElement(elementIndex: elementIndex)
+            if let elementIndex {
+                let label = appConn.elementCache[elementIndex]?.label ?? "element"
+                return .text("Submitted [\(elementIndex)] \(label)")
+            }
+            return .text("Submitted the most recently interacted element")
+
+        case "app_open_url":
+            let url = args["url"] as? String ?? ""
+            let bundleId = args["bundleId"] as? String
+            let appName = args["appName"] as? String
+            try await appConn.openURLInApp(url, bundleId: bundleId, appName: appName)
+            return .text("Opened URL in background: \(url)")
+
         default:
             throw ToolExecutorError.unknownTool(name)
         }

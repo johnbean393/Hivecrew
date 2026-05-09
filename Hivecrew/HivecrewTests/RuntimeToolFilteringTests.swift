@@ -75,6 +75,7 @@ func appIncludesAppOnlyTools() {
     let appTools: [AgentMethod] = [
         .appListApps, .appListWindows, .appSelectWindow,
         .appGetWindowState, .appClickElement, .appSetValue,
+        .appSubmitElement, .appOpenURL,
     ]
     for method in appTools {
         #expect(!excluded.contains(method), "Expected \(method.rawValue) to NOT be excluded for App")
@@ -85,8 +86,8 @@ func appIncludesAppOnlyTools() {
 func appKeepsDesktopAndFileTools() {
     let excluded = RuntimeToolFiltering.excludedTools(for: AgentRuntimeKind.app)
     let expectedPresent: [AgentMethod] = [
-        .openApp, .openFile, .openUrl,
-        .keyboardType, .keyboardKey,
+        .openApp, .openFile,
+        .keyboardType, .scroll,
         .runShell, .readFile, .writeFile, .listDirectory, .moveFile,
     ]
     for method in expectedPresent {
@@ -95,14 +96,15 @@ func appKeepsDesktopAndFileTools() {
 }
 
 @Test
-func appExcludesRawMouseAndScrollTools() {
+func appExcludesForegroundStealingTools() {
     let excluded = RuntimeToolFiltering.excludedTools(for: AgentRuntimeKind.app)
     let expectedExcluded: [AgentMethod] = [
-        .mouseMove, .mouseClick, .mouseDrag, .scroll,
+        .openUrl, .mouseMove, .mouseClick, .mouseDrag, .keyboardKey,
     ]
     for method in expectedExcluded {
-        #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for App (foreground-stealing)")
+        #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for App")
     }
+    #expect(!excluded.contains(.scroll), "scroll should be available for App (dispatches through CuaDriver's background scroll tool)")
 }
 
 @Test
@@ -111,6 +113,7 @@ func fastExcludesAppOnlyTools() {
     let appTools: [AgentMethod] = [
         .appListApps, .appListWindows, .appSelectWindow,
         .appGetWindowState, .appClickElement, .appSetValue,
+        .appSubmitElement, .appOpenURL,
     ]
     for method in appTools {
         #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for Fast")
@@ -123,6 +126,7 @@ func vmExcludesAppOnlyTools() {
     let appTools: [AgentMethod] = [
         .appListApps, .appListWindows, .appSelectWindow,
         .appGetWindowState, .appClickElement, .appSetValue,
+        .appSubmitElement, .appOpenURL,
     ]
     for method in appTools {
         #expect(excluded.contains(method), "Expected \(method.rawValue) to be excluded for VM")

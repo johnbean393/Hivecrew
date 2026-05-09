@@ -320,7 +320,8 @@ class ToolExecutor {
             return await executeSendMessage(args: args, from: "main")
             
         case "app_list_apps", "app_list_windows", "app_select_window",
-             "app_get_window_state", "app_click_element", "app_set_value":
+             "app_get_window_state", "app_click_element", "app_set_value",
+             "app_submit_element", "app_open_url":
             return try await executeAppWorkerTool(name: name, args: args)
 
         default:
