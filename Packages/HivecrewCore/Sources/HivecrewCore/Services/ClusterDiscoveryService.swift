@@ -87,13 +87,6 @@ public final class ClusterDiscoveryService: ObservableObject {
     private static let peerOfflineThreshold = 3
     private static let maxReportedPeerCount = 1_000_000
 
-    private static let healthSession: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 5
-        config.timeoutIntervalForResource = 10
-        return URLSession(configuration: config)
-    }()
-
     public init(apiClient: RemoteAccessAPIClient = RemoteAccessAPIClient()) {
         self.apiClient = apiClient
     }
@@ -265,6 +258,12 @@ public final class ClusterDiscoveryService: ObservableObject {
         let client = PeerAPIClient(baseURL: peer.url, clusterToken: clusterToken)
 
         do {
+            guard let host = URL(string: peer.url)?.host,
+                  await PeerDNSResolver.resolves(host: host) else {
+                updatePeerForDNSUnavailable(peer)
+                return
+            }
+
             let clusterStatus = try await client.getClusterStatus()
             let existing = peerById[peer.tunnelId]
             let availableSlots = Self.sanitizeReportedCount(
@@ -327,6 +326,25 @@ public final class ClusterDiscoveryService: ObservableObject {
             publishPeers()
             print("ClusterDiscoveryService: Failed to bootstrap peer \(peer.tunnelId): \(error)")
         }
+    }
+
+    private func updatePeerForDNSUnavailable(_ peer: ClusterPeerInfo) {
+        let existing = peerById[peer.tunnelId]
+        peerById[peer.tunnelId] = DiscoveredClusterPeer(
+            id: peer.tunnelId,
+            subdomain: peer.subdomain,
+            name: peer.name ?? existing?.name,
+            tunnelUrl: peer.url,
+            status: .dnsUnavailable,
+            availableSlots: 0,
+            runningTasks: 0,
+            queuedTasks: 0,
+            lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
+            providers: existing?.providers ?? [],
+            runtimes: []
+        )
+        publishPeers()
+        print("ClusterDiscoveryService: Public DNS unavailable for \(peer.name ?? peer.tunnelId)")
     }
 
     private func fetchPeerCapabilities(peerId: String, baseURL: String, clusterToken: String) async {
@@ -514,15 +532,7 @@ public final class ClusterDiscoveryService: ObservableObject {
     }
 
     private static func probePeerHealth(url: String) async -> PeerHealthResult {
-        guard let healthURL = URL(string: "\(url)/health") else { return .unreachable }
-        do {
-            let (_, response) = try await healthSession.data(from: healthURL)
-            return (response as? HTTPURLResponse)?.statusCode == 200 ? .reachable : .unreachable
-        } catch let error as URLError where error.code == .cannotFindHost {
-            return .dnsUnavailable
-        } catch {
-            return .unreachable
-        }
+        await PeerAPIClient(baseURL: url, clusterToken: "").healthResult()
     }
 
     // MARK: - Private

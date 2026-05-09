@@ -72,13 +72,6 @@ actor ClusterManager {
     private static let dispatchOrderKey = "clusterDispatchOrder"
     private static let maxReportedPeerCount = 1_000_000
     
-    private static let healthSession: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 5
-        config.timeoutIntervalForResource = 10
-        return URLSession(configuration: config)
-    }()
-    
     private init() {
         // Listen for local capacity changes (task started/finished)
         capacityObserver = NotificationCenter.default.addObserver(
@@ -954,15 +947,7 @@ actor ClusterManager {
     }
     
     private static func probePeerHealth(url: String) async -> PeerHealthResult {
-        guard let healthURL = URL(string: "\(url)/health") else { return .unreachable }
-        do {
-            let (_, response) = try await healthSession.data(from: healthURL)
-            return (response as? HTTPURLResponse)?.statusCode == 200 ? .reachable : .unreachable
-        } catch let error as URLError where error.code == .cannotFindHost {
-            return .dnsUnavailable
-        } catch {
-            return .unreachable
-        }
+        await PeerAPIClient(baseURL: url, clusterToken: "").healthResult()
     }
 
     private static func peerStatus(for healthResult: PeerHealthResult) -> PeerStatus {

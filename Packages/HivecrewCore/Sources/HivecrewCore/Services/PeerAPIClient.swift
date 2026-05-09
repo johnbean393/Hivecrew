@@ -63,11 +63,19 @@ public actor PeerAPIClient {
 
     public func healthResult() async -> PeerHealthResult {
         guard let url = URL(string: "\(baseURL)/health") else { return .unreachable }
+        let request = URLRequest(url: url)
         do {
-            let (_, response) = try await session.data(from: url)
+            let (_, response) = try await session.data(for: request)
             return (response as? HTTPURLResponse)?.statusCode == 200 ? .reachable : .unreachable
         } catch let error as URLError where error.code == .cannotFindHost {
-            return .dnsUnavailable
+            do {
+                let (_, response) = try await PeerHTTPFallbackClient.data(for: request)
+                return response.statusCode == 200 ? .reachable : .unreachable
+            } catch PeerHTTPFallbackClient.FallbackError.noAddress {
+                return .dnsUnavailable
+            } catch {
+                return .unreachable
+            }
         } catch {
             return .unreachable
         }
@@ -276,7 +284,7 @@ public actor PeerAPIClient {
         request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await data(for: request)
         guard let http = response as? HTTPURLResponse else { throw PeerAPIError.invalidResponse }
         if http.statusCode == 204 { return nil }
         guard (200...299).contains(http.statusCode) else {
@@ -344,7 +352,15 @@ public actor PeerAPIClient {
         request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        let (data, response) = try await session.upload(for: request, fromFile: tempURL)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.upload(for: request, fromFile: tempURL)
+        } catch let error as URLError where error.code == .cannotFindHost {
+            var fallbackRequest = request
+            fallbackRequest.httpBody = try Data(contentsOf: tempURL)
+            (data, response) = try await PeerHTTPFallbackClient.data(for: fallbackRequest)
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PeerAPIError.invalidResponse
         }
@@ -392,7 +408,7 @@ public actor PeerAPIClient {
     }
 
     private func execute<R: Decodable>(_ request: URLRequest) async throws -> R {
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PeerAPIError.invalidResponse
         }
@@ -406,7 +422,7 @@ public actor PeerAPIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw PeerAPIError.invalidResponse
         }
@@ -414,6 +430,14 @@ public actor PeerAPIClient {
             throw PeerAPIError.httpError(statusCode: httpResponse.statusCode, detail: Self.extractErrorDetail(from: data))
         }
         return (data, httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream")
+    }
+
+    private func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(for: request)
+        } catch let error as URLError where error.code == .cannotFindHost {
+            return try await PeerHTTPFallbackClient.data(for: request)
+        }
     }
 
     private static func extractErrorDetail(from data: Data) -> String? {

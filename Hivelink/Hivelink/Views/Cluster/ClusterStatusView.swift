@@ -106,7 +106,10 @@ private struct PeerRowView: View {
                             Circle()
                                 .fill(runtime.setupStatus == .ready ? Color.green : Color.orange)
                                 .frame(width: 6, height: 6)
-                            Text(runtime.runtimeKind.rawValue.capitalized)
+                            Text(
+                                runtime.runtimeKind.rawValue.capitalized
+                                    .replacingOccurrences(of: "Isolatedvm", with: "Isolated VM")
+                            )
                                 .font(.caption2)
                         }
                         .padding(.horizontal, 8)
