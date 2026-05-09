@@ -91,8 +91,8 @@ enum LoginShellEnvironmentError: LocalizedError {
     }
 }
 
-actor LoginShellEnvironmentLoader {
-    static let shared = LoginShellEnvironmentLoader()
+public actor LoginShellEnvironmentLoader {
+    public static let shared = LoginShellEnvironmentLoader()
 
     private enum CachedResult {
         case success([String: String])
@@ -101,7 +101,7 @@ actor LoginShellEnvironmentLoader {
 
     private var cachedResult: CachedResult?
 
-    func environment(merging overrides: [String: String]?) async -> [String: String] {
+    public func environment(merging overrides: [String: String]?) async -> [String: String] {
         let base = ProcessInfo.processInfo.environment
         let cachedResult = await cachedOrLoadResult()
 

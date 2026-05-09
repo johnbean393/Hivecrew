@@ -11,6 +11,7 @@ import Foundation
 import AppKit
 import CoreGraphics
 import HivecrewCore
+import HivecrewMCP
 import CuaDriverCore
 import CuaDriverServer
 import MCP
@@ -556,12 +557,13 @@ final class CuaDriverConnection: AgentToolConnection {
         process.arguments = ["-l", "-c", command]
         process.currentDirectoryURL = session.paths.root
 
-        var env = ProcessInfo.processInfo.environment
-        env["HIVECREW_SESSION_ROOT"] = session.paths.root.path
-        env["HIVECREW_INBOX"] = session.paths.inbox.path
-        env["HIVECREW_WORKSPACE"] = session.paths.workspace.path
-        env["HIVECREW_OUTBOX"] = session.paths.outbox.path
-        process.environment = env
+        process.environment = await LoginShellEnvironmentLoader.shared.environment(merging: [
+            "HIVECREW_SESSION_ROOT": session.paths.root.path,
+            "HIVECREW_INBOX": session.paths.inbox.path,
+            "HIVECREW_WORKSPACE": session.paths.workspace.path,
+            "HIVECREW_OUTBOX": session.paths.outbox.path,
+            "PWD": session.paths.root.path
+        ])
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
