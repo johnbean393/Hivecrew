@@ -585,9 +585,24 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     
     func deleteTask(id: String) async throws {
         if await resolveRemoteLease(canonicalTaskId: id) != nil {
+            if let localTask = localTaskRecord(taskId: id), localTask.status.isActive {
+                _ = try? await performTaskAction(id: id, action: .cancel, instructions: nil)
+            }
+            if let localTask = localTaskRecord(taskId: id) {
+                clearRemoteLease(for: localTask, preservePeerName: true)
+                try? localProvider.modelContext.save()
+            }
             await remoteTaskIndex.remove(canonicalTaskId: id)
         }
         try await localProvider.deleteTask(id: id)
+    }
+
+    func removeRemoteLeaseTracking(canonicalTaskId: String) async {
+        if let localTask = localTaskRecord(taskId: canonicalTaskId) {
+            clearRemoteLease(for: localTask, preservePeerName: true)
+            try? localProvider.modelContext.save()
+        }
+        await remoteTaskIndex.remove(canonicalTaskId: canonicalTaskId)
     }
     
     func getTaskFiles(id: String) async throws -> APITaskFilesResponse {
@@ -1001,6 +1016,11 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
     private func dispatchQueuedCanonicalTaskToPeer(_ task: TaskRecord) async -> Bool {
         guard task.status == .queued, task.clusterExecutionState == .none else { return false }
         guard !task.isPinnedToLocalExecution else { return false }
+        guard !task.requiresLocalDevice else { return false }
+        if task.executionTarget.kind == .automatic,
+           RuntimeRoutingPolicy.isHostSpecificRequest(description: task.taskDescription) {
+            return false
+        }
         
         let localAvailableSlots = (try? await localProvider.getSystemStatus())?.vms.available
         if task.executionTarget.kind == .automatic,
@@ -1021,6 +1041,20 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
         var triedPeerIds: Set<String> = []
         let runtimeKind = Self.dispatchRuntimeKind(for: task)
         let runtimeTarget = Self.apiRuntimeTargetForDispatch(task)
+
+        if task.executionTarget.kind == .remoteFirst,
+           RuntimeRoutingPolicy.isHostSpecificRequest(description: task.taskDescription) {
+            let eligibleCount = await clusterManager.eligiblePeerCount(
+                providerName: providerName,
+                modelId: task.modelId,
+                excluding: triedPeerIds,
+                runtimeKind: runtimeKind
+            )
+            if eligibleCount != 1 {
+                markHostSpecificTaskNeedsExplicitDevice(task, eligiblePeerCount: eligibleCount)
+                return false
+            }
+        }
 
         func nextPeer() async -> PeerNode? {
             switch task.executionTarget.kind {
@@ -1080,6 +1114,7 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
                 task.clusterLeaseFailureCount = 0
                 task.clusterLeaseFirstFailureAt = nil
                 task.clusterLastRemoteContactAt = nil
+                task.setupRequirement = nil
                 try? localProvider.modelContext.save()
                 localProvider.taskService.objectWillChange.send()
                 executionAttempt = task.clusterExecutionAttempt
@@ -1365,6 +1400,23 @@ final class FederatedServiceProvider: APIServiceProvider, Sendable {
             taskService: localProvider.taskService,
             modelContext: localProvider.modelContext
         )
+    }
+
+    private func markHostSpecificTaskNeedsExplicitDevice(_ task: TaskRecord, eligiblePeerCount: Int) {
+        let message: String
+        if eligiblePeerCount > 1 {
+            message = "Choose a device before running this host-specific task."
+        } else {
+            message = "No eligible device is currently available for this host-specific task."
+        }
+
+        task.setupRequirement = TaskSetupRequirement(
+            runtimeKind: task.assignedRuntimeKind ?? .isolatedVM,
+            reason: .noEligibleDevice,
+            userFacingMessage: message
+        )
+        try? localProvider.modelContext.save()
+        localProvider.taskService.objectWillChange.send()
     }
 
     nonisolated static func shouldDispatchRemotely(

@@ -84,6 +84,29 @@ func snapshotReflectsState() {
     #expect(vmSnap?.queued == 0)
 }
 
+@Test @MainActor
+func reserveRemovesTaskFromRuntimeQueue() {
+    let capacity = LocalRuntimeCapacity()
+    capacity.enqueue(.fast, taskId: "f1")
+    capacity.enqueue(.fast, taskId: "f1")
+    #expect(capacity.queuedCount(for: .fast) == 1)
+
+    capacity.reserve(.fast, taskId: "f1")
+    #expect(capacity.runningCount(for: .fast) == 1)
+    #expect(capacity.queuedCount(for: .fast) == 0)
+}
+
+@Test @MainActor
+func removeClearsAllRuntimeTrackingForTask() {
+    let capacity = LocalRuntimeCapacity()
+    capacity.reserve(.fast, taskId: "shared")
+    capacity.enqueue(.app, taskId: "shared")
+
+    capacity.remove(taskId: "shared")
+    #expect(capacity.runningCount(for: .fast) == 0)
+    #expect(capacity.queuedCount(for: .app) == 0)
+}
+
 // MARK: - App Worker capacity
 
 @Test @MainActor

@@ -114,8 +114,25 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         referenceFiles: [ClusterExecuteNowRequest.ReferenceFile],
         runtimeTarget: APIRuntimeTarget? = nil
     ) async throws -> APITask {
-        guard taskService.canStartTaskImmediately() else {
-            throw APIError.conflict("No free execution slot on worker.")
+        if let runtimeTarget, runtimeTarget != .automatic {
+            switch runtimeTarget {
+            case .fast:
+                guard taskService.localRuntimeCapacity.canStart(.fast) else {
+                    throw APIError.conflict("No free Fast Worker slot on worker.")
+                }
+            case .app:
+                break
+            case .isolatedVM:
+                guard taskService.localVMCapacitySnapshot().available > 0 else {
+                    throw APIError.conflict("No free VM slot on worker.")
+                }
+            case .automatic:
+                break
+            }
+        } else {
+            guard taskService.canStartTaskImmediately() else {
+                throw APIError.conflict("No free execution slot on worker.")
+            }
         }
         
         let providerId = try await findProviderIdByName(providerName)
@@ -1020,11 +1037,7 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
         let running = taskService.runningAgents.count
         let paused = taskService.tasks.filter { $0.status == .paused }.count
         let queued = taskService.queuedTasks.count
-        let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
-        let runningDeveloperVMs = taskService.countRunningDeveloperVMs()
-        let pending = taskService.pendingVMCount + taskService.tearingDownVMIds.count
-        let activeVMs = running + runningDeveloperVMs
-        let available = max(0, effectiveMax - activeVMs - pending)
+        let vmCapacity = taskService.localVMCapacitySnapshot()
         
         // Get memory info
         let memoryUsedGB: Double? = nil
@@ -1047,12 +1060,12 @@ final class APIServiceProviderBridge: APIServiceProvider, Sendable {
                 running: running,
                 paused: paused,
                 queued: queued,
-                maxConcurrent: effectiveMax
+                maxConcurrent: vmCapacity.maxConcurrent
             ),
             vms: APIVMCounts(
-                active: activeVMs,
-                pending: pending,
-                available: available
+                active: vmCapacity.activeVMs,
+                pending: vmCapacity.pendingAndTearingDown,
+                available: vmCapacity.available
             ),
             resources: APIResourceUsage(
                 cpuUsage: nil,

@@ -141,6 +141,23 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
         // Hivelink does not track local slot accounting.
     }
 
+    func eligiblePeerCount(
+        providerName: String,
+        modelId: String,
+        excluding: Set<String>,
+        runtimeKind: RemoteAgentRuntimeKind?
+    ) async -> Int? {
+        discoveryService.peers.filter { peer in
+            guard peer.status == .online else { return false }
+            guard !excluding.contains(peer.id) else { return false }
+            guard Self.peerSupports(peer: peer, providerName: providerName, modelId: modelId) else { return false }
+            if let runtimeKind {
+                return Self.peerHasRuntimeCapacity(peer, runtimeKind: runtimeKind)
+            }
+            return peer.availableSlots > 0
+        }.count
+    }
+
     func markPeerOnline(tunnelId: String) async {
         _ = tunnelId
         // Health monitoring updates reachability; no separate local bookkeeping in Hivelink.

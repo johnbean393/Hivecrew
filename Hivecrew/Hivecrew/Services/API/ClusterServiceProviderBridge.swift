@@ -261,14 +261,13 @@ final class ClusterServiceProviderBridge: ClusterServiceProvider, @unchecked Sen
         let localProviders = await localProviderSummaries()
         
         let localMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
-        let (localRunning, localQueued) = await MainActor.run {
+        let localCapacity = await MainActor.run {
             let taskService = APIServerManager.shared.taskServiceRef
-            return (
-                taskService?.runningAgents.count ?? 0,
-                taskService?.tasks.filter { $0.status == .queued || $0.status == .waitingForVM }.count ?? 0
-            )
+            return taskService?.localVMCapacitySnapshot()
         }
-        let localAvailableSlots = max(0, localMax - localRunning)
+        let localRunning = localCapacity?.activeAgentVMs ?? 0
+        let localQueued = localCapacity?.queued ?? 0
+        let localAvailableSlots = localCapacity?.available ?? localMax
         
         var totalCapacity = localMax
         var totalRunning = localRunning

@@ -117,10 +117,8 @@ actor ClusterAnnouncer {
             return (maxConcurrent, 0, 0)
         }
         
-        let running = taskService.runningAgents.count
-        let queued = taskService.tasks.filter { $0.status == .queued }.count
-        let available = max(0, maxConcurrent - running)
-        return (available, running, queued)
+        let capacity = taskService.localVMCapacitySnapshot()
+        return (capacity.available, capacity.activeAgentVMs, capacity.queued)
     }
     
     @MainActor

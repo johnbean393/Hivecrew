@@ -14,8 +14,18 @@ import Combine
 import HivecrewLLM
 import HivecrewShared
 import HivecrewCore
+import HivecrewAPI
 
 // MARK: - Task Execution
+
+struct LocalVMCapacitySnapshot {
+    let maxConcurrent: Int
+    let activeAgentVMs: Int
+    let activeVMs: Int
+    let pendingAndTearingDown: Int
+    let available: Int
+    let queued: Int
+}
 
 extension TaskService {
     private func syncGuestArtifactsToSharedFolder(connection: GuestAgentConnection) async {
@@ -82,6 +92,59 @@ extension TaskService {
             vmId: vmId,
             taskTitle: task.title,
             customOutputDirectory: task.outputDirectory
+        )
+    }
+
+    private func notifyClusterCapacityChanged() {
+        NotificationCenter.default.post(name: .clusterCapacityChanged, object: nil)
+    }
+
+    private func reserveRuntimeCapacity(_ kind: AgentRuntimeKind, taskId: String) {
+        if localRuntimeCapacity.reserve(kind, taskId: taskId) {
+            notifyClusterCapacityChanged()
+        }
+    }
+
+    private func releaseRuntimeCapacity(_ kind: AgentRuntimeKind, taskId: String) {
+        if localRuntimeCapacity.release(kind, taskId: taskId) {
+            notifyClusterCapacityChanged()
+        }
+    }
+
+    private func enqueueRuntimeCapacity(_ kind: AgentRuntimeKind, taskId: String) {
+        if localRuntimeCapacity.enqueue(kind, taskId: taskId) {
+            notifyClusterCapacityChanged()
+        }
+    }
+
+    private func removeRuntimeCapacityTracking(taskId: String) {
+        if localRuntimeCapacity.remove(taskId: taskId) {
+            notifyClusterCapacityChanged()
+        }
+    }
+
+    func localVMCapacitySnapshot() -> LocalVMCapacitySnapshot {
+        let effectiveMax = VMConcurrencyPolicy.effectiveMaxConcurrentVMs()
+        let runningDeveloperVMs = countRunningDeveloperVMs()
+        let pendingAndTearingDown = syncPendingVMCount() + tearingDownVMIds.count
+        let nonVMRunning = localRuntimeCapacity.runningCount(for: .fast)
+            + localRuntimeCapacity.runningCount(for: .app)
+        let activeAgentVMs = max(0, runningAgents.count - nonVMRunning)
+        let activeVMs = activeAgentVMs + runningDeveloperVMs
+        let available = max(0, effectiveMax - activeVMs - pendingAndTearingDown)
+        let queued = tasks.filter {
+            !$0.isInternalClusterExecution
+                && ($0.status == .queued || $0.status == .waitingForVM)
+                && ($0.assignedRuntimeKind == nil || $0.assignedRuntimeKind == .isolatedVM)
+        }.count
+
+        return LocalVMCapacitySnapshot(
+            maxConcurrent: effectiveMax,
+            activeAgentVMs: activeAgentVMs,
+            activeVMs: activeVMs,
+            pendingAndTearingDown: pendingAndTearingDown,
+            available: available,
+            queued: queued
         )
     }
 
@@ -187,7 +250,7 @@ extension TaskService {
         if assignedKind == .fast {
             guard localRuntimeCapacity.canStart(.fast) else {
                 if !mustStayLocal { return false }
-                localRuntimeCapacity.enqueue(.fast, taskId: task.id)
+                enqueueRuntimeCapacity(.fast, taskId: task.id)
                 return false
             }
             Task { await startTask(task) }
@@ -808,7 +871,7 @@ extension TaskService {
         objectWillChange.send()
         
         // Notify cluster of capacity change
-        NotificationCenter.default.post(name: .clusterCapacityChanged, object: nil)
+        notifyClusterCapacityChanged()
         
         // Check if there are queued tasks waiting for a VM
         await processQueuedTasks()
@@ -824,12 +887,12 @@ extension TaskService {
         tasksInProgress.insert(task.id)
 
         guard localRuntimeCapacity.canStart(.fast) else {
-            localRuntimeCapacity.enqueue(.fast, taskId: task.id)
+            enqueueRuntimeCapacity(.fast, taskId: task.id)
             tasksInProgress.remove(task.id)
             print("TaskService: Fast Worker at capacity, queuing '\(task.title)'")
             return
         }
-        localRuntimeCapacity.reserve(.fast, taskId: task.id)
+        reserveRuntimeCapacity(.fast, taskId: task.id)
 
         let sessionId = UUID().uuidString
         let fastPaths = FastWorkerPaths(sessionId: sessionId)
@@ -1027,7 +1090,7 @@ extension TaskService {
             runningAgents.removeValue(forKey: task.id)
             tasksInProgress.remove(task.id)
             cleanupTaskObservations(taskId: task.id)
-            localRuntimeCapacity.release(.fast, taskId: task.id)
+            releaseRuntimeCapacity(.fast, taskId: task.id)
             print("TaskService: Fast task '\(task.title)' failed: \(error)")
         }
 
@@ -1106,14 +1169,14 @@ extension TaskService {
         runningAgents.removeValue(forKey: task.id)
         tasksInProgress.remove(task.id)
         cleanupTaskObservations(taskId: task.id)
-        localRuntimeCapacity.release(.fast, taskId: task.id)
+        releaseRuntimeCapacity(.fast, taskId: task.id)
 
         print("TaskService: Fast task '\(task.title)' completed. running=\(runningAgents.count)")
     }
 
     private func cleanupFastTask(task: TaskRecord, sessionId: String) {
         tasksInProgress.remove(task.id)
-        localRuntimeCapacity.release(.fast, taskId: task.id)
+        releaseRuntimeCapacity(.fast, taskId: task.id)
         cleanupTaskObservations(taskId: task.id)
     }
 
@@ -1128,7 +1191,7 @@ extension TaskService {
 
         // App Worker has no global concurrency limit — per-app serialisation
         // is handled by AppFocusManager inside CuaDriverConnection.
-        localRuntimeCapacity.reserve(.app, taskId: task.id)
+        reserveRuntimeCapacity(.app, taskId: task.id)
 
         let sessionId = UUID().uuidString
         let appPaths = FastWorkerPaths(sessionId: sessionId)
@@ -1427,7 +1490,7 @@ extension TaskService {
 
     private func cleanupAppTask(task: TaskRecord) {
         tasksInProgress.remove(task.id)
-        localRuntimeCapacity.release(.app, taskId: task.id)
+        releaseRuntimeCapacity(.app, taskId: task.id)
         cleanupTaskObservations(taskId: task.id)
     }
 
@@ -1626,9 +1689,42 @@ extension TaskService {
             scheduleEphemeralVMDeletion(vmId: createdVmId)
         }
     }
+
+    private func shouldProxyRemoteTaskAction(_ task: TaskRecord) -> Bool {
+        !task.isInternalClusterExecution
+            && task.isExecutingRemotely
+            && APIServerManager.shared.federatedProvider != nil
+    }
+
+    @discardableResult
+    private func proxyRemoteTaskActionIfNeeded(
+        _ task: TaskRecord,
+        action: APITaskAction,
+        instructions: String? = nil
+    ) async -> Bool {
+        guard shouldProxyRemoteTaskAction(task),
+              let provider = APIServerManager.shared.federatedProvider else {
+            return false
+        }
+
+        do {
+            _ = try await provider.performTaskAction(
+                id: task.id,
+                action: action,
+                instructions: instructions
+            )
+        } catch {
+            print("TaskService: Failed to proxy \(action.rawValue) for remote task '\(task.title)': \(error.localizedDescription)")
+        }
+        return true
+    }
     
     /// Cancel a running task
     func cancelTask(_ task: TaskRecord) async {
+        if await proxyRemoteTaskActionIfNeeded(task, action: .cancel) {
+            return
+        }
+
         // Cancel the agent if running
         if let agent = runningAgents[task.id] {
             await agent.cancel()
@@ -1646,6 +1742,7 @@ extension TaskService {
         
         runningAgents.removeValue(forKey: task.id)
         tasksInProgress.remove(task.id)
+        removeRuntimeCapacityTracking(taskId: task.id)
         cleanupTaskObservations(taskId: task.id)
         statePublishers[task.id]?.status = .cancelled
         
@@ -1669,6 +1766,11 @@ extension TaskService {
     
     /// Pause a running task
     func pauseTask(_ task: TaskRecord) {
+        if shouldProxyRemoteTaskAction(task) {
+            Task { await proxyRemoteTaskActionIfNeeded(task, action: .pause) }
+            return
+        }
+
         guard let agent = runningAgents[task.id] else { return }
         
         agent.pause()
@@ -1681,6 +1783,11 @@ extension TaskService {
     
     /// Resume a paused task with optional instructions
     func resumeTask(_ task: TaskRecord, withInstructions instructions: String? = nil) {
+        if shouldProxyRemoteTaskAction(task) {
+            Task { await proxyRemoteTaskActionIfNeeded(task, action: .resume, instructions: instructions) }
+            return
+        }
+
         guard let agent = runningAgents[task.id] else { return }
         
         agent.resume(withInstructions: instructions)
@@ -1700,6 +1807,7 @@ extension TaskService {
             await agent.cancel()
             runningAgents.removeValue(forKey: task.id)
         }
+        removeRuntimeCapacityTracking(taskId: task.id)
         
         // Clean up observations
         cleanupTaskObservations(taskId: task.id)
@@ -1736,11 +1844,16 @@ extension TaskService {
             return
         }
 
+        if await proxyRemoteTaskActionIfNeeded(task, action: .cancel) {
+            await APIServerManager.shared.federatedProvider?.removeRemoteLeaseTracking(canonicalTaskId: task.id)
+        }
+
         if task.status == .waitingForVM {
             pendingVMCount = max(0, pendingVMCount - 1)
             tasksInProgress.remove(task.id)
             print("TaskService: Released pending slot for removed task '\(task.title)' (pending: \(pendingVMCount))")
         }
+        removeRuntimeCapacityTracking(taskId: task.id)
         
         // Mark as cancelled
         task.status = .cancelled
@@ -1756,10 +1869,14 @@ extension TaskService {
     /// Delete a task and its associated session data
     func deleteTask(_ task: TaskRecord) async {
         guard let context = modelContext else { return }
+        let hadRemoteLease = shouldProxyRemoteTaskAction(task)
         
         // Cancel if still running
         if task.status.isActive {
             await cancelTask(task)
+        }
+        if hadRemoteLease {
+            await APIServerManager.shared.federatedProvider?.removeRemoteLeaseTracking(canonicalTaskId: task.id)
         }
         
         // Delete session directory if it exists
@@ -1787,6 +1904,7 @@ extension TaskService {
         // They are automatically deleted when the session directory is removed above
         
         // Remove from local state
+        removeRuntimeCapacityTracking(taskId: task.id)
         tasks.removeAll { $0.id == task.id }
         statePublishers.removeValue(forKey: task.id)
         for (index, remainingTask) in tasks.enumerated() {
@@ -1931,6 +2049,7 @@ extension TaskService {
 
         print("TaskService: Reserved teardown capacity for VM \(vmId) (tearingDown: \(tearingDownVMIds.count))")
         objectWillChange.send()
+        notifyClusterCapacityChanged()
 
         Task {
             await self.deleteEphemeralVM(vmId: vmId)
@@ -1938,6 +2057,7 @@ extension TaskService {
                 self.tearingDownVMIds.remove(vmId)
                 print("TaskService: Released teardown capacity for VM \(vmId) (tearingDown: \(self.tearingDownVMIds.count))")
                 self.objectWillChange.send()
+                self.notifyClusterCapacityChanged()
             }
             await self.processQueuedTasks()
         }

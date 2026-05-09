@@ -289,11 +289,18 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
 
     func deleteTask(_ task: TaskRecord) {
         let taskId = task.id
+        let persistedPeerId = task.clusterPeerId
+        let persistedWorkerTaskId = task.clusterWorkerTaskId
         modelContext.delete(task)
         try? modelContext.save()
         refreshTasks()
         removeTaskFromSpotlight(taskId)
         Task {
+            await cancelRemoteTaskIfNeeded(
+                canonicalTaskId: taskId,
+                persistedPeerId: persistedPeerId,
+                persistedWorkerTaskId: persistedWorkerTaskId
+            )
             await remoteTaskIndex.remove(canonicalTaskId: taskId)
         }
     }
@@ -968,6 +975,23 @@ final class HivelinkTaskService: ObservableObject, TaskServiceProtocol, RemoteTa
             action: action,
             instructions: instructions
         )
+    }
+
+    private func cancelRemoteTaskIfNeeded(
+        canonicalTaskId: String,
+        persistedPeerId: String?,
+        persistedWorkerTaskId: String?
+    ) async {
+        let peerId = await remoteTaskIndex.peerId(for: canonicalTaskId) ?? persistedPeerId
+        let workerTaskId = await remoteTaskIndex.workerTaskId(for: canonicalTaskId) ?? persistedWorkerTaskId
+        guard let peerId,
+              let workerTaskId,
+              let coordinator = clusterCoordinator,
+              let peer = await coordinator.peer(id: peerId)
+        else { return }
+
+        let client = await dispatcher.peerClient(for: peer)
+        _ = try? await client.performAction(taskId: workerTaskId, action: "cancel")
     }
 
     private func convertToAPIStatus(_ status: TaskStatus) -> APITaskStatus {

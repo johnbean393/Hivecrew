@@ -130,6 +130,7 @@ public protocol RemoteClusterDirectory: Sendable {
     func reserveBestAvailablePeer(providerName: String, modelId: String, excluding: Set<String>, runtimeKind: RemoteAgentRuntimeKind) async -> RemoteClusterPeer?
     func reserveSpecificPeer(peerId: String, providerName: String, modelId: String, runtimeKind: RemoteAgentRuntimeKind) async -> RemoteClusterPeer?
     func releaseSlot(peerId: String, runtimeKind: RemoteAgentRuntimeKind) async
+    func eligiblePeerCount(providerName: String, modelId: String, excluding: Set<String>, runtimeKind: RemoteAgentRuntimeKind?) async -> Int?
 }
 
 public extension RemoteClusterDirectory {
@@ -141,6 +142,9 @@ public extension RemoteClusterDirectory {
     }
     func releaseSlot(peerId: String, runtimeKind: RemoteAgentRuntimeKind) async {
         await releaseSlot(peerId: peerId)
+    }
+    func eligiblePeerCount(providerName: String, modelId: String, excluding: Set<String>, runtimeKind: RemoteAgentRuntimeKind?) async -> Int? {
+        nil
     }
 }
 
@@ -385,6 +389,10 @@ public final class RemoteTaskDispatcher {
         guard task.status == .queued, task.clusterExecutionState == .none else { return false }
         guard !task.isPinnedToLocalExecution else { return false }
         guard !task.requiresLocalDevice else { return false }
+        if task.executionTarget.kind == .automatic,
+           Self.isHostSpecificRequest(description: task.taskDescription) {
+            return false
+        }
 
         let localAvailableSlots = await host.localAvailableSlotsForDispatchDecision()
         if task.executionTarget.kind == .automatic,
@@ -405,6 +413,20 @@ public final class RemoteTaskDispatcher {
         var triedPeerIds: Set<String> = []
         let runtimeKind = Self.dispatchRuntimeKind(for: task)
         let runtimeTarget = Self.apiRuntimeTargetForDispatch(task)
+
+        if task.executionTarget.kind == .remoteFirst,
+           Self.isHostSpecificRequest(description: task.taskDescription) {
+            let eligibleCount = await clusterDirectory.eligiblePeerCount(
+                providerName: providerName,
+                modelId: task.modelId,
+                excluding: triedPeerIds,
+                runtimeKind: runtimeKind
+            )
+            if let eligibleCount, eligibleCount != 1 {
+                markHostSpecificTaskNeedsExplicitDevice(task, eligiblePeerCount: eligibleCount)
+                return false
+            }
+        }
 
         func nextPeer() async -> RemoteClusterPeer? {
             switch task.executionTarget.kind {
@@ -464,6 +486,7 @@ public final class RemoteTaskDispatcher {
                 task.clusterLeaseFailureCount = 0
                 task.clusterLeaseFirstFailureAt = nil
                 task.clusterLastRemoteContactAt = nil
+                task.setupRequirement = nil
                 try? host.saveModelContext()
                 host.notifyTaskListChanged()
                 executionAttempt = task.clusterExecutionAttempt
@@ -764,6 +787,39 @@ public final class RemoteTaskDispatcher {
         for task in eligible {
             _ = await dispatchQueuedCanonicalTaskToPeer(task)
         }
+    }
+
+    private func markHostSpecificTaskNeedsExplicitDevice(_ task: TaskRecord, eligiblePeerCount: Int) {
+        let message: String
+        if eligiblePeerCount > 1 {
+            message = "Choose a device before running this host-specific task."
+        } else {
+            message = "No eligible device is currently available for this host-specific task."
+        }
+
+        task.setupRequirement = TaskSetupRequirement(
+            runtimeKind: task.assignedRuntimeKind ?? .isolatedVM,
+            reason: .noEligibleDevice,
+            userFacingMessage: message
+        )
+        try? host?.saveModelContext()
+        host?.notifyTaskListChanged()
+    }
+
+    private nonisolated static let hostSpecificTerms = [
+        "my safari", "my mail", "my browser", "my account",
+        "my calendar", "my notes", "my finder", "my figma",
+        "my keynote", "my preview", "my app", "my logged in",
+        "my browser profile", "my session", "use my", "open my",
+        "this mac", "this window", "on my screen", "on my mac",
+        "on my desktop",
+    ]
+
+    public nonisolated static func isHostSpecificRequest(description: String) -> Bool {
+        let normalized = description
+            .lowercased()
+            .replacingOccurrences(of: #"[\W_]+"#, with: " ", options: .regularExpression)
+        return hostSpecificTerms.contains { normalized.contains($0) }
     }
 
     public nonisolated static func shouldDispatchRemotely(

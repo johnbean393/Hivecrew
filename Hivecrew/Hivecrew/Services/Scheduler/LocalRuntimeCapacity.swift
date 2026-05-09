@@ -57,23 +57,61 @@ final class LocalRuntimeCapacity {
 
     // MARK: - Reserve / Release
 
-    func reserve(_ kind: AgentRuntimeKind, taskId: String) {
-        slots[kind, default: Slot()].running.insert(taskId)
+    @discardableResult
+    func reserve(_ kind: AgentRuntimeKind, taskId: String) -> Bool {
+        var slot = slots[kind, default: Slot()]
+        let inserted = slot.running.insert(taskId).inserted
+        let queuedBefore = slot.queue.count
+        slot.queue.removeAll { $0 == taskId }
+        slots[kind] = slot
+        return inserted || slot.queue.count != queuedBefore
     }
 
-    func release(_ kind: AgentRuntimeKind, taskId: String) {
-        slots[kind, default: Slot()].running.remove(taskId)
+    @discardableResult
+    func release(_ kind: AgentRuntimeKind, taskId: String) -> Bool {
+        var slot = slots[kind, default: Slot()]
+        let removedRunning = slot.running.remove(taskId) != nil
+        let queuedBefore = slot.queue.count
+        slot.queue.removeAll { $0 == taskId }
+        slots[kind] = slot
+        return removedRunning || slot.queue.count != queuedBefore
     }
 
     // MARK: - Queue
 
-    func enqueue(_ kind: AgentRuntimeKind, taskId: String) {
-        slots[kind, default: Slot()].queue.append(taskId)
+    @discardableResult
+    func enqueue(_ kind: AgentRuntimeKind, taskId: String) -> Bool {
+        var slot = slots[kind, default: Slot()]
+        guard !slot.running.contains(taskId), !slot.queue.contains(taskId) else {
+            slots[kind] = slot
+            return false
+        }
+        slot.queue.append(taskId)
+        slots[kind] = slot
+        return true
     }
 
     func dequeueNext(_ kind: AgentRuntimeKind) -> String? {
         guard !(slots[kind, default: Slot()].queue.isEmpty) else { return nil }
         return slots[kind, default: Slot()].queue.removeFirst()
+    }
+
+    @discardableResult
+    func remove(taskId: String) -> Bool {
+        var changed = false
+        for kind in [AgentRuntimeKind.fast, .app, .isolatedVM] {
+            var slot = slots[kind, default: Slot()]
+            if slot.running.remove(taskId) != nil {
+                changed = true
+            }
+            let queuedBefore = slot.queue.count
+            slot.queue.removeAll { $0 == taskId }
+            if slot.queue.count != queuedBefore {
+                changed = true
+            }
+            slots[kind] = slot
+        }
+        return changed
     }
 
     // MARK: - Snapshot

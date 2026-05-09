@@ -524,6 +524,30 @@ actor ClusterManager {
         releaseRuntimeSlotInternal(peerId: peerId, runtimeKind: AgentRuntimeKind(remote: runtimeKind))
     }
 
+    func eligiblePeerCount(
+        providerName: String,
+        modelId: String,
+        excluding: Set<String>,
+        runtimeKind: RemoteAgentRuntimeKind?
+    ) async -> Int {
+        await refreshCapabilitiesForDispatch(
+            providerName: providerName,
+            modelId: modelId,
+            excluding: excluding
+        )
+
+        return peers.values.filter { peer in
+            guard peer.status == .online, !excluding.contains(peer.id) else { return false }
+            guard peer.capabilityMatch(providerName: providerName, modelId: modelId) == .supported else {
+                return false
+            }
+            if let runtimeKind {
+                return runtimeHasCapacity(peer, runtimeKind: AgentRuntimeKind(remote: runtimeKind))
+            }
+            return peer.availableSlots > 0
+        }.count
+    }
+
     // MARK: - Internal Dispatch Helpers
     
     private func bestAvailablePeerInternal(
@@ -1160,11 +1184,8 @@ actor ClusterManager {
             return (maxConcurrent, 0, 0)
         }
 
-        let running = taskService.runningAgents.count
-        let queued = taskService.tasks.filter {
-            !$0.isInternalClusterExecution && $0.status == .queued
-        }.count
-        return (max(0, maxConcurrent - running), running, queued)
+        let capacity = taskService.localVMCapacitySnapshot()
+        return (capacity.available, capacity.activeAgentVMs, capacity.queued)
     }
 
     @MainActor
