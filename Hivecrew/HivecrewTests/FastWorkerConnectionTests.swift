@@ -126,13 +126,28 @@ func fastConnectionMoveFile() async throws {
 }
 
 @Test @MainActor
-func fastConnectionRejectsPathOutsideRoots() async throws {
+func fastConnectionListsRelativeInboxPath() async throws {
     let conn = try makeConnection()
-    await #expect(throws: FastWorkerSessionError.self) {
-        try await conn.readFile(path: "/etc/passwd")
-    }
-    await #expect(throws: FastWorkerSessionError.self) {
-        try await conn.writeFile(path: "/tmp/evil.txt", contents: "hack")
+    let inboxFile = conn.session.paths.inbox.appendingPathComponent("input.txt")
+    try "input".write(to: inboxFile, atomically: true, encoding: .utf8)
+
+    let entries = try await conn.listDirectory(path: "inbox") as? [[String: Any]]
+    #expect(entries?.contains { ($0["name"] as? String) == "input.txt" } == true)
+}
+
+@Test @MainActor
+func fastConnectionAllowsExternalTempFileAccess() async throws {
+    let conn = try makeConnection()
+    let external = FileManager.default.temporaryDirectory
+        .appendingPathComponent("HivecrewTests-External-\(UUID().uuidString).txt")
+    defer { try? FileManager.default.removeItem(at: external) }
+
+    try await conn.writeFile(path: external.path, contents: "host")
+    let result = try await conn.readFile(path: external.path)
+    if case .text(let content, _) = result {
+        #expect(content == "host")
+    } else {
+        Issue.record("Expected text result")
     }
 }
 

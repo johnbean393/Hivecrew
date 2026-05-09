@@ -39,25 +39,24 @@ func appConnectionRuntimeKind() throws {
     _ = session
 }
 
-// MARK: - App Worker session sandbox
+// MARK: - App Worker session path resolution
 
 @Test @MainActor
-func appSessionRejectsPathOutsideRoots() throws {
+func appSessionAllowsHostAbsolutePaths() throws {
     let session = try makeAppWorkerSession()
-    #expect(throws: WorkspaceSandboxError.self) {
-        try session.validatePath("/etc/passwd")
-    }
-    #expect(throws: WorkspaceSandboxError.self) {
-        try session.validatePath("/tmp/evil.txt")
-    }
+    let resolved = try session.validatePath("/usr/bin/env")
+    #expect(resolved.path == "/usr/bin/env")
 }
 
 @Test @MainActor
-func appSessionAcceptsPathInsideWorkspace() throws {
+func appSessionAcceptsSessionRelativePaths() throws {
     let session = try makeAppWorkerSession()
     let workspacePath = session.paths.workspace.appendingPathComponent("test.txt").path
     let resolved = try session.validatePath(workspacePath)
     #expect(resolved.lastPathComponent == "test.txt")
+
+    let inbox = try session.validatePath("inbox")
+    #expect(inbox.path == session.paths.inbox.path)
 }
 
 // MARK: - File operations via AppWorkerSession

@@ -2,8 +2,9 @@
 //  WorkspaceSandbox.swift
 //  Hivecrew
 //
-//  Path validation shared between Fast Worker and App Worker sessions.
-//  Ensures file operations stay within approved directory roots.
+//  Path resolution shared between Fast Worker and App Worker sessions.
+//  Relative paths resolve from the session root so inbox/, workspace/, and
+//  outbox/ remain stable while absolute host paths remain available.
 //
 
 import Foundation
@@ -24,9 +25,16 @@ struct WorkspaceSandbox: Sendable {
 
     let root: URL
     let approvedRoots: [URL]
+    let allowsHostFilesystemAccess: Bool
 
-    init(root: URL, sessionDirectories: [URL], grants: [LocalAccessGrant] = []) {
+    init(
+        root: URL,
+        sessionDirectories: [URL],
+        grants: [LocalAccessGrant] = [],
+        allowsHostFilesystemAccess: Bool = false
+    ) {
         self.root = root
+        self.allowsHostFilesystemAccess = allowsHostFilesystemAccess
         var roots = sessionDirectories
         for grant in grants {
             let url = URL(fileURLWithPath: grant.rootPath).standardizedFileURL
@@ -39,6 +47,9 @@ struct WorkspaceSandbox: Sendable {
         let resolved = URL(fileURLWithPath: rawPath, relativeTo: root)
             .resolvingSymlinksInPath()
             .standardizedFileURL
+        if allowsHostFilesystemAccess {
+            return resolved
+        }
         for root in approvedRoots {
             let rootPath = root.resolvingSymlinksInPath().standardizedFileURL.path
             if resolved.path == rootPath || resolved.path.hasPrefix(rootPath + "/") {

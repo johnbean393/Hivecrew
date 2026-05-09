@@ -352,6 +352,11 @@ class ToolExecutor {
     private func executeWriteFile(args: [String: Any]) async throws -> InternalToolResult {
         let path = args["path"] as? String ?? ""
         let contents = args["contents"] as? String ?? ""
+        guard connection.runtimeKind == .isolatedVM else {
+            try await connection.writeFile(path: path, contents: contents)
+            return .text("Wrote \(contents.count) bytes to '\(path)'")
+        }
+
         let base64Contents = Data(contents.utf8).base64EncodedString()
         let quotedPath = shellSingleQuoted(path)
         let quotedBase64 = shellSingleQuoted(base64Contents)
@@ -370,6 +375,11 @@ class ToolExecutor {
 
     private func executeListDirectory(args: [String: Any]) async throws -> InternalToolResult {
         let path = args["path"] as? String ?? ""
+        guard connection.runtimeKind == .isolatedVM else {
+            let entries = try await connection.listDirectory(path: path)
+            return .text(formatToolJSON(entries))
+        }
+
         let quotedPath = shellSingleQuoted(path)
 
         let command = """
@@ -398,6 +408,15 @@ class ToolExecutor {
             throw ToolExecutorError.executionFailed(result.stderr.isEmpty ? result.stdout : result.stderr)
         }
         return .text(result.stdout)
+    }
+
+    private func formatToolJSON(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]),
+              let string = String(data: data, encoding: .utf8) else {
+            return String(describing: value)
+        }
+        return string
     }
 
     private func executeStageWriteback(args: [String: Any], operationType: WritebackOperationType) async throws -> InternalToolResult {

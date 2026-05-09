@@ -26,7 +26,8 @@ final class AppWorkerSession {
         self.sandbox = WorkspaceSandbox(
             root: paths.root,
             sessionDirectories: paths.allDirectories,
-            grants: localAccessGrants
+            grants: localAccessGrants,
+            allowsHostFilesystemAccess: true
         )
     }
 

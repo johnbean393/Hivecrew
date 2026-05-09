@@ -16,7 +16,7 @@ struct AgentPreviewStripView: View {
     
     private let cardWidth: CGFloat = 320
     private let cardHeight: CGFloat = 280
-    private let previewHeight: CGFloat = 120
+    private let previewHeight: CGFloat = 192
     private let visibilityRefreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     
     var body: some View {

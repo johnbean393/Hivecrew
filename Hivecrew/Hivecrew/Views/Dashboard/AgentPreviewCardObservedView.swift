@@ -36,10 +36,10 @@ struct AgentPreviewCardObserved: View {
     
     private var previewScreenshot: NSImage? {
         if let latestScreenshot = latestScreenshot {
-            return latestScreenshot
+            return latestScreenshot.withPixelBackedSize()
         }
         if let path = statePublisher.lastScreenshotPath {
-            return NSImage(contentsOfFile: path)
+            return NSImage(contentsOfFile: path)?.withPixelBackedSize()
         }
         return nil
     }

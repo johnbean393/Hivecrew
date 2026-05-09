@@ -2,7 +2,7 @@
 //  AppWorkerSandboxTests.swift
 //  HivecrewTests
 //
-//  Tests for WorkspaceSandbox and AppWorkerSession path confinement.
+//  Tests for WorkspaceSandbox and AppWorkerSession path resolution.
 //
 
 import Foundation
@@ -67,10 +67,10 @@ func sandboxWithGrantsExpandsRoots() throws {
     #expect(sandbox.isPathAllowed(extra.appendingPathComponent("data.csv").path))
 }
 
-// MARK: - AppWorkerSession sandbox parity
+// MARK: - AppWorkerSession host filesystem access
 
 @Test @MainActor
-func appWorkerSessionUsesWorkspaceSandbox() throws {
+func appWorkerSessionUsesHostFilesystemPathResolution() throws {
     let tempDir = FileManager.default.temporaryDirectory
         .appendingPathComponent("HivecrewTests-AW-\(UUID().uuidString)", isDirectory: true)
     let paths = FastWorkerPaths(sessionId: "test-sandbox", parentRoot: tempDir)
@@ -83,5 +83,7 @@ func appWorkerSessionUsesWorkspaceSandbox() throws {
     let resolved = try session.validatePath(workspacePath)
     #expect(resolved.lastPathComponent == "test.txt")
 
-    #expect(!session.isPathAllowed("/etc/passwd"))
+    let inbox = try session.validatePath("inbox")
+    #expect(inbox.path == paths.inbox.path)
+    #expect(session.isPathAllowed("/usr/bin/env"))
 }

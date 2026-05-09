@@ -285,7 +285,7 @@ class AgentStatePublisher: ObservableObject {
     
     /// Update the screenshot
     func updateScreenshot(_ image: NSImage?, path: String?) {
-        lastScreenshot = image
+        lastScreenshot = image?.withPixelBackedSize()
         lastScreenshotPath = path
     }
     
@@ -452,4 +452,15 @@ class AgentStatePublisher: ObservableObject {
         return relevant.map { "[\($0.type.rawValue)] \($0.summary)" }.joined(separator: "\n")
     }
 
+}
+
+extension NSImage {
+    func withPixelBackedSize() -> NSImage {
+        guard let representation = representations.first(where: { $0.pixelsWide > 0 && $0.pixelsHigh > 0 }) else {
+            return self
+        }
+        let copy = self.copy() as? NSImage ?? self
+        copy.size = NSSize(width: representation.pixelsWide, height: representation.pixelsHigh)
+        return copy
+    }
 }

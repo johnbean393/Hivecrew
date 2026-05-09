@@ -18,6 +18,41 @@ import Testing
 struct HivecrewTests {
 
     @Test
+    func appWorkerPromptUsesSessionRelativeInboxPaths() {
+        let skill = Skill(
+            name: "sample-skill",
+            description: "Sample skill",
+            instructions: "Use the bundled script."
+        )
+
+        let prompt = AgentPrompts.systemPrompt(
+            task: "Review the attachment",
+            runtimeKind: .app,
+            inputFiles: ["docs/report.txt"],
+            skills: [skill],
+            supportsVision: false
+        )
+
+        #expect(prompt.contains("FILE LOCATIONS:"))
+        #expect(prompt.contains("inbox/"))
+        #expect(prompt.contains("└── docs/"))
+        #expect(prompt.contains("inbox/{skill-name}/scripts/"))
+        #expect(!prompt.contains("~/Desktop/inbox"))
+    }
+
+    @Test
+    func isolatedVMPromptKeepsGuestDesktopInboxPaths() {
+        let prompt = AgentPrompts.systemPrompt(
+            task: "Review the attachment",
+            runtimeKind: .isolatedVM,
+            inputFiles: ["docs/report.txt"],
+            supportsVision: false
+        )
+
+        #expect(prompt.contains("~/Desktop/inbox/"))
+    }
+
+    @Test
     func vmConcurrencyPolicyFallsBackToHostLimit() {
         let suiteName = "HivecrewTests.vmConcurrencyPolicy.fallback.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -1000,7 +1035,8 @@ private extension HivecrewTests {
         id: String,
         status: PeerStatus = .online,
         availableSlots: Int,
-        providers: [PeerProviderSummary]
+        providers: [PeerProviderSummary],
+        runtimes: [PeerRuntimeSummary] = []
     ) -> PeerNode {
         PeerNode(
             id: id,
@@ -1012,7 +1048,8 @@ private extension HivecrewTests {
             runningTasks: 0,
             queuedTasks: 0,
             lastSeen: Date(),
-            providers: providers
+            providers: providers,
+            runtimes: runtimes
         )
     }
 

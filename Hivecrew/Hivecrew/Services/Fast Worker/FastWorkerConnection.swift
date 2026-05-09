@@ -3,7 +3,7 @@
 //  Hivecrew
 //
 //  AgentToolConnection conformance for the headless Fast Worker runtime.
-//  Supports shell, file read/write/list/move inside approved roots.
+//  Supports shell and file read/write/list/move on the host filesystem.
 //  All GUI/vision operations throw.
 //
 
@@ -87,7 +87,10 @@ final class FastWorkerConnection: AgentToolConnection {
         process.currentDirectoryURL = session.paths.root
 
         var env = ProcessInfo.processInfo.environment
-        env["HOME"] = session.paths.root.path
+        env["HIVECREW_SESSION_ROOT"] = session.paths.root.path
+        env["HIVECREW_INBOX"] = session.paths.inbox.path
+        env["HIVECREW_WORKSPACE"] = session.paths.workspace.path
+        env["HIVECREW_OUTBOX"] = session.paths.outbox.path
         process.environment = env
 
         let stdoutPipe = Pipe()

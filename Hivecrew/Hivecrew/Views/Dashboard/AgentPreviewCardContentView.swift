@@ -286,7 +286,8 @@ struct AgentPreviewCardContent: View {
             if let screenshot = previewScreenshot ?? remoteScreenshot {
                 Image(nsImage: screenshot)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if task.isExecutingRemotely {
                 VStack(spacing: 6) {
                     Image(systemName: "server.rack")
@@ -463,7 +464,7 @@ struct AgentPreviewCardContent: View {
 
         if let screenshot = try? await provider.getTaskScreenshot(id: task.id),
            let image = NSImage(data: screenshot.data) {
-            remoteScreenshot = image
+            remoteScreenshot = image.withPixelBackedSize()
         }
 
         if let response = try? await provider.getTaskActivity(id: task.id, since: remoteEventSince) {

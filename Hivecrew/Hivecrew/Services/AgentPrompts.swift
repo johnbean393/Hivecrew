@@ -309,11 +309,11 @@ If the task involved an attached file, make sure the final user-facing result is
     ) -> String {
         var filesSection = ""
         if !inputFiles.isEmpty {
-            let treeView = buildTreeView(files: inputFiles)
+            let treeView = buildTreeView(files: inputFiles, rootLabel: "inbox/")
             filesSection = """
 
             INPUT FILES:
-            The user has provided the following files for you to work with:
+            The user has provided the following files for you to work with in the session inbox:
             \(treeView)
 
             """
@@ -321,7 +321,7 @@ If the task involved an attached file, make sure the final user-facing result is
 
         var skillsSection = ""
         if !skills.isEmpty {
-            skillsSection = buildSkillsSection(skills: skills)
+            skillsSection = buildSkillsSection(skills: skills, inboxRootLabel: "inbox")
         }
         var planSection = ""
         if let plan = plan, !plan.isEmpty {
@@ -386,8 +386,14 @@ Today's date: \(dateString)
 
 TASK: \(task)
 \(filesSection)
+FILE LOCATIONS:
+- Input files from the user are in the inbox/ directory
+- Save all output files and deliverables to the outbox/ directory
+- Use the workspace/ directory for intermediate and working files
+- Use relative paths like `inbox/file.txt`, `workspace/draft.md`, and `outbox/result.pdf`; do not use VM Desktop paths in App Worker.
+
 ENVIRONMENT:
-- You are **not** inside an isolated guest VM. Shell and file tools operate under a **session workspace** on the host (paths may look like a sandbox, but it is the real Mac).
+- You are **not** inside an isolated guest VM. Shell and file tools run on the user's Mac. Relative paths resolve from the session root; absolute host paths are available subject to macOS permissions.
 - The **no-foreground contract** applies: keep the user’s current frontmost app stable. Do not steal focus to complete tasks unless the user explicitly asked to bring an app to the front.
 - **`open_app`** uses cua’s **background launch** — it is **not** the same as Terminal `open` and does not mean “force frontmost” here.
 
@@ -408,7 +414,7 @@ GUI WORKFLOW (prefer this over ad-hoc shell scripts):
 
 AVAILABLE TOOLS (representative; the schema is authoritative):
 - **Apps / windows**: `open_app`, `app_open_url`, `app_list_apps`, `app_list_windows`, `app_select_window`, `app_get_window_state`, `app_click_element`, `app_set_value`, `app_submit_element`
-- **Host shell / files (sandboxed)**: `run_shell`, `read_file`, `write_file`, `list_directory`, `move_file`
+- **Host shell / files**: `run_shell`, `read_file`, `write_file`, `list_directory`, `move_file`
 - **Input**: `keyboard_type`, `keyboard_key`, `mouse_click`, `mouse_drag`, `scroll`
 - **Other**: `open_file`, `wait`, todo tools, web tools, user-interaction tools
 
@@ -440,11 +446,11 @@ When the task is complete, stop calling tools and respond with a concise summary
     ) -> String {
         var filesSection = ""
         if !inputFiles.isEmpty {
-            let treeView = buildTreeView(files: inputFiles)
+            let treeView = buildTreeView(files: inputFiles, rootLabel: "inbox/")
             filesSection = """
 
             INPUT FILES:
-            The user has provided the following files for you to work with:
+            The user has provided the following files for you to work with in the session inbox:
             \(treeView)
 
             """
@@ -452,7 +458,7 @@ When the task is complete, stop calling tools and respond with a concise summary
 
         var skillsSection = ""
         if !skills.isEmpty {
-            skillsSection = buildSkillsSection(skills: skills)
+            skillsSection = buildSkillsSection(skills: skills, inboxRootLabel: "inbox")
         }
         var planSection = ""
         if let plan = plan, !plan.isEmpty {
@@ -514,9 +520,10 @@ FILE LOCATIONS:
 
 HOW IT WORKS:
 - You have access to shell commands, file operations, web tools, and management tools.
+- Shell and file tools run on the user's Mac. Relative paths resolve from the session root; absolute host paths are available subject to macOS permissions.
 - You do NOT have access to any GUI, desktop, mouse, keyboard, screenshot, or app-launching tools.
 - Work entirely through text-based tools: `run_shell`, `read_file`, `write_file`, `list_directory`, `move_file`, web tools, and todo tools.
-- Use relative paths (e.g. `inbox/file.txt`, `workspace/draft.md`, `outbox/result.pdf`) or absolute paths within the session.
+- Use relative paths (e.g. `inbox/file.txt`, `workspace/draft.md`, `outbox/result.pdf`) or absolute host paths.
 
 AVAILABLE TOOLS:
 - run_shell: Execute a shell command and return its output
@@ -553,7 +560,7 @@ When the task is complete, stop calling tools and respond with a summary of what
     }
 
     /// Build the skills section for the system prompt
-    private static func buildSkillsSection(skills: [Skill]) -> String {
+    private static func buildSkillsSection(skills: [Skill], inboxRootLabel: String = "~/Desktop/inbox") -> String {
         guard !skills.isEmpty else { return "" }
         
         var section = """
@@ -561,7 +568,7 @@ When the task is complete, stop calling tools and respond with a summary of what
         ---
         
         SKILLS:
-        The following skills may help you complete this task. Follow their instructions when applicable. Scripts for skills can be found in `~/Desktop/inbox/{skill-name}/scripts/`.
+        The following skills may help you complete this task. Follow their instructions when applicable. Scripts for skills can be found in `\(inboxRootLabel)/{skill-name}/scripts/`.
         
         """
         
@@ -618,7 +625,7 @@ When the task is complete, stop calling tools and respond with a summary of what
     }
     
     /// Build a tree view representation of file paths
-    private static func buildTreeView(files: [String]) -> String {
+    private static func buildTreeView(files: [String], rootLabel: String = "~/Desktop/inbox/") -> String {
         // Build a nested dictionary structure from file paths
         class TreeNode {
             var children: [String: TreeNode] = [:]
@@ -664,7 +671,7 @@ When the task is complete, stop calling tools and respond with a summary of what
             return lines
         }
         
-        var result = "~/Desktop/inbox/"
+        var result = rootLabel
         let treeLines = renderNode(root, prefix: "", isLast: true, isRoot: true)
         if !treeLines.isEmpty {
             result += "\n" + treeLines.joined(separator: "\n")

@@ -2,7 +2,7 @@
 //  FastWorkerSandboxTests.swift
 //  HivecrewTests
 //
-//  Tests for FastWorkerSession path validation (approved-root sandbox).
+//  Tests for FastWorkerSession path resolution.
 //
 
 import Foundation
@@ -43,25 +43,23 @@ func pathInsideOutboxIsAllowed() throws {
 }
 
 @Test @MainActor
-func pathOutsideRootsIsRejected() throws {
+func absoluteHostPathsAreAllowed() throws {
     let session = try makeTempSession()
-    #expect(throws: FastWorkerSessionError.self) {
-        try session.validatePath("/etc/passwd")
-    }
+    let resolved = try session.validatePath("/usr/bin/env")
+    #expect(resolved.path == "/usr/bin/env")
 }
 
 @Test @MainActor
-func pathTraversalIsRejected() throws {
+func relativeInboxPathResolvesFromSessionRoot() throws {
     let session = try makeTempSession()
-    #expect(throws: FastWorkerSessionError.self) {
-        try session.validatePath(session.paths.workspace.path + "/../../etc/passwd")
-    }
+    let resolved = try session.validatePath("inbox")
+    #expect(resolved.path == session.paths.inbox.path)
 }
 
 @Test @MainActor
-func isPathAllowedReturnsFalseForExternalPaths() throws {
+func isPathAllowedReturnsTrueForExternalPaths() throws {
     let session = try makeTempSession()
-    #expect(!session.isPathAllowed("/usr/bin/bash"))
+    #expect(session.isPathAllowed("/usr/bin/bash"))
     #expect(session.isPathAllowed(session.paths.workspace.appendingPathComponent("file.txt").path))
 }
 

@@ -276,6 +276,7 @@
 		623144A1A8C90BA6065B8B07 /* WorkspaceSandbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9A845AF9149199765B9C33C /* WorkspaceSandbox.swift */; };
 		633E4B91A8E325B6ECC57983 /* FastWorkerConnectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 928D452EA127E36197FA996A /* FastWorkerConnectionTests.swift */; };
 		6C484FDDA00B3BCAC6D7733E /* AppFocusManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B4F4E1ABA6086BB8CC1602B /* AppFocusManagerTests.swift */; };
+		F0C05A012FAA000100000001 /* AppWorkerFocusRestorationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C05A022FAA000100000002 /* AppWorkerFocusRestorationTests.swift */; };
 		71C24089BB814B946A35E1FA /* CuaDriverManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C333479C89C590F40A298716 /* CuaDriverManagerTests.swift */; };
 		7E9542469F97517A706C6E41 /* CuaDriverConnection+Facade.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C442E290743A0523905FEB /* CuaDriverConnection+Facade.swift */; };
 		812D46098D8CAD89A9E8C7B5 /* AppWorkerSetupHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A242B3B676B786EB6379F0 /* AppWorkerSetupHelper.swift */; };
@@ -622,6 +623,7 @@
 		7D7643C690BB07D1BBEC045D /* CuaDriverConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CuaDriverConnection.swift; path = "Hivecrew/Services/App Worker/CuaDriverConnection.swift"; sourceTree = SOURCE_ROOT; };
 		80FE43CEBF5CFF6C6E14E0D6 /* RuntimeClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RuntimeClassifier.swift; path = Hivecrew/Services/Scheduler/RuntimeClassifier.swift; sourceTree = SOURCE_ROOT; };
 		8B4F4E1ABA6086BB8CC1602B /* AppFocusManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppFocusManagerTests.swift; path = HivecrewTests/AppFocusManagerTests.swift; sourceTree = SOURCE_ROOT; };
+		F0C05A022FAA000100000002 /* AppWorkerFocusRestorationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppWorkerFocusRestorationTests.swift; path = HivecrewTests/AppWorkerFocusRestorationTests.swift; sourceTree = SOURCE_ROOT; };
 		914545E394E71EA541A40B74 /* CuaDriverConnectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CuaDriverConnectionTests.swift; path = HivecrewTests/CuaDriverConnectionTests.swift; sourceTree = SOURCE_ROOT; };
 		928D452EA127E36197FA996A /* FastWorkerConnectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FastWorkerConnectionTests.swift; path = HivecrewTests/FastWorkerConnectionTests.swift; sourceTree = SOURCE_ROOT; };
 		98C04059A6CB14041148E98D /* FastWorkerSandboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FastWorkerSandboxTests.swift; path = HivecrewTests/FastWorkerSandboxTests.swift; sourceTree = SOURCE_ROOT; };
@@ -909,6 +911,7 @@
 				A1F4D90021RUNTIME0POLICY2 /* RuntimeRoutingPolicyTests.swift */,
 				2BC3481DADA111441E859381 /* RuntimeToolFilteringTests.swift */,
 				8B4F4E1ABA6086BB8CC1602B /* AppFocusManagerTests.swift */,
+				F0C05A022FAA000100000002 /* AppWorkerFocusRestorationTests.swift */,
 				54664395A79795C1B3CF20C5 /* cua-driver */,
 			);
 			sourceTree = "<group>";
@@ -1887,6 +1890,7 @@
 				A1F4D90021RUNTIME0POLICY1 /* RuntimeRoutingPolicyTests.swift in Sources */,
 				92764407B752267ED5194783 /* RuntimeToolFilteringTests.swift in Sources */,
 				6C484FDDA00B3BCAC6D7733E /* AppFocusManagerTests.swift in Sources */,
+				F0C05A012FAA000100000001 /* AppWorkerFocusRestorationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

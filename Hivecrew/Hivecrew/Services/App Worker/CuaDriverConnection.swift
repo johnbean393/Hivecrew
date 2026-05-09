@@ -4,7 +4,7 @@
 //
 //  AgentToolConnection conformance for the App Worker runtime.
 //  Uses CuaDriverCore linked in-process for host macOS GUI control,
-//  and provides local shell/file operations via the session sandbox.
+//  and provides local shell/file operations on the host filesystem.
 //
 
 import Foundation
@@ -55,6 +55,62 @@ struct WindowStateSnapshot: Sendable {
     var screenshotBase64: String?
     var screenWidth: Int?
     var screenHeight: Int?
+}
+
+enum AppWorkerFocusRestoration {
+    static func restorationPid(
+        priorWorkspacePid: pid_t?,
+        priorVisualPid: pid_t?,
+        targetPid: pid_t?
+    ) -> pid_t? {
+        if let priorVisualPid, priorVisualPid != targetPid {
+            return priorVisualPid
+        }
+        if let priorWorkspacePid, priorWorkspacePid != targetPid {
+            return priorWorkspacePid
+        }
+        return nil
+    }
+
+    static func shouldRestore(
+        priorWorkspacePid: pid_t?,
+        priorVisualPid: pid_t?,
+        currentWorkspacePid: pid_t?,
+        currentVisualPid: pid_t?,
+        targetPid: pid_t?,
+        targetIsActive: Bool
+    ) -> Bool {
+        guard let targetPid else { return false }
+        guard targetIsActive else { return false }
+
+        guard let restorationPid = restorationPid(
+            priorWorkspacePid: priorWorkspacePid,
+            priorVisualPid: priorVisualPid,
+            targetPid: targetPid
+        ) else {
+            return false
+        }
+
+        if let currentVisualPid,
+           currentVisualPid != restorationPid,
+           currentVisualPid != targetPid {
+            return false
+        }
+
+        return currentWorkspacePid == targetPid
+            || currentWorkspacePid == restorationPid
+            || currentVisualPid == restorationPid
+    }
+
+    static func shouldNormalizeBeforeBackgroundAction(
+        targetPid: pid_t?,
+        visualPid: pid_t?,
+        targetIsActive: Bool
+    ) -> Bool {
+        guard let targetPid, let visualPid else { return false }
+        guard targetPid != visualPid else { return false }
+        return targetIsActive
+    }
 }
 
 // MARK: - CuaDriverConnection
@@ -492,16 +548,19 @@ final class CuaDriverConnection: AgentToolConnection {
         _ = try await callCuaTool("scroll", arguments)
     }
 
-    // MARK: - Shell (host-local, rooted at session workspace)
+    // MARK: - Shell (host-local, rooted at session root)
 
     func runShell(command: String, timeout: Double?) async throws -> ShellResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-l", "-c", command]
-        process.currentDirectoryURL = session.paths.workspace
+        process.currentDirectoryURL = session.paths.root
 
         var env = ProcessInfo.processInfo.environment
-        env["HOME"] = session.paths.root.path
+        env["HIVECREW_SESSION_ROOT"] = session.paths.root.path
+        env["HIVECREW_INBOX"] = session.paths.inbox.path
+        env["HIVECREW_WORKSPACE"] = session.paths.workspace.path
+        env["HIVECREW_OUTBOX"] = session.paths.outbox.path
         process.environment = env
 
         let stdoutPipe = Pipe()
@@ -531,7 +590,7 @@ final class CuaDriverConnection: AgentToolConnection {
         )
     }
 
-    // MARK: - File Operations (host-local, sandbox-confined)
+    // MARK: - File Operations (host-local)
 
     func readFile(path: String) async throws -> FileReadResult {
         let resolved = try session.validatePath(path)
@@ -612,11 +671,33 @@ final class CuaDriverConnection: AgentToolConnection {
         _ arguments: [String: Value],
         allowToolError: Bool = false
     ) async throws -> CallTool.Result {
-        let result = try await cuaTools.call(name, arguments: arguments)
-        if result.isError == true && !allowToolError {
-            throw CuaDriverError.toolCallFailed(firstTextContent(result) ?? "\(name) failed")
+        let targetPid = targetPid(from: arguments)
+        let focusSnapshot = captureFocusSnapshot()
+        let shouldCheckSettledFocus = shouldCheckSettledFocus(for: name, arguments: arguments)
+
+        do {
+            if shouldCheckSettledFocus {
+                await normalizeFocusBeforeBackgroundAction(focusSnapshot, targetPid: targetPid)
+            }
+            let result = try await cuaTools.call(name, arguments: arguments)
+            await restoreFrontmostAppIfNeeded(
+                focusSnapshot,
+                targetPid: targetPid,
+                checkSettledFocus: shouldCheckSettledFocus
+            )
+
+            if result.isError == true && !allowToolError {
+                throw CuaDriverError.toolCallFailed(firstTextContent(result) ?? "\(name) failed")
+            }
+            return result
+        } catch {
+            await restoreFrontmostAppIfNeeded(
+                focusSnapshot,
+                targetPid: targetPid,
+                checkSettledFocus: shouldCheckSettledFocus
+            )
+            throw error
         }
-        return result
     }
 
     private func firstTextContent(_ result: CallTool.Result) -> String? {
@@ -626,6 +707,148 @@ final class CuaDriverConnection: AgentToolConnection {
             }
         }
         return nil
+    }
+
+    private func targetPid(from arguments: [String: Value]) -> pid_t? {
+        guard let rawPid = arguments["pid"]?.intValue else { return nil }
+        return pid_t(exactly: rawPid)
+    }
+
+    private struct FocusSnapshot {
+        let workspaceFrontmost: NSRunningApplication?
+        let visualFrontmostWindow: WindowInfo?
+
+        var visualFrontmost: NSRunningApplication? {
+            visualFrontmostWindow
+                .flatMap { NSRunningApplication(processIdentifier: $0.pid) }
+        }
+
+        func restorationApp(targetPid: pid_t?) -> NSRunningApplication? {
+            guard let restorationPid = AppWorkerFocusRestoration.restorationPid(
+                priorWorkspacePid: workspaceFrontmost?.processIdentifier,
+                priorVisualPid: visualFrontmostWindow?.pid,
+                targetPid: targetPid
+            ) else {
+                return nil
+            }
+            if visualFrontmostWindow?.pid == restorationPid {
+                return visualFrontmost
+            }
+            if workspaceFrontmost?.processIdentifier == restorationPid {
+                return workspaceFrontmost
+            }
+            return NSRunningApplication(processIdentifier: restorationPid)
+        }
+
+        func restorationWindow(targetPid: pid_t?) -> WindowInfo? {
+            guard let visualFrontmostWindow,
+                  visualFrontmostWindow.pid != targetPid else {
+                return nil
+            }
+            return visualFrontmostWindow
+        }
+    }
+
+    private func captureFocusSnapshot() -> FocusSnapshot {
+        FocusSnapshot(
+            workspaceFrontmost: NSWorkspace.shared.frontmostApplication,
+            visualFrontmostWindow: visuallyFrontmostWindow()
+        )
+    }
+
+    private func visuallyFrontmostApplication() -> NSRunningApplication? {
+        visuallyFrontmostWindow()
+            .flatMap { NSRunningApplication(processIdentifier: $0.pid) }
+    }
+
+    private func visuallyFrontmostWindow() -> WindowInfo? {
+        WindowEnumerator.visibleWindows()
+            .filter { $0.layer == 0 && $0.bounds.width > 1 && $0.bounds.height > 1 }
+            .max(by: { $0.zIndex < $1.zIndex })
+    }
+
+    private func shouldCheckSettledFocus(for name: String, arguments: [String: Value]) -> Bool {
+        switch name {
+        case "click", "right_click", "double_click":
+            return arguments["x"] != nil && arguments["y"] != nil
+        case "drag":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func restoreFrontmostAppIfNeeded(
+        _ snapshot: FocusSnapshot,
+        targetPid: pid_t?,
+        checkSettledFocus: Bool
+    ) async {
+        restoreFrontmostAppIfNeeded(snapshot, targetPid: targetPid)
+
+        guard checkSettledFocus else { return }
+
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        restoreFrontmostAppIfNeeded(snapshot, targetPid: targetPid)
+
+        try? await Task.sleep(nanoseconds: 350_000_000)
+        restoreFrontmostAppIfNeeded(snapshot, targetPid: targetPid)
+    }
+
+    private func normalizeFocusBeforeBackgroundAction(
+        _ snapshot: FocusSnapshot,
+        targetPid: pid_t?
+    ) async {
+        let targetIsActive = targetPid
+            .flatMap { NSRunningApplication(processIdentifier: $0)?.isActive } ?? false
+
+        guard AppWorkerFocusRestoration.shouldNormalizeBeforeBackgroundAction(
+            targetPid: targetPid,
+            visualPid: snapshot.visualFrontmostWindow?.pid,
+            targetIsActive: targetIsActive
+        ) else {
+            return
+        }
+
+        guard let restorationWindow = snapshot.restorationWindow(targetPid: targetPid) else {
+            return
+        }
+
+        _ = FocusWithoutRaise.activateWithoutRaise(
+            targetPid: restorationWindow.pid,
+            targetWid: CGWindowID(restorationWindow.id)
+        )
+        try? await Task.sleep(nanoseconds: 75_000_000)
+    }
+
+    private func restoreFrontmostAppIfNeeded(
+        _ snapshot: FocusSnapshot,
+        targetPid: pid_t?
+    ) {
+        let currentWorkspacePid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let currentVisualPid = visuallyFrontmostApplication()?.processIdentifier
+        let targetIsActive = targetPid
+            .flatMap { NSRunningApplication(processIdentifier: $0)?.isActive } ?? false
+
+        guard AppWorkerFocusRestoration.shouldRestore(
+            priorWorkspacePid: snapshot.workspaceFrontmost?.processIdentifier,
+            priorVisualPid: snapshot.visualFrontmostWindow?.pid,
+            currentWorkspacePid: currentWorkspacePid,
+            currentVisualPid: currentVisualPid,
+            targetPid: targetPid,
+            targetIsActive: targetIsActive
+        ) else {
+            return
+        }
+
+        if let restorationWindow = snapshot.restorationWindow(targetPid: targetPid) {
+            _ = FocusWithoutRaise.activateWithoutRaise(
+                targetPid: restorationWindow.pid,
+                targetWid: CGWindowID(restorationWindow.id)
+            )
+            return
+        }
+
+        _ = snapshot.restorationApp(targetPid: targetPid)?.activate(options: [.activateIgnoringOtherApps])
     }
 
     private func parseLaunchInfo(_ value: Value?) -> AppInfo? {
