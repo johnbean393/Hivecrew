@@ -38,6 +38,27 @@ struct HivecrewTests {
         #expect(prompt.contains("└── docs/"))
         #expect(prompt.contains("inbox/{skill-name}/scripts/"))
         #expect(!prompt.contains("~/Desktop/inbox"))
+        #expect(!prompt.contains("Preferred browser:"))
+    }
+
+    @Test
+    func appWorkerPromptInjectsPreferredBrowserForCredentialedTasks() {
+        let prompt = AgentPrompts.systemPrompt(
+            task: "Open the billing dashboard",
+            runtimeKind: .app,
+            supportsVision: false,
+            preferredBrowser: AppWorkerPreferredBrowser(
+                appName: "Google Chrome",
+                bundleId: "com.google.Chrome"
+            )
+        )
+
+        #expect(prompt.contains("WEB BROWSER:"))
+        #expect(prompt.contains("Preferred browser: Google Chrome (`com.google.Chrome`)."))
+        #expect(prompt.contains("login state, cookies, credentials, accounts, sessions, dashboards"))
+        #expect(prompt.contains("use `app_open_url` with `bundleId: \"com.google.Chrome\"`"))
+        #expect(prompt.contains("For plain web research or content extraction, continue using `web_search`, `read_webpage_content`, and `extract_info_from_webpage`"))
+        #expect(!prompt.contains("Chrome/Chromium"))
     }
 
     @Test
@@ -50,6 +71,30 @@ struct HivecrewTests {
         )
 
         #expect(prompt.contains("~/Desktop/inbox/"))
+    }
+
+    @Test
+    func nonAppWorkerPromptsIgnorePreferredBrowserMetadata() {
+        let preferredBrowser = AppWorkerPreferredBrowser(
+            appName: "Google Chrome",
+            bundleId: "com.google.Chrome"
+        )
+
+        let fastPrompt = AgentPrompts.systemPrompt(
+            task: "Research docs",
+            runtimeKind: .fast,
+            supportsVision: false,
+            preferredBrowser: preferredBrowser
+        )
+        let vmPrompt = AgentPrompts.systemPrompt(
+            task: "Research docs",
+            runtimeKind: .isolatedVM,
+            supportsVision: false,
+            preferredBrowser: preferredBrowser
+        )
+
+        #expect(!fastPrompt.contains("Preferred browser:"))
+        #expect(!vmPrompt.contains("Preferred browser:"))
     }
 
     @Test

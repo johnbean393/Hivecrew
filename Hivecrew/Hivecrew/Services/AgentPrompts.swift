@@ -6,9 +6,42 @@
 //
 
 import Foundation
+import AppKit
 import HivecrewLLM
 import HivecrewShared
 import HivecrewCore
+
+struct AppWorkerPreferredBrowser: Equatable, Sendable {
+    let appName: String
+    let bundleId: String?
+
+    var promptDisplayName: String {
+        if let bundleId, !bundleId.isEmpty {
+            return "\(appName) (`\(bundleId)`)"
+        }
+        return appName
+    }
+
+    var appOpenURLTargetInstruction: String {
+        if let bundleId, !bundleId.isEmpty {
+            return "use `app_open_url` with `bundleId: \"\(bundleId)\"`"
+        }
+        return "use `app_open_url` with `appName: \"\(appName)\"`"
+    }
+
+    static func resolveDefaultHTTPSBrowser() -> AppWorkerPreferredBrowser? {
+        guard let url = URL(string: "https://example.com"),
+              let appURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
+            return nil
+        }
+
+        let appName = appURL.deletingPathExtension().lastPathComponent
+        guard !appName.isEmpty else { return nil }
+
+        let bundleId = Bundle(url: appURL)?.bundleIdentifier
+        return AppWorkerPreferredBrowser(appName: appName, bundleId: bundleId)
+    }
+}
 
 /// System prompts for the agent
 enum AgentPrompts {
@@ -33,7 +66,8 @@ enum AgentPrompts {
         plan: String? = nil,
         approvedContextBlocks: [String] = [],
         supportsVision: Bool = true,
-        localAccessGrants: [LocalAccessGrant] = []
+        localAccessGrants: [LocalAccessGrant] = [],
+        preferredBrowser: AppWorkerPreferredBrowser? = nil
     ) -> String {
         if runtimeKind == .fast {
             return fastWorkerSystemPrompt(
@@ -55,7 +89,8 @@ enum AgentPrompts {
                 plan: plan,
                 approvedContextBlocks: approvedContextBlocks,
                 supportsVision: supportsVision,
-                localAccessGrants: localAccessGrants
+                localAccessGrants: localAccessGrants,
+                preferredBrowser: preferredBrowser
             )
         }
         var filesSection = ""
@@ -305,7 +340,8 @@ If the task involved an attached file, make sure the final user-facing result is
         plan: String?,
         approvedContextBlocks: [String],
         supportsVision: Bool,
-        localAccessGrants: [LocalAccessGrant]
+        localAccessGrants: [LocalAccessGrant],
+        preferredBrowser: AppWorkerPreferredBrowser?
     ) -> String {
         var filesSection = ""
         if !inputFiles.isEmpty {
@@ -379,6 +415,22 @@ If the task involved an attached file, make sure the final user-facing result is
             visionLine = "This model run is text-only; rely on `app_get_window_state` and tool output."
         }
 
+        let preferredBrowserSection: String
+        let browserNavigationTip: String
+        if let preferredBrowser {
+            preferredBrowserSection = """
+
+            WEB BROWSER:
+            - Preferred browser: \(preferredBrowser.promptDisplayName).
+            - For tasks involving login state, cookies, credentials, accounts, sessions, dashboards, browser-specific behavior, or explicit browser use, \(preferredBrowser.appOpenURLTargetInstruction).
+            - For plain web research or content extraction, continue using `web_search`, `read_webpage_content`, and `extract_info_from_webpage` instead of opening the browser.
+            """
+            browserNavigationTip = "- For browser navigation, use `app_open_url` / CuaDriver URL handoff with the preferred browser when credentialed state or explicit browser use matters. Do not use `keyboard_key` command+l or shell `open`."
+        } else {
+            preferredBrowserSection = ""
+            browserNavigationTip = "- For browser navigation, use `app_open_url` / CuaDriver URL handoff. Do not use `keyboard_key` command+l or shell `open`."
+        }
+
         return """
 You are Hivecrew, running as an **App Worker** on the user's **host macOS**. GUI control is provided by **cua-driver** (background launch, per-pid input, accessibility tree + window capture).
 
@@ -398,6 +450,7 @@ ENVIRONMENT:
 - **`open_app`** uses cua’s **background launch** — it is **not** the same as Terminal `open` and does not mean “force frontmost” here.
 
 \(visionLine)
+\(preferredBrowserSection)
 
 GUI WORKFLOW (prefer this over ad-hoc shell scripts):
 1. `open_app` with a **real bundle ID** when known (e.g. `com.apple.systempreferences` for System Settings), or a clear app name.
@@ -410,7 +463,7 @@ GUI WORKFLOW (prefer this over ad-hoc shell scripts):
 - `run_shell` whose only purpose is to drive UI that `app_*` / `open_app` can do.
 - Relying on AppleScript to dump accessibility when `app_get_window_state` is available.
 
-`open_url` is not available in App Worker. For browser/file URL handoff, use `app_open_url` with an explicit `bundleId` when possible; it maps to CuaDriver `launch_app({ urls: [...] })` and preserves focus with CuaDriver's restore guard. Do not use address-bar shortcuts such as command+l to navigate Chrome/Chromium.
+`open_url` is not available in App Worker. For browser/file URL handoff, use `app_open_url` with an explicit `bundleId` when possible; it maps to CuaDriver `launch_app({ urls: [...] })` and preserves focus with CuaDriver's restore guard. Do not use browser address-bar shortcuts such as command+l for navigation.
 
 AVAILABLE TOOLS (representative; the schema is authoritative):
 - **Apps / windows**: `open_app`, `app_open_url`, `app_list_apps`, `app_list_windows`, `app_select_window`, `app_get_window_state`, `app_click_element`, `app_set_value`, `app_submit_element`
@@ -424,7 +477,7 @@ AVAILABLE TOOLS (representative; the schema is authoritative):
 TIPS:
 - If `app_list_windows` returns no rows, wait briefly and call `app_list_windows` again, or re-run `open_app` with a known `bundle_id`.
 - Match **System Settings** to bundle ID `com.apple.systempreferences` (not `com.apple.SystemSettings`).
-- For Chrome/Chromium navigation, use `app_open_url` / CuaDriver URL handoff. Do not use `keyboard_key` command+l or shell `open`.
+\(browserNavigationTip)
 - For form/search fields inside loaded web pages, use `app_set_value` for AX-settable fields. If AX value setting does not trigger page behavior, click the field or button with `app_click_element`, then use `keyboard_type` / `keyboard_key` against the selected target.
 - For sparse Chromium/Electron AX trees, call `app_get_window_state` again once; CuaDriver enables web accessibility during snapshot.
 

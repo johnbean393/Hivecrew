@@ -344,6 +344,10 @@ final class AgentRunner {
             statePublisher.logInfo("Matched \(matchedSkills.count) skill(s): \(matchedSkills.map { $0.name }.joined(separator: ", "))")
         }
         
+        let preferredBrowser = connection.runtimeKind == .app
+            ? AppWorkerPreferredBrowser.resolveDefaultHTTPSBrowser()
+            : nil
+
         // Initialize conversation with system prompt including screen dimensions, input files, skills, and plan
         let systemPrompt = AgentPrompts.systemPrompt(
             task: task.taskDescription,
@@ -355,7 +359,8 @@ final class AgentRunner {
             plan: task.planMarkdown,
             approvedContextBlocks: task.retrievalInlineContextBlocks + additionalContextBlocks,
             supportsVision: supportsVision,
-            localAccessGrants: task.localAccessGrants
+            localAccessGrants: task.localAccessGrants,
+            preferredBrowser: preferredBrowser
         )
         conversationHistory = [.system(systemPrompt)]
         

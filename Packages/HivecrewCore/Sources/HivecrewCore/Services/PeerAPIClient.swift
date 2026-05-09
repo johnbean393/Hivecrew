@@ -261,7 +261,7 @@ public actor PeerAPIClient {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(clusterToken)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             return nil
         }
