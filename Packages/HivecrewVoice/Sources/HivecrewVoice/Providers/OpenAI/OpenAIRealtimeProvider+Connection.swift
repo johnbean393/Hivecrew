@@ -161,8 +161,27 @@ extension OpenAIRealtimeProvider {
                     )
                 ),
                 tools: toolDefs,
-                toolChoice: toolDefs != nil ? "auto" : nil
+                toolChoice: toolDefs != nil ? "auto" : nil,
+                reasoning: reasoningConfig(for: model, config: config)
             )
         )
+    }
+
+    private func reasoningConfig(
+        for model: String,
+        config: VoiceSessionConfig
+    ) -> SessionUpdateEvent.ReasoningConfig? {
+        guard model.lowercased().hasPrefix("gpt-realtime-2") else {
+            return nil
+        }
+
+        let effort = switch config.thinkingLevel {
+        case .minimal:
+            "low"
+        case .low, .medium, .high:
+            config.thinkingLevel.rawValue
+        }
+
+        return SessionUpdateEvent.ReasoningConfig(effort: effort)
     }
 }

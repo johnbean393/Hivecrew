@@ -26,6 +26,13 @@ actor VoiceTranscriptionSink {
     }
 }
 
+@Test func openAICatalogIncludesRealtime2AsDefault() {
+    #expect(RealtimeVoiceCatalog.defaultModelID(for: .openAIRealtime) == "gpt-realtime-2")
+    #expect(RealtimeVoiceCatalog.openAIModels.map(\.id).contains("gpt-realtime-2"))
+    #expect(RealtimeVoiceCatalog.openAIModels.map(\.id).contains("gpt-realtime-1.5"))
+    #expect(RealtimeVoiceCatalog.openAIModels.first?.id == "gpt-realtime-2")
+}
+
 @MainActor
 @Test func openAISessionUpdateEncodesProviderOwnedVADPolicy() async throws {
     let provider = OpenAIRealtimeProvider()
@@ -55,6 +62,31 @@ actor VoiceTranscriptionSink {
     #expect(sessionUpdate.session.audio?.input?.turnDetection?.prefixPaddingMs == 320)
     #expect(sessionUpdate.session.audio?.input?.turnDetection?.silenceDurationMs == 680)
     #expect(sessionUpdate.session.audio?.input?.noiseReduction?.type == "far_field")
+    #expect(sessionUpdate.session.model == "gpt-realtime-2")
+    #expect(sessionUpdate.session.reasoning?.effort == "low")
+}
+
+@MainActor
+@Test func openAISessionUpdateEncodesRealtime2ReasoningOnly() async throws {
+    let provider = OpenAIRealtimeProvider()
+    provider.configure(apiKey: "test", model: "gpt-realtime-2")
+
+    let highReasoning = provider.buildSessionUpdate(
+        config: VoiceSessionConfig(thinkingLevel: .high)
+    )
+    #expect(highReasoning.session.reasoning?.effort == "high")
+
+    let minimalReasoning = provider.buildSessionUpdate(
+        config: VoiceSessionConfig(thinkingLevel: .minimal)
+    )
+    #expect(minimalReasoning.session.reasoning?.effort == "low")
+
+    provider.configure(apiKey: "test", model: "gpt-realtime-1.5")
+    let previousRealtime = provider.buildSessionUpdate(
+        config: VoiceSessionConfig(thinkingLevel: .high)
+    )
+    #expect(previousRealtime.session.model == "gpt-realtime-1.5")
+    #expect(previousRealtime.session.reasoning?.effort == nil)
 }
 
 @MainActor

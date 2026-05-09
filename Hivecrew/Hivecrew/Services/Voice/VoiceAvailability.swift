@@ -35,7 +35,7 @@ enum VoiceAvailability {
     static let developerVoiceSessionCaptureKey = "developer_voice_session_capture_enabled"
 
     static let defaultGeminiModel = "gemini-3.1-flash-live-preview"
-    static let defaultOpenAIModel = "gpt-realtime-1.5"
+    static let defaultOpenAIModel = RealtimeVoiceCatalog.defaultModelID(for: .openAIRealtime)
     static let defaultXAIModel = "grok-voice-think-fast-1.0"
 
     static func defaultModel(for provider: VoiceProviderType) -> String {

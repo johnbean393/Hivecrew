@@ -31,7 +31,7 @@ struct SettingsView: View {
     @AppStorage(HivelinkVoicePreferences.apiKeyKey)
     private var voiceApiKey = ""
     @AppStorage(HivelinkVoicePreferences.modelIDKey)
-    private var voiceModelID = "gpt-realtime-1.5"
+    private var voiceModelID = HivelinkVoicePreferences.defaultModelID(for: .openAI)
     @AppStorage(HivelinkVoicePreferences.voiceNameKey)
     private var voiceName = "marin"
     @AppStorage(HivelinkVoicePreferences.openAIAuthenticationModeKey)

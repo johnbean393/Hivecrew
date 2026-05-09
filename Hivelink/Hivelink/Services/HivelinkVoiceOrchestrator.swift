@@ -694,12 +694,12 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
 
     @AppStorage("hivelink.voiceProvider") private var voiceProviderRaw = HivelinkVoiceProvider.openAI.rawValue
     @AppStorage("hivelink.voiceApiKey") private var voiceApiKey = ""
-    @AppStorage("hivelink.voiceModel") private var voiceModelID = "gpt-realtime-1.5"
+    @AppStorage("hivelink.voiceModel") private var voiceModelID = HivelinkVoicePreferences.defaultModelID(for: .openAI)
     @AppStorage("hivelink.voiceName") private var voiceName = "marin"
     @AppStorage("hivelink.openAIAuthenticationMode")
     private var openAIAuthenticationModeRaw = HivelinkOpenAIAuthenticationMode.chatGPTOAuth.rawValue
     @AppStorage("hivelink.mediaResolution") private var mediaResolutionRaw = "medium"
-    @AppStorage("hivelink.reasoningEffort") private var reasoningEffortRaw = "high"
+    @AppStorage("hivelink.reasoningEffort") private var reasoningEffortRaw = "low"
 
     @Published private(set) var voiceConfigurationVersion = 0
 
@@ -1083,7 +1083,7 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             voiceName: resolvedVoiceName,
             tools: HivelinkToolHandler.toolDeclarations(supportsVisualInput: supportsVideoInput),
             mediaResolution: VoiceSessionConfig.MediaResolution(rawValue: mediaResolutionRaw) ?? .medium,
-            thinkingLevel: .low,
+            thinkingLevel: VoiceSessionConfig.ThinkingLevel(rawValue: reasoningEffortRaw) ?? .low,
             includeThoughts: true,
             webSearchEnabled: true,
             audioPolicy: makeAudioPolicy()

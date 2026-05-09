@@ -65,7 +65,7 @@ struct VoiceSetupFlowView: View {
     @AppStorage(HivelinkVoicePreferences.apiKeyKey)
     private var storedAPIKey = ""
     @AppStorage(HivelinkVoicePreferences.modelIDKey)
-    private var storedModelID = "gpt-realtime-1.5"
+    private var storedModelID = HivelinkVoicePreferences.defaultModelID(for: .openAI)
     @AppStorage(HivelinkVoicePreferences.voiceNameKey)
     private var storedVoiceName = "marin"
     @AppStorage(HivelinkVoicePreferences.openAIAuthenticationModeKey)
@@ -73,7 +73,7 @@ struct VoiceSetupFlowView: View {
 
     @State private var selectedChoice = OnboardingVoiceProviderChoice.chatGPTOAuth
     @State private var editingAPIKey = ""
-    @State private var editingModelID = "gpt-realtime-1.5"
+    @State private var editingModelID = HivelinkVoicePreferences.defaultModelID(for: .openAI)
     @State private var editingVoiceName = "marin"
     @State private var showingKey = false
 

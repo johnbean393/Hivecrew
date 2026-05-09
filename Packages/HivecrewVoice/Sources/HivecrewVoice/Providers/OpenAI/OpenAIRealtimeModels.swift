@@ -21,13 +21,19 @@ struct SessionUpdateEvent: Encodable {
         let audio: AudioConfig?
         let tools: [ToolDefinition]?
         let toolChoice: String?
+        let reasoning: ReasoningConfig?
 
         enum CodingKeys: String, CodingKey {
             case type, model, instructions
             case outputModalities = "output_modalities"
             case audio, tools
             case toolChoice = "tool_choice"
+            case reasoning
         }
+    }
+
+    struct ReasoningConfig: Encodable {
+        let effort: String
     }
 
     struct AudioConfig: Encodable {

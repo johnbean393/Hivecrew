@@ -90,7 +90,8 @@ public enum RealtimeVoiceCatalog {
     ]
 
     public static let openAIModels: [RealtimeVoiceModelOption] = [
-        .init(id: "gpt-realtime-1.5", displayName: "gpt-realtime-1.5", descriptor: "Flagship realtime"),
+        .init(id: "gpt-realtime-2", displayName: "gpt-realtime-2", descriptor: "Recommended"),
+        .init(id: "gpt-realtime-1.5", displayName: "gpt-realtime-1.5", descriptor: "Previous flagship"),
         .init(id: "gpt-realtime-mini", displayName: "gpt-realtime-mini", descriptor: "Lower latency")
     ]
 
@@ -158,7 +159,7 @@ public enum RealtimeVoiceCatalog {
         case .geminiLive:
             return "gemini-3.1-flash-live-preview"
         case .openAIRealtime:
-            return "gpt-realtime-1.5"
+            return "gpt-realtime-2"
         case .xAIRealtime:
             return "grok-voice-think-fast-1.0"
         }
