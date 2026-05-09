@@ -15,6 +15,7 @@ public enum RemoteClusterPeerStatus: String, Sendable, Codable {
     case online
     case offline
     case unreachable
+    case dnsUnavailable
 }
 
 /// Minimal peer description for `PeerAPIClient` and dispatch decisions (mirrors app `PeerNode`).

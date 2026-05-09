@@ -33,6 +33,58 @@ public enum RemoteAccessAccountDeletionResult: Equatable, Sendable {
     case failed
 }
 
+public protocol RemoteAccessCredentialStore: Sendable {
+    func storeSessionToken(_ token: String) -> Bool
+    func retrieveSessionToken() -> String?
+    func storeEmail(_ email: String) -> Bool
+    func retrieveEmail() -> String?
+    func storeAccountCapabilities(_ capabilities: RemoteAccessAccountCapabilities) -> Bool
+    func retrieveAccountCapabilities() -> RemoteAccessAccountCapabilities
+    func retrieveTunnelId() -> String?
+    func retrieveTunnelToken() -> String?
+    func clearAll() -> Bool
+}
+
+public struct KeychainRemoteAccessCredentialStore: RemoteAccessCredentialStore {
+    public init() {}
+
+    public func storeSessionToken(_ token: String) -> Bool {
+        RemoteAccessKeychain.storeSessionToken(token)
+    }
+
+    public func retrieveSessionToken() -> String? {
+        RemoteAccessKeychain.retrieveSessionToken()
+    }
+
+    public func storeEmail(_ email: String) -> Bool {
+        RemoteAccessKeychain.storeEmail(email)
+    }
+
+    public func retrieveEmail() -> String? {
+        RemoteAccessKeychain.retrieveEmail()
+    }
+
+    public func storeAccountCapabilities(_ capabilities: RemoteAccessAccountCapabilities) -> Bool {
+        RemoteAccessKeychain.storeAccountCapabilities(capabilities)
+    }
+
+    public func retrieveAccountCapabilities() -> RemoteAccessAccountCapabilities {
+        RemoteAccessKeychain.retrieveAccountCapabilities()
+    }
+
+    public func retrieveTunnelId() -> String? {
+        RemoteAccessKeychain.retrieveTunnelId()
+    }
+
+    public func retrieveTunnelToken() -> String? {
+        RemoteAccessKeychain.retrieveTunnelToken()
+    }
+
+    public func clearAll() -> Bool {
+        RemoteAccessKeychain.clearAll()
+    }
+}
+
 // MARK: - Auth Manager
 
 @MainActor
@@ -53,19 +105,24 @@ public final class RemoteAccessAuthManager: ObservableObject {
     }
 
     private let apiClient: any RemoteAccessAPIClientProtocol
+    private let credentialStore: any RemoteAccessCredentialStore
 
-    public init(apiClient: any RemoteAccessAPIClientProtocol = RemoteAccessAPIClient()) {
+    public init(
+        apiClient: any RemoteAccessAPIClientProtocol = RemoteAccessAPIClient(),
+        credentialStore: any RemoteAccessCredentialStore = KeychainRemoteAccessCredentialStore()
+    ) {
         self.apiClient = apiClient
+        self.credentialStore = credentialStore
     }
 
     /// Loads email and session token from Keychain and updates published state.
     public func loadStoredCredentials() {
-        let storedEmail = RemoteAccessKeychain.retrieveEmail()
-        let token = RemoteAccessKeychain.retrieveSessionToken()
+        let storedEmail = credentialStore.retrieveEmail()
+        let token = credentialStore.retrieveSessionToken()
 
         email = storedEmail
         isAuthenticated = token != nil
-        accountCapabilities = token != nil ? RemoteAccessKeychain.retrieveAccountCapabilities() : .standard
+        accountCapabilities = token != nil ? credentialStore.retrieveAccountCapabilities() : .standard
 
         if token != nil {
             status = .connected
@@ -99,9 +156,9 @@ public final class RemoteAccessAuthManager: ObservableObject {
         do {
             let session = try await apiClient.verify(email: email, code: code)
 
-            _ = RemoteAccessKeychain.storeSessionToken(session.token)
-            _ = RemoteAccessKeychain.storeEmail(email)
-            _ = RemoteAccessKeychain.storeAccountCapabilities(session.capabilities)
+            _ = credentialStore.storeSessionToken(session.token)
+            _ = credentialStore.storeEmail(email)
+            _ = credentialStore.storeAccountCapabilities(session.capabilities)
 
             isAuthenticated = true
             accountCapabilities = session.capabilities
@@ -116,7 +173,7 @@ public final class RemoteAccessAuthManager: ObservableObject {
     public func logout() async {
         guard !isSigningOut else { return }
 
-        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
+        guard let sessionToken = credentialStore.retrieveSessionToken() else {
             clearLocalCredentials()
             return
         }
@@ -126,14 +183,14 @@ public final class RemoteAccessAuthManager: ObservableObject {
         defer { isSigningOut = false }
 
         do {
-            if let tunnelId = RemoteAccessKeychain.retrieveTunnelId(),
+            if let tunnelId = credentialStore.retrieveTunnelId(),
                !tunnelId.isEmpty,
-               RemoteAccessKeychain.retrieveTunnelToken() != nil {
+               credentialStore.retrieveTunnelToken() != nil {
                 try? await apiClient.deleteTunnel(tunnelId: tunnelId, sessionToken: sessionToken)
             }
             try await apiClient.logout(
                 sessionToken: sessionToken,
-                ownerId: RemoteAccessKeychain.retrieveTunnelId()
+                ownerId: credentialStore.retrieveTunnelId()
             )
             clearLocalCredentials()
         } catch {
@@ -147,7 +204,7 @@ public final class RemoteAccessAuthManager: ObservableObject {
 
     /// Clears stored remote access credentials from Keychain and resets published state.
     private func clearLocalCredentials() {
-        _ = RemoteAccessKeychain.clearAll()
+        _ = credentialStore.clearAll()
         ClusterPeerDirectoryCache.clear()
         email = nil
         errorMessage = nil
@@ -166,7 +223,7 @@ public final class RemoteAccessAuthManager: ObservableObject {
             return errorMessage == nil ? .signedOut : .failed
         }
 
-        guard let sessionToken = RemoteAccessKeychain.retrieveSessionToken() else {
+        guard let sessionToken = credentialStore.retrieveSessionToken() else {
             errorMessage = RemoteAccessError.notAuthenticated.localizedDescription
             return .failed
         }

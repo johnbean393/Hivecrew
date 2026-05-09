@@ -18,6 +18,7 @@ public enum ClusterPeerReachabilityStatus: String, Codable, Sendable {
     case online
     case offline
     case unreachable
+    case dnsUnavailable
 }
 
 /// A peer machine discovered via the Worker directory and probed locally.
@@ -308,19 +309,20 @@ public final class ClusterDiscoveryService: ObservableObject {
             }
         } catch {
             let existing = peerById[peer.tunnelId]
-            let reachable = await client.health()
+            let healthResult = await client.healthResult()
+            let isReachable = healthResult.isReachable
             peerById[peer.tunnelId] = DiscoveredClusterPeer(
                 id: peer.tunnelId,
                 subdomain: peer.subdomain,
                 name: peer.name ?? existing?.name,
                 tunnelUrl: peer.url,
-                status: reachable ? .online : .offline,
-                availableSlots: reachable ? (existing?.availableSlots ?? 0) : 0,
-                runningTasks: reachable ? (existing?.runningTasks ?? 0) : 0,
-                queuedTasks: reachable ? (existing?.queuedTasks ?? 0) : 0,
+                status: Self.peerStatus(for: healthResult),
+                availableSlots: isReachable ? (existing?.availableSlots ?? 0) : 0,
+                runningTasks: isReachable ? (existing?.runningTasks ?? 0) : 0,
+                queuedTasks: isReachable ? (existing?.queuedTasks ?? 0) : 0,
                 lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
                 providers: existing?.providers ?? [],
-                runtimes: reachable ? (existing?.runtimes ?? []) : []
+                runtimes: isReachable ? (existing?.runtimes ?? []) : []
             )
             publishPeers()
             print("ClusterDiscoveryService: Failed to bootstrap peer \(peer.tunnelId): \(error)")
@@ -416,6 +418,17 @@ public final class ClusterDiscoveryService: ObservableObject {
         return value
     }
 
+    private static func peerStatus(for healthResult: PeerHealthResult) -> ClusterPeerReachabilityStatus {
+        switch healthResult {
+        case .reachable:
+            return .online
+        case .dnsUnavailable:
+            return .dnsUnavailable
+        case .unreachable:
+            return .offline
+        }
+    }
+
     // MARK: - Health
 
     private func refreshFromWorkerIfPossible() async {
@@ -434,7 +447,7 @@ public final class ClusterDiscoveryService: ObservableObject {
         let currentPeers = Array(peerById.values)
         guard !currentPeers.isEmpty else { return }
 
-        let results = await withTaskGroup(of: (String, Bool).self) { group in
+        let results = await withTaskGroup(of: (String, PeerHealthResult).self) { group in
             for peer in currentPeers {
                 let id = peer.id
                 let url = peer.tunnelUrl
@@ -442,7 +455,7 @@ public final class ClusterDiscoveryService: ObservableObject {
                     (id, await Self.probePeerHealth(url: url))
                 }
             }
-            var collected: [(String, Bool)] = []
+            var collected: [(String, PeerHealthResult)] = []
             for await result in group {
                 collected.append(result)
             }
@@ -452,20 +465,28 @@ public final class ClusterDiscoveryService: ObservableObject {
         var stateChanged = false
         var peersToRefreshSnapshots: [String] = []
 
-        for (id, reachable) in results {
+        for (id, healthResult) in results {
             guard var peer = peerById[id] else { continue }
-            if reachable && peer.status != .online {
+            if healthResult.isReachable && peer.status != .online {
                 peerProbeFailureCounts[id] = 0
-                let wasOffline = peer.status == .offline
+                let wasUnavailable = peer.status != .online
                 peer.status = .online
                 peer.lastSeen = Date()
                 peerById[id] = peer
                 stateChanged = true
                 print("ClusterDiscoveryService: Health probe passed for \(peer.name ?? id), marking online")
-                if wasOffline {
+                if wasUnavailable {
                     peersToRefreshSnapshots.append(id)
                 }
-            } else if !reachable {
+            } else if healthResult == .dnsUnavailable {
+                peerProbeFailureCounts[id] = 0
+                if peer.status != .dnsUnavailable {
+                    peer.status = .dnsUnavailable
+                    peerById[id] = peer
+                    stateChanged = true
+                    print("ClusterDiscoveryService: DNS unavailable for \(peer.name ?? id)")
+                }
+            } else if !healthResult.isReachable {
                 let failureCount = (peerProbeFailureCounts[id] ?? 0) + 1
                 peerProbeFailureCounts[id] = failureCount
 
@@ -492,13 +513,15 @@ public final class ClusterDiscoveryService: ObservableObject {
         }
     }
 
-    private static func probePeerHealth(url: String) async -> Bool {
-        guard let healthURL = URL(string: "\(url)/health") else { return false }
+    private static func probePeerHealth(url: String) async -> PeerHealthResult {
+        guard let healthURL = URL(string: "\(url)/health") else { return .unreachable }
         do {
             let (_, response) = try await healthSession.data(from: healthURL)
-            return (response as? HTTPURLResponse)?.statusCode == 200
+            return (response as? HTTPURLResponse)?.statusCode == 200 ? .reachable : .unreachable
+        } catch let error as URLError where error.code == .cannotFindHost {
+            return .dnsUnavailable
         } catch {
-            return false
+            return .unreachable
         }
     }
 

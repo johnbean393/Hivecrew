@@ -11,7 +11,6 @@ import HivecrewAPIModels
 }
 
 @Test @MainActor func protectedAccountDeleteUsesLogoutPath() async throws {
-    _ = RemoteAccessKeychain.clearAll()
     let client = FakeRemoteAccessAPIClient(session: RemoteAccessAuthSession(
         token: "session-token",
         capabilities: RemoteAccessAccountCapabilities(
@@ -20,10 +19,12 @@ import HivecrewAPIModels
             deleteAccountBehavior: .logout
         )
     ))
-    let manager = RemoteAccessAuthManager(apiClient: client)
+    let credentialStore = InMemoryRemoteAccessCredentialStore()
+    let manager = RemoteAccessAuthManager(apiClient: client, credentialStore: credentialStore)
 
     await manager.verifyOTP(email: "managed@example.test", code: String(repeating: "0", count: 6))
     #expect(manager.deleteAccountBehavior == .logout)
+    #expect(credentialStore.retrieveSessionToken() == "session-token")
 
     let result = await manager.deleteAccount()
     let calls = await client.calls()
@@ -32,7 +33,7 @@ import HivecrewAPIModels
     #expect(calls.logout == 1)
     #expect(calls.deleteAccount == 0)
     #expect(manager.isAuthenticated == false)
-    _ = RemoteAccessKeychain.clearAll()
+    #expect(credentialStore.retrieveSessionToken() == nil)
 }
 
 @Test func providerCapabilitiesMergeDuplicateProviderAndModelIds() async throws {
@@ -78,5 +79,57 @@ private actor FakeRemoteAccessAPIClient: RemoteAccessAPIClientProtocol {
 
     func calls() -> (logout: Int, deleteAccount: Int, deleteTunnel: Int) {
         (logoutCallCount, deleteAccountCallCount, deleteTunnelCallCount)
+    }
+}
+
+private final class InMemoryRemoteAccessCredentialStore: RemoteAccessCredentialStore, @unchecked Sendable {
+    private var sessionToken: String?
+    private var email: String?
+    private var capabilities: RemoteAccessAccountCapabilities = .standard
+    private var tunnelId: String?
+    private var tunnelToken: String?
+
+    func storeSessionToken(_ token: String) -> Bool {
+        sessionToken = token
+        return true
+    }
+
+    func retrieveSessionToken() -> String? {
+        sessionToken
+    }
+
+    func storeEmail(_ email: String) -> Bool {
+        self.email = email
+        return true
+    }
+
+    func retrieveEmail() -> String? {
+        email
+    }
+
+    func storeAccountCapabilities(_ capabilities: RemoteAccessAccountCapabilities) -> Bool {
+        self.capabilities = capabilities
+        return true
+    }
+
+    func retrieveAccountCapabilities() -> RemoteAccessAccountCapabilities {
+        capabilities
+    }
+
+    func retrieveTunnelId() -> String? {
+        tunnelId
+    }
+
+    func retrieveTunnelToken() -> String? {
+        tunnelToken
+    }
+
+    func clearAll() -> Bool {
+        sessionToken = nil
+        email = nil
+        capabilities = .standard
+        tunnelId = nil
+        tunnelToken = nil
+        return true
     }
 }

@@ -107,6 +107,7 @@ private struct StatusBadge: View {
         case .online: return .green
         case .offline: return .red
         case .unreachable: return .gray
+        case .dnsUnavailable: return .orange
         }
     }
 
@@ -115,6 +116,7 @@ private struct StatusBadge: View {
         case .online: return "Online"
         case .offline: return "Offline"
         case .unreachable: return "Unreachable"
+        case .dnsUnavailable: return "DNS unavailable"
         }
     }
 }
@@ -136,6 +138,7 @@ private struct HealthIndicator: View {
         case .online: return "checkmark.circle.fill"
         case .offline: return "xmark.circle.fill"
         case .unreachable: return "exclamationmark.triangle.fill"
+        case .dnsUnavailable: return "network.slash"
         }
     }
 
@@ -143,7 +146,7 @@ private struct HealthIndicator: View {
         switch status {
         case .online: return .green
         case .offline: return .red
-        case .unreachable: return .orange
+        case .unreachable, .dnsUnavailable: return .orange
         }
     }
 
@@ -152,6 +155,7 @@ private struct HealthIndicator: View {
         case .online: return "Responding"
         case .offline: return "Not responding"
         case .unreachable: return "Intermittent"
+        case .dnsUnavailable: return "DNS cannot resolve this tunnel"
         }
     }
 }

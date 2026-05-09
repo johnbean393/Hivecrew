@@ -230,6 +230,7 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
         case .online: return .online
         case .offline: return .offline
         case .unreachable: return .unreachable
+        case .dnsUnavailable: return .dnsUnavailable
         }
     }
 }

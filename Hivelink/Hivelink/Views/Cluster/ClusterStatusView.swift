@@ -142,6 +142,7 @@ private struct StatusDot: View {
         case .online: return .green
         case .offline: return .red
         case .unreachable: return .gray
+        case .dnsUnavailable: return .orange
         }
     }
 
@@ -150,6 +151,7 @@ private struct StatusDot: View {
         case .online: return "Online"
         case .offline: return "Offline"
         case .unreachable: return "Unreachable"
+        case .dnsUnavailable: return "DNS unavailable"
         }
     }
 }
