@@ -252,7 +252,8 @@ public final class ClusterDiscoveryService: ObservableObject {
                 runningTasks: existing?.runningTasks ?? 0,
                 queuedTasks: existing?.queuedTasks ?? 0,
                 lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
-                providers: existing?.providers ?? []
+                providers: existing?.providers ?? [],
+                runtimes: existing?.runtimes ?? []
             )
         }
 
@@ -318,7 +319,8 @@ public final class ClusterDiscoveryService: ObservableObject {
                 runningTasks: reachable ? (existing?.runningTasks ?? 0) : 0,
                 queuedTasks: reachable ? (existing?.queuedTasks ?? 0) : 0,
                 lastSeen: existing?.lastSeen ?? Self.heartbeatDate(peer.lastHeartbeat),
-                providers: existing?.providers ?? []
+                providers: existing?.providers ?? [],
+                runtimes: reachable ? (existing?.runtimes ?? []) : []
             )
             publishPeers()
             print("ClusterDiscoveryService: Failed to bootstrap peer \(peer.tunnelId): \(error)")

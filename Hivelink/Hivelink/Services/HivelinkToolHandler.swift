@@ -36,6 +36,7 @@ enum HivelinkToolHandler {
         let providerName: String
         let modelId: String
         let executionTarget: TaskExecutionTarget
+        let runtimeTarget: TaskRuntimeTarget?
         let reasoningEnabled: Bool?
         let reasoningEffort: String?
     }
@@ -61,6 +62,7 @@ enum HivelinkToolHandler {
                 providerName: providerName,
                 modelId: modelId,
                 executionTarget: snapshot.executionTarget,
+                runtimeTarget: snapshot.runtimeTarget,
                 reasoningEnabled: snapshot.reasoningEnabled,
                 reasoningEffort: snapshot.reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines)
             )
@@ -76,6 +78,7 @@ enum HivelinkToolHandler {
             providerName: providerName,
             modelId: modelId,
             executionTarget: .remoteFirst,
+            runtimeTarget: .automatic,
             reasoningEnabled: nil,
             reasoningEffort: defaults.string(forKey: "hivelink.reasoningEffort")?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -99,6 +102,7 @@ enum HivelinkToolHandler {
                 description: args["description"] ?? "",
                 attachments: args["attachments"] ?? "",
                 planFirst: args["plan_first"]?.lowercased() == "true",
+                runtimeTarget: parseRuntimeTarget(args["runtime_target"] ?? args["runtimeTarget"]),
                 taskService: taskService,
                 workerRegistry: workerRegistry,
                 orchestrator: orchestrator
@@ -199,6 +203,7 @@ enum HivelinkToolHandler {
         description: String,
         attachments: String,
         planFirst: Bool,
+        runtimeTarget: TaskRuntimeTarget?,
         taskService: HivelinkTaskService,
         workerRegistry: WorkerRegistry,
         orchestrator: HivelinkVoiceOrchestrator
@@ -228,6 +233,7 @@ enum HivelinkToolHandler {
                 providerId: providerId,
                 modelId: launchSnapshot.modelId,
                 executionTarget: launchSnapshot.executionTarget,
+                runtimeTarget: runtimeTarget ?? launchSnapshot.runtimeTarget ?? .automatic,
                 reasoningEnabled: launchSnapshot.reasoningEnabled,
                 reasoningEffort: launchSnapshot.reasoningEffort,
                 attachedFilePaths: filePaths,
@@ -258,6 +264,28 @@ enum HivelinkToolHandler {
             return HivelinkToolCallResult(text: result, transcriptRecord: record)
         } catch {
             return .textOnly("Error creating task: \(error.localizedDescription)")
+        }
+    }
+
+    private static func parseRuntimeTarget(_ rawValue: String?) -> TaskRuntimeTarget? {
+        guard let rawValue else { return nil }
+        let normalized = rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+
+        switch normalized {
+        case "auto", "automatic":
+            return .automatic
+        case "fast", "fast_worker", "fastworker":
+            return .fast
+        case "app", "app_worker", "appworker":
+            return .app
+        case "vm", "isolated_vm", "isolatedvm", "isolated":
+            return .isolatedVM
+        default:
+            return nil
         }
     }
 

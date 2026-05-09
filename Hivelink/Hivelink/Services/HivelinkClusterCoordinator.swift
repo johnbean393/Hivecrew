@@ -98,8 +98,46 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
         return Self.toRemoteClusterPeer(peer)
     }
 
+    func reserveBestAvailablePeer(
+        providerName: String,
+        modelId: String,
+        excluding: Set<String>,
+        runtimeKind: RemoteAgentRuntimeKind
+    ) async -> RemoteClusterPeer? {
+        let candidates = discoveryService.peers.filter { peer in
+            guard peer.status == .online else { return false }
+            guard !excluding.contains(peer.id) else { return false }
+            guard Self.peerSupports(peer: peer, providerName: providerName, modelId: modelId) else { return false }
+            return Self.peerHasRuntimeCapacity(peer, runtimeKind: runtimeKind)
+        }
+        let best = candidates.max {
+            Self.runtimeAvailableSlots($0, runtimeKind: runtimeKind)
+                < Self.runtimeAvailableSlots($1, runtimeKind: runtimeKind)
+        }
+        return best.map(Self.toRemoteClusterPeer)
+    }
+
+    func reserveSpecificPeer(
+        peerId: String,
+        providerName: String,
+        modelId: String,
+        runtimeKind: RemoteAgentRuntimeKind
+    ) async -> RemoteClusterPeer? {
+        guard let peer = discoveryService.peers.first(where: { $0.id == peerId }) else { return nil }
+        guard peer.status == .online else { return nil }
+        guard Self.peerSupports(peer: peer, providerName: providerName, modelId: modelId) else { return nil }
+        guard Self.peerHasRuntimeCapacity(peer, runtimeKind: runtimeKind) else { return nil }
+        return Self.toRemoteClusterPeer(peer)
+    }
+
     func releaseSlot(peerId: String) async {
         _ = peerId
+        // Hivelink does not track local slot accounting.
+    }
+
+    func releaseSlot(peerId: String, runtimeKind: RemoteAgentRuntimeKind) async {
+        _ = peerId
+        _ = runtimeKind
         // Hivelink does not track local slot accounting.
     }
 
@@ -145,6 +183,35 @@ final class HivelinkClusterCoordinator: ObservableObject, RemoteClusterDirectory
     private static func peerSupports(peer: DiscoveredClusterPeer, providerName: String, modelId: String) -> Bool {
         peer.providers.contains { summary in
             summary.providerName == providerName && summary.modelIds.contains(modelId)
+        }
+    }
+
+    private static func peerHasRuntimeCapacity(
+        _ peer: DiscoveredClusterPeer,
+        runtimeKind: RemoteAgentRuntimeKind
+    ) -> Bool {
+        guard !peer.runtimes.isEmpty else {
+            return peer.availableSlots > 0
+        }
+        guard let runtime = peer.runtimes.first(where: { $0.runtimeKind == apiRuntimeKind(runtimeKind) }) else {
+            return false
+        }
+        return runtime.supported && runtime.setupStatus == .ready && runtime.availableSlots > 0
+    }
+
+    private static func runtimeAvailableSlots(
+        _ peer: DiscoveredClusterPeer,
+        runtimeKind: RemoteAgentRuntimeKind
+    ) -> Int {
+        peer.runtimes.first { $0.runtimeKind == apiRuntimeKind(runtimeKind) }?.availableSlots
+            ?? peer.availableSlots
+    }
+
+    private static func apiRuntimeKind(_ runtimeKind: RemoteAgentRuntimeKind) -> APIAgentRuntimeKind {
+        switch runtimeKind {
+        case .fast: return .fast
+        case .app: return .app
+        case .isolatedVM: return .isolatedVM
         }
     }
 

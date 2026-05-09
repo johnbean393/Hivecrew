@@ -5,7 +5,7 @@
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Hivelink needs camera access for video features during calls.</string>
+	<string>Hivelink needs camera access to take task attachment photos and support video features during calls.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Hivelink needs microphone access for voice calls and audio features.</string>
 	<key>HivelinkAPNsEnvironment</key>

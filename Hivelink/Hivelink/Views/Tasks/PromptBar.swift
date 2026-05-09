@@ -19,6 +19,7 @@ struct PromptBar: View {
         let providerName: String
         let modelId: String
         let executionTarget: TaskExecutionTarget
+        let runtimeTarget: TaskRuntimeTarget?
         let reasoningEnabled: Bool?
         let reasoningEffort: String?
     }
@@ -38,6 +39,7 @@ struct PromptBar: View {
     @State private var showModelPicker = false
     @State private var showExecutionTargetPicker = false
     @State private var showFileImporter = false
+    @State private var showCameraCapture = false
     @State private var sendError: String?
     @State private var isSending = false
     @State private var planFirstEnabled = false
@@ -124,6 +126,12 @@ struct PromptBar: View {
             .sheet(isPresented: $showExecutionTargetPicker) {
                 executionTargetSheet
             }
+            .fullScreenCover(isPresented: $showCameraCapture) {
+                CameraCapturePicker { url in
+                    attachmentURLs.append(url)
+                }
+                .ignoresSafeArea()
+            }
             .fileImporter(
                 isPresented: $showFileImporter,
                 allowedContentTypes: [.item],
@@ -203,6 +211,9 @@ struct PromptBar: View {
         .onChange(of: selectedExecutionTarget) { _, _ in
             persistVoiceTaskLaunchSnapshot()
         }
+        .onChange(of: selectedRuntimeTarget) { _, _ in
+            persistVoiceTaskLaunchSnapshot()
+        }
         .onChange(of: reasoningEnabled) { _, _ in
             persistVoiceTaskLaunchSnapshot()
         }
@@ -279,8 +290,8 @@ struct PromptBar: View {
             HStack(spacing: 6) {
                 modelCapsule
                 reasoningCapsule
-                runtimeTargetCapsule
                 executionTargetCapsule
+                runtimeTargetCapsule
                 planToggle
             }
             .padding(.horizontal, 6)
@@ -434,7 +445,7 @@ struct PromptBar: View {
                     .font(.system(size: 8, weight: .semibold))
             }
             .modifier(PromptCapsuleStyle(
-                isActive: selectedRuntimeTarget != .automatic,
+                isActive: true,
                 isFocused: fieldFocused
             ))
         }
@@ -572,6 +583,12 @@ struct PromptBar: View {
             } label: {
                 Label(String(localized: "Import File"), systemImage: "folder")
             }
+            Button {
+                showCameraCapture = true
+            } label: {
+                Label(String(localized: "Take Picture"), systemImage: "camera")
+            }
+            .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
             PhotosPicker(
                 selection: $photoPickerItems,
                 maxSelectionCount: 8,
@@ -829,6 +846,7 @@ struct PromptBar: View {
         }
 
         selectedExecutionTarget = snapshot.executionTarget
+        selectedRuntimeTarget = snapshot.runtimeTarget ?? .automatic
         reasoningEnabled = snapshot.reasoningEnabled
 
         if let effort = snapshot.reasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -943,6 +961,7 @@ struct PromptBar: View {
         default:
             selectedExecutionTarget = .automatic
         }
+        selectedRuntimeTarget = task.runtimeTarget
         planFirstEnabled = task.planFirstEnabled
 
         attachmentURLs = task.attachmentInfos.compactMap { info in
@@ -1026,6 +1045,7 @@ struct PromptBar: View {
             providerName: providerName,
             modelId: modelId,
             executionTarget: selectedExecutionTarget,
+            runtimeTarget: selectedRuntimeTarget,
             reasoningEnabled: reasoningEnabled,
             reasoningEffort: reasoningEffort.trimmingCharacters(in: .whitespacesAndNewlines)
         )
@@ -2039,6 +2059,64 @@ private struct PlanSegmentWidthKey: PreferenceKey {
 private struct SegmentHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct CameraCapturePicker: UIViewControllerRepresentable {
+    let onCapture: (URL) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onCapture: onCapture, dismiss: dismiss)
+    }
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        private let onCapture: (URL) -> Void
+        private let dismiss: DismissAction
+
+        init(onCapture: @escaping (URL) -> Void, dismiss: DismissAction) {
+            self.onCapture = onCapture
+            self.dismiss = dismiss
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            defer { dismiss() }
+
+            guard
+                let image = info[.originalImage] as? UIImage,
+                let data = image.jpegData(compressionQuality: 0.9)
+            else {
+                return
+            }
+
+            let dest = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + "_camera.jpg")
+
+            do {
+                try data.write(to: dest)
+                onCapture(dest)
+            } catch {
+                return
+            }
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            dismiss()
+        }
+    }
 }
 
 #Preview {
