@@ -674,7 +674,9 @@ final class VoiceOrchestrator: ObservableObject {
         let provider = RealtimeVoiceService.shared.createProvider(
             backend: backend,
             authentication: authentication,
-            model: selectedModel
+            model: selectedModel,
+            proxyBaseURL: resolvedCodexRealtimeBaseURL(),
+            proxyToken: codexProxyTokenHeader()?.1
         )
 
         let audioPolicy = makeAudioPolicy()

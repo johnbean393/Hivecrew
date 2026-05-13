@@ -242,9 +242,10 @@ public final class CodexOAuthCoordinator {
     }
 
     private func exchangeCodeForTokens(code: String, codeVerifier: String) async throws -> CodexOAuthTokens {
-        var request = URLRequest(url: codexOAuthTokenEndpoint)
+        var request = URLRequest(url: resolvedCodexOAuthTokenEndpointURL())
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        applyCodexProxyTokenHeader(to: &request)
 
         var body = URLComponents()
         body.queryItems = [

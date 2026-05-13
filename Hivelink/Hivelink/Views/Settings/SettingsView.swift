@@ -68,6 +68,11 @@ struct SettingsView: View {
     @State private var showDeleteAccountError = false
     @State private var diagnosticsVersion = 0
 
+    @State private var proxyEnabled = false
+    @State private var proxyBaseURL = ""
+    @State private var proxyToken = ""
+    @State private var proxyStatusMessage: String?
+
     private var onlinePeerCount: Int {
         coordinator.peers.filter { $0.status == .online }.count
     }
@@ -127,6 +132,7 @@ struct SettingsView: View {
             incomingCallsSection
             storageSection
             diagnosticsSection
+            codexProxySection
             aboutSection
         }
         .task {
@@ -583,6 +589,68 @@ struct SettingsView: View {
 
     private var formattedCacheSize: String {
         ByteCountFormatter.string(fromByteCount: cacheSize, countStyle: .file)
+    }
+
+    // MARK: - Codex Proxy
+
+    private var codexProxySection: some View {
+        Section {
+            Toggle("Enable Codex Proxy", isOn: $proxyEnabled)
+                .onChange(of: proxyEnabled) { _, _ in
+                    saveProxyConfig()
+                }
+
+            TextField("Proxy Base URL", text: $proxyBaseURL, prompt: Text("https://your-proxy.example.com"))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .disabled(!proxyEnabled)
+
+            SecureField("Proxy Token", text: $proxyToken, prompt: Text("X-Proxy-Token value"))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .disabled(!proxyEnabled)
+
+            Button("Save") {
+                saveProxyConfig()
+                proxyStatusMessage = "Proxy configuration saved."
+            }
+            .disabled(!proxyEnabled || proxyBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || proxyToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            Button("Clear", role: .destructive) {
+                CodexProxyConfigStore.delete()
+                proxyEnabled = false
+                proxyBaseURL = ""
+                proxyToken = ""
+                proxyStatusMessage = "Proxy configuration cleared."
+            }
+
+            if let message = proxyStatusMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Codex Proxy")
+        } footer: {
+            Text("Routes Codex API, OAuth token refresh, and voice realtime traffic through a custom proxy server.")
+        }
+        .onAppear {
+            if let config = CodexProxyConfigStore.retrieve() {
+                proxyEnabled = config.enabled
+                proxyBaseURL = config.baseURL
+                proxyToken = config.token
+            }
+        }
+    }
+
+    private func saveProxyConfig() {
+        let config = CodexProxyConfig(
+            enabled: proxyEnabled,
+            baseURL: proxyBaseURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            token: proxyToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        CodexProxyConfigStore.store(config)
     }
 
     // MARK: - About

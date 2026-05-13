@@ -7,6 +7,7 @@
 
 import SwiftUI
 import TipKit
+import HivecrewLLM
 import HivecrewShared
 
 /// Developer settings tab - enable developer mode and manually create/manage VMs
@@ -25,8 +26,13 @@ struct DeveloperSettingsView: View {
     @State private var createError: String?
     @State private var showingDeleteConfirmation = false
     @State private var vmToDelete: VMInfo?
-    @State private var isStartingVM: String? // VM ID currently being started
-    @State private var isStoppingVM: String? // VM ID currently being stopped
+    @State private var isStartingVM: String?
+    @State private var isStoppingVM: String?
+
+    @State private var proxyEnabled = false
+    @State private var proxyBaseURL = ""
+    @State private var proxyToken = ""
+    @State private var proxyStatusMessage: String?
     
     // Tips
     private let developerModeTip = DeveloperModeTip()
@@ -74,6 +80,7 @@ struct DeveloperSettingsView: View {
             developerModeSection
             
             if developerModeEnabled {
+                codexProxySection
                 createVMSection
                 developerVMsSection
                 audioSection
@@ -308,6 +315,76 @@ struct DeveloperSettingsView: View {
         }
     }
     
+    // MARK: - Codex Proxy Section
+
+    private var codexProxySection: some View {
+        Section {
+            Toggle("Enable Codex Proxy", isOn: $proxyEnabled)
+                .toggleStyle(.switch)
+                .onChange(of: proxyEnabled) { _, newValue in
+                    saveProxyConfig()
+                }
+
+            TextField("Proxy Base URL", text: $proxyBaseURL, prompt: Text("https://your-proxy.example.com"))
+                .textFieldStyle(.roundedBorder)
+                .disabled(!proxyEnabled)
+
+            SecureField("Proxy Token", text: $proxyToken, prompt: Text("X-Proxy-Token value"))
+                .textFieldStyle(.roundedBorder)
+                .disabled(!proxyEnabled)
+
+            HStack {
+                Button("Save") {
+                    saveProxyConfig()
+                    proxyStatusMessage = "Proxy configuration saved."
+                }
+                .disabled(!proxyEnabled || proxyBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || proxyToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                Button("Clear", role: .destructive) {
+                    CodexProxyConfigStore.delete()
+                    proxyEnabled = false
+                    proxyBaseURL = ""
+                    proxyToken = ""
+                    proxyStatusMessage = "Proxy configuration cleared."
+                }
+
+                Spacer()
+            }
+
+            if let message = proxyStatusMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Routes Codex API, OAuth token refresh, and voice realtime traffic through a custom proxy server. The browser-based OAuth sign-in still goes directly to OpenAI.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text("Codex Proxy")
+        }
+        .onAppear {
+            loadProxyConfig()
+        }
+    }
+
+    private func loadProxyConfig() {
+        if let config = CodexProxyConfigStore.retrieve() {
+            proxyEnabled = config.enabled
+            proxyBaseURL = config.baseURL
+            proxyToken = config.token
+        }
+    }
+
+    private func saveProxyConfig() {
+        let config = CodexProxyConfig(
+            enabled: proxyEnabled,
+            baseURL: proxyBaseURL.trimmingCharacters(in: .whitespacesAndNewlines),
+            token: proxyToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        CodexProxyConfigStore.store(config)
+    }
+
     // MARK: - VM Status Helpers
     
     private func isRunning(_ vm: VMInfo) -> Bool {

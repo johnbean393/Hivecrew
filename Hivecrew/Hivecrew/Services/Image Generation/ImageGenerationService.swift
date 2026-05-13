@@ -407,6 +407,7 @@ final class ImageGenerationService: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.timeoutInterval = requestTimeout
+        applyCodexProxyTokenHeader(to: &request)
 
         let body = buildCodexOAuthImageGenerationRequestBody(
             prompt: prompt,

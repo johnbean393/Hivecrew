@@ -37,10 +37,11 @@ private func refreshChatGPTOAuthTokens(
     _ current: CodexOAuthTokens,
     timeoutInterval: TimeInterval
 ) async throws -> CodexOAuthTokens {
-    var request = URLRequest(url: codexOAuthTokenEndpoint)
+    var request = URLRequest(url: resolvedCodexOAuthTokenEndpointURL())
     request.httpMethod = "POST"
     request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
     request.timeoutInterval = timeoutInterval
+    applyCodexProxyTokenHeader(to: &request)
 
     var components = URLComponents()
     components.queryItems = [

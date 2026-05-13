@@ -17,6 +17,7 @@ extension ResponsesAPIClient {
             request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
         }
         request.timeoutInterval = configuration.timeoutInterval
+        if usesChatGPTOAuth { applyCodexProxyTokenHeader(to: &request) }
 
         let body = try buildRequestBody(messages: messages, tools: tools, stream: stream)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -33,6 +34,7 @@ extension ResponsesAPIClient {
             request.setValue(orgId, forHTTPHeaderField: "OpenAI-Organization")
         }
         request.timeoutInterval = configuration.timeoutInterval
+        if usesChatGPTOAuth { applyCodexProxyTokenHeader(to: &request) }
         return request
     }
 
@@ -64,10 +66,11 @@ extension ResponsesAPIClient {
     }
 
     func refreshOAuthTokens(_ current: CodexOAuthTokens) async throws -> CodexOAuthTokens {
-        var request = URLRequest(url: codexOAuthTokenEndpoint)
+        var request = URLRequest(url: resolvedCodexOAuthTokenEndpointURL())
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = configuration.timeoutInterval
+        applyCodexProxyTokenHeader(to: &request)
 
         var components = URLComponents()
         components.queryItems = [

@@ -59,6 +59,8 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, RealtimeVoi
             )
         }
 
+    var realtimeProxyBaseURL: String?
+    var realtimeProxyToken: String?
     var currentSessionConfig: VoiceSessionConfig?
     var isManualDisconnect = false
 
@@ -80,11 +82,18 @@ final class OpenAIRealtimeProvider: NSObject, RealtimeVoiceProvider, RealtimeVoi
         super.init()
     }
 
-    func configure(authentication: VoiceProviderAuthentication, model: String? = nil) {
+    func configure(
+        authentication: VoiceProviderAuthentication,
+        model: String? = nil,
+        proxyBaseURL: String? = nil,
+        proxyToken: String? = nil
+    ) {
         self.authentication = authentication
         if let model, OpenAIRealtimeProvider.availableModels.contains(model) {
             self.model = model
         }
+        self.realtimeProxyBaseURL = proxyBaseURL
+        self.realtimeProxyToken = proxyToken
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300

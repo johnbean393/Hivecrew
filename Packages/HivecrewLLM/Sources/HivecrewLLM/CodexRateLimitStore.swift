@@ -225,11 +225,12 @@ public func fetchLiveCodexRateLimitSnapshot(
         timeoutInterval: timeoutInterval
     )
 
-    var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/codex/usage")!)
+    var request = URLRequest(url: resolvedCodexAPIBaseURL().appendingPathComponent("usage"))
     request.httpMethod = "GET"
     request.timeoutInterval = timeoutInterval
     request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
+    applyCodexProxyTokenHeader(to: &request)
 
     let configuration = URLSessionConfiguration.ephemeral
     configuration.timeoutIntervalForRequest = timeoutInterval
@@ -394,10 +395,11 @@ private func refreshCodexOAuthTokens(
     _ current: CodexOAuthTokens,
     timeoutInterval: TimeInterval
 ) async throws -> CodexOAuthTokens {
-    var request = URLRequest(url: codexOAuthTokenEndpoint)
+    var request = URLRequest(url: resolvedCodexOAuthTokenEndpointURL())
     request.httpMethod = "POST"
     request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
     request.timeoutInterval = timeoutInterval
+    applyCodexProxyTokenHeader(to: &request)
 
     var components = URLComponents()
     components.queryItems = [

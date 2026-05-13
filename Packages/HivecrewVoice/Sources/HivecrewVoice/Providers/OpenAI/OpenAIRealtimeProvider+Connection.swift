@@ -52,7 +52,12 @@ extension OpenAIRealtimeProvider {
         connectionState = .connecting
         let bearerToken = try await authentication.resolveCredential()
 
-        let urlString = "wss://api.openai.com/v1/realtime?model=\(model)"
+        let urlString: String
+        if let proxyBase = realtimeProxyBaseURL, !proxyBase.isEmpty {
+            urlString = "\(proxyBase)/v1/realtime?model=\(model)"
+        } else {
+            urlString = "wss://api.openai.com/v1/realtime?model=\(model)"
+        }
 
         guard let url = URL(string: urlString) else {
             connectionState = .error("Invalid URL")
@@ -62,6 +67,9 @@ extension OpenAIRealtimeProvider {
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
         request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        if let proxyToken = realtimeProxyToken, !proxyToken.isEmpty {
+            request.setValue(proxyToken, forHTTPHeaderField: "X-Proxy-Token")
+        }
 
         webSocket = urlSession.webSocketTask(with: request)
         webSocket?.resume()

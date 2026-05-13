@@ -1093,7 +1093,9 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
         let provider = RealtimeVoiceService.shared.createProvider(
             backend: backend,
             authentication: authentication,
-            model: selectedModel
+            model: selectedModel,
+            proxyBaseURL: resolvedCodexRealtimeBaseURL(),
+            proxyToken: codexProxyTokenHeader()?.1
         )
         self.provider = provider
         wireProviderCallbacks(provider)
@@ -1870,7 +1872,9 @@ final class HivelinkVoiceOrchestrator: ObservableObject {
             let newProvider = RealtimeVoiceService.shared.createProvider(
                 backend: backend,
                 authentication: authentication,
-                model: selectedModel
+                model: selectedModel,
+                proxyBaseURL: resolvedCodexRealtimeBaseURL(),
+                proxyToken: codexProxyTokenHeader()?.1
             )
             self.provider = newProvider
             wireProviderCallbacks(newProvider)

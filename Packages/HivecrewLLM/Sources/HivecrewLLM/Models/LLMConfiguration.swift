@@ -75,15 +75,16 @@ public func resolvedCodexOAuthClientVersion() -> String {
 }
 
 public func buildCodexOAuthURL(pathComponent: String, clientVersion: String? = nil) -> URL {
+    let base = resolvedCodexAPIBaseURL()
     var components = URLComponents(
-        url: codexOAuthBaseURL.appendingPathComponent(pathComponent),
+        url: base.appendingPathComponent(pathComponent),
         resolvingAgainstBaseURL: false
     )
     components?.queryItems = [
         URLQueryItem(name: codexOAuthClientVersionQueryName, value: clientVersion ?? resolvedCodexOAuthClientVersion())
     ]
 
-    return components?.url ?? codexOAuthBaseURL.appendingPathComponent(pathComponent)
+    return components?.url ?? base.appendingPathComponent(pathComponent)
 }
 
 func newestCodexOAuthClientVersion(_ lhs: String, _ rhs: String) -> String {

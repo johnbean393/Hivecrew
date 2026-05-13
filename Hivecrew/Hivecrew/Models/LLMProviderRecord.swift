@@ -203,7 +203,7 @@ final class LLMProviderRecord {
     /// The base URL for API calls (either custom or default OpenRouter)
     var effectiveBaseURL: URL {
         if backendMode == .codexOAuth {
-            return codexOAuthBaseURL
+            return resolvedCodexAPIBaseURL()
         }
         if backendMode == .kimiOAuth {
             return kimiOAuthBaseURL

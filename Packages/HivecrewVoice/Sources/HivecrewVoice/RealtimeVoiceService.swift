@@ -16,7 +16,9 @@ public final class RealtimeVoiceService: Sendable {
     public func createProvider(
         backend: VoiceProviderBackend,
         authentication: VoiceProviderAuthentication,
-        model: String? = nil
+        model: String? = nil,
+        proxyBaseURL: String? = nil,
+        proxyToken: String? = nil
     ) -> any RealtimeVoiceProvider {
         switch backend {
         case .geminiLive:
@@ -25,7 +27,12 @@ public final class RealtimeVoiceService: Sendable {
             return provider
         case .openAIRealtime:
             let provider = OpenAIRealtimeProvider()
-            provider.configure(authentication: authentication, model: model)
+            provider.configure(
+                authentication: authentication,
+                model: model,
+                proxyBaseURL: proxyBaseURL,
+                proxyToken: proxyToken
+            )
             return provider
         case .xAIRealtime:
             let provider = XAIRealtimeProvider()
