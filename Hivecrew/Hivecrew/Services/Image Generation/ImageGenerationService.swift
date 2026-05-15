@@ -138,11 +138,15 @@ final class ImageGenerationService: Sendable {
     
     /// Output directory for generated images
     let outputDirectory: URL
+
+    /// Directory path reported back to agents for generated image files.
+    private let returnedPathDirectory: String
     
     /// Initialize with output directory
     /// - Parameter outputDirectory: The directory where generated images will be saved
-    init(outputDirectory: URL) {
+    init(outputDirectory: URL, returnedPathDirectory: String? = nil) {
         self.outputDirectory = outputDirectory
+        self.returnedPathDirectory = returnedPathDirectory ?? outputDirectory.path
     }
     
     /// Generate an image from a prompt
@@ -474,8 +478,7 @@ final class ImageGenerationService: Sendable {
             throw ImageGenerationError.failedToSaveImage
         }
         
-        // Return the path as it appears inside the VM (for the agent)
-        return "/Volumes/Shared/inbox/images/\(filename)"
+        return "\(returnedPathDirectory)/\(filename)"
     }
     
     /// Detect image format from magic bytes

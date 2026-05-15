@@ -31,6 +31,8 @@ final class SubagentToolExecutor {
     private var todoManagers: [String: TodoManager] = [:]
     private var subagentVisionSupport: [String: Bool] = [:]
     private let mainModelSupportsVision: Bool
+    private let imageGenerationOutputDirectory: URL
+    private let imageGenerationReturnedPathDirectory: String
     
     weak var subagentManager: SubagentManager?
     var onAskQuestion: ((AgentQuestion) async -> String)?
@@ -46,7 +48,9 @@ final class SubagentToolExecutor {
         taskService: (any CreateWorkerClientProtocol)?,
         todoManager: TodoManager,
         modelContext: ModelContext?,
-        mainModelSupportsVision: Bool
+        mainModelSupportsVision: Bool,
+        imageGenerationOutputDirectory: URL,
+        imageGenerationReturnedPathDirectory: String
     ) {
         self.connection = connection
         self.vmScheduler = vmScheduler
@@ -58,6 +62,8 @@ final class SubagentToolExecutor {
         self.todoManager = todoManager
         self.modelContext = modelContext
         self.mainModelSupportsVision = mainModelSupportsVision
+        self.imageGenerationOutputDirectory = imageGenerationOutputDirectory
+        self.imageGenerationReturnedPathDirectory = imageGenerationReturnedPathDirectory
     }
     
     func execute(toolCall: LLMToolCall, subagentId: String?) async throws -> ToolResult {
@@ -556,8 +562,6 @@ final class SubagentToolExecutor {
             return .text("Error: Image generation is not configured. Enable it in Settings > Tasks.")
         }
         
-        let outputDirectory = AppPaths.vmInboxDirectory(id: vmId).appendingPathComponent("images", isDirectory: true)
-        
         var referenceImages: [(data: String, mimeType: String)]?
         if let paths = options.referenceImagePaths, !paths.isEmpty {
             referenceImages = []
@@ -594,7 +598,10 @@ final class SubagentToolExecutor {
             }
         }
         
-        let service = ImageGenerationService(outputDirectory: outputDirectory)
+        let service = ImageGenerationService(
+            outputDirectory: imageGenerationOutputDirectory,
+            returnedPathDirectory: imageGenerationReturnedPathDirectory
+        )
         let result = try await service.generateImage(
             prompt: prompt,
             referenceImages: referenceImages,

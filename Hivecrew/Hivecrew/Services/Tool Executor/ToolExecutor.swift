@@ -37,6 +37,8 @@ class ToolExecutor {
     let modelContext: ModelContext?
     weak var subagentManager: SubagentManager?
     let supportsVision: Bool
+    let imageGenerationOutputDirectory: URL
+    let imageGenerationReturnedPathDirectory: String
 
     private var concreteTaskService: TaskService? {
         taskService as? TaskService
@@ -50,7 +52,9 @@ class ToolExecutor {
         taskService: (any CreateWorkerClientProtocol)?,
         modelContext: ModelContext?,
         vmId: String,
-        supportsVision: Bool
+        supportsVision: Bool,
+        imageGenerationOutputDirectory: URL,
+        imageGenerationReturnedPathDirectory: String
     ) {
         self.connection = connection
         self.todoManager = todoManager
@@ -60,6 +64,8 @@ class ToolExecutor {
         self.modelContext = modelContext
         self.vmId = vmId
         self.supportsVision = supportsVision
+        self.imageGenerationOutputDirectory = imageGenerationOutputDirectory
+        self.imageGenerationReturnedPathDirectory = imageGenerationReturnedPathDirectory
     }
     
     func execute(toolCall: LLMToolCall) async -> ToolExecutionResult {

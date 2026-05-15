@@ -23,9 +23,6 @@ extension ToolExecutor {
             return .text("Error: Image generation is not configured. Enable it in Settings > Tasks.")
         }
         
-        // Determine output directory - use VM's shared inbox/images folder
-        let outputDirectory = AppPaths.vmInboxDirectory(id: vmId).appendingPathComponent("images", isDirectory: true)
-        
         // Load reference images if provided
         // First image is kept at full quality, subsequent images are downscaled to reduce payload size
         var referenceImages: [(data: String, mimeType: String)]?
@@ -68,7 +65,10 @@ extension ToolExecutor {
         }
         
         // Generate image
-        let service = ImageGenerationService(outputDirectory: outputDirectory)
+        let service = ImageGenerationService(
+            outputDirectory: imageGenerationOutputDirectory,
+            returnedPathDirectory: imageGenerationReturnedPathDirectory
+        )
         let result = try await service.generateImage(
             prompt: prompt,
             referenceImages: referenceImages,

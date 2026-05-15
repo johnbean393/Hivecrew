@@ -154,6 +154,11 @@ final class AgentRunner {
         
         // Create tracer
         self.tracer = try AgentTracer(sessionId: statePublisher.sessionId ?? UUID().uuidString, outputDirectory: sessionPath)
+        let imageGenerationPaths = Self.imageGenerationPaths(
+            runtimeKind: connection.runtimeKind,
+            vmId: vmId,
+            sessionPath: sessionPath
+        )
         
         // Create tool executor with todo manager and worker model support
         self.toolExecutor = ToolExecutor(
@@ -164,7 +169,9 @@ final class AgentRunner {
             taskService: taskService,
             modelContext: taskService.modelContext,
             vmId: vmId ?? "",
-            supportsVision: supportsVision
+            supportsVision: supportsVision,
+            imageGenerationOutputDirectory: imageGenerationPaths.outputDirectory,
+            imageGenerationReturnedPathDirectory: imageGenerationPaths.returnedPathDirectory
         )
         self.toolExecutor.taskId = task.id
         
@@ -178,7 +185,9 @@ final class AgentRunner {
             taskService: taskService,
             todoManager: TodoManager(),
             modelContext: taskService.modelContext,
-            mainModelSupportsVision: supportsVision
+            mainModelSupportsVision: supportsVision,
+            imageGenerationOutputDirectory: imageGenerationPaths.outputDirectory,
+            imageGenerationReturnedPathDirectory: imageGenerationPaths.returnedPathDirectory
         )
         let subagentUICallbacks = SubagentManager.UICallbacks(statePublisher: statePublisher)
         self.subagentManager = SubagentManager(
@@ -285,6 +294,24 @@ final class AgentRunner {
         self.toolExecutor.onTodoListUpdated = { [weak self] list in
             guard let self = self else { return }
             self.syncPlanProgressFromTodoList(list)
+        }
+    }
+
+    private static func imageGenerationPaths(
+        runtimeKind: AgentRuntimeKind,
+        vmId: String?,
+        sessionPath: URL
+    ) -> (outputDirectory: URL, returnedPathDirectory: String) {
+        switch runtimeKind {
+        case .isolatedVM:
+            let outputDirectory = AppPaths.vmInboxDirectory(id: vmId ?? "")
+                .appendingPathComponent("images", isDirectory: true)
+            return (outputDirectory, "/Volumes/Shared/inbox/images")
+        case .fast, .app:
+            let outputDirectory = sessionPath
+                .appendingPathComponent("inbox", isDirectory: true)
+                .appendingPathComponent("images", isDirectory: true)
+            return (outputDirectory, outputDirectory.path)
         }
     }
     

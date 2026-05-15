@@ -11204,6 +11204,9 @@
         }
       }
     },
+    "Clear" : {
+
+    },
     "Click \"Get Started\" to begin using Hivecrew" : {
       "localizations" : {
         "de" : {
@@ -11618,6 +11621,9 @@
           }
         }
       }
+    },
+    "Codex Proxy" : {
+
     },
     "Collect Deliverables" : {
       "localizations" : {
@@ -19698,6 +19704,9 @@
         }
       }
     },
+    "Enable Codex Proxy" : {
+
+    },
     "Enable coordinator mode to allow this machine to distribute tasks to other Hivecrew instances signed in with the same email." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -24859,6 +24868,9 @@
           }
         }
       }
+    },
+    "https://your-proxy.example.com" : {
+
     },
     "If you quit:" : {
       "localizations" : {
@@ -37661,6 +37673,12 @@
         }
       }
     },
+    "Proxy Base URL" : {
+
+    },
+    "Proxy Token" : {
+
+    },
     "Question" : {
       "localizations" : {
         "de" : {
@@ -42609,6 +42627,9 @@
           }
         }
       }
+    },
+    "Routes Codex API, OAuth token refresh, and voice realtime traffic through a custom proxy server. The browser-based OAuth sign-in still goes directly to OpenAI." : {
+
     },
     "Run" : {
       "localizations" : {
@@ -57556,6 +57577,9 @@
       }
     },
     "X-High" : {
+
+    },
+    "X-Proxy-Token value" : {
 
     },
     "xAI API" : {

@@ -263,7 +263,7 @@ struct ToolsSettingsView: View {
         case "gemini":
             return String(localized: "e.g., gemini-3.1-flash-image-preview, gemini-3-pro-image-preview")
         case "chatGPTOAuth":
-            return "Use a mainline model such as gpt-5.4, gpt-5.4-mini, or gpt-5.2. Codex runs GPT Image models like gpt-image-2 behind the hosted image_generation tool."
+            return "Use a mainline model such as gpt-5.5 or gpt-5.4-mini. Codex runs GPT Image models like gpt-image-2 behind the hosted image_generation tool."
         default:
             return ""
         }

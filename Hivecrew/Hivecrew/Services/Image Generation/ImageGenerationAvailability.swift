@@ -32,7 +32,7 @@ enum ImageGenerationAvailability {
     
     static let defaultOpenRouterModel = "google/gemini-3.1-flash-image-preview"
     static let defaultGeminiModel = "gemini-3.1-flash-image-preview"
-    static let defaultChatGPTOAuthModel = "gpt-5.4"
+    static let defaultChatGPTOAuthModel = "gpt-5.5"
     
     static func defaultModel(for provider: ImageGenerationProvider) -> String {
         switch provider {

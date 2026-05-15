@@ -198,6 +198,12 @@ struct HivecrewTests {
     }
 
     @Test
+    func chatGPTOAuthImageGenerationDefaultsToGPT55() {
+        #expect(ImageGenerationAvailability.defaultModel(for: .chatGPTOAuth) == "gpt-5.5")
+        #expect(ImageGenerationAvailability.resolvedModel(for: .chatGPTOAuth, configuredModel: nil) == "gpt-5.5")
+    }
+
+    @Test
     func codexOAuthImageSizeMapsSupportedAspectRatios() {
         #expect(codexOAuthImageSize(for: nil) == nil)
         #expect(codexOAuthImageSize(for: "1:1") == "1024x1024")

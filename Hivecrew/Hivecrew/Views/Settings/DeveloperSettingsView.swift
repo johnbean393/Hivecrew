@@ -357,9 +357,6 @@ struct DeveloperSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text("Routes Codex API, OAuth token refresh, and voice realtime traffic through a custom proxy server. The browser-based OAuth sign-in still goes directly to OpenAI.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         } header: {
             Text("Codex Proxy")
         }

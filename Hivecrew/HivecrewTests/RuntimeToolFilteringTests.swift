@@ -35,6 +35,7 @@ func fastKeepsTextTools() {
         .runShell, .readFile, .writeFile, .listDirectory, .moveFile,
         .wait, .webSearch, .readWebpageContent, .extractInfoFromWebpage,
         .createTodoList, .addTodoItem, .finishTodoItem,
+        .generateImage,
         .spawnSubagent, .getSubagentStatus, .awaitSubagents,
     ]
 
@@ -90,6 +91,7 @@ func appKeepsDesktopAndFileTools() {
         .appOpenURL,
         .mouseClick, .mouseDrag, .keyboardType, .keyboardKey, .scroll,
         .runShell, .readFile, .writeFile, .listDirectory, .moveFile,
+        .generateImage,
     ]
     for method in expectedPresent {
         #expect(!excluded.contains(method), "Expected \(method.rawValue) to NOT be excluded for App")

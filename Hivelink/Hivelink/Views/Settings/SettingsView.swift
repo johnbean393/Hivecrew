@@ -632,8 +632,6 @@ struct SettingsView: View {
             }
         } header: {
             Text("Codex Proxy")
-        } footer: {
-            Text("Routes Codex API, OAuth token refresh, and voice realtime traffic through a custom proxy server.")
         }
         .onAppear {
             if let config = CodexProxyConfigStore.retrieve() {
