@@ -75,16 +75,6 @@ public actor ContextBudgetResolver {
             return cached.budget
         }
 
-        if let hardcoded = LLMProviderModel.hardcodedContextLength(for: resolvedModelId) {
-            let budget = ContextBudget(
-                maxInputTokens: hardcoded,
-                source: .models,
-                observedAt: now()
-            )
-            store(budget: budget, for: key, ttl: cacheTTL)
-            return budget
-        }
-
         do {
             let models = try await client.listModelsDetailed()
             if let match = Self.matchModel(resolvedModelId, in: models),

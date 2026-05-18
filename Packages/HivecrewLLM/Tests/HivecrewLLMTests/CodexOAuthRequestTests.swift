@@ -447,8 +447,6 @@ final class CodexOAuthRequestTests: XCTestCase {
         XCTAssertNotNil(models.first(where: { $0.id == "gpt-5.4-mini" }))
         XCTAssertNotNil(models.first(where: { $0.id == "gpt-5.3-codex" }))
         XCTAssertNotNil(models.first(where: { $0.id == "gpt-5.2" }))
-        XCTAssertEqual(model.contextLength, 400_000)
-        XCTAssertEqual(model.effectiveContextLength, 400_000)
         XCTAssertEqual(model.reasoningCapability.kind, .effort)
         XCTAssertEqual(model.reasoningCapability.supportedEfforts, ["low", "medium", "high", "xhigh"])
         XCTAssertTrue(model.isVisionCapable)

@@ -110,27 +110,10 @@ public struct LLMProviderModel: Sendable, Codable, Hashable, Identifiable {
         reasoningCapability.kind != .none
     }
 
-    /// Context length with hardcoded overrides for known models applied on top
-    /// of the provider-supplied value. Use this for budget calculations and
-    /// display instead of the raw ``contextLength``.
+    /// Context length reported by the provider. Use this for budget
+    /// calculations and display instead of reaching into raw metadata directly.
     public var effectiveContextLength: Int? {
-        Self.hardcodedContextLength(for: id) ?? contextLength
-    }
-
-    /// Returns a hardcoded context-window size (in tokens) for model IDs whose
-    /// upstream metadata is absent or unreliable.
-    public static func hardcodedContextLength(for modelId: String) -> Int? {
-        let lowered = modelId.lowercased()
-        let base = lowered.split(separator: "/").last.map(String.init) ?? lowered
-
-        switch base {
-        case "gpt-5.5":
-            return 400_000
-        case "gpt-5.4":
-            return 1_000_000
-        default:
-            return nil
-        }
+        contextLength
     }
 
     /// Whether the model includes enough non-trivial metadata to justify a
