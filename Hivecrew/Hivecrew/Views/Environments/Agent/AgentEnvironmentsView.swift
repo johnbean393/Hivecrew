@@ -296,13 +296,13 @@ struct AgentEnvironmentsView: View {
                   let vmInfo = vmService.vms.first(where: { $0.id == vmId }) {
             VMDetailView(vm: vmInfo, showTracePanel: $showLocalTracePanel)
                 .popoverTip(takeControlTip, arrowEdge: .bottom)
-        } else if task.isInternalClusterExecution {
-            leasedTaskPlaceholder(for: task)
         } else if let publisher = taskService.statePublisher(for: task.id) {
             LocalWorkerDetailView(
                 task: task,
                 statePublisher: publisher
             )
+        } else if task.isInternalClusterExecution {
+            leasedTaskPlaceholder(for: task)
         } else {
             emptyDetailView
         }
